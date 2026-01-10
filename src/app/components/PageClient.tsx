@@ -3,11 +3,13 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { CardTable, ColorFilter, Settings } from "./index";
 import type { ColorFilterMode } from "./ColorFilter";
-import type { EnrichedCardStats, DraftDataFile, ScryCard, CardPick } from "@/core/types";
+import type { EnrichedCardStats, DraftDataFile, ScryCard, CardPick, MatchResult } from "@/core/types";
 import { useLocalStorage, useIsHydrated } from "../hooks/useLocalStorage";
 import { calculateCardStats, metadataToMap, DISTRIBUTION_BUCKET_COUNT } from "@/core/calculateStats";
 import { searchLocalCards } from "@/core/localSearch";
 import { hasScryfallOperators } from "@/core/searchUtils";
+import { calculateWinEquity, calculateRawWinRate } from "@/core/winEquity";
+import { aggregatePlayerStats } from "@/core/parseMatches";
 
 const STORAGE_KEY_TOP_PLAYERS = "rtb-top-players";
 const STORAGE_KEY_USE_WEIGHTING = "rtb-use-top-weighting";
@@ -132,12 +134,29 @@ export function PageClient({
     const metadataMap = metadataToMap(draftData.metadata);
     const stats = calculateCardStats(filteredPicks, topPlayers, metadataMap);
 
-    // Filter to latest pool and enrich with Scryfall data
+    // Build matchStats for selected drafts
+    const matchStats = new Map<string, Map<string, { gamesWon: number; gamesLost: number }>>();
+    for (const draftId of selectedDrafts) {
+      const matches = draftData.matchResults?.[draftId];
+      if (matches && matches.length > 0) {
+        const playerStats = aggregatePlayerStats(matches);
+        matchStats.set(draftId, playerStats);
+      }
+    }
+
+    // Calculate win equity and raw win rate
+    const scryfallMap = new Map(Object.entries(scryfallData));
+    const winEquityResults = calculateWinEquity(filteredPicks, matchStats, scryfallMap);
+    const rawWinRateResults = calculateRawWinRate(filteredPicks, matchStats);
+
+    // Filter to latest pool and enrich with Scryfall data and win rates
     const enriched: EnrichedCardStats[] = stats
       .filter((s) => latestPool.has(s.cardName))
       .map((s) => ({
         ...s,
         scryfall: scryfallData[s.cardName],
+        winEquity: winEquityResults.get(s.cardName),
+        rawWinRate: rawWinRateResults.get(s.cardName),
       }));
 
     // Add new cards (in pool but no picks)

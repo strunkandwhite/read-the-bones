@@ -162,6 +162,17 @@ export type EnrichedCardStats = CardStats & {
 };
 
 /**
+ * Match result for a single match between two players.
+ * Used in DraftDataFile for client-side win equity calculation.
+ */
+export type MatchResult = {
+  player1: string;
+  player2: string;
+  player1GamesWon: number;
+  player2GamesWon: number;
+};
+
+/**
  * Draft data for client-side recalculation.
  * Loaded lazily when user changes draft selection.
  */
@@ -172,4 +183,6 @@ export type DraftDataFile = {
   pools: Record<string, string[]>;
   /** Map of draftId to metadata */
   metadata: Record<string, { name: string; date: string; numDrafters?: number }>;
+  /** Map of draftId to match results for that draft */
+  matchResults: Record<string, MatchResult[]>;
 };

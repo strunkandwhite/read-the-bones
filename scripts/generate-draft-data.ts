@@ -5,8 +5,9 @@
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "fs";
 import { join } from "path";
-import type { CardPick, DraftDataFile } from "../src/core/types";
+import type { CardPick, DraftDataFile, MatchResult } from "../src/core/types";
 import { parseDraft, parsePool, isDraftComplete } from "../src/core/parseCsv";
+import { parseMatches } from "../src/core/parseMatches";
 
 const DATA_DIR = "data";
 const OUTPUT_DIR = "public/api";
@@ -40,6 +41,7 @@ function main() {
   const allPicks: CardPick[] = [];
   const pools: Record<string, string[]> = {};
   const metadata: Record<string, { name: string; date: string; numDrafters?: number }> = {};
+  const matchResults: Record<string, MatchResult[]> = {};
 
   if (!existsSync(DATA_DIR)) {
     console.warn(`[generate-draft-data] Data directory not found: ${DATA_DIR}`);
@@ -77,7 +79,25 @@ function main() {
       pools[entry] = pool;
       metadata[entry] = loadDraftMetadata(entryPath, entry, numDrafters);
 
-      console.log(`[generate-draft-data] Processed "${entry}": ${picks.length} picks`);
+      // Load match data if available
+      const matchesPath = join(entryPath, "matches.csv");
+      if (existsSync(matchesPath)) {
+        try {
+          const matchesCsv = readFileSync(matchesPath, "utf-8");
+          const matches = parseMatches(matchesCsv);
+          if (matches.length > 0) {
+            matchResults[entry] = matches;
+            console.log(`[generate-draft-data] Processed "${entry}": ${picks.length} picks, ${matches.length} matches`);
+          } else {
+            console.log(`[generate-draft-data] Processed "${entry}": ${picks.length} picks (no match data)`);
+          }
+        } catch (matchError) {
+          console.warn(`[generate-draft-data] Failed to parse matches for "${entry}":`, matchError);
+          console.log(`[generate-draft-data] Processed "${entry}": ${picks.length} picks (match parse failed)`);
+        }
+      } else {
+        console.log(`[generate-draft-data] Processed "${entry}": ${picks.length} picks (no matches.csv)`);
+      }
     } catch (error) {
       console.warn(`[generate-draft-data] Failed to process "${entry}":`, error);
     }
@@ -88,7 +108,7 @@ function main() {
     mkdirSync(OUTPUT_DIR, { recursive: true });
   }
 
-  const draftData: DraftDataFile = { picks: allPicks, pools, metadata };
+  const draftData: DraftDataFile = { picks: allPicks, pools, metadata, matchResults };
   const outputPath = join(OUTPUT_DIR, OUTPUT_FILE);
 
   writeFileSync(outputPath, JSON.stringify(draftData));
