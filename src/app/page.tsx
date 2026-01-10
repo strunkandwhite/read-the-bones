@@ -1,4 +1,4 @@
-import { loadCardData } from "@/core/dataLoader";
+import { loadCardData } from "@/build/dataLoader";
 import { PageClient } from "./components/PageClient";
 
 /**

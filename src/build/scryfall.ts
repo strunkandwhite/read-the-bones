@@ -5,12 +5,12 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname } from "path";
-import type { ScryCard } from "./types";
+import type { ScryCard } from "../core/types";
 import {
   SCRYFALL_API_BASE,
   transformApiResponse,
   type ScryfallApiResponse,
-} from "./scryfallApi";
+} from "../core/scryfallApi";
 
 /** Default delay between API requests (ms) - Scryfall asks for 50-100ms */
 const RATE_LIMIT_DELAY_MS = 75;

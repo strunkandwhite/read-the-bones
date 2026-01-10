@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { existsSync, mkdirSync, readFileSync, writeFileSync, rmSync } from "fs";
 import { fetchCard, fetchCards, loadCache, saveCache } from "./scryfall";
-import type { ScryCard } from "./types";
+import type { ScryCard } from "../core/types";
 
 // Mock fetch globally
 const mockFetch = vi.fn();

@@ -14,11 +14,11 @@ import type {
   DraftScore,
   EnrichedCardStats,
   ScryCard,
-} from "./types";
-import { parseDraft, isDraftComplete, parsePool } from "./parseCsv";
-import { parseMatches, aggregatePlayerStats, PlayerMatchStats } from "./parseMatches";
-import { calculateCardStats, extractPlayers, DISTRIBUTION_BUCKET_COUNT } from "./calculateStats";
-import { calculateWinEquity, calculateRawWinRate } from "./winEquity";
+} from "../core/types";
+import { parseDraft, isDraftComplete, parsePool } from "../core/parseCsv";
+import { parseMatches, aggregatePlayerStats, PlayerMatchStats } from "../core/parseMatches";
+import { calculateCardStats, extractPlayers, DISTRIBUTION_BUCKET_COUNT } from "../core/calculateStats";
+import { calculateWinEquity, calculateRawWinRate } from "../core/winEquity";
 import { fetchCards } from "./scryfall";
 
 /**
