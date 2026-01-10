@@ -594,57 +594,62 @@ describe("calculateCardStats", () => {
   });
 
   describe("pickDistribution", () => {
-    it("should bucket picks into correct ranges", () => {
+    // Helper to create expected 15-element distribution array
+    const dist = (counts: Record<number, number>) => {
+      const arr = new Array(15).fill(0);
+      for (const [bucket, count] of Object.entries(counts)) {
+        arr[Number(bucket)] = count;
+      }
+      return arr;
+    };
+
+    it("should bucket picks into correct ranges (30 picks per bucket)", () => {
       const picks: CardPick[] = [
-        createPick({ cardName: "Card A", pickPosition: 3, draftId: "d1" }),   // bucket 0: 1-10
-        createPick({ cardName: "Card A", pickPosition: 8, draftId: "d2" }),   // bucket 0: 1-10
-        createPick({ cardName: "Card A", pickPosition: 15, draftId: "d3" }),  // bucket 1: 11-20
-        createPick({ cardName: "Card A", pickPosition: 42, draftId: "d4" }),  // bucket 4: 41+
+        createPick({ cardName: "Card A", pickPosition: 3, draftId: "d1" }),   // bucket 0: 1-30
+        createPick({ cardName: "Card A", pickPosition: 28, draftId: "d2" }),  // bucket 0: 1-30
+        createPick({ cardName: "Card A", pickPosition: 45, draftId: "d3" }),  // bucket 1: 31-60
+        createPick({ cardName: "Card A", pickPosition: 120, draftId: "d4" }), // bucket 3: 91-120
       ];
 
       const stats = calculateCardStats(picks, []);
 
-      expect(stats[0].pickDistribution).toEqual([2, 1, 0, 0, 1]);
+      expect(stats[0].pickDistribution).toEqual(dist({ 0: 2, 1: 1, 3: 1 }));
     });
 
     it("should handle boundary values correctly", () => {
       const picks: CardPick[] = [
         createPick({ cardName: "Card A", pickPosition: 1, draftId: "d1" }),   // bucket 0
-        createPick({ cardName: "Card A", pickPosition: 10, draftId: "d2" }),  // bucket 0 (boundary)
-        createPick({ cardName: "Card A", pickPosition: 11, draftId: "d3" }),  // bucket 1 (boundary)
-        createPick({ cardName: "Card A", pickPosition: 20, draftId: "d4" }),  // bucket 1 (boundary)
-        createPick({ cardName: "Card A", pickPosition: 21, draftId: "d5" }),  // bucket 2 (boundary)
-        createPick({ cardName: "Card A", pickPosition: 30, draftId: "d6" }),  // bucket 2 (boundary)
-        createPick({ cardName: "Card A", pickPosition: 31, draftId: "d7" }),  // bucket 3 (boundary)
-        createPick({ cardName: "Card A", pickPosition: 40, draftId: "d8" }),  // bucket 3 (boundary)
-        createPick({ cardName: "Card A", pickPosition: 41, draftId: "d9" }),  // bucket 4 (boundary)
+        createPick({ cardName: "Card A", pickPosition: 30, draftId: "d2" }),  // bucket 0 (boundary)
+        createPick({ cardName: "Card A", pickPosition: 31, draftId: "d3" }),  // bucket 1 (boundary)
+        createPick({ cardName: "Card A", pickPosition: 60, draftId: "d4" }),  // bucket 1 (boundary)
+        createPick({ cardName: "Card A", pickPosition: 61, draftId: "d5" }),  // bucket 2 (boundary)
       ];
 
       const stats = calculateCardStats(picks, []);
 
-      expect(stats[0].pickDistribution).toEqual([2, 2, 2, 2, 1]);
+      expect(stats[0].pickDistribution).toEqual(dist({ 0: 2, 1: 2, 2: 1 }));
     });
 
-    it("should handle all picks in single bucket", () => {
+    it("should handle picks spread across buckets", () => {
       const picks: CardPick[] = [
-        createPick({ cardName: "Card A", pickPosition: 100, draftId: "d1" }),
-        createPick({ cardName: "Card A", pickPosition: 200, draftId: "d2" }),
-        createPick({ cardName: "Card A", pickPosition: 300, draftId: "d3" }),
+        createPick({ cardName: "Card A", pickPosition: 100, draftId: "d1" }), // bucket 3: 91-120
+        createPick({ cardName: "Card A", pickPosition: 200, draftId: "d2" }), // bucket 6: 181-210
+        createPick({ cardName: "Card A", pickPosition: 300, draftId: "d3" }), // bucket 9: 271-300
       ];
 
       const stats = calculateCardStats(picks, []);
 
-      expect(stats[0].pickDistribution).toEqual([0, 0, 0, 0, 3]);
+      expect(stats[0].pickDistribution).toEqual(dist({ 3: 1, 6: 1, 9: 1 }));
     });
 
     it("should handle single pick", () => {
       const picks: CardPick[] = [
-        createPick({ cardName: "Card A", pickPosition: 25, draftId: "d1" }),
+        createPick({ cardName: "Card A", pickPosition: 25, draftId: "d1" }), // bucket 0: 1-30
       ];
 
       const stats = calculateCardStats(picks, []);
 
-      expect(stats[0].pickDistribution).toEqual([0, 0, 1, 0, 0]);
+      expect(stats[0].pickDistribution).toEqual(dist({ 0: 1 }));
     });
 
     it("should include unpicked cards in distribution", () => {
@@ -661,20 +666,20 @@ describe("calculateCardStats", () => {
 
       const stats = calculateCardStats(picks, []);
 
-      // Both picks count: position 5 -> bucket 0, position 450 -> bucket 4
-      expect(stats[0].pickDistribution).toEqual([1, 0, 0, 0, 1]);
+      // position 5 -> bucket 0, position 450 -> bucket 14 (421-450)
+      expect(stats[0].pickDistribution).toEqual(dist({ 0: 1, 14: 1 }));
     });
 
     it("should count multiple copies separately", () => {
       const picks: CardPick[] = [
-        createPick({ cardName: "Card A", pickPosition: 5, copyNumber: 1, draftId: "d1" }),
-        createPick({ cardName: "Card A", pickPosition: 15, copyNumber: 2, draftId: "d1" }),
-        createPick({ cardName: "Card A", pickPosition: 25, copyNumber: 3, draftId: "d1" }),
+        createPick({ cardName: "Card A", pickPosition: 5, copyNumber: 1, draftId: "d1" }),  // bucket 0
+        createPick({ cardName: "Card A", pickPosition: 35, copyNumber: 2, draftId: "d1" }), // bucket 1
+        createPick({ cardName: "Card A", pickPosition: 65, copyNumber: 3, draftId: "d1" }), // bucket 2
       ];
 
       const stats = calculateCardStats(picks, []);
 
-      expect(stats[0].pickDistribution).toEqual([1, 1, 1, 0, 0]);
+      expect(stats[0].pickDistribution).toEqual(dist({ 0: 1, 1: 1, 2: 1 }));
     });
   });
 
@@ -712,6 +717,168 @@ describe("calculateCardStats", () => {
       //         = exp(2.799)
       //         ≈ 16.43
       expect(stats[0].topPlayerGeomean).toBeCloseTo(16.43, 1);
+    });
+  });
+
+  describe("scoreHistory and round calculation", () => {
+    it("should compute round from pickPosition and numDrafters", () => {
+      const picks: CardPick[] = [
+        createPick({ cardName: "Test", pickPosition: 15, draftId: "draft-1" }),
+      ];
+      const metadata = new Map([
+        ["draft-1", { draftId: "draft-1", name: "Draft 1", date: "2025-01-01", numDrafters: 10 }],
+      ]);
+
+      const stats = calculateCardStats(picks, [], metadata);
+
+      // pickPosition 15 / 10 drafters = ceil(1.5) = round 2
+      expect(stats[0].scoreHistory).toHaveLength(1);
+      expect(stats[0].scoreHistory[0].round).toBe(2);
+    });
+
+    it("should compute round 1 for early picks", () => {
+      const picks: CardPick[] = [
+        createPick({ cardName: "Test", pickPosition: 3, draftId: "draft-1" }),
+      ];
+      const metadata = new Map([
+        ["draft-1", { draftId: "draft-1", name: "Draft 1", date: "2025-01-01", numDrafters: 10 }],
+      ]);
+
+      const stats = calculateCardStats(picks, [], metadata);
+
+      // pickPosition 3 / 10 drafters = ceil(0.3) = round 1
+      expect(stats[0].scoreHistory[0].round).toBe(1);
+    });
+
+    it("should compute correct round for unpicked cards", () => {
+      const picks: CardPick[] = [
+        createPick({
+          cardName: "Test",
+          pickPosition: 540, // pool size penalty
+          wasPicked: false,
+          drafterName: "Unpicked",
+          draftId: "draft-1",
+        }),
+      ];
+      const metadata = new Map([
+        ["draft-1", { draftId: "draft-1", name: "Draft 1", date: "2025-01-01", numDrafters: 10 }],
+      ]);
+
+      const stats = calculateCardStats(picks, [], metadata);
+
+      // pickPosition 540 / 10 drafters = ceil(54) = round 54
+      expect(stats[0].scoreHistory[0].round).toBe(54);
+    });
+
+    it("should use geomean for same-day drafts", () => {
+      // Simulating the Uro case: positions [3, 540, 5, 1, 6] on same date
+      const picks: CardPick[] = [
+        createPick({ cardName: "Uro", pickPosition: 3, draftId: "innistrad" }),
+        createPick({ cardName: "Uro", pickPosition: 540, wasPicked: false, drafterName: "Unpicked", draftId: "lorwyn" }),
+        createPick({ cardName: "Uro", pickPosition: 5, draftId: "ravnica" }),
+        createPick({ cardName: "Uro", pickPosition: 1, draftId: "tarkir" }),
+        createPick({ cardName: "Uro", pickPosition: 6, draftId: "zendikar" }),
+      ];
+      const metadata = new Map([
+        ["innistrad", { draftId: "innistrad", name: "Innistrad", date: "2025-12-01", numDrafters: 10 }],
+        ["lorwyn", { draftId: "lorwyn", name: "Lorwyn", date: "2025-12-01", numDrafters: 10 }],
+        ["ravnica", { draftId: "ravnica", name: "Ravnica", date: "2025-12-01", numDrafters: 10 }],
+        ["tarkir", { draftId: "tarkir", name: "Tarkir", date: "2025-12-01", numDrafters: 10 }],
+        ["zendikar", { draftId: "zendikar", name: "Zendikar", date: "2025-12-01", numDrafters: 10 }],
+      ]);
+
+      const stats = calculateCardStats(picks, [], metadata);
+
+      // Geomean of [3, 540, 5, 1, 6] = exp((ln3+ln540+ln5+ln1+ln6)/5) ≈ 8.65 → rounds to 9
+      // Round = ceil(9/10) = 1
+      expect(stats[0].scoreHistory).toHaveLength(1);
+      expect(stats[0].scoreHistory[0].pickPosition).toBe(9);
+      expect(stats[0].scoreHistory[0].round).toBe(1);
+      expect(stats[0].scoreHistory[0].draftName).toBe("5 drafts");
+    });
+
+    it("should set pickedCount and totalCount for aggregated dates", () => {
+      const picks: CardPick[] = [
+        createPick({ cardName: "Test", pickPosition: 3, draftId: "d1" }),
+        createPick({ cardName: "Test", pickPosition: 540, wasPicked: false, drafterName: "Unpicked", draftId: "d2" }),
+        createPick({ cardName: "Test", pickPosition: 5, draftId: "d3" }),
+      ];
+      const metadata = new Map([
+        ["d1", { draftId: "d1", name: "Draft 1", date: "2025-01-01", numDrafters: 10 }],
+        ["d2", { draftId: "d2", name: "Draft 2", date: "2025-01-01", numDrafters: 10 }],
+        ["d3", { draftId: "d3", name: "Draft 3", date: "2025-01-01", numDrafters: 10 }],
+      ]);
+
+      const stats = calculateCardStats(picks, [], metadata);
+
+      expect(stats[0].scoreHistory[0].pickedCount).toBe(2);
+      expect(stats[0].scoreHistory[0].totalCount).toBe(3);
+    });
+
+    it("should not set pickedCount/totalCount for single-draft dates", () => {
+      const picks: CardPick[] = [
+        createPick({ cardName: "Test", pickPosition: 5, draftId: "d1" }),
+      ];
+      const metadata = new Map([
+        ["d1", { draftId: "d1", name: "Draft 1", date: "2025-01-01", numDrafters: 10 }],
+      ]);
+
+      const stats = calculateCardStats(picks, [], metadata);
+
+      expect(stats[0].scoreHistory[0].pickedCount).toBeUndefined();
+      expect(stats[0].scoreHistory[0].totalCount).toBeUndefined();
+    });
+
+    it("should handle different numDrafters across drafts", () => {
+      const picks: CardPick[] = [
+        createPick({ cardName: "Test", pickPosition: 16, draftId: "d1" }), // 16/8 = round 2
+        createPick({ cardName: "Test", pickPosition: 24, draftId: "d2" }), // 24/12 = round 2
+      ];
+      const metadata = new Map([
+        ["d1", { draftId: "d1", name: "Draft 1", date: "2025-01-01", numDrafters: 8 }],
+        ["d2", { draftId: "d2", name: "Draft 2", date: "2025-01-01", numDrafters: 12 }],
+      ]);
+
+      const stats = calculateCardStats(picks, [], metadata);
+
+      // Both are round 2, so average is 2
+      expect(stats[0].scoreHistory[0].round).toBe(2);
+    });
+
+    it("should sort scoreHistory by date ascending", () => {
+      const picks: CardPick[] = [
+        createPick({ cardName: "Test", pickPosition: 5, draftId: "d3" }),
+        createPick({ cardName: "Test", pickPosition: 10, draftId: "d1" }),
+        createPick({ cardName: "Test", pickPosition: 15, draftId: "d2" }),
+      ];
+      const metadata = new Map([
+        ["d1", { draftId: "d1", name: "Draft 1", date: "2025-01-01", numDrafters: 10 }],
+        ["d2", { draftId: "d2", name: "Draft 2", date: "2025-02-01", numDrafters: 10 }],
+        ["d3", { draftId: "d3", name: "Draft 3", date: "2025-03-01", numDrafters: 10 }],
+      ]);
+
+      const stats = calculateCardStats(picks, [], metadata);
+
+      expect(stats[0].scoreHistory).toHaveLength(3);
+      expect(stats[0].scoreHistory[0].date).toBe("2025-01-01");
+      expect(stats[0].scoreHistory[1].date).toBe("2025-02-01");
+      expect(stats[0].scoreHistory[2].date).toBe("2025-03-01");
+    });
+
+    it("should use best pick position per draft for scoreHistory", () => {
+      // Multiple copies in same draft - should use best (lowest) position
+      const picks: CardPick[] = [
+        createPick({ cardName: "Test", pickPosition: 20, copyNumber: 2, draftId: "d1" }),
+        createPick({ cardName: "Test", pickPosition: 5, copyNumber: 1, draftId: "d1" }),
+      ];
+      const metadata = new Map([
+        ["d1", { draftId: "d1", name: "Draft 1", date: "2025-01-01", numDrafters: 10 }],
+      ]);
+
+      const stats = calculateCardStats(picks, [], metadata);
+
+      // Should use position 5 (best), not 20
+      expect(stats[0].scoreHistory[0].round).toBe(1); // ceil(5/10) = 1
     });
   });
 });

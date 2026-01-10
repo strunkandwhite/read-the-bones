@@ -37,6 +37,12 @@ export type DraftScore = {
   wasPicked: boolean;
   /** Number of drafters in this draft (for calculating round number) */
   numDrafters: number;
+  /** Round number: ceil(pickPosition / numDrafters) */
+  round: number;
+  /** For aggregated dates: how many drafts picked this card */
+  pickedCount?: number;
+  /** For aggregated dates: total drafts on this date */
+  totalCount?: number;
 };
 
 export type CardPick = {
@@ -82,12 +88,8 @@ export type CardStats = {
   /** Score history across drafts, sorted by date */
   scoreHistory: DraftScore[];
   /**
-   * Distribution of picks across 5 buckets:
-   * [0] = Picks 1-10 (early)
-   * [1] = Picks 11-20 (mid-early)
-   * [2] = Picks 21-30 (mid)
-   * [3] = Picks 31-40 (mid-late)
-   * [4] = Picks 41+ (late/unpicked)
+   * Distribution of picks across 15 buckets, each covering 30 picks:
+   * [0] = Picks 1-30, [1] = Picks 31-60, ..., [14] = Picks 421-450+
    */
   pickDistribution: number[];
   /**

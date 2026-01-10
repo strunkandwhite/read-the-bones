@@ -10,20 +10,20 @@ import { groupBy } from "./utils";
 export const DEFAULT_NUM_DRAFTERS = 10;
 
 /**
+ * Number of buckets for pick distribution histogram.
+ * Each bucket covers 30 picks (1-30, 31-60, etc.)
+ */
+export const DISTRIBUTION_BUCKET_COUNT = 15;
+export const DISTRIBUTION_BUCKET_SIZE = 30;
+
+/**
  * Get the distribution bucket index for a pick position.
- *
- * Bucket 0: Picks 1-10   (early)
- * Bucket 1: Picks 11-20  (mid-early)
- * Bucket 2: Picks 21-30  (mid)
- * Bucket 3: Picks 31-40  (mid-late)
- * Bucket 4: Picks 41+    (late/unpicked)
+ * Each bucket covers 30 picks: 0 = picks 1-30, 1 = picks 31-60, etc.
+ * Positions beyond bucket range go in the last bucket.
  */
 function getDistributionBucket(pickPosition: number): number {
-  if (pickPosition <= 10) return 0;
-  if (pickPosition <= 20) return 1;
-  if (pickPosition <= 30) return 2;
-  if (pickPosition <= 40) return 3;
-  return 4;
+  const bucket = Math.floor((pickPosition - 1) / DISTRIBUTION_BUCKET_SIZE);
+  return Math.min(bucket, DISTRIBUTION_BUCKET_COUNT - 1);
 }
 
 /**
@@ -153,35 +153,42 @@ function calculateSingleCardStats(
     });
   }
 
-  // Aggregate by date (average pick positions for same-day drafts)
+  // Aggregate by date (geomean of pick positions for same-day drafts)
   const scoresByDate = groupBy(draftScores, (s) => s.date);
 
   const scoreHistory: DraftScore[] = [];
   for (const [date, scores] of scoresByDate) {
-    const avgPosition = Math.round(
-      scores.reduce((sum, s) => sum + s.pickPosition, 0) / scores.length
-    );
-    const anyPicked = scores.some((s) => s.wasPicked);
+    // Geometric mean of pick positions: exp(avg of ln(positions))
+    const logSum = scores.reduce((sum, s) => sum + Math.log(s.pickPosition), 0);
+    const geomeanPosition = Math.round(Math.exp(logSum / scores.length));
+    const pickedCount = scores.filter((s) => s.wasPicked).length;
+    const totalCount = scores.length;
+    const anyPicked = pickedCount > 0;
     const draftNames = scores.map((s) => s.draftName).join(", ");
     // Use the average numDrafters for same-day drafts (rounded)
     const avgNumDrafters = Math.round(
       scores.reduce((sum, s) => sum + s.numDrafters, 0) / scores.length
     );
+    // Calculate round from the geomean position
+    const avgRound = Math.ceil(geomeanPosition / avgNumDrafters);
     scoreHistory.push({
       draftId: date, // Use date as ID for aggregated scores
       date,
       draftName: scores.length > 1 ? `${scores.length} drafts` : draftNames,
-      pickPosition: avgPosition,
+      pickPosition: geomeanPosition,
       wasPicked: anyPicked,
       numDrafters: avgNumDrafters,
+      round: avgRound,
+      pickedCount: scores.length > 1 ? pickedCount : undefined,
+      totalCount: scores.length > 1 ? totalCount : undefined,
     });
   }
 
   // Sort by date ascending
   scoreHistory.sort((a, b) => a.date.localeCompare(b.date));
 
-  // Calculate pick distribution across buckets
-  const pickDistribution = [0, 0, 0, 0, 0];
+  // Calculate pick distribution across buckets (by pick position, 30 picks per bucket)
+  const pickDistribution = new Array(DISTRIBUTION_BUCKET_COUNT).fill(0);
   for (const pick of cardPicks) {
     const bucket = getDistributionBucket(pick.pickPosition);
     pickDistribution[bucket]++;
