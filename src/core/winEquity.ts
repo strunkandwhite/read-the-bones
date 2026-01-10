@@ -78,6 +78,35 @@ function isLand(typeLine: string | undefined): boolean {
 }
 
 /**
+ * Group picks by draft and player, filtering out unpicked cards.
+ *
+ * @param picks - All card picks from all drafts
+ * @returns Nested map: draftId -> playerName -> CardPick[]
+ */
+function groupPicksByDraftAndPlayer(
+  picks: CardPick[]
+): Map<string, Map<string, CardPick[]>> {
+  const picksByDraftAndPlayer = new Map<string, Map<string, CardPick[]>>();
+
+  for (const pick of picks) {
+    // Skip unpicked cards (they're not in anyone's pool)
+    if (!pick.wasPicked) continue;
+
+    if (!picksByDraftAndPlayer.has(pick.draftId)) {
+      picksByDraftAndPlayer.set(pick.draftId, new Map());
+    }
+    const draftPicks = picksByDraftAndPlayer.get(pick.draftId)!;
+
+    if (!draftPicks.has(pick.drafterName)) {
+      draftPicks.set(pick.drafterName, []);
+    }
+    draftPicks.get(pick.drafterName)!.push(pick);
+  }
+
+  return picksByDraftAndPlayer;
+}
+
+/**
  * Calculate win equity attribution for all cards across drafts.
  *
  * Algorithm:
@@ -99,23 +128,7 @@ export function calculateWinEquity(
   const cardEquity = new Map<string, { wins: number; losses: number }>();
 
   // Group picks by draft and player
-  // draftId -> playerName -> CardPick[]
-  const picksByDraftAndPlayer = new Map<string, Map<string, CardPick[]>>();
-
-  for (const pick of picks) {
-    // Skip unpicked cards (they're not in anyone's pool)
-    if (!pick.wasPicked) continue;
-
-    if (!picksByDraftAndPlayer.has(pick.draftId)) {
-      picksByDraftAndPlayer.set(pick.draftId, new Map());
-    }
-    const draftPicks = picksByDraftAndPlayer.get(pick.draftId)!;
-
-    if (!draftPicks.has(pick.drafterName)) {
-      draftPicks.set(pick.drafterName, []);
-    }
-    draftPicks.get(pick.drafterName)!.push(pick);
-  }
+  const picksByDraftAndPlayer = groupPicksByDraftAndPlayer(picks);
 
   // Process each draft that has match data
   for (const [draftId, playerStats] of matchStats) {
@@ -199,23 +212,7 @@ export function calculateRawWinRate(
   const cardStats = new Map<string, { wins: number; losses: number }>();
 
   // Group picks by draft and player
-  // draftId -> playerName -> CardPick[]
-  const picksByDraftAndPlayer = new Map<string, Map<string, CardPick[]>>();
-
-  for (const pick of picks) {
-    // Skip unpicked cards (they're not in anyone's pool)
-    if (!pick.wasPicked) continue;
-
-    if (!picksByDraftAndPlayer.has(pick.draftId)) {
-      picksByDraftAndPlayer.set(pick.draftId, new Map());
-    }
-    const draftPicks = picksByDraftAndPlayer.get(pick.draftId)!;
-
-    if (!draftPicks.has(pick.drafterName)) {
-      draftPicks.set(pick.drafterName, []);
-    }
-    draftPicks.get(pick.drafterName)!.push(pick);
-  }
+  const picksByDraftAndPlayer = groupPicksByDraftAndPlayer(picks);
 
   // Process each draft that has match data
   for (const [draftId, playerStats] of matchStats) {
