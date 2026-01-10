@@ -127,7 +127,7 @@ export function CardTable({
           id: "pickScore",
           header: () => (
             <span className="inline-flex items-center">
-              {useTopPlayerWeighting ? "Avg Pick (weighted)" : "Avg Pick"}
+              {useTopPlayerWeighting ? "Pick Score (weighted)" : "Pick Score"}
               <InfoTooltip text={PICK_EXPLANATION} />
             </span>
           ),
@@ -326,7 +326,7 @@ export function CardTable({
       {/* Mobile-only help text */}
       <div className="mb-4 space-y-4 rounded-lg bg-zinc-100 p-3 text-xs whitespace-pre-line text-zinc-600 md:hidden dark:bg-zinc-800 dark:text-zinc-400">
         <div>
-          <p className="mb-2 font-semibold text-zinc-700 dark:text-zinc-300">Avg Pick</p>
+          <p className="mb-2 font-semibold text-zinc-700 dark:text-zinc-300">Pick Score</p>
           {PICK_EXPLANATION}
         </div>
         <div>

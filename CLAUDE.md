@@ -62,7 +62,7 @@ Search is debounced (500ms) and runs locally against cached card data.
   - With 10 drafters: Round 1 = picks 1-10, Round 2 = picks 11-20, etc.
 - **Unpicked penalty**: Cards not selected get pickPosition = poolSize (540), which converts to `ceil(540 / numDrafters)` rounds (e.g., round 54 with 10 drafters).
 
-The UI displays "Avg Pick" which is the weighted geometric mean of pick positions across drafts.
+The UI displays "Pick Score" which is the weighted geometric mean of pick positions across drafts.
 
 ## Design Document
 
