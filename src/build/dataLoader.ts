@@ -15,7 +15,7 @@ import type {
   EnrichedCardStats,
   ScryCard,
 } from "../core/types";
-import { parseDraft, isDraftComplete, parsePool } from "../core/parseCsv";
+import { parseDraft, isDraftComplete, parsePool, buildPlayerNameMap, normalizePlayerName } from "../core/parseCsv";
 import { parseMatches, aggregatePlayerStats, PlayerMatchStats } from "../core/parseMatches";
 import { calculateCardStats, extractPlayers, DISTRIBUTION_BUCKET_COUNT } from "../core/calculateStats";
 import { calculateWinEquity, calculateRawWinRate } from "../core/winEquity";
@@ -253,6 +253,38 @@ export async function loadAllDrafts(
         console.warn(`[DataLoader] Failed to parse draft "${entry}":`, error);
       }
     }
+  }
+
+  // Normalize player names: lowercase variants -> canonical capitalized form
+  // Collect all player names from both picks and match stats
+  const allPlayerNames: string[] = allPicks.map((p) => p.drafterName);
+  for (const playerStats of matchStats.values()) {
+    for (const playerName of playerStats.keys()) {
+      allPlayerNames.push(playerName);
+    }
+  }
+  const canonicalNameMap = buildPlayerNameMap(allPlayerNames);
+
+  // Apply normalization to all picks
+  for (const pick of allPicks) {
+    pick.drafterName = normalizePlayerName(pick.drafterName, canonicalNameMap);
+  }
+
+  // Also normalize player names in match stats
+  for (const [draftId, playerStats] of matchStats) {
+    const normalizedStats = new Map<string, PlayerMatchStats>();
+    for (const [playerName, stats] of playerStats) {
+      const normalizedName = normalizePlayerName(playerName, canonicalNameMap);
+      // Merge stats if same normalized name appears multiple times
+      const existing = normalizedStats.get(normalizedName);
+      if (existing) {
+        existing.gamesWon += stats.gamesWon;
+        existing.gamesLost += stats.gamesLost;
+      } else {
+        normalizedStats.set(normalizedName, { ...stats });
+      }
+    }
+    matchStats.set(draftId, normalizedStats);
   }
 
   return { picks: allPicks, draftIds, draftMetadata, matchStats };

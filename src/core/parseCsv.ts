@@ -17,6 +17,53 @@ export function normalizeCardName(cardName: string): string {
 }
 
 /**
+ * Build a map for normalizing lowercase player names to their capitalized form.
+ *
+ * Given a list of names that may include both capitalized and all-lowercase variants,
+ * creates a mapping from lowercase names to their canonical capitalized form.
+ *
+ * @param names - Array of player names
+ * @returns Map from lowercase name to capitalized canonical form
+ */
+export function buildPlayerNameMap(names: string[]): Map<string, string> {
+  const canonicalNames = new Map<string, string>();
+
+  // First pass: collect all capitalized names (prefer first seen)
+  for (const name of names) {
+    const lower = name.toLowerCase();
+    // Check if this name has any uppercase letter
+    if (name !== lower && !canonicalNames.has(lower)) {
+      // This is a capitalized name and we haven't seen a capitalized variant yet
+      canonicalNames.set(lower, name);
+    }
+  }
+
+  return canonicalNames;
+}
+
+/**
+ * Normalize a player name using a canonical name map.
+ *
+ * If the name is all lowercase and a capitalized variant exists in the map,
+ * returns the capitalized variant. Otherwise returns the original name.
+ *
+ * @param name - Player name to normalize
+ * @param canonicalNames - Map from lowercase name to canonical form
+ * @returns Normalized player name
+ */
+export function normalizePlayerName(
+  name: string,
+  canonicalNames: Map<string, string>
+): string {
+  const lower = name.toLowerCase();
+  // If name is all lowercase and we have a capitalized variant, use that
+  if (name === lower && canonicalNames.has(lower)) {
+    return canonicalNames.get(lower)!;
+  }
+  return name;
+}
+
+/**
  * Check if a value is an arrow character used in the draft CSV
  */
 export function isArrow(value: string): boolean {

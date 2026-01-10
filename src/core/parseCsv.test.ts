@@ -1,5 +1,64 @@
 import { describe, it, expect } from "vitest";
-import { normalizeCardName, parseDraftPicks, parsePool, parseDraft } from "./parseCsv";
+import { normalizeCardName, parseDraftPicks, parsePool, parseDraft, buildPlayerNameMap, normalizePlayerName } from "./parseCsv";
+
+describe("buildPlayerNameMap", () => {
+  it("should map lowercase names to capitalized variants", () => {
+    const names = ["Adhavoc", "adhavoc", "Jack", "Keith"];
+    const map = buildPlayerNameMap(names);
+
+    expect(map.get("adhavoc")).toBe("Adhavoc");
+    expect(map.get("jack")).toBe("Jack");
+    expect(map.get("keith")).toBe("Keith");
+  });
+
+  it("should not include all-lowercase names without capitalized variants", () => {
+    const names = ["adhavoc", "jack"];
+    const map = buildPlayerNameMap(names);
+
+    expect(map.has("adhavoc")).toBe(false);
+    expect(map.has("jack")).toBe(false);
+  });
+
+  it("should prefer first capitalized variant seen", () => {
+    const names = ["AdHavoc", "ADHAVOC"];
+    const map = buildPlayerNameMap(names);
+
+    // First capitalized version is stored
+    expect(map.get("adhavoc")).toBe("AdHavoc");
+  });
+
+  it("should handle empty array", () => {
+    const map = buildPlayerNameMap([]);
+    expect(map.size).toBe(0);
+  });
+});
+
+describe("normalizePlayerName", () => {
+  it("should normalize lowercase names to capitalized variants", () => {
+    const map = new Map([["adhavoc", "Adhavoc"]]);
+
+    expect(normalizePlayerName("adhavoc", map)).toBe("Adhavoc");
+  });
+
+  it("should keep capitalized names unchanged", () => {
+    const map = new Map([["adhavoc", "Adhavoc"]]);
+
+    expect(normalizePlayerName("Adhavoc", map)).toBe("Adhavoc");
+  });
+
+  it("should keep all-lowercase names without canonical variant", () => {
+    const map = new Map<string, string>();
+
+    expect(normalizePlayerName("newplayer", map)).toBe("newplayer");
+  });
+
+  it("should handle mixed case names (not all lowercase)", () => {
+    const map = new Map([["adhavoc", "Adhavoc"]]);
+
+    // "AdHavoc" is not all lowercase, so it doesn't get normalized
+    expect(normalizePlayerName("AdHavoc", map)).toBe("AdHavoc");
+  });
+});
 
 describe("normalizeCardName", () => {
   it("should strip numeric suffixes", () => {

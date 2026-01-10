@@ -310,6 +310,64 @@ describe("loadAllDrafts", () => {
     expect(result.draftIds).toEqual([]);
     expect(result.picks).toEqual([]);
   });
+
+  it("should normalize lowercase player names to capitalized form", async () => {
+    const consoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    // Draft 1: Has capitalized "Adhavoc"
+    const picksCsvWithCapitalized = `,,Rotisserie Draft,,
+,,,
+,,Adhavoc,Jack,↩,,R,U
+1,→,Lightning Bolt,Counterspell,↩,,R,U
+`;
+
+    // Draft 2: Has lowercase "adhavoc" - should be normalized to "Adhavoc"
+    const picksCsvWithLowercase = `,,Rotisserie Draft,,
+,,,
+,,adhavoc,Keith,↩,,G,B
+1,→,Birds of Paradise,Dark Ritual,↩,,G,B
+`;
+
+    createDraftFolder(TEST_DATA_DIR, "draft-1", picksCsvWithCapitalized, samplePoolCsv);
+    createDraftFolder(TEST_DATA_DIR, "draft-2", picksCsvWithLowercase, samplePoolCsv);
+
+    const result = await loadAllDrafts(TEST_DATA_DIR);
+
+    // All picks from "adhavoc" should be normalized to "Adhavoc"
+    const adhavocPicks = result.picks.filter((p) => p.drafterName.toLowerCase() === "adhavoc");
+    for (const pick of adhavocPicks) {
+      expect(pick.drafterName).toBe("Adhavoc");
+    }
+
+    // Should have exactly one "Adhavoc" variant, not both
+    const drafterNames = [...new Set(result.picks.map((p) => p.drafterName))].filter(
+      (name) => name.toLowerCase() === "adhavoc"
+    );
+    expect(drafterNames).toEqual(["Adhavoc"]);
+
+    consoleLog.mockRestore();
+  });
+
+  it("should keep all-lowercase names that have no capitalized variant", async () => {
+    const consoleLog = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    // Both drafts have only lowercase "newplayer"
+    const picksCsvWithOnlyLowercase = `,,Rotisserie Draft,,
+,,,
+,,newplayer,Jack,↩,,R,U
+1,→,Lightning Bolt,Counterspell,↩,,R,U
+`;
+
+    createDraftFolder(TEST_DATA_DIR, "draft-1", picksCsvWithOnlyLowercase, samplePoolCsv);
+
+    const result = await loadAllDrafts(TEST_DATA_DIR);
+
+    // "newplayer" should stay lowercase since no capitalized variant exists
+    const newplayerPicks = result.picks.filter((p) => p.drafterName === "newplayer");
+    expect(newplayerPicks.length).toBeGreaterThan(0);
+
+    consoleLog.mockRestore();
+  });
 });
 
 describe("loadCardData", () => {
