@@ -46,13 +46,9 @@ function InfoTooltip({ text }: { text: string }) {
 
 const PICK_EXPLANATION = `Weighted geometric mean of pick positions across all drafts.
 
-Lower = better (picked earlier on average)
-
-Pick position is the absolute draft order (1-450+), not the round number.
-
 Weighting factors:
 • Copy weight: 0.5^(n-1) for nth copy
-• Unpicked cards: 0.5x weight
+• Unpicked cards: 0.5x weight (position set to pool size)
 • Top player picks: 2x weight (when enabled)`;
 
 const WIN_EQUITY_EXPLANATION = `Win Equity estimates how much each card contributed to match wins.
@@ -214,7 +210,8 @@ export function CardTable({
                       {pct}%
                     </span>
                     <div className="absolute -top-10 left-0 z-50 hidden rounded bg-zinc-800 px-2 py-1 text-xs whitespace-nowrap text-white group-hover:block">
-                      {rawRate.wins.toFixed(1)} wins / {rawRate.losses.toFixed(1)} losses (equal weight)
+                      {rawRate.wins.toFixed(1)} wins / {rawRate.losses.toFixed(1)} losses (equal
+                      weight)
                     </div>
                   </div>
                 );
@@ -308,9 +305,7 @@ export function CardTable({
       } else {
         // Exclusive: card matches if ALL its colors are in selected colors
         // (card colors must be a subset of selected colors)
-        return (
-          cardColors.length > 0 && cardColors.every((color) => selectedColors.includes(color))
-        );
+        return cardColors.length > 0 && cardColors.every((color) => selectedColors.includes(color));
       }
     });
   }, [cards, colorFilter, colorFilterMode]);
@@ -346,69 +341,69 @@ export function CardTable({
 
       <div className="relative">
         {/* Scroll shadow indicators */}
-        <div className="pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-8 bg-gradient-to-l from-white to-transparent dark:from-zinc-900 md:hidden" />
+        <div className="pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-8 bg-gradient-to-l from-white to-transparent md:hidden dark:from-zinc-900" />
         <div className="overflow-x-auto overscroll-x-contain rounded-lg border border-zinc-200 [-webkit-overflow-scrolling:touch] dark:border-zinc-700">
           <table className="w-full text-left">
-          <thead className="bg-zinc-50 dark:bg-zinc-800">
-            {table.getHeaderGroups().map((headerGroup) => (
-              <tr key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <th
-                    key={header.id}
-                    className={`px-4 py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300 ${
-                      header.column.getCanSort()
-                        ? "cursor-pointer select-none hover:bg-zinc-100 dark:hover:bg-zinc-700"
-                        : ""
-                    }`}
-                    onClick={header.column.getToggleSortingHandler()}
-                  >
-                    <div className="flex items-center gap-1">
-                      {flexRender(header.column.columnDef.header, header.getContext())}
-                      {header.column.getCanSort() && (
-                        <span className="text-zinc-400">
-                          {{
-                            asc: " ▲",
-                            desc: " ▼",
-                          }[header.column.getIsSorted() as string] ?? " ⬍"}
-                        </span>
-                      )}
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            ))}
-          </thead>
-          <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
-            {table.getRowModel().rows.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400"
-                >
-                  No cards found
-                </td>
-              </tr>
-            ) : (
-              table.getRowModel().rows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="bg-white transition-colors hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-                >
-                  {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-4 py-3">
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </td>
+            <thead className="bg-zinc-50 dark:bg-zinc-800">
+              {table.getHeaderGroups().map((headerGroup) => (
+                <tr key={headerGroup.id}>
+                  {headerGroup.headers.map((header) => (
+                    <th
+                      key={header.id}
+                      className={`px-4 py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300 ${
+                        header.column.getCanSort()
+                          ? "cursor-pointer select-none hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                          : ""
+                      }`}
+                      onClick={header.column.getToggleSortingHandler()}
+                    >
+                      <div className="flex items-center gap-1">
+                        {flexRender(header.column.columnDef.header, header.getContext())}
+                        {header.column.getCanSort() && (
+                          <span className="text-zinc-400">
+                            {{
+                              asc: " ▲",
+                              desc: " ▼",
+                            }[header.column.getIsSorted() as string] ?? " ⬍"}
+                          </span>
+                        )}
+                      </div>
+                    </th>
                   ))}
                 </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+              ))}
+            </thead>
+            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
+              {table.getRowModel().rows.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={columns.length}
+                    className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400"
+                  >
+                    No cards found
+                  </td>
+                </tr>
+              ) : (
+                table.getRowModel().rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="bg-white transition-colors hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                  >
+                    {row.getVisibleCells().map((cell) => (
+                      <td key={cell.id} className="px-4 py-3">
+                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
 
-        {/* Footer with count */}
-        <div className="border-t border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
-          Showing {filteredData.length} of {cards.length} unique cards
-        </div>
+          {/* Footer with count */}
+          <div className="border-t border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
+            Showing {filteredData.length} of {cards.length} unique cards
+          </div>
         </div>
       </div>
     </div>
