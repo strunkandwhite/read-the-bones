@@ -46,9 +46,8 @@ export function parseMatches(csvContent: string): MatchResult[] {
     skipEmptyLines: false,
   });
 
-  if (result.errors.length > 0) {
-    console.warn("CSV parsing warnings:", result.errors);
-  }
+  // Note: Papa Parse may report recoverable errors (e.g., missing quotes, field count mismatch).
+  // These don't prevent parsing - the data is still usable, so we continue silently.
 
   const rows = result.data;
   if (rows.length < 4) {

@@ -169,8 +169,8 @@ function calculateSingleCardStats(
     const avgNumDrafters = Math.round(
       scores.reduce((sum, s) => sum + s.numDrafters, 0) / scores.length
     );
-    // Calculate round from the geomean position
-    const avgRound = Math.ceil(geomeanPosition / avgNumDrafters);
+    // Calculate round from the geomean position (guard against division by zero)
+    const avgRound = avgNumDrafters > 0 ? Math.ceil(geomeanPosition / avgNumDrafters) : 0;
     scoreHistory.push({
       draftId: date, // Use date as ID for aggregated scores
       date,

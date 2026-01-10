@@ -49,14 +49,16 @@ export function useLocalStorage<T>(key: string, defaultValue: T): [T, (value: T)
   return [value, setValue];
 }
 
+// No-op subscribe function for useSyncExternalStore when value never changes
+const noopSubscribe = () => () => {};
+
 /**
  * Hook to check if we're hydrated on the client.
  * Returns false during SSR, true after hydration.
  */
 export function useIsHydrated(): boolean {
-  const subscribe = useCallback(() => () => {}, []);
   const getSnapshot = useCallback(() => true, []);
   const getServerSnapshot = useCallback(() => false, []);
 
-  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  return useSyncExternalStore(noopSubscribe, getSnapshot, getServerSnapshot);
 }

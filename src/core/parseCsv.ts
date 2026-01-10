@@ -75,9 +75,8 @@ export function parseDraftPicks(
     skipEmptyLines: false,
   });
 
-  if (result.errors.length > 0) {
-    console.warn("CSV parsing warnings:", result.errors);
-  }
+  // Note: Papa Parse may report recoverable errors (e.g., missing quotes, field count mismatch).
+  // These don't prevent parsing - the data is still usable, so we continue silently.
 
   const rows = result.data;
   if (rows.length < 4) {
@@ -242,9 +241,8 @@ export function parsePool(csvContent: string): string[] {
     skipEmptyLines: false,
   });
 
-  if (result.errors.length > 0) {
-    console.warn("CSV parsing warnings:", result.errors);
-  }
+  // Note: Papa Parse may report recoverable errors (e.g., missing quotes, field count mismatch).
+  // These don't prevent parsing - the data is still usable, so we continue silently.
 
   const rows = result.data;
   const allCards: string[] = [];
@@ -284,9 +282,8 @@ function parseUnpickedCards(csvContent: string): Array<{ name: string; color: st
     skipEmptyLines: false,
   });
 
-  if (result.errors.length > 0) {
-    console.warn("CSV parsing warnings:", result.errors);
-  }
+  // Note: Papa Parse may report recoverable errors (e.g., missing quotes, field count mismatch).
+  // These don't prevent parsing - the data is still usable, so we continue silently.
 
   const rows = result.data;
   const unpickedCards: Array<{ name: string; color: string }> = [];

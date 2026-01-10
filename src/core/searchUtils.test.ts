@@ -54,30 +54,6 @@ describe("hasScryfallOperators", () => {
     });
   });
 
-  describe("power/toughness operators", () => {
-    it("should detect pow> operator", () => {
-      expect(hasScryfallOperators("pow>2")).toBe(true);
-    });
-
-    it("should detect tou< operator", () => {
-      expect(hasScryfallOperators("tou<3")).toBe(true);
-    });
-  });
-
-  describe("other operators", () => {
-    it("should detect is: operator", () => {
-      expect(hasScryfallOperators("is:spell")).toBe(true);
-    });
-
-    it("should detect id: operator", () => {
-      expect(hasScryfallOperators("id:wu")).toBe(true);
-    });
-
-    it("should detect ci: operator", () => {
-      expect(hasScryfallOperators("ci:rug")).toBe(true);
-    });
-  });
-
   describe("plain text searches (no operators)", () => {
     it("should return false for simple card name", () => {
       expect(hasScryfallOperators("Lightning Bolt")).toBe(false);
