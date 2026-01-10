@@ -1,0 +1,751 @@
+✓,Card,Type,Color,View,Picked By,
+✓,Descendant of Storms,Creature — Human Soldier,W,View,SL Veg Zombie,$C$32
+✓,Esper Sentinel,Artifact Creature — Human Soldier,W,View,SL Veg Zombie,$C$37
+✓,Giver of Runes,Creature — Kor Cleric,W,View,giya76,$J$9
+✓,"Kytheon, Hero of Akros",Legendary Creature — Human Soldier,W,View,SL Veg Zombie,$C$47
+✓,Mother of Runes,Creature — Human Cleric,W,View,SL Veg Zombie,$C$5
+✓,Novice Inspector,Creature — Human Detective,W,View,giya76,$J$21
+✓,Thraben Inspector,Creature — Human Soldier,W,View,giya76,$J$19
+,Usher of the Fallen,Creature — Spirit Warrior,W,View,,
+✓,Cathar Commando,Creature — Human Soldier,W,View,giya76,$J$40
+✓,Clarion Spirit,Creature — Spirit,W,View,SL Veg Zombie,$C$45
+✓,"Cloud, Midgar Mercenary",Legendary Creature — Human Soldier Mercenary,W,View,giya76,$J$13
+✓,Containment Priest,Creature — Human Cleric,W,View,SL Veg Zombie,$C$35
+,Intrepid Adversary,Creature — Human Scout,W,View,,
+✓,Lion Sash,Artifact Creature — Equipment Cat,W,View,SL Veg Zombie,$C$24
+✓,Luminarch Aspirant,Creature — Human Cleric,W,View,SL Veg Zombie,$C$39
+✓,"Phelia, Exuberant Shepherd",Legendary Creature — Dog,W,View,giya76,$J$4
+✓,Spectacular Spider-Man,Legendary Creature — Spider Human Hero,W,View,giya76,$J$27
+,Splitskin Doll,Artifact Creature — Toy,W,View,,
+✓,Stoneforge Mystic,Creature — Kor Artificer,W,View,SL Veg Zombie,$C$10
+✓,Sungold Sentinel,Creature — Human Soldier,W,View,giya76,$J$38
+✓,"Thalia, Guardian of Thraben",Legendary Creature — Human Soldier,W,View,SL Veg Zombie,$C$42
+✓,Voice of Victory,Creature — Human Bard,W,View,SL Veg Zombie,$C$14
+✓,"Adeline, Resplendent Cathar",Legendary Creature — Human Knight,W,View,SL Veg Zombie,$C$44
+✓,Blade Splicer,Creature — Phyrexian Human Artificer,W,View,giya76,$J$41
+✓,Cosmogrand Zenith,Creature — Human Soldier,W,View,SL Veg Zombie,$C$18
+✓,Elite Spellbinder,Creature — Human Cleric,W,View,giya76,$J$12
+✓,Enduring Innocence,Enchantment Creature — Sheep Glimmer,W,View,SL Veg Zombie,$C$23
+✓,Flickerwisp,Creature — Elemental,W,View,gogey,$L$48
+✓,Loran of the Third Path,Legendary Creature — Human Artificer,W,View,gogey,$L$36
+,Monastery Mentor,Creature — Human Monk,W,View,,
+✓,Ranger-Captain of Eos,Creature — Human Soldier Ranger,W,View,giya76,$J$42
+✓,Sanguine Evangelist,Creature — Vampire Cleric,W,View,giya76,$J$47
+✓,Skyclave Apparition,Creature — Kor Spirit,W,View,giya76,$J$29
+✓,"Suki, Courageous Rescuer",Legendary Creature — Human Warrior Ally,W,View,SL Veg Zombie,$C$22
+✓,"Toby, Beastie Befriender",Legendary Creature — Human Wizard,W,View,giya76,$J$15
+,Ranger of Eos,Creature — Human Soldier Ranger,W,View,,
+✓,Restoration Angel,Creature — Angel,W,View,giya76,$J$26
+✓,Serra Paragon,Creature — Angel,W,View,Jack,$G$29
+✓,Witch Enchanter,Creature — Human Warlock,W,View,SL Veg Zombie,$C$25
+✓,Solitude,Creature — Elemental Incarnation,W,View,giya76,$J$5
+,Timeless Dragon,Creature — Dragon,W,View,,
+✓,Eagles of the North,Creature — Bird Soldier,W,View,giya76,$J$23
+✓,Overlord of the Mistmoors,Enchantment Creature — Avatar Horror,W,View,giya76,$J$7
+✓,Condemn,Instant,W,View,Jack,$G$24
+✓,Ephemerate,Instant,W,View,giya76,$J$18
+✓,Mana Tithe,Instant,W,View,SL Veg Zombie,$C$43
+✓,Path to Exile,Instant,W,View,Jack,$G$5
+✓,Swords to Plowshares,Instant,W,View,SL Veg Zombie,$C$4
+✓,Reprieve,Instant,W,View,SL Veg Zombie,$C$9
+✓,Thraben Charm,Instant,W,View,giya76,$J$25
+✓,Unexpectedly Absent,Instant,W,View,giya76,$J$17
+✓,Oust,Sorcery,W,View,gogey,$L$12
+✓,Prismatic Ending,Sorcery,W,View,Jack,$G$12
+✓,Winds of Abandon,Sorcery,W,View,arborist77,$K$43
+✓,Sevinne's Reclamation,Sorcery,W,View,arborist77,$K$32
+,Battle Screech,Sorcery,W,View,,
+✓,Day of Judgment,Sorcery,W,View,Jack,$G$30
+✓,Sunfall,Sorcery,W,View,gogey,$L$32
+✓,Portable Hole,Artifact,W,View,gogey,$L$29
+,Collector's Cage,Artifact,W,View,,
+✓,Glimmer Lens,Artifact — Equipment,W,View,SL Veg Zombie,$C$17
+✓,Staff of the Storyteller,Artifact,W,View,SL Veg Zombie,$C$16
+✓,Maul of the Skyclaves,Artifact — Equipment,W,View,SL Veg Zombie,$C$26
+,Unidentified Hovership,Artifact — Vehicle,W,View,,
+✓,Legion's Landing,Legendary Enchantment,W,View,SL Veg Zombie,$C$38
+,Michiko's Reign of Truth,Enchantment — Saga,W,View,,
+✓,Sheltered by Ghosts,Enchantment — Aura,W,View,giya76,$J$43
+✓,Aang's Iceberg,Enchantment,W,View,giya76,$J$35
+✓,Caretaker's Talent,Enchantment — Class,W,View,SL Veg Zombie,$C$15
+✓,Wedding Announcement,Enchantment,W,View,SL Veg Zombie,$C$46
+,Virtue of Loyalty,Enchantment,W,View,,
+✓,"Gideon, Ally of Zendikar",Legendary Planeswalker — Gideon,W,View,SL Veg Zombie,$C$48
+✓,The Wandering Emperor,Legendary Planeswalker,W,View,Jack,$G$9
+✓,Abandoned Air Temple,Land,W,View,SL Veg Zombie,$C$27
+✓,Mockingbird,Creature — Bird Bard,U,View,dkriddles,$E$23
+✓,Phantasmal Shieldback,Creature — Turtle Illusion,U,View,gogey,$L$33
+✓,Spyglass Siren,Creature — Siren Pirate,U,View,dkriddles,$E$27
+✓,Duelist of the Mind,Creature — Human Advisor,U,View,dkriddles,$E$45
+✓,Faerie Mastermind,Creature — Faerie Rogue,U,View,dkriddles,$E$25
+✓,Floodpits Drowner,Creature — Merfolk,U,View,giya76,$J$36
+✓,"Jace, Vryn's Prodigy",Legendary Creature — Human Wizard,U,View,Adhavoc,$D$31
+✓,"Kitsa, Otterball Elite",Legendary Creature — Otter Wizard,U,View,Adhavoc,$D$36
+✓,Ledger Shredder,Creature — Bird Advisor,U,View,giya76,$J$30
+✓,"Malcolm, Alluring Scoundrel",Legendary Creature — Siren Pirate,U,View,dkriddles,$E$15
+✓,Mischievous Mystic,Creature — Human Wizard,U,View,dkriddles,$E$41
+,Phantasmal Image,Creature — Illusion,U,View,,
+✓,Silent Hallcreeper,Enchantment Creature — Horror,U,View,dkriddles,$E$38
+✓,Snapcaster Mage,Creature — Human Wizard,U,View,dkriddles,$E$19
+✓,"Wan Shi Tong, Librarian",Legendary Creature — Bird Spirit,U,View,gogey,$L$15
+✓,Abhorrent Oculus,Creature — Eye,U,View,dkriddles,$E$30
+✓,Brazen Borrower,Creature — Faerie Rogue,U,View,Jack,$G$18
+✓,Chrome Host Seedshark,Creature — Phyrexian Shark,U,View,gogey,$L$26
+,Forensic Gadgeteer,Creature — Vedalken Artificer Detective,U,View,,
+✓,"Kiora, the Rising Tide",Legendary Creature — Merfolk Noble,U,View,dkriddles,$E$42
+✓,Phyrexian Metamorph,Artifact Creature — Phyrexian Shapeshifter,U,View,Andrew 420,$H$38
+✓,"The Mechanist, Aerial Artisan",Legendary Creature — Human Artificer Ally,U,View,dkriddles,$E$40
+✓,Vendilion Clique,Legendary Creature — Faerie Wizard,U,View,gogey,$L$41
+✓,Enduring Curiosity,Enchantment Creature — Cat Glimmer,U,View,dkriddles,$E$29
+✓,Micromancer,Creature — Human Wizard,U,View,giya76,$J$33
+✓,Subtlety,Creature — Elemental Incarnation,U,View,gogey,$L$13
+✓,"Urza, Lord High Artificer",Legendary Creature — Human Artificer,U,View,gogey,$L$4
+✓,"Venser, Shaper Savant",Legendary Creature — Human Wizard,U,View,gogey,$L$45
+✓,Quantum Riddler,Creature — Sphinx,U,View,giya76,$J$6
+✓,"Wan Shi Tong, All-Knowing",Legendary Creature — Bird Spirit,U,View,gogey,$L$28
+,Kappa Cannoneer,Artifact Creature — Turtle Warrior,U,View,,
+✓,Torrential Gearhulk,Artifact Creature — Construct,U,View,Adhavoc,$D$24
+✓,Brainstorm,Instant,U,View,gogey,$L$7
+✓,Consider,Instant,U,View,giya76,$J$37
+✓,Fading Hope,Instant,U,View,giya76,$J$34
+✓,Force Spike,Instant,U,View,dkriddles,$E$37
+,Opt,Instant,U,View,,
+✓,Spell Pierce,Instant,U,View,gogey,$L$11
+✓,Stern Scolding,Instant,U,View,gogey,$L$24
+✓,Thought Scour,Instant,U,View,dkriddles,$E$46
+✓,Three Steps Ahead,Instant,U,View,dkriddles,$E$20
+✓,Consult the Star Charts,Instant,U,View,gogey,$L$16
+✓,Counterspell,Instant,U,View,gogey,$L$19
+✓,Make Disappear,Instant,U,View,giya76,$J$22
+✓,Mana Leak,Instant,U,View,dkriddles,$E$6
+✓,Memory Lapse,Instant,U,View,gogey,$L$5
+✓,Miscalculation,Instant,U,View,Adhavoc,$D$21
+✓,Remand,Instant,U,View,giya76,$J$10
+✓,Cryptic Command,Instant,U,View,gogey,$L$21
+✓,Mystic Confluence,Instant,U,View,Adhavoc,$D$18
+✓,Sublime Epiphany,Instant,U,View,Adhavoc,$D$23
+✓,Commit // Memory,Instant,U,View,gogey,$L$40
+✓,Hard Evidence,Sorcery,U,View,giya76,$J$44
+✓,Ponder,Sorcery,U,View,gogey,$L$31
+✓,Preordain,Sorcery,U,View,gogey,$L$25
+,Chart a Course,Sorcery,U,View,,
+✓,Stock Up,Sorcery,U,View,dkriddles,$E$12
+✓,Unnerving Grasp,Sorcery,U,View,Jack,$G$33
+✓,Winternight Stories,Sorcery,U,View,dkriddles,$E$34
+✓,Lórien Revealed,Sorcery,U,View,gogey,$L$8
+✓,Temporal Manipulation,Sorcery,U,View,gogey,$L$39
+✓,Time Warp,Sorcery,U,View,Jack,$G$23
+✓,Treasure Cruise,Sorcery,U,View,Adhavoc,$D$35
+✓,Aether Spellbomb,Artifact,U,View,gogey,$L$35
+✓,Astrologian's Planisphere,Artifact — Equipment,U,View,Adhavoc,$D$30
+✓,Cryptic Coat,Artifact — Equipment,U,View,giya76,$J$32
+,Stormchaser's Talent,Enchantment — Class,U,View,,
+✓,Unable to Scream,Enchantment — Aura,U,View,dkriddles,$E$33
+✓,Dress Down,Enchantment,U,View,gogey,$L$38
+✓,Proft's Eidetic Memory,Legendary Enchantment,U,View,Adhavoc,$D$32
+✓,"Narset, Parter of Veils",Legendary Planeswalker — Narset,U,View,gogey,$L$30
+✓,"Jace, the Mind Sculptor",Legendary Planeswalker — Jace,U,View,gogey,$L$18
+✓,Mystic Sanctuary,Land — Island,U,View,gogey,$L$34
+✓,"Otawara, Soaring City",Legendary Land,U,View,Adhavoc,$D$17
+✓,Concealing Curtains,Creature — Wall,B,View,Andrew 420,$H$39
+✓,Forsaken Miner,Creature — Skeleton Rogue,B,View,aidybaby,$F$25
+✓,Knight of the Ebon Legion,Creature — Vampire Knight,B,View,aidybaby,$F$36
+,Nethergoyf,Creature — Lhurgoyf,B,View,,
+✓,Stalactite Stalker,Creature — Goblin Rogue,B,View,Andrew 420,$H$41
+,Blade of the Oni,Artifact Creature — Equipment Demon,B,View,,
+✓,Bloodghast,Creature — Vampire Spirit,B,View,aidybaby,$F$46
+✓,Caustic Bronco,Creature — Snake Horse Mount,B,View,aidybaby,$F$27
+✓,Dark Confidant,Creature — Human Wizard,B,View,aidybaby,$F$13
+✓,Dauthi Voidwalker,Creature — Dauthi Rogue,B,View,aidybaby,$F$8
+✓,Deep-Cavern Bat,Creature — Bat,B,View,aidybaby,$F$12
+✓,"Jadar, Ghoulcaller of Nephalia",Legendary Creature — Human Wizard,B,View,aidybaby,$F$30
+✓,Marionette Apprentice,Creature — Human Artificer,B,View,aidybaby,$F$26
+✓,Misery's Shadow,Creature — Shade,B,View,Andrew 420,$H$30
+✓,Priest of Forgotten Gods,Creature — Human Cleric,B,View,aidybaby,$F$16
+✓,Sinkhole Surveyor,Creature — Bird Scout,B,View,dkriddles,$E$47
+✓,Sunset Saboteur,Creature — Human Rogue,B,View,Andrew 420,$H$42
+✓,Tenacious Underdog,Creature — Human Warrior,B,View,aidybaby,$F$31
+✓,"Tourach, Dread Cantor",Legendary Creature — Human Cleric,B,View,Andrew 420,$H$27
+✓,"Gix, Yawgmoth Praetor",Legendary Creature — Phyrexian Praetor,B,View,dkriddles,$E$44
+✓,Ophiomancer,Creature — Human Shaman,B,View,dkriddles,$E$32
+✓,Preacher of the Schism,Creature — Vampire Cleric,B,View,dkriddles,$E$17
+✓,Raven Eagle,Creature — Bird Assassin,B,View,Andrew 420,$H$32
+,Rotting Regisaur,Creature — Zombie Dinosaur,B,View,,
+,"Sephiroth, Fabled SOLDIER",Legendary Creature — Human Avatar Soldier,B,View,,
+,Warren Soultrader,Creature — Zombie Goblin Wizard,B,View,,
+,Woe Strider,Creature — Horror,B,View,,
+✓,Archfiend of the Dross,Creature — Phyrexian Demon,B,View,dkriddles,$E$36
+✓,Grief,Creature — Elemental Incarnation,B,View,Andrew 420,$H$18
+✓,Hostile Investigator,Creature — Ogre Rogue Detective,B,View,Andrew 420,$H$19
+,"Rankle, Master of Pranks",Legendary Creature — Faerie Rogue,B,View,,
+✓,"Sheoldred, the Apocalypse",Legendary Creature — Phyrexian Praetor,B,View,Andrew 420,$H$7
+✓,"Yawgmoth, Thran Physician",Legendary Creature — Human Cleric,B,View,dkriddles,$E$48
+✓,Overlord of the Balemurk,Enchantment Creature — Avatar Horror,B,View,arborist77,$K$15
+✓,Crabomination,Creature — Crab Demon,B,View,dkriddles,$E$5
+✓,Grave Titan,Creature — Giant,B,View,dkriddles,$E$16
+✓,Troll of Khazad-dûm,Creature — Troll,B,View,Andrew 420,$H$28
+✓,Cut Down,Instant,B,View,Andrew 420,$H$16
+✓,Dark Ritual,Instant,B,View,Andrew 420,$H$10
+✓,Fatal Push,Instant,B,View,dkriddles,$E$10
+✓,Bitter Triumph,Instant,B,View,Andrew 420,$H$13
+✓,Go for the Throat,Instant,B,View,dkriddles,$E$13
+✓,Infernal Grasp,Instant,B,View,aidybaby,$F$18
+✓,Sheoldred's Edict,Instant,B,View,arborist77,$K$25
+✓,Dismember,Instant,B,View,SL Veg Zombie,$C$6
+✓,Saw in Half,Instant,B,View,Andrew 420,$H$40
+✓,Fell the Profane,Instant,B,View,aidybaby,$F$24
+✓,Snuff Out,Instant,B,View,dkriddles,$E$8
+✓,Murderous Cut,Instant,B,View,arborist77,$K$17
+✓,Bloodchief's Thirst,Sorcery,B,View,aidybaby,$F$22
+✓,Bone Shards,Sorcery,B,View,Andrew 420,$H$25
+✓,Duress,Sorcery,B,View,Andrew 420,$H$12
+✓,Inquisition of Kozilek,Sorcery,B,View,Andrew 420,$H$31
+✓,Thoughtseize,Sorcery,B,View,dkriddles,$E$4
+✓,Unearth,Sorcery,B,View,Andrew 420,$H$35
+✓,Collective Brutality,Sorcery,B,View,arborist77,$K$36
+✓,Demonic Tutor,Sorcery,B,View,Andrew 420,$H$4
+✓,Fell,Sorcery,B,View,dkriddles,$E$31
+✓,Persist,Sorcery,B,View,Andrew 420,$H$29
+✓,Quag Feast,Sorcery,B,View,aidybaby,$F$23
+✓,Toxic Deluge,Sorcery,B,View,Andrew 420,$H$8
+✓,Damnation,Sorcery,B,View,dkriddles,$E$9
+✓,Gix's Command,Sorcery,B,View,dkriddles,$E$18
+,Scavenger's Talent,Enchantment — Class,B,View,,
+✓,Bitterblossom,Kindred Enchantment — Faerie,B,View,aidybaby,$F$17
+✓,Chthonian Nightmare,Enchantment,B,View,aidybaby,$F$11
+✓,The Meathook Massacre,Legendary Enchantment,B,View,aidybaby,$F$7
+✓,Necromancy,Enchantment,B,View,dkriddles,$E$7
+✓,Virtue of Persistence,Enchantment,B,View,Andrew 420,$H$20
+✓,Liliana of the Veil,Legendary Planeswalker — Liliana,B,View,Andrew 420,$H$17
+✓,Phyrexian Tower,Legendary Land,B,View,aidybaby,$F$39
+✓,Spymaster's Vault,Land,B,View,arborist77,$K$37
+✓,Bomat Courier,Artifact Creature — Construct,R,View,aidybaby,$F$33
+✓,Dragon's Rage Channeler,Creature — Human Shaman,R,View,giya76,$J$45
+✓,Grim Lavamancer,Creature — Human Wizard,R,View,aidybaby,$F$21
+,Heartfire Hero,Creature — Mouse Soldier,R,View,,
+✓,Hired Claw,Creature — Lizard Mercenary,R,View,aidybaby,$F$20
+✓,Marauding Mako,Creature — Shark Pirate,R,View,Adhavoc,$D$34
+✓,Rabbit Battery,Artifact Creature — Equipment Rabbit,R,View,SL Veg Zombie,$C$34
+✓,"Ragavan, Nimble Pilferer",Legendary Creature — Monkey Pirate,R,View,aidybaby,$F$4
+✓,Voldaren Epicure,Creature — Vampire,R,View,aidybaby,$F$44
+✓,Amped Raptor,Creature — Dinosaur,R,View,aidybaby,$F$19
+✓,Bloodthirsty Adversary,Creature — Vampire,R,View,aidybaby,$F$37
+✓,Dragonkin Berserker,Creature — Human Berserker,R,View,aidybaby,$F$43
+✓,Dreadhorde Arcanist,Creature — Zombie Wizard,R,View,SL Veg Zombie,$C$8
+✓,Earthshaker Khenra,Creature — Jackal Warrior,R,View,aidybaby,$F$42
+,Emberheart Challenger,Creature — Mouse Warrior,R,View,,
+✓,Fear of Missing Out,Enchantment Creature — Nightmare,R,View,Adhavoc,$D$9
+✓,Generous Plunderer,Creature — Human Rogue,R,View,Adhavoc,$D$33
+✓,"Inti, Seneschal of the Sun",Legendary Creature — Human Knight,R,View,Adhavoc,$D$10
+✓,"Ivora, Insatiable Heir",Legendary Creature — Vampire Warrior,R,View,nicKnaack,$I$27
+✓,"Kari Zev, Skyship Raider",Legendary Creature — Human Pirate,R,View,aidybaby,$F$41
+✓,"Magda, Brazen Outlaw",Legendary Creature — Dwarf Berserker,R,View,Adhavoc,$D$41
+✓,Robber of the Rich,Creature — Human Archer Rogue,R,View,aidybaby,$F$45
+✓,Scrapwork Mutt,Artifact Creature — Dog,R,View,nicKnaack,$I$42
+✓,Searslicer Goblin,Creature — Goblin Warrior,R,View,aidybaby,$F$32
+✓,Bonecrusher Giant,Creature — Giant,R,View,nicKnaack,$I$21
+✓,Detective's Phoenix,Enchantment Creature — Phoenix,R,View,Adhavoc,$D$25
+,Goblin Rabblemaster,Creature — Goblin Warrior,R,View,,
+✓,"Laelia, the Blade Reforged",Legendary Creature — Spirit Warrior,R,View,SL Veg Zombie,$C$12
+,Rampaging Ferocidon,Creature — Dinosaur,R,View,,
+✓,Screaming Nemesis,Creature — Spirit,R,View,nicKnaack,$I$45
+✓,Seasoned Pyromancer,Creature — Human Shaman,R,View,Adhavoc,$D$15
+✓,Tersa Lightshatter,Legendary Creature — Orc Wizard,R,View,nicKnaack,$I$13
+,Pia and Kiran Nalaar,Legendary Creature — Human Artificer,R,View,,
+✓,Pyrogoyf,Creature — Lhurgoyf,R,View,nicKnaack,$I$5
+,Rampaging Raptor,Creature — Dinosaur,R,View,,
+✓,Bonehoard Dracosaur,Creature — Dinosaur Dragon,R,View,nicKnaack,$I$46
+✓,Fury,Creature — Elemental Incarnation,R,View,nicKnaack,$I$6
+✓,Glorybringer,Creature — Dragon,R,View,nicKnaack,$I$40
+,Goldspan Dragon,Creature — Dragon,R,View,,
+✓,Zealous Conscripts,Creature — Human Warrior,R,View,Andrew 420,$H$47
+✓,Oliphaunt,Creature — Elephant,R,View,Adhavoc,$D$27
+,Overlord of the Boilerbilges,Enchantment Creature — Avatar Horror,R,View,,
+✓,Trumpeting Carnosaur,Creature — Dinosaur,R,View,Andrew 420,$H$33
+✓,Burst Lightning,Instant,R,View,nicKnaack,$I$33
+✓,Fire Magic,Instant,R,View,Andrew 420,$H$24
+✓,Lightning Bolt,Instant,R,View,SL Veg Zombie,$C$7
+,Monstrous Rage,Instant,R,View,,
+✓,Torch the Tower,Instant,R,View,Adhavoc,$D$29
+✓,Unholy Heat,Instant,R,View,nicKnaack,$I$20
+✓,Abrade,Instant,R,View,nicKnaack,$I$26
+✓,Ghostfire Slice,Instant,R,View,aidybaby,$F$34
+✓,Mine Collapse,Instant,R,View,Adhavoc,$D$42
+,Fireblast,Instant,R,View,,
+✓,Pyrokinesis,Instant,R,View,Adhavoc,$D$20
+✓,Chain Lightning,Sorcery,R,View,SL Veg Zombie,$C$20
+✓,Faithless Looting,Sorcery,R,View,giya76,$J$46
+✓,Flame Slash,Sorcery,R,View,Adhavoc,$D$22
+✓,Iroh's Demonstration,Sorcery — Lesson,R,View,aidybaby,$F$35
+✓,Mizzium Mortars,Sorcery,R,View,nicKnaack,$I$32
+✓,Mizzix's Mastery,Sorcery,R,View,Adhavoc,$D$39
+✓,Pyrite Spellbomb,Artifact,R,View,aidybaby,$F$40
+✓,Chainsaw,Artifact — Equipment,R,View,aidybaby,$F$29
+✓,Cori-Steel Cutter,Artifact — Equipment,R,View,aidybaby,$F$5
+,Legion Extruder,Artifact,R,View,,
+,Embercleave,Legendary Artifact — Equipment,R,View,,
+✓,Kumano Faces Kakkazan,Enchantment — Saga,R,View,aidybaby,$F$38
+✓,Goblin Bombardment,Enchantment,R,View,aidybaby,$F$9
+✓,Fable of the Mirror-Breaker,Enchantment — Saga,R,View,Adhavoc,$D$4
+,Fires of Invention,Enchantment,R,View,,
+✓,"Chandra, Torch of Defiance",Legendary Planeswalker — Chandra,R,View,nicKnaack,$I$19
+✓,Arena of Glory,Land,R,View,Adhavoc,$D$13
+✓,Birds of Paradise,Creature — Bird,G,View,nicKnaack,$I$7
+✓,Elvish Mystic,Creature — Elf Druid,G,View,nicKnaack,$I$23
+✓,Llanowar Elves,Creature — Elf Druid,G,View,arborist77,$K$23
+✓,Molt Tender,Creature — Insect Druid,G,View,arborist77,$K$24
+,Pawpatch Recruit,Creature — Rabbit Warrior,G,View,,
+,Sazh's Chocobo,Creature — Bird,G,View,,
+✓,Sylvan Safekeeper,Creature — Human Wizard,G,View,arborist77,$K$22
+✓,Badgermole Cub,Creature — Badger Mole,G,View,arborist77,$K$4
+✓,"Bristly Bill, Spine Sower",Legendary Creature — Plant Druid,G,View,arborist77,$K$9
+✓,Cankerbloom,Creature — Phyrexian Fungus,G,View,arborist77,$K$35
+✓,Fanatic of Rhonas,Creature — Snake Druid,G,View,Jack,$G$14
+✓,Keen-Eyed Curator,Creature — Raccoon Scout,G,View,Jack,$G$35
+✓,Lotus Cobra,Creature — Snake,G,View,Jack,$G$20
+,Nishoba Brawler,Creature — Cat Warrior,G,View,,
+,"Rofellos, Llanowar Emissary",Legendary Creature — Elf Druid,G,View,,
+✓,Scavenging Ooze,Creature — Ooze,G,View,nicKnaack,$I$34
+✓,Scythecat Cub,Creature — Cat,G,View,Jack,$G$6
+✓,Springheart Nantuko,Enchantment Creature — Insect Monk,G,View,arborist77,$K$5
+✓,Sylvan Caryatid,Creature — Plant,G,View,Jack,$G$27
+,Tarmogoyf,Creature — Lhurgoyf,G,View,,
+,Tough Cookie,Artifact Creature — Food Golem,G,View,,
+✓,Voracious Hydra,Creature — Hydra,G,View,Jack,$G$25
+✓,Endurance,Creature — Elemental Incarnation,G,View,Jack,$G$13
+✓,Eternal Witness,Creature — Human Shaman,G,View,nicKnaack,$I$37
+✓,"Sandman, Shifting Scoundrel",Legendary Creature — Sand Elemental Villain,G,View,arborist77,$K$42
+✓,Sandstorm Salvager,Creature — Human Artificer,G,View,Jack,$G$32
+✓,Sentinel of the Nameless City,Creature — Merfolk Warrior Scout,G,View,nicKnaack,$I$14
+✓,Six,Legendary Creature — Treefolk,G,View,arborist77,$K$11
+✓,"Surrak, Elusive Hunter",Legendary Creature — Human Warrior,G,View,nicKnaack,$I$16
+✓,Tireless Tracker,Creature — Human Scout,G,View,Jack,$G$19
+✓,Bristlebud Farmer,Creature — Plant Druid,G,View,arborist77,$K$29
+✓,Icetill Explorer,Creature — Insect Scout,G,View,arborist77,$K$14
+,"Polukranos, World Eater",Legendary Creature — Hydra,G,View,,
+✓,Questing Beast,Legendary Creature — Beast,G,View,nicKnaack,$I$25
+✓,Timeless Witness,Creature — Human Shaman,G,View,arborist77,$K$44
+✓,Ulvenwald Oddity,Creature — Beast,G,View,Jack,$G$39
+✓,Agonasaur Rex,Creature — Dinosaur,G,View,Jack,$G$44
+✓,Balustrade Wurm,Creature — Wurm,G,View,Jack,$G$45
+,Overlord of the Hauntwoods,Enchantment Creature — Avatar Horror,G,View,,
+✓,Thragtusk,Creature — Beast,G,View,Jack,$G$41
+✓,"Titania, Protector of Argoth",Legendary Creature — Elemental,G,View,arborist77,$K$13
+✓,Generous Ent,Creature — Treefolk,G,View,nicKnaack,$I$29
+✓,"Lumra, Bellow of the Woods",Legendary Creature — Elemental Bear,G,View,arborist77,$K$45
+✓,Primeval Titan,Creature — Giant,G,View,Jack,$G$26
+✓,Titan of Industry,Creature — Elemental,G,View,Jack,$G$21
+✓,Vaultborn Tyrant,Creature — Dinosaur,G,View,arborist77,$K$21
+,Woodfall Primus,Creature — Treefolk Shaman,G,View,,
+✓,Inscription of Abundance,Instant,G,View,nicKnaack,$I$35
+✓,Green Sun's Zenith,Sorcery,G,View,arborist77,$K$20
+✓,Pest Infestation,Sorcery,G,View,nicKnaack,$I$24
+✓,Primal Might,Sorcery,G,View,Jack,$G$46
+✓,Esper Origins,Sorcery,G,View,arborist77,$K$26
+✓,Malevolent Rumble,Sorcery,G,View,arborist77,$K$12
+✓,Lumbering Worldwagon,Artifact — Vehicle,G,View,arborist77,$K$30
+✓,Esika's Chariot,Legendary Artifact — Vehicle,G,View,nicKnaack,$I$15
+✓,The Great Henge,Legendary Artifact,G,View,nicKnaack,$I$41
+,Exploration,Enchantment,G,View,,
+✓,Utopia Sprawl,Enchantment — Aura,G,View,nicKnaack,$I$30
+,Birthing Ritual,Enchantment,G,View,,
+✓,Hunter's Talent,Enchantment — Class,G,View,nicKnaack,$I$43
+✓,Innkeeper's Talent,Enchantment — Class,G,View,Jack,$G$40
+,Ranger Class,Enchantment — Class,G,View,,
+✓,"Nissa, Who Shakes the World",Legendary Planeswalker — Nissa,G,View,Jack,$G$22
+✓,"Nissa, Ascended Animist",Legendary Planeswalker — Nissa,G,View,Jack,$G$16
+✓,"Boseiju, Who Endures",Legendary Land,G,View,nicKnaack,$I$18
+✓,Shifting Woodland,Land,G,View,arborist77,$K$27
+✓,"Spider-Woman, Stunning Savior",Legendary Creature — Spider Human Hero,WU,View,gogey,$L$43
+✓,"Aang, Swift Savior",Legendary Creature — Human Avatar Ally,WU,View,gogey,$L$17
+✓,"Plagon, Lord of the Beach",Legendary Creature — Starfish Wizard,WU,View,giya76,$J$20
+✓,"Tameshi, Reality Architect",Legendary Creature — Moonfolk Wizard,WU,View,gogey,$L$42
+✓,No More Lies,Instant,WU,View,giya76,$J$16
+✓,Supreme Verdict,Sorcery,WU,View,gogey,$L$27
+✓,Talisman of Progress,Artifact,WU,View,gogey,$L$37
+✓,Assimilation Aegis,Artifact — Equipment,WU,View,giya76,$J$31
+✓,"Teferi, Time Raveler",Legendary Planeswalker — Teferi,WU,View,gogey,$L$6
+✓,"Teferi, Hero of Dominaria",Legendary Planeswalker — Teferi,WU,View,Jack,$G$17
+✓,Celestial Colonnade,Land,WU,View,gogey,$L$23
+✓,Hallowed Fountain,Land — Plains Island,WU,View,giya76,$J$14
+✓,Hallowed Fountain 2,Land — Plains Island,WU,View,gogey,$L$14
+✓,Meticulous Archive,Land — Plains Island,WU,View,gogey,$L$22
+✓,Seachrome Coast,Land,WU,View,giya76,$J$24
+✓,"Cecil, Dark Knight",Legendary Creature — Human Knight,WB,View,dkriddles,$E$14
+✓,Priest of Fell Rites,Creature — Human Warlock,WB,View,Andrew 420,$H$45
+✓,Sorin of House Markov,Legendary Creature — Human Noble,WB,View,aidybaby,$F$47
+✓,Lurrus of the Dream-Den,Legendary Creature — Cat Nightmare,WB,View,aidybaby,$F$6
+,"Teysa, Opulent Oligarch",Legendary Creature — Human Advisor,WB,View,,
+✓,Damn,Sorcery,WB,View,gogey,$L$44
+✓,Lingering Souls,Sorcery,WB,View,aidybaby,$F$48
+,Concealed Courtyard,Land,WB,View,,
+✓,Godless Shrine,Land — Plains Swamp,WB,View,arborist77,$K$34
+✓,Godless Shrine 2,Land — Plains Swamp,WB,View,Andrew 420,$H$43
+,Restless Fortress,Land,WB,View,,
+✓,Shadowy Backstreet,Land — Plains Swamp,WB,View,Andrew 420,$H$44
+✓,Figure of Destiny,Creature — Kithkin,WR,View,SL Veg Zombie,$C$36
+,Imodane's Recruiter,Creature — Human Knight,WR,View,,
+,"Joshua, Phoenix's Dominant",Legendary Creature — Human Noble Wizard,WR,View,,
+✓,The Jolly Balloon Man,Legendary Creature — Human Clown,WR,View,Andrew 420,$H$46
+✓,Lightning Helix,Instant,WR,View,SL Veg Zombie,$C$41
+,Talisman of Conviction,Artifact,WR,View,,
+,Showdown of the Skalds,Enchantment — Saga,WR,View,,
+✓,Elegant Parlor,Land — Mountain Plains,WR,View,SL Veg Zombie,$C$28
+✓,Inspiring Vantage,Land,WR,View,SL Veg Zombie,$C$29
+✓,Restless Bivouac,Land,WR,View,SL Veg Zombie,$C$30
+✓,Sacred Foundry,Land — Mountain Plains,WR,View,SL Veg Zombie,$C$19
+✓,Sacred Foundry 2,Land — Mountain Plains,WR,View,SL Veg Zombie,$C$21
+,Voice of Resurgence,Creature — Elemental,WG,View,,
+✓,Knight of Autumn,Creature — Dryad Knight,WG,View,arborist77,$K$39
+,Knight of the Reliquary,Creature — Human Knight,WG,View,,
+,Brightglass Gearhulk,Artifact Creature — Construct,WG,View,,
+✓,Dromoka's Command,Instant,WG,View,arborist77,$K$46
+✓,Cosmic Rebirth,Instant,WG,View,Jack,$G$42
+✓,Lush Portico,Land — Forest Plains,WG,View,arborist77,$K$31
+✓,Razorverge Thicket,Land,WG,View,Jack,$G$43
+,Stirring Wildwood,Land,WG,View,,
+✓,Temple Garden,Land — Forest Plains,WG,View,Jack,$G$15
+✓,Temple Garden 2,Land — Forest Plains,WG,View,Jack,$G$28
+✓,Invasion of Amonkhet,Battle — Siege,UB,View,dkriddles,$E$39
+✓,Baleful Strix,Artifact Creature — Bird,UB,View,Andrew 420,$H$21
+,"Yuriko, the Tiger's Shadow",Legendary Creature — Human Ninja,UB,View,,
+✓,Fallen Shinobi,Creature — Zombie Ninja,UB,View,dkriddles,$E$22
+,Kaito Shizuki,Legendary Planeswalker — Kaito,UB,View,,
+✓,"Kaito, Bane of Nightmares",Legendary Planeswalker — Kaito,UB,View,dkriddles,$E$26
+✓,Creeping Tar Pit,Land,UB,View,dkriddles,$E$24
+✓,Darkslick Shores,Land,UB,View,dkriddles,$E$35
+✓,Undercity Sewers,Land — Island Swamp,UB,View,dkriddles,$E$28
+✓,Watery Grave,Land — Island Swamp,UB,View,dkriddles,$E$21
+✓,Watery Grave 2,Land — Island Swamp,UB,View,Andrew 420,$H$22
+,Third Path Iconoclast,Creature — Human Monk,UR,View,,
+✓,"Lutri, the Spellchaser",Legendary Creature — Elemental Otter,UR,View,Adhavoc,$D$19
+✓,Vivi Ornitier,Legendary Creature — Wizard,UR,View,Adhavoc,$D$48
+✓,Flame of Anor,Instant,UR,View,Adhavoc,$D$44
+✓,Prismari Command,Instant,UR,View,Adhavoc,$D$43
+✓,Magma Opus,Instant,UR,View,Adhavoc,$D$40
+,Expressive Iteration,Sorcery,UR,View,,
+✓,Silverbluff Bridge,Artifact Land,UR,View,Adhavoc,$D$45
+,Talisman of Creativity,Artifact,UR,View,,
+,"Saheeli, Sublime Artificer",Legendary Planeswalker — Saheeli,UR,View,,
+✓,Spirebluff Canal,Land,UR,View,Adhavoc,$D$37
+✓,Steam Vents,Land — Island Mountain,UR,View,Adhavoc,$D$14
+✓,Steam Vents 2,Land — Island Mountain,UR,View,Adhavoc,$D$16
+✓,Thundering Falls,Land — Island Mountain,UR,View,Adhavoc,$D$28
+✓,Genemorph Imago,Creature — Insect Druid,UG,View,Jack,$G$47
+✓,Hydroid Krasis,Creature — Jellyfish Hydra Beast,UG,View,Jack,$G$31
+,Kishla Skimmer,Creature — Bird Scout,UG,View,,
+✓,"Uro, Titan of Nature's Wrath",Legendary Creature — Elder Giant,UG,View,Jack,$G$4
+✓,Repulsive Mutation,Instant,UG,View,Jack,$G$48
+✓,"Tamiyo, Collector of Tales",Legendary Planeswalker — Tamiyo,UG,View,Jack,$G$38
+,Botanical Sanctum,Land,UG,View,,
+✓,Breeding Pool,Land — Forest Island,UG,View,Jack,$G$37
+✓,Breeding Pool 2,Land — Forest Island,UG,View,Adhavoc,$D$38
+✓,Hedge Maze,Land — Forest Island,UG,View,Jack,$G$36
+,Restless Vinestalk,Land,UG,View,,
+✓,Bloodtithe Harvester,Creature — Vampire,BR,View,aidybaby,$F$14
+✓,"Kroxa, Titan of Death's Hunger",Legendary Creature — Elder Giant,BR,View,Andrew 420,$H$36
+✓,"Valki, God of Lies",Legendary Creature — God,BR,View,Andrew 420,$H$14
+✓,"Alesha, Who Laughs at Fate",Legendary Creature — Human Warrior,BR,View,Andrew 420,$H$48
+✓,Carnage Interpreter,Creature — Devil Detective,BR,View,Andrew 420,$H$6
+,"Judith, the Scourge Diva",Legendary Creature — Human Shaman,BR,View,,
+,Mayhem Devil,Creature — Devil,BR,View,,
+✓,Kolaghan's Command,Instant,BR,View,Andrew 420,$H$37
+✓,Blackcleave Cliffs,Land,BR,View,aidybaby,$F$28
+✓,Blood Crypt,Land — Swamp Mountain,BR,View,Andrew 420,$H$15
+✓,Blood Crypt 2,Land — Swamp Mountain,BR,View,aidybaby,$F$15
+✓,Raucous Theater,Land — Swamp Mountain,BR,View,Andrew 420,$H$26
+✓,Restless Vents,Land,BR,View,Andrew 420,$H$34
+✓,Deathrite Shaman,Creature — Elf Shaman,BG,View,nicKnaack,$I$9
+✓,Wight of the Reliquary,Creature — Zombie Knight,BG,View,arborist77,$K$40
+,Glissa Sunslayer,Legendary Creature — Phyrexian Zombie Elf,BG,View,,
+✓,"Polukranos, Unchained",Legendary Creature — Zombie Hydra,BG,View,arborist77,$K$47
+,The Gitrog Monster,Legendary Creature — Frog Horror,BG,View,,
+✓,Tear Asunder,Instant,BG,View,arborist77,$K$41
+✓,Life // Death,Sorcery,BG,View,arborist77,$K$19
+✓,"Grist, the Hunger Tide",Legendary Planeswalker — Grist,BG,View,arborist77,$K$16
+,Blooming Marsh,Land,BG,View,,
+✓,Overgrown Tomb,Land — Swamp Forest,BG,View,nicKnaack,$I$31
+✓,Overgrown Tomb 2,Land — Swamp Forest,BG,View,arborist77,$K$33
+✓,Restless Cottage,Land,BG,View,arborist77,$K$38
+✓,Underground Mortuary,Land — Swamp Forest,BG,View,arborist77,$K$28
+,Territorial Kavu,Creature — Kavu,RG,View,,
+✓,"Migloz, Maze Crusher",Legendary Creature — Phyrexian Beast,RG,View,nicKnaack,$I$47
+,Bloodbraid Elf,Creature — Elf Berserker,RG,View,,
+✓,Huntmaster of the Fells,Creature — Human Werewolf,RG,View,nicKnaack,$I$48
+✓,"Etali, Primal Conqueror",Legendary Creature — Elder Dinosaur,RG,View,nicKnaack,$I$22
+✓,Escape to the Wilds,Sorcery,RG,View,nicKnaack,$I$39
+✓,Wrenn and Six,Legendary Planeswalker — Wrenn,RG,View,SL Veg Zombie,$C$40
+✓,Commercial District,Land — Mountain Forest,RG,View,nicKnaack,$I$28
+✓,Copperline Gorge,Land,RG,View,nicKnaack,$I$44
+,Raging Ravine,Land,RG,View,,
+✓,Stomping Ground,Land — Mountain Forest,RG,View,nicKnaack,$I$17
+✓,Stomping Ground 2,Land — Mountain Forest,RG,View,nicKnaack,$I$36
+,"Raffine, Scheming Seer",Legendary Creature — Sphinx Demon,WUB,View,,
+✓,Noble Hierarch,Creature — Human Druid,WUG,View,Jack,$G$8
+✓,Norman Osborn,Legendary Creature — Human Scientist Villain,UBR,View,Andrew 420,$H$23
+✓,"Loot, the Pathfinder",Legendary Creature — Beast Noble,URG,View,Adhavoc,$D$47
+✓,Ignoble Hierarch,Creature — Goblin Shaman,BRG,View,arborist77,$K$8
+,"Korvold, Fae-Cursed King",Legendary Creature — Dragon Noble,BRG,View,,
+,"Golos, Tireless Pilgrim",Legendary Artifact Creature — Scout,WUBRG,View,,
+✓,Gingerbrute,Artifact Creature — Food Golem,C,View,Adhavoc,$D$46
+✓,"Syr Ginger, the Meal Ender",Legendary Artifact Creature — Food Knight,C,View,gogey,$L$46
+✓,Anticausal Vestige,Creature — Eldrazi,C,View,giya76,$J$48
+✓,Wurmcoil Engine,Artifact Creature — Phyrexian Wurm,C,View,Jack,$G$34
+,Myr Battlesphere,Artifact Creature — Myr Construct,C,View,,
+✓,Cityscape Leveler,Artifact Creature — Construct,C,View,nicKnaack,$I$38
+✓,Chrome Mox,Artifact,C,View,SL Veg Zombie,$C$13
+✓,Mishra's Bauble,Artifact,C,View,Adhavoc,$D$6
+✓,Mox Opal,Legendary Artifact,C,View,Adhavoc,$D$12
+✓,Currency Converter,Artifact,C,View,Andrew 420,$H$5
+✓,Retrofitter Foundry,Artifact,C,View,gogey,$L$20
+✓,Soul-Guide Lantern,Artifact,C,View,giya76,$J$28
+✓,Agatha's Soul Cauldron,Legendary Artifact,C,View,Adhavoc,$D$11
+✓,Reckoner Bankbuster,Artifact — Vehicle,C,View,giya76,$J$39
+✓,Smuggler's Copter,Artifact — Vehicle,C,View,Adhavoc,$D$5
+,Coalition Relic,Artifact,C,View,,
+✓,Monument to Endurance,Artifact,C,View,Adhavoc,$D$26
+✓,Nettlecyst,Artifact — Equipment,C,View,gogey,$L$47
+✓,Palantír of Orthanc,Legendary Artifact,C,View,dkriddles,$E$43
+,The Aetherspark,Legendary Artifact Planeswalker — Equipment,C,View,,
+✓,Batterskull,Artifact — Equipment,C,View,SL Veg Zombie,$C$33
+,Dissection Tools,Artifact — Equipment,C,View,,
+,"Skysovereign, Consul Flagship",Legendary Artifact — Vehicle,C,View,,
+✓,Nexus of Becoming,Artifact,C,View,arborist77,$K$48
+,The Endstone,Legendary Artifact,C,View,,
+,"Karn, Scion of Urza",Legendary Planeswalker — Karn,C,View,,
+✓,Ancient Tomb,Land,C,View,nicKnaack,$I$4
+✓,Arid Mesa,Land,C,View,nicKnaack,$I$11
+✓,Arid Mesa 2,Land,C,View,SL Veg Zombie,$C$11
+,Blinkmoth Nexus,Land,C,View,,
+✓,Bloodstained Mire,Land,C,View,Andrew 420,$H$9
+✓,Bloodstained Mire 2,Land,C,View,aidybaby,$F$10
+,Field of the Dead,Land,C,View,,
+✓,Flooded Strand,Land,C,View,giya76,$J$8
+✓,Flooded Strand 2,Land,C,View,gogey,$L$9
+✓,Marsh Flats,Land,C,View,giya76,$J$11
+✓,Marsh Flats 2,Land,C,View,Jack,$G$11
+✓,Misty Rainforest,Land,C,View,Jack,$G$7
+✓,Misty Rainforest 2,Land,C,View,Jack,$G$10
+✓,Mutavault,Land,C,View,SL Veg Zombie,$C$31
+✓,Polluted Delta,Land,C,View,Andrew 420,$H$11
+✓,Polluted Delta 2,Land,C,View,dkriddles,$E$11
+✓,Prismatic Vista,Land,C,View,arborist77,$K$18
+✓,Scalding Tarn,Land,C,View,Adhavoc,$D$7
+✓,Scalding Tarn 2,Land,C,View,gogey,$L$10
+✓,Strip Mine,Land,C,View,nicKnaack,$I$12
+✓,Verdant Catacombs,Land,C,View,nicKnaack,$I$10
+✓,Verdant Catacombs 2,Land,C,View,arborist77,$K$10
+✓,Windswept Heath,Land,C,View,arborist77,$K$6
+✓,Windswept Heath 2,Land,C,View,arborist77,$K$7
+✓,Wooded Foothills,Land,C,View,Adhavoc,$D$8
+✓,Wooded Foothills 2,Land,C,View,nicKnaack,$I$8
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264
+,,,,,,$IXO$51264

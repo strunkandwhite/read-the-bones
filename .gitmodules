@@ -1,0 +1,3 @@
+[submodule "src/cli"]
+	path = src/cli
+	url = https://github.com/strunkandwhite/read-the-bones-cli.git
