@@ -3,7 +3,7 @@
 import { useState, useCallback, useMemo, useEffect } from "react";
 import { CardTable, ColorFilter, Settings } from "./index";
 import type { ColorFilterMode } from "./ColorFilter";
-import type { EnrichedCardStats, DraftDataFile, ScryCard, CardPick, MatchResult } from "@/core/types";
+import type { EnrichedCardStats, DraftDataFile, ScryCard, CardPick } from "@/core/types";
 import { useLocalStorage, useIsHydrated } from "../hooks/useLocalStorage";
 import { calculateCardStats, metadataToMap, DISTRIBUTION_BUCKET_COUNT } from "@/core/calculateStats";
 import { searchLocalCards } from "@/core/localSearch";

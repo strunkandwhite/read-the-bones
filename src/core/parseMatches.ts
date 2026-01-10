@@ -9,16 +9,10 @@
  */
 
 import Papa from "papaparse";
+import type { MatchResult } from "./types";
 
-/**
- * Represents a single match result between two players.
- */
-export type MatchResult = {
-  player1: string;
-  player2: string;
-  player1GamesWon: number;
-  player2GamesWon: number;
-};
+// Re-export for backwards compatibility with existing imports
+export type { MatchResult };
 
 /**
  * Aggregated match statistics for a single player.

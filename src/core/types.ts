@@ -184,5 +184,5 @@ export type DraftDataFile = {
   /** Map of draftId to metadata */
   metadata: Record<string, { name: string; date: string; numDrafters?: number }>;
   /** Map of draftId to match results for that draft */
-  matchResults: Record<string, MatchResult[]>;
+  matchResults?: Record<string, MatchResult[]>;
 };
