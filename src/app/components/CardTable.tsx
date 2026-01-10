@@ -44,17 +44,16 @@ function InfoTooltip({ text }: { text: string }) {
   );
 }
 
-const PICK_SCORE_EXPLANATION = `Pick Score is a weighted geometric mean of pick positions across all drafts.
+const PICK_EXPLANATION = `Weighted geometric mean of pick positions across all drafts.
 
 Lower = better (picked earlier on average)
 
+Pick position is the absolute draft order (1-450+), not the round number.
+
 Weighting factors:
 • Copy weight: 0.5^(n-1) for nth copy
-  (1st copy = 1, 2nd = 0.5, 3rd = 0.25)
 • Unpicked cards: 0.5x weight
-• Top player picks: 2x weight (when enabled)
-
-Formula: exp(Σ(weight × ln(position)) / Σ(weight))`;
+• Top player picks: 2x weight (when enabled)`;
 
 const WIN_EQUITY_EXPLANATION = `Win Equity estimates how much each card contributed to match wins.
 
@@ -132,8 +131,8 @@ export function CardTable({
           id: "pickScore",
           header: () => (
             <span className="inline-flex items-center">
-              Pick Score
-              <InfoTooltip text={PICK_SCORE_EXPLANATION} />
+              {useTopPlayerWeighting ? "Avg Pick (weighted)" : "Avg Pick"}
+              <InfoTooltip text={PICK_EXPLANATION} />
             </span>
           ),
           cell: ({ getValue }) => {
@@ -332,8 +331,8 @@ export function CardTable({
       {/* Mobile-only help text */}
       <div className="mb-4 space-y-4 rounded-lg bg-zinc-100 p-3 text-xs whitespace-pre-line text-zinc-600 md:hidden dark:bg-zinc-800 dark:text-zinc-400">
         <div>
-          <p className="mb-2 font-semibold text-zinc-700 dark:text-zinc-300">Pick Score</p>
-          {PICK_SCORE_EXPLANATION}
+          <p className="mb-2 font-semibold text-zinc-700 dark:text-zinc-300">Avg Pick</p>
+          {PICK_EXPLANATION}
         </div>
         <div>
           <p className="mb-2 font-semibold text-zinc-700 dark:text-zinc-300">Win Equity</p>

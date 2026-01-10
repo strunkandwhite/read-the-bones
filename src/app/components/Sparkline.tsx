@@ -1,7 +1,6 @@
 "use client";
 
 import type { DraftScore } from "@/core/types";
-import { DEFAULT_NUM_DRAFTERS } from "@/core/calculateStats";
 
 /**
  * Sparkline component for visualizing score history over drafts.
@@ -68,11 +67,20 @@ export function Sparkline({ history }: { history: DraftScore[] }) {
       {/* Tooltip on hover */}
       <div className="absolute -top-8 left-0 z-50 hidden rounded bg-zinc-800 px-2 py-1 text-xs whitespace-nowrap text-white group-hover:block">
         {history.map((h, i) => {
-          const numDrafters = h.numDrafters || DEFAULT_NUM_DRAFTERS;
-          const round = Math.ceil(h.pickPosition / numDrafters);
+          // Format: "Pick X", "Pick X (4/5)" for aggregated, or "unpicked"
+          let pickLabel: string;
+          if (h.pickedCount !== undefined && h.totalCount !== undefined) {
+            // Aggregated date - show (picked/total) suffix
+            pickLabel = h.pickedCount === 0
+              ? `unpicked (0/${h.totalCount})`
+              : `Pick ${h.pickPosition} (${h.pickedCount}/${h.totalCount})`;
+          } else {
+            // Single draft
+            pickLabel = h.wasPicked ? `Pick ${h.pickPosition}` : "unpicked";
+          }
           return (
             <div key={i}>
-              {h.date}: {h.wasPicked ? `Rd ${round}` : "unpicked"}
+              {h.date}: {pickLabel}
             </div>
           );
         })}
