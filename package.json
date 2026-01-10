@@ -3,9 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "predev": "tsx scripts/generate-draft-data.ts",
     "dev": "next dev",
-    "build": "next build",
     "prebuild": "tsx scripts/generate-draft-data.ts",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "eslint . --fix",

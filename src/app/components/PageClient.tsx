@@ -5,7 +5,7 @@ import { CardTable, ColorFilter, Settings } from "./index";
 import type { ColorFilterMode } from "./ColorFilter";
 import type { EnrichedCardStats, DraftDataFile, ScryCard, CardPick } from "@/core/types";
 import { useLocalStorage, useIsHydrated } from "../hooks/useLocalStorage";
-import { calculateCardStats, metadataToMap } from "@/core/calculateStats";
+import { calculateCardStats, metadataToMap, DISTRIBUTION_BUCKET_COUNT } from "@/core/calculateStats";
 import { searchLocalCards } from "@/core/localSearch";
 import { hasScryfallOperators } from "@/core/searchUtils";
 
@@ -155,7 +155,7 @@ export function PageClient({
         maxCopiesInDraft: 0,
         colors: [],
         scoreHistory: [],
-        pickDistribution: [0, 0, 0, 0, 0],
+        pickDistribution: new Array(DISTRIBUTION_BUCKET_COUNT).fill(0),
         scryfall: scryfallData[cardName],
       }));
 

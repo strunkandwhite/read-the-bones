@@ -12,7 +12,11 @@ const DATA_DIR = "data";
 const OUTPUT_DIR = "public/api";
 const OUTPUT_FILE = "draft-data.json";
 
-function loadDraftMetadata(draftPath: string, draftId: string): { name: string; date: string } {
+function loadDraftMetadata(
+  draftPath: string,
+  draftId: string,
+  numDraftersFromParse?: number
+): { name: string; date: string; numDrafters?: number } {
   const metadataPath = join(draftPath, "metadata.json");
 
   if (existsSync(metadataPath)) {
@@ -22,19 +26,20 @@ function loadDraftMetadata(draftPath: string, draftId: string): { name: string; 
       return {
         name: data.name || draftId,
         date: data.date || "1970-01-01",
+        numDrafters: data.numDrafters || numDraftersFromParse,
       };
     } catch (error) {
       console.warn(`[generate-draft-data] Failed to parse metadata for "${draftId}":`, error);
     }
   }
 
-  return { name: draftId, date: "1970-01-01" };
+  return { name: draftId, date: "1970-01-01", numDrafters: numDraftersFromParse };
 }
 
 function main() {
   const allPicks: CardPick[] = [];
   const pools: Record<string, string[]> = {};
-  const metadata: Record<string, { name: string; date: string }> = {};
+  const metadata: Record<string, { name: string; date: string; numDrafters?: number }> = {};
 
   if (!existsSync(DATA_DIR)) {
     console.warn(`[generate-draft-data] Data directory not found: ${DATA_DIR}`);
@@ -65,12 +70,12 @@ function main() {
         continue;
       }
 
-      const { picks } = parseDraft(picksCsv, poolCsv, entry);
+      const { picks, numDrafters } = parseDraft(picksCsv, poolCsv, entry);
       const pool = parsePool(poolCsv);
 
       allPicks.push(...picks);
       pools[entry] = pool;
-      metadata[entry] = loadDraftMetadata(entryPath, entry);
+      metadata[entry] = loadDraftMetadata(entryPath, entry, numDrafters);
 
       console.log(`[generate-draft-data] Processed "${entry}": ${picks.length} picks`);
     } catch (error) {
