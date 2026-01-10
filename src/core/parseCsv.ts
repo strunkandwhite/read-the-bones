@@ -143,10 +143,10 @@ export function parseDraftPicks(
     const row = rows[rowIndex];
     if (!row || row.length < 3) continue;
 
-    // Column A is pick number
-    const pickNumberStr = row[0]?.trim();
-    const pickNumber = parseInt(pickNumberStr, 10);
-    if (isNaN(pickNumber)) continue;
+    // Column A is round number (not absolute pick position)
+    const roundNumberStr = row[0]?.trim();
+    const roundNumber = parseInt(roundNumberStr, 10);
+    if (isNaN(roundNumber)) continue;
 
     // Column B is arrow (ignored)
     // Columns C onwards are card picks for each drafter
@@ -201,9 +201,20 @@ export function parseDraftPicks(
         color = row[colorColIndex]?.trim() || "";
       }
 
+      // Calculate actual pick position from round number and drafter index
+      // Snake draft: odd rounds go left-to-right, even rounds go right-to-left
+      let pickPosition: number;
+      if (roundNumber % 2 === 1) {
+        // Odd rounds: drafter 0 picks first
+        pickPosition = (roundNumber - 1) * numDrafters + (drafterIndex + 1);
+      } else {
+        // Even rounds: drafter 0 picks last (snake back)
+        pickPosition = (roundNumber - 1) * numDrafters + (numDrafters - drafterIndex);
+      }
+
       picks.push({
         cardName: normalizedName,
-        pickPosition: pickNumber,
+        pickPosition,
         copyNumber: currentCopy,
         wasPicked: true,
         draftId,

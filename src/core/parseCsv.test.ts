@@ -42,8 +42,11 @@ describe("parseDraftPicks", () => {
     const { picks } = parseDraftPicks(minimalCsv, "test-draft");
     const jackPicks = picks.filter((p) => p.drafterName === "Jack");
     expect(jackPicks).toHaveLength(2);
+    // Jack is drafter index 0, with 3 drafters:
+    // Round 1 (odd): position = (1-1)*3 + (0+1) = 1
+    // Round 2 (even): position = (2-1)*3 + (3-0) = 6
     expect(jackPicks[0].pickPosition).toBe(1);
-    expect(jackPicks[1].pickPosition).toBe(2);
+    expect(jackPicks[1].pickPosition).toBe(6);
   });
 
   it("should normalize card names", () => {
@@ -138,11 +141,14 @@ invalid,→,Card3,Card4,↩,,U,U
     const { picks } = parseDraftPicks(csvWithColors, "test-draft");
 
     // Check that colors are parsed
+    // Phelia: Jack (index 0), round 1 → position 1
     const pheliaPick = picks.find((p) => p.cardName === "Phelia" && p.pickPosition === 1);
     expect(pheliaPick?.color).toBe("W");
 
+    // Thoughtseize: Neo (index 2), round 2 (even) with 3 drafters
+    // position = (2-1)*3 + (3-2) = 4
     const thoughtseizePick = picks.find(
-      (p) => p.cardName === "Thoughtseize" && p.pickPosition === 2
+      (p) => p.cardName === "Thoughtseize" && p.pickPosition === 4
     );
     expect(thoughtseizePick?.color).toBe("UB");
   });
@@ -305,16 +311,16 @@ describe("integration with real CSV structure", () => {
   it("should correctly associate colors with picks", () => {
     const { picks } = parseDraftPicks(realStylePicksCsv, "real-draft");
 
-    // Jack's first pick should be W (white)
+    // Jack (index 0), round 1 (odd): position = 1
     const jackPick1 = picks.find((p) => p.drafterName === "Jack" && p.pickPosition === 1);
     expect(jackPick1?.color).toBe("W");
 
-    // Keith's first pick should be G (green)
-    const keithPick1 = picks.find((p) => p.drafterName === "Keith" && p.pickPosition === 1);
+    // Keith (index 11), round 1 (odd): position = (1-1)*12 + (11+1) = 12
+    const keithPick1 = picks.find((p) => p.drafterName === "Keith" && p.pickPosition === 12);
     expect(keithPick1?.color).toBe("G");
 
-    // Murmurtwin's second pick should be BRG
-    const murmurPick2 = picks.find((p) => p.drafterName === "Murmurtwin" && p.pickPosition === 2);
+    // Murmurtwin (index 4), round 2 (even): position = (2-1)*12 + (12-4) = 20
+    const murmurPick2 = picks.find((p) => p.drafterName === "Murmurtwin" && p.pickPosition === 20);
     expect(murmurPick2?.color).toBe("BRG");
   });
 

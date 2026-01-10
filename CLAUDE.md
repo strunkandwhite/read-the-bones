@@ -55,6 +55,15 @@ Local Scryfall-style search (searches only cards in the cube):
 
 Search is debounced (500ms) and runs locally against cached card data.
 
+## Terminology: Picks vs Rounds
+
+- **Pick position**: Absolute number (1-450). The order a card was selected in a draft.
+- **Round**: Which pass through the drafters. Round = `ceil(pickPosition / numDrafters)`.
+  - With 10 drafters: Round 1 = picks 1-10, Round 2 = picks 11-20, etc.
+- **Unpicked penalty**: Cards not selected get pickPosition = poolSize (540), which converts to `ceil(540 / numDrafters)` rounds (e.g., round 54 with 10 drafters).
+
+The UI displays rounds, not raw pick positions. When aggregating multiple drafts on the same date, convert positions to rounds BEFORE averaging.
+
 ## Design Document
 
 See `docs/plans/2026-01-08-card-rankings-design.md` for full architecture and algorithm details.
