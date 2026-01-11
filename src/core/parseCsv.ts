@@ -146,11 +146,9 @@ export function parseDraftPicks(
     } else if (isArrow(cell)) {
       // Hit the arrow marker, stop collecting drafter names
       break;
-    } else if (!cell && i > 2) {
-      // Empty cell after having some names - check if we've collected names
-      // This could be a gap or the end
-      // Continue to see if there are more names (there might be gaps)
-      continue;
+    } else if (!cell && drafterNames.length > 0) {
+      // Empty cell after collecting names - drafter names are contiguous, so stop here
+      break;
     }
   }
 

@@ -216,6 +216,23 @@ invalid,→,Card3,Card4,↩,,U,U
     const { numDrafters } = parseDraftPicks(minimalCsv, "test-draft");
     expect(numDrafters).toBe(3);
   });
+
+  it("should stop collecting drafter names at empty cells", () => {
+    // Simulate a CSV where there's an Excel error (#NUM!) after empty cells
+    // The parser should stop at empty cells and not include #NUM! as a drafter
+    const csvWithExcelError = `,,Rotisserie Draft,,,,
+,,,,,
+,,Jack,Aspi,Neo,,,#NUM!,,
+1,→,Card1,Card2,Card3,,,,,`;
+
+    const { picks, numDrafters } = parseDraftPicks(csvWithExcelError, "test-draft");
+
+    // Should only find 3 drafters, not 4 (shouldn't include #NUM!)
+    expect(numDrafters).toBe(3);
+    const drafters = [...new Set(picks.map((p) => p.drafterName))];
+    expect(drafters).toEqual(["Jack", "Aspi", "Neo"]);
+    expect(drafters).not.toContain("#NUM!");
+  });
 });
 
 describe("parsePool", () => {

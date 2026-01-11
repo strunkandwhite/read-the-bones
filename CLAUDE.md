@@ -19,11 +19,13 @@ cache/
 ## Key Commands
 
 ```bash
-pnpm dev         # Start dev server
-pnpm build       # Build static site
+pnpm dev         # Start dev server (runs predev to regenerate draft data)
+pnpm build       # Build static site (runs prebuild to regenerate draft data)
 pnpm test        # Run tests
 pnpm screenshot  # Take screenshot (requires dev server running)
 ```
+
+**Note:** Draft data is regenerated automatically via `predev`/`prebuild` hooks. After adding or modifying CSV files in `data/`, just run `pnpm dev` or `pnpm build`.
 
 ## Important: Process Management
 

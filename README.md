@@ -37,7 +37,7 @@ pnpm build       # Build static site
 1. Create a folder in `data/` for each draft
 2. Export the draft picks sheet as `picks.csv`
 3. Export the card pool as `pool.csv`
-4. Rebuild the site
+4. Run `pnpm dev` or `pnpm build` (draft data is regenerated automatically)
 
 ## Tech Stack
 
