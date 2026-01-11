@@ -12,6 +12,7 @@ import {
 } from "@tanstack/react-table";
 import type { EnrichedCardStats } from "@/core/types";
 import type { ColorFilterMode } from "./ColorFilter";
+import { filterCardsByColor } from "@/core/colorFilter";
 import { ManaSymbols, ColorPills } from "./ManaSymbols";
 import { Sparkline } from "./Sparkline";
 import { CardNameCell } from "./CardNameCell";
@@ -283,31 +284,7 @@ export function CardTable({
   );
 
   const filteredData = useMemo(() => {
-    // Apply color filter only (search filtering is handled by PageClient)
-    if (colorFilter.length === 0) {
-      return cards;
-    }
-
-    const selectedColors = colorFilter.filter((c) => c !== "C");
-    const includesColorless = colorFilter.includes("C");
-
-    return cards.filter((card) => {
-      const cardColors = card.scryfall?.colorIdentity || card.colors || [];
-
-      // Colorless check
-      if (includesColorless && cardColors.length === 0) {
-        return true;
-      }
-
-      if (colorFilterMode === "inclusive") {
-        // Inclusive: card matches if it contains ANY selected color
-        return selectedColors.some((color) => cardColors.includes(color));
-      } else {
-        // Exclusive: card matches if ALL its colors are in selected colors
-        // (card colors must be a subset of selected colors)
-        return cardColors.length > 0 && cardColors.every((color) => selectedColors.includes(color));
-      }
-    });
+    return filterCardsByColor(cards, colorFilter, colorFilterMode);
   }, [cards, colorFilter, colorFilterMode]);
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table API is incompatible with React Compiler memoization
