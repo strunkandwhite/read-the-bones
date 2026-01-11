@@ -10,6 +10,20 @@
 import type { CardPick, ScryCard } from "./types";
 import type { PlayerMatchStats } from "./parseMatches";
 
+/** Play probability for land cards - always played */
+export const LAND_PLAY_PROBABILITY = 1.0;
+
+/** Pick position thresholds for probability tiers */
+export const PICK_THRESHOLD_EARLY = 15;
+export const PICK_THRESHOLD_MID = 23;
+export const PICK_THRESHOLD_LATE = 30;
+
+/** Play probabilities for each tier */
+export const PLAY_PROBABILITY_EARLY = 0.95;
+export const PLAY_PROBABILITY_MID = 0.8;
+export const PLAY_PROBABILITY_LATE = 0.4;
+export const PLAY_PROBABILITY_VERY_LATE = 0.1;
+
 /**
  * Win equity result for a single card.
  */
@@ -51,19 +65,19 @@ export type RawWinRateResult = {
  */
 export function getPlayProbability(pickPosition: number, isLand: boolean): number {
   if (isLand) {
-    return 1.0;
+    return LAND_PLAY_PROBABILITY;
   }
 
-  if (pickPosition <= 15) {
-    return 0.95;
+  if (pickPosition <= PICK_THRESHOLD_EARLY) {
+    return PLAY_PROBABILITY_EARLY;
   }
-  if (pickPosition <= 23) {
-    return 0.8;
+  if (pickPosition <= PICK_THRESHOLD_MID) {
+    return PLAY_PROBABILITY_MID;
   }
-  if (pickPosition <= 30) {
-    return 0.4;
+  if (pickPosition <= PICK_THRESHOLD_LATE) {
+    return PLAY_PROBABILITY_LATE;
   }
-  return 0.1;
+  return PLAY_PROBABILITY_VERY_LATE;
 }
 
 /**

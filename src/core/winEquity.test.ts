@@ -3,6 +3,14 @@ import {
   getPlayProbability,
   calculateWinEquity,
   calculateRawWinRate,
+  LAND_PLAY_PROBABILITY,
+  PICK_THRESHOLD_EARLY,
+  PICK_THRESHOLD_MID,
+  PICK_THRESHOLD_LATE,
+  PLAY_PROBABILITY_EARLY,
+  PLAY_PROBABILITY_MID,
+  PLAY_PROBABILITY_LATE,
+  PLAY_PROBABILITY_VERY_LATE,
 } from "./winEquity";
 import type { CardPick, ScryCard } from "./types";
 import type { PlayerMatchStats } from "./parseMatches";
@@ -42,57 +50,57 @@ function createScryCard(overrides: Partial<ScryCard> = {}): ScryCard {
 
 describe("getPlayProbability", () => {
   describe("land cards", () => {
-    it("should return 1.0 for lands regardless of pick position", () => {
-      expect(getPlayProbability(1, true)).toBe(1.0);
-      expect(getPlayProbability(15, true)).toBe(1.0);
-      expect(getPlayProbability(23, true)).toBe(1.0);
-      expect(getPlayProbability(30, true)).toBe(1.0);
-      expect(getPlayProbability(50, true)).toBe(1.0);
-      expect(getPlayProbability(100, true)).toBe(1.0);
+    it("should return LAND_PLAY_PROBABILITY for lands regardless of pick position", () => {
+      expect(getPlayProbability(1, true)).toBe(LAND_PLAY_PROBABILITY);
+      expect(getPlayProbability(PICK_THRESHOLD_EARLY, true)).toBe(LAND_PLAY_PROBABILITY);
+      expect(getPlayProbability(PICK_THRESHOLD_MID, true)).toBe(LAND_PLAY_PROBABILITY);
+      expect(getPlayProbability(PICK_THRESHOLD_LATE, true)).toBe(LAND_PLAY_PROBABILITY);
+      expect(getPlayProbability(50, true)).toBe(LAND_PLAY_PROBABILITY);
+      expect(getPlayProbability(100, true)).toBe(LAND_PLAY_PROBABILITY);
     });
   });
 
   describe("non-land cards - pick position decay", () => {
-    it("should return 0.95 for picks 1-15", () => {
-      expect(getPlayProbability(1, false)).toBe(0.95);
-      expect(getPlayProbability(8, false)).toBe(0.95);
-      expect(getPlayProbability(15, false)).toBe(0.95);
+    it(`should return PLAY_PROBABILITY_EARLY for picks 1-${PICK_THRESHOLD_EARLY}`, () => {
+      expect(getPlayProbability(1, false)).toBe(PLAY_PROBABILITY_EARLY);
+      expect(getPlayProbability(8, false)).toBe(PLAY_PROBABILITY_EARLY);
+      expect(getPlayProbability(PICK_THRESHOLD_EARLY, false)).toBe(PLAY_PROBABILITY_EARLY);
     });
 
-    it("should return 0.80 for picks 16-23", () => {
-      expect(getPlayProbability(16, false)).toBe(0.8);
-      expect(getPlayProbability(20, false)).toBe(0.8);
-      expect(getPlayProbability(23, false)).toBe(0.8);
+    it(`should return PLAY_PROBABILITY_MID for picks ${PICK_THRESHOLD_EARLY + 1}-${PICK_THRESHOLD_MID}`, () => {
+      expect(getPlayProbability(PICK_THRESHOLD_EARLY + 1, false)).toBe(PLAY_PROBABILITY_MID);
+      expect(getPlayProbability(20, false)).toBe(PLAY_PROBABILITY_MID);
+      expect(getPlayProbability(PICK_THRESHOLD_MID, false)).toBe(PLAY_PROBABILITY_MID);
     });
 
-    it("should return 0.40 for picks 24-30", () => {
-      expect(getPlayProbability(24, false)).toBe(0.4);
-      expect(getPlayProbability(27, false)).toBe(0.4);
-      expect(getPlayProbability(30, false)).toBe(0.4);
+    it(`should return PLAY_PROBABILITY_LATE for picks ${PICK_THRESHOLD_MID + 1}-${PICK_THRESHOLD_LATE}`, () => {
+      expect(getPlayProbability(PICK_THRESHOLD_MID + 1, false)).toBe(PLAY_PROBABILITY_LATE);
+      expect(getPlayProbability(27, false)).toBe(PLAY_PROBABILITY_LATE);
+      expect(getPlayProbability(PICK_THRESHOLD_LATE, false)).toBe(PLAY_PROBABILITY_LATE);
     });
 
-    it("should return 0.10 for picks 31+", () => {
-      expect(getPlayProbability(31, false)).toBe(0.1);
-      expect(getPlayProbability(40, false)).toBe(0.1);
-      expect(getPlayProbability(100, false)).toBe(0.1);
-      expect(getPlayProbability(500, false)).toBe(0.1);
+    it(`should return PLAY_PROBABILITY_VERY_LATE for picks ${PICK_THRESHOLD_LATE + 1}+`, () => {
+      expect(getPlayProbability(PICK_THRESHOLD_LATE + 1, false)).toBe(PLAY_PROBABILITY_VERY_LATE);
+      expect(getPlayProbability(40, false)).toBe(PLAY_PROBABILITY_VERY_LATE);
+      expect(getPlayProbability(100, false)).toBe(PLAY_PROBABILITY_VERY_LATE);
+      expect(getPlayProbability(500, false)).toBe(PLAY_PROBABILITY_VERY_LATE);
     });
   });
 
   describe("boundary values", () => {
-    it("should handle exact boundary at 15/16", () => {
-      expect(getPlayProbability(15, false)).toBe(0.95);
-      expect(getPlayProbability(16, false)).toBe(0.8);
+    it(`should handle exact boundary at ${PICK_THRESHOLD_EARLY}/${PICK_THRESHOLD_EARLY + 1}`, () => {
+      expect(getPlayProbability(PICK_THRESHOLD_EARLY, false)).toBe(PLAY_PROBABILITY_EARLY);
+      expect(getPlayProbability(PICK_THRESHOLD_EARLY + 1, false)).toBe(PLAY_PROBABILITY_MID);
     });
 
-    it("should handle exact boundary at 23/24", () => {
-      expect(getPlayProbability(23, false)).toBe(0.8);
-      expect(getPlayProbability(24, false)).toBe(0.4);
+    it(`should handle exact boundary at ${PICK_THRESHOLD_MID}/${PICK_THRESHOLD_MID + 1}`, () => {
+      expect(getPlayProbability(PICK_THRESHOLD_MID, false)).toBe(PLAY_PROBABILITY_MID);
+      expect(getPlayProbability(PICK_THRESHOLD_MID + 1, false)).toBe(PLAY_PROBABILITY_LATE);
     });
 
-    it("should handle exact boundary at 30/31", () => {
-      expect(getPlayProbability(30, false)).toBe(0.4);
-      expect(getPlayProbability(31, false)).toBe(0.1);
+    it(`should handle exact boundary at ${PICK_THRESHOLD_LATE}/${PICK_THRESHOLD_LATE + 1}`, () => {
+      expect(getPlayProbability(PICK_THRESHOLD_LATE, false)).toBe(PLAY_PROBABILITY_LATE);
+      expect(getPlayProbability(PICK_THRESHOLD_LATE + 1, false)).toBe(PLAY_PROBABILITY_VERY_LATE);
     });
   });
 });
@@ -183,7 +191,7 @@ describe("calculateWinEquity", () => {
       const result = calculateWinEquity(picks, matchStats, new Map());
 
       expect(result.size).toBe(2);
-      // Both cards have weight 0.95, so each gets 50%
+      // Both cards have weight PLAY_PROBABILITY_EARLY, so each gets 50%
       expect(result.get("Card A")!.wins).toBeCloseTo(3, 5);
       expect(result.get("Card A")!.losses).toBeCloseTo(1, 5);
       expect(result.get("Card B")!.wins).toBeCloseTo(3, 5);
@@ -193,9 +201,9 @@ describe("calculateWinEquity", () => {
 
   describe("single player, cards with different pick positions", () => {
     it("should weight equity by play probability", () => {
-      // Card at pick 5: weight = 0.95
-      // Card at pick 25: weight = 0.40
-      // Total weight = 1.35
+      // Card at pick 5: weight = PLAY_PROBABILITY_EARLY
+      // Card at pick 25: weight = PLAY_PROBABILITY_LATE
+      const totalWeight = PLAY_PROBABILITY_EARLY + PLAY_PROBABILITY_LATE;
       const picks = [
         createPick({
           cardName: "Early Pick",
@@ -219,20 +227,20 @@ describe("calculateWinEquity", () => {
       const earlyPick = result.get("Early Pick")!;
       const latePick = result.get("Late Pick")!;
 
-      // Early pick: 0.95 / 1.35 = 0.7037 of wins/losses
-      // Late pick: 0.40 / 1.35 = 0.2963 of wins/losses
-      expect(earlyPick.wins).toBeCloseTo(10 * 0.95 / 1.35, 3);
-      expect(earlyPick.losses).toBeCloseTo(5 * 0.95 / 1.35, 3);
-      expect(latePick.wins).toBeCloseTo(10 * 0.40 / 1.35, 3);
-      expect(latePick.losses).toBeCloseTo(5 * 0.40 / 1.35, 3);
+      // Early pick: PLAY_PROBABILITY_EARLY / totalWeight of wins/losses
+      // Late pick: PLAY_PROBABILITY_LATE / totalWeight of wins/losses
+      expect(earlyPick.wins).toBeCloseTo(10 * PLAY_PROBABILITY_EARLY / totalWeight, 3);
+      expect(earlyPick.losses).toBeCloseTo(5 * PLAY_PROBABILITY_EARLY / totalWeight, 3);
+      expect(latePick.wins).toBeCloseTo(10 * PLAY_PROBABILITY_LATE / totalWeight, 3);
+      expect(latePick.losses).toBeCloseTo(5 * PLAY_PROBABILITY_LATE / totalWeight, 3);
     });
   });
 
   describe("land detection", () => {
-    it("should treat lands as always played (weight 1.0)", () => {
-      // Land at pick 50: normally would be 0.1, but lands are always 1.0
-      // Non-land at pick 5: weight = 0.95
-      // Total weight = 1.95
+    it("should treat lands as always played (weight LAND_PLAY_PROBABILITY)", () => {
+      // Land at pick 50: normally would be PLAY_PROBABILITY_VERY_LATE, but lands are always LAND_PLAY_PROBABILITY
+      // Non-land at pick 5: weight = PLAY_PROBABILITY_EARLY
+      const totalWeight = LAND_PLAY_PROBABILITY + PLAY_PROBABILITY_EARLY;
       const picks = [
         createPick({
           cardName: "Late Land",
@@ -260,10 +268,10 @@ describe("calculateWinEquity", () => {
       const land = result.get("Late Land")!;
       const spell = result.get("Early Spell")!;
 
-      // Land: 1.0 / 1.95 = 0.5128
-      // Spell: 0.95 / 1.95 = 0.4872
-      expect(land.wins).toBeCloseTo(10 * 1.0 / 1.95, 3);
-      expect(spell.wins).toBeCloseTo(10 * 0.95 / 1.95, 3);
+      // Land: LAND_PLAY_PROBABILITY / totalWeight
+      // Spell: PLAY_PROBABILITY_EARLY / totalWeight
+      expect(land.wins).toBeCloseTo(10 * LAND_PLAY_PROBABILITY / totalWeight, 3);
+      expect(spell.wins).toBeCloseTo(10 * PLAY_PROBABILITY_EARLY / totalWeight, 3);
     });
 
     it("should detect various land type lines", () => {
@@ -516,18 +524,18 @@ describe("calculateWinEquity", () => {
 
   describe("real-world scenario", () => {
     it("should calculate correct equity for a realistic draft pool", () => {
-      // Alice drafts: 3 early picks + 2 mid picks + 1 late pick + 2 lands
+      // Alice drafts: 3 early picks + 2 mid picks + 1 very late pick + 2 lands
       const picks = [
-        // Early non-lands (weight 0.95 each)
+        // Early non-lands (weight PLAY_PROBABILITY_EARLY each)
         createPick({ cardName: "Lightning Bolt", pickPosition: 3, draftId: "d1", drafterName: "Alice" }),
         createPick({ cardName: "Dark Ritual", pickPosition: 8, draftId: "d1", drafterName: "Alice" }),
         createPick({ cardName: "Counterspell", pickPosition: 12, draftId: "d1", drafterName: "Alice" }),
-        // Mid picks (weight 0.80 each)
+        // Mid picks (weight PLAY_PROBABILITY_MID each)
         createPick({ cardName: "Hill Giant", pickPosition: 18, draftId: "d1", drafterName: "Alice" }),
         createPick({ cardName: "Wind Drake", pickPosition: 22, draftId: "d1", drafterName: "Alice" }),
-        // Late pick (weight 0.10)
+        // Very late pick (weight PLAY_PROBABILITY_VERY_LATE)
         createPick({ cardName: "Grizzly Bears", pickPosition: 35, draftId: "d1", drafterName: "Alice" }),
-        // Lands (weight 1.0 each, regardless of pick position)
+        // Lands (weight LAND_PLAY_PROBABILITY each, regardless of pick position)
         createPick({ cardName: "Mountain", pickPosition: 40, draftId: "d1", drafterName: "Alice" }),
         createPick({ cardName: "Island", pickPosition: 42, draftId: "d1", drafterName: "Alice" }),
       ];
@@ -548,31 +556,33 @@ describe("calculateWinEquity", () => {
       const result = calculateWinEquity(picks, matchStats, scryfallData);
 
       // Calculate expected weights:
-      // 3 early (0.95 * 3) = 2.85
-      // 2 mid (0.80 * 2) = 1.60
-      // 1 late (0.10 * 1) = 0.10
-      // 2 lands (1.0 * 2) = 2.00
-      // Total = 6.55
+      // 3 early (PLAY_PROBABILITY_EARLY * 3)
+      // 2 mid (PLAY_PROBABILITY_MID * 2)
+      // 1 very late (PLAY_PROBABILITY_VERY_LATE * 1)
+      // 2 lands (LAND_PLAY_PROBABILITY * 2)
+      const totalWeight =
+        PLAY_PROBABILITY_EARLY * 3 +
+        PLAY_PROBABILITY_MID * 2 +
+        PLAY_PROBABILITY_VERY_LATE * 1 +
+        LAND_PLAY_PROBABILITY * 2;
 
-      const totalWeight = 2.85 + 1.60 + 0.10 + 2.00;
-
-      // Verify early picks get ~14.5% each (0.95/6.55)
-      const earlyProportion = 0.95 / totalWeight;
+      // Verify early picks get their proportion each
+      const earlyProportion = PLAY_PROBABILITY_EARLY / totalWeight;
       expect(result.get("Lightning Bolt")!.wins).toBeCloseTo(6 * earlyProportion, 3);
       expect(result.get("Dark Ritual")!.wins).toBeCloseTo(6 * earlyProportion, 3);
       expect(result.get("Counterspell")!.wins).toBeCloseTo(6 * earlyProportion, 3);
 
-      // Mid picks get ~12.2% each (0.80/6.55)
-      const midProportion = 0.80 / totalWeight;
+      // Mid picks get their proportion each
+      const midProportion = PLAY_PROBABILITY_MID / totalWeight;
       expect(result.get("Hill Giant")!.wins).toBeCloseTo(6 * midProportion, 3);
       expect(result.get("Wind Drake")!.wins).toBeCloseTo(6 * midProportion, 3);
 
-      // Late pick gets ~1.5% (0.10/6.55)
-      const lateProportion = 0.10 / totalWeight;
-      expect(result.get("Grizzly Bears")!.wins).toBeCloseTo(6 * lateProportion, 3);
+      // Very late pick gets its proportion
+      const veryLateProportion = PLAY_PROBABILITY_VERY_LATE / totalWeight;
+      expect(result.get("Grizzly Bears")!.wins).toBeCloseTo(6 * veryLateProportion, 3);
 
-      // Lands get ~15.3% each (1.0/6.55)
-      const landProportion = 1.0 / totalWeight;
+      // Lands get their proportion each
+      const landProportion = LAND_PLAY_PROBABILITY / totalWeight;
       expect(result.get("Mountain")!.wins).toBeCloseTo(6 * landProportion, 3);
       expect(result.get("Island")!.wins).toBeCloseTo(6 * landProportion, 3);
 
