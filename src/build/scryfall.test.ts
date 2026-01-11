@@ -143,6 +143,47 @@ describe("fetchCard", () => {
     consoleWarn.mockRestore();
   });
 
+  it("should return null and log warning for malformed JSON response", async () => {
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => {
+        throw new Error("Invalid JSON");
+      },
+    });
+
+    const card = await fetchCard("Lightning Bolt");
+
+    expect(card).toBeNull();
+    expect(consoleWarn).toHaveBeenCalledWith(
+      '[Scryfall] Failed to fetch "Lightning Bolt":',
+      expect.any(Error)
+    );
+
+    consoleWarn.mockRestore();
+  });
+
+  it("should return null and log warning for 429 rate limiting response", async () => {
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      status: 429,
+      statusText: "Too Many Requests",
+    });
+
+    const card = await fetchCard("Lightning Bolt");
+
+    expect(card).toBeNull();
+    expect(consoleWarn).toHaveBeenCalledWith(
+      '[Scryfall] API error for "Lightning Bolt": 429 Too Many Requests'
+    );
+
+    consoleWarn.mockRestore();
+  });
+
   it("should handle double-faced cards", async () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
@@ -341,6 +382,38 @@ describe("saveCache", () => {
     const parsed = JSON.parse(content);
     expect(parsed["old"]).toBeUndefined();
     expect(parsed["New Card"]).toBeDefined();
+  });
+
+  it("should log warning when writeFileSync fails", () => {
+    const consoleWarn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    // Try to write to a path that exists as a directory, which will cause EISDIR error
+    // First create a directory at the target path
+    const invalidPath = `${TEST_CACHE_DIR}/invalid-target`;
+    mkdirSync(invalidPath, { recursive: true });
+
+    const cache = new Map<string, ScryCard>();
+    cache.set("Lightning Bolt", {
+      name: "Lightning Bolt",
+      imageUri: "https://example.com/bolt.jpg",
+      manaCost: "{R}",
+      manaValue: 1,
+      typeLine: "Instant",
+      colors: ["R"],
+      colorIdentity: ["R"],
+      oracleText: "Lightning Bolt deals 3 damage to any target.",
+    });
+
+    // This should not throw - it should catch the error and log a warning
+    // Writing to a directory path will fail with EISDIR
+    saveCache(invalidPath, cache);
+
+    expect(consoleWarn).toHaveBeenCalledWith(
+      `[Scryfall] Failed to save cache to ${invalidPath}:`,
+      expect.any(Error)
+    );
+
+    consoleWarn.mockRestore();
   });
 });
 
