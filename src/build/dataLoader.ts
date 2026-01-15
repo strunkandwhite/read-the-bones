@@ -16,7 +16,7 @@ import type {
   ScryCard,
 } from "../core/types";
 import { parseDraft, isDraftComplete, parsePool, buildPlayerNameMap, normalizePlayerName } from "../core/parseCsv";
-import { parseMatches, aggregatePlayerStats, PlayerMatchStats } from "../core/parseMatches";
+import { parseMatches, aggregatePlayerStats, PlayerMatchStats, MatchResult } from "../core/parseMatches";
 import { calculateCardStats, extractPlayers, DISTRIBUTION_BUCKET_COUNT } from "../core/calculateStats";
 import { calculateWinEquity, calculateRawWinRate } from "../core/winEquity";
 import { fetchCards } from "./scryfall";
@@ -158,17 +158,19 @@ export async function loadAllDrafts(
   draftIds: string[];
   draftMetadata: Map<string, DraftMetadata>;
   matchStats: Map<string, Map<string, PlayerMatchStats>>;
+  rawMatches: Map<string, MatchResult[]>;
 }> {
   const quiet = options?.quiet ?? false;
   const allPicks: CardPick[] = [];
   const draftIds: string[] = [];
   const draftMetadata = new Map<string, DraftMetadata>();
   const matchStats = new Map<string, Map<string, PlayerMatchStats>>();
+  const rawMatches = new Map<string, MatchResult[]>();
 
   // Check if data directory exists
   if (!existsSync(dataDir)) {
     if (!quiet) console.warn(`[DataLoader] Data directory not found: ${dataDir}`);
-    return { picks: [], draftIds: [], draftMetadata: new Map(), matchStats: new Map() };
+    return { picks: [], draftIds: [], draftMetadata: new Map(), matchStats: new Map(), rawMatches: new Map() };
   }
 
   // Get all entries in the data directory
@@ -231,6 +233,7 @@ export async function loadAllDrafts(
           const matches = parseMatches(matchesCsv);
           const playerStats = aggregatePlayerStats(matches);
           matchStats.set(entry, playerStats);
+          rawMatches.set(entry, matches);
           if (!quiet) {
             console.log(
               `[DataLoader] Loaded matches for "${entry}": ${matches.length} matches, ${playerStats.size} players`
@@ -287,7 +290,7 @@ export async function loadAllDrafts(
     matchStats.set(draftId, normalizedStats);
   }
 
-  return { picks: allPicks, draftIds, draftMetadata, matchStats };
+  return { picks: allPicks, draftIds, draftMetadata, matchStats, rawMatches };
 }
 
 /**
