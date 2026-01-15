@@ -52,3 +52,4 @@ public/api/draft-data.json
 screenshot*.png
 .worktrees/
 analyze
+scratch
