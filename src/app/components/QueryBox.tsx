@@ -3,15 +3,18 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
+import remarkGfm from "remark-gfm";
 import { CardLink } from "./CardLink";
 
 /**
- * Replace [[Card Name]] with card-link HTML elements.
+ * Replace [[Card Name]] with markdown links using card: protocol.
+ * Using markdown syntax instead of raw HTML preserves table parsing.
+ * The card name in the URL is encoded to handle special characters.
  */
 function processCardLinks(text: string): string {
   return text.replace(
     /\[\[([^\]]+)\]\]/g,
-    '<card-link name="$1">$1</card-link>'
+    (_, cardName) => `[${cardName}](card:${encodeURIComponent(cardName)})`
   );
 }
 
@@ -24,6 +27,22 @@ function processCitations(text: string): string {
     /\[(\d+)\](?!\(|:)/g,
     '<sup class="cite">$1</sup>'
   );
+}
+
+/**
+ * Fix markdown tables where rows are concatenated on a single line.
+ * LLMs sometimes output tables without proper newlines between rows.
+ */
+function fixMalformedTables(text: string): string {
+  // Only process if text contains a markdown table separator
+  if (!/\|[-:\s]*-+[-:\s]*\|/.test(text)) {
+    return text;
+  }
+
+  // Replace row boundaries: "| |" (pipe, space(s), pipe) indicates
+  // the end of one row and start of another when concatenated.
+  // This works for header/separator, separator/data, and data/data boundaries.
+  return text.replace(/\| +\|/g, '|\n|');
 }
 
 /**
@@ -248,18 +267,25 @@ export function QueryBox({
                   ) : (
                     <div className="prose prose-sm prose-zinc dark:prose-invert max-w-none">
                       <ReactMarkdown
+                        remarkPlugins={[remarkGfm]}
                         rehypePlugins={[rehypeRaw]}
-                        components={
-                          {
-                            "card-link": ({
-                              name,
-                            }: {
-                              name?: string;
-                            }) => <CardLink name={name ?? ""} />,
-                          } as Record<string, React.ComponentType<{ name?: string }>>
-                        }
+                        urlTransform={(url) => {
+                          // Allow card: protocol URLs (they're handled by our custom component)
+                          if (url.startsWith('card:')) return url;
+                          // Default behavior for other URLs
+                          return url;
+                        }}
+                        components={{
+                          a: ({ href, children }) => {
+                            if (href?.startsWith('card:')) {
+                              const cardName = decodeURIComponent(href.slice(5));
+                              return <CardLink name={cardName} />;
+                            }
+                            return <a href={href}>{children}</a>;
+                          },
+                        }}
                       >
-                        {processCitations(processCardLinks(message.content))}
+                        {processCitations(processCardLinks(fixMalformedTables(message.content)))}
                       </ReactMarkdown>
                     </div>
                   )}

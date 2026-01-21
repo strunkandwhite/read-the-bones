@@ -312,7 +312,7 @@ export function PageClient({
           )}
         </header>
 
-        {/* Dark Confidant Chat */}
+        {/* Dark Confidant Chat - disabled for now
         <div className="mb-6">
           <details className="group rounded-lg border border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-900">
             <summary className="cursor-pointer list-none px-4 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50 dark:text-zinc-300 dark:hover:bg-zinc-800">
@@ -359,6 +359,7 @@ export function PageClient({
             </div>
           </details>
         </div>
+        */}
 
         {/* Controls */}
         <div className="mb-6 space-y-4">
