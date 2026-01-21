@@ -1,0 +1,15 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/app/**/*.{ts,tsx}",
+    "scripts/*.ts",
+    "src/core/db/migrate.ts"
+  ],
+  "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
+  "ignore": ["src/core/db/schema.ts"],
+  "ignoreDependencies": [
+    "tailwindcss",
+    "@tailwindcss/typography"
+  ],
+  "ignoreExportsUsedInFile": true
+}
