@@ -1,0 +1,61 @@
+# Claude
+.claude/
+
+# macOS
+.DS_Store
+
+# Todo
+todo.md
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Draft data contains player names - excluded for privacy
+data/
+
+# LLM opt-outs config (contains player names)
+.opt-outs.json
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+.private-journal/
+cache/
+public/api/draft-data.json
+
+# Screenshots
+screenshot*.png
+.worktrees/
+analyze
+scratch
