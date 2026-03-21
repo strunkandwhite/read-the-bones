@@ -136,7 +136,7 @@ export async function getAvailableCards(
 
   // Get the cube_snapshot_id for this draft
   const draftResult = await client.execute({
-    sql: `SELECT cube_snapshot_id FROM drafts WHERE draft_id = ?`,
+    sql: `SELECT cube_snapshot_id, banned_cards FROM drafts WHERE draft_id = ?`,
     args: [params.draft_id],
   });
 
@@ -149,6 +149,19 @@ export async function getAvailableCards(
   }
 
   const cubeSnapshotId = draftResult.rows[0].cube_snapshot_id as number;
+
+  // Parse banned cards for filtering
+  const bannedCardsRaw = draftResult.rows[0].banned_cards as string | null;
+  let bannedCards = new Set<string>();
+  if (bannedCardsRaw) {
+    try {
+      bannedCards = new Set(
+        (JSON.parse(bannedCardsRaw) as string[]).map((name) => name.toLowerCase())
+      );
+    } catch {
+      // Ignore malformed JSON
+    }
+  }
 
   // Get all cards in the cube with their quantities
   const cubeCardsResult = await client.execute({
@@ -186,6 +199,9 @@ export async function getAvailableCards(
     const remaining = qty - picked;
 
     if (remaining <= 0) continue;
+    const lowerName = cardName.toLowerCase();
+    const frontFace = lowerName.includes(" // ") ? lowerName.split(" // ")[0] : null;
+    if (bannedCards.has(lowerName) || (frontFace && bannedCards.has(frontFace))) continue;
 
     // Parse scryfall JSON once if either filter needs it
     const scryfall = (params.color || params.type_contains)
