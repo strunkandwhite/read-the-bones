@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSharedDeck } from "@/core/db/queries/sharedDecks";
 import type { DeckState } from "@/core/types";
+import { validateDeckState } from "@/core/validateDeckState";
 
 const MAX_BODY_SIZE = 100 * 1024; // 100KB
 
@@ -24,9 +25,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (!deckState.draftId || typeof deckState.seat !== "number") {
+    const validation = validateDeckState(deckState);
+    if (!validation.valid) {
       return NextResponse.json(
-        { error: "Invalid deck state: missing draftId or seat" },
+        { error: "Invalid deck state" },
         { status: 400 }
       );
     }
