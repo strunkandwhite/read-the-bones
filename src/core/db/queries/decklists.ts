@@ -68,6 +68,7 @@ export async function getDeck(params: GetDeckParams): Promise<DeckResult> {
 
 export interface GetCardPlayStatsParams {
   card_name: string;
+  card_id?: number;
   draft_id?: string;
   deck_colors?: string;
 }
@@ -87,15 +88,22 @@ export interface CardPlayStatsResult {
 export async function getCardPlayStats(
   params: GetCardPlayStatsParams
 ): Promise<CardPlayStatsResult | null> {
-  const card = await resolveCard(params.card_name);
-  if (!card) return null;
+  // Resolve the card (skip if card_id already provided)
+  let card_id = params.card_id;
+  let card_name = params.card_name;
+  if (card_id === undefined) {
+    const card = await resolveCard(params.card_name);
+    if (!card) return null;
+    card_id = card.card_id;
+    card_name = card.name;
+  }
 
   const client = await getClient();
 
   const draftFilter = params.draft_id
     ? "AND dc.draft_id = ?"
     : "";
-  const args: (string | number)[] = [card.card_id];
+  const args: (string | number)[] = [card_id];
   if (params.draft_id) args.push(params.draft_id);
 
   const result = await client.execute({
@@ -107,7 +115,7 @@ export async function getCardPlayStats(
 
   if (result.rows.length === 0) {
     return {
-      card_name: card.name,
+      card_name: card_name,
       times_drafted: 0,
       times_maindecked: 0,
       play_rate: 0,
@@ -157,7 +165,7 @@ export async function getCardPlayStats(
   const playRate = timesDrafted > 0 ? timesMaindecked / timesDrafted : 0;
 
   return {
-    card_name: card.name,
+    card_name: card_name,
     times_drafted: timesDrafted,
     times_maindecked: timesMaindecked,
     play_rate: Math.round(playRate * 1000) / 1000,
@@ -171,6 +179,7 @@ export async function getCardPlayStats(
 
 export interface GetCardWinStatsParams {
   card_name: string;
+  card_id?: number;
   draft_id?: string;
   deck_colors?: string;
 }
@@ -191,13 +200,20 @@ export interface CardWinStatsResult {
 export async function getCardWinStats(
   params: GetCardWinStatsParams
 ): Promise<CardWinStatsResult | null> {
-  const card = await resolveCard(params.card_name);
-  if (!card) return null;
+  // Resolve the card (skip if card_id already provided)
+  let card_id = params.card_id;
+  let card_name = params.card_name;
+  if (card_id === undefined) {
+    const card = await resolveCard(params.card_name);
+    if (!card) return null;
+    card_id = card.card_id;
+    card_name = card.name;
+  }
 
   const client = await getClient();
 
   const draftFilter = params.draft_id ? "AND dc.draft_id = ?" : "";
-  const args: (string | number)[] = [card.card_id];
+  const args: (string | number)[] = [card_id];
   if (params.draft_id) args.push(params.draft_id);
 
   // Find seats that maindecked this card and have match data
@@ -221,7 +237,7 @@ export async function getCardWinStats(
 
   if (result.rows.length === 0) {
     return {
-      card_name: card.name,
+      card_name: card_name,
       times_maindecked: 0,
       game_wins: 0,
       game_losses: 0,
@@ -272,7 +288,7 @@ export async function getCardWinStats(
   const winRate = totalGames > 0 ? gameWins / totalGames : 0;
 
   return {
-    card_name: card.name,
+    card_name: card_name,
     times_maindecked: timesMaindecked,
     game_wins: gameWins,
     game_losses: gameLosses,

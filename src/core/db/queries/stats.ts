@@ -3,8 +3,8 @@
  */
 
 import { getClient } from "../client";
-import { getSeatsMatchingColors } from "./helpers";
-import { resolveCard, lookupCard } from "./cards";
+import { getSeatsMatchingColors, parseScryfallJson } from "./helpers";
+import { resolveCard } from "./cards";
 import { getAvailableCards } from "./picks";
 import { getCardPlayStats, getCardWinStats } from "./decklists";
 import { calculatePickWeight, weightedGeometricMean } from "../../utils";
@@ -16,6 +16,7 @@ const MIN_SAMPLE_SIZE = 5;
 
 export interface GetCardPickStatsParams {
   card_name: string;
+  card_id?: number;
   date_from?: string;
   date_to?: string;
   draft_name?: string;
@@ -43,9 +44,15 @@ export async function getCardPickStats(
 ): Promise<CardPickStatsResult | null> {
   const client = await getClient();
 
-  // Resolve the card first
-  const card = await resolveCard(params.card_name);
-  if (!card) return null;
+  // Resolve the card first (skip if card_id already provided)
+  let card_id = params.card_id;
+  let card_name = params.card_name;
+  if (card_id === undefined) {
+    const card = await resolveCard(params.card_name);
+    if (!card) return null;
+    card_id = card.card_id;
+    card_name = card.name;
+  }
 
   // Build query conditions for drafts
   const draftConditions: string[] = [];
@@ -77,12 +84,12 @@ export async function getCardPickStats(
           FROM drafts d
           JOIN cube_snapshot_cards csc ON d.cube_snapshot_id = csc.cube_snapshot_id
           WHERE csc.card_id = ? ${draftWhere}`,
-    args: [card.card_id, ...draftArgs],
+    args: [card_id, ...draftArgs],
   });
 
   if (draftsWithCardResult.rows.length === 0) {
     return {
-      card_name: card.name,
+      card_name: card_name,
       drafts_seen: 0,
       times_picked: 0,
       avg_pick_n: 0,
@@ -100,7 +107,7 @@ export async function getCardPickStats(
           FROM pick_events pe
           WHERE pe.card_id = ? AND pe.draft_id IN (${placeholders})
           ORDER BY pe.draft_id, pe.pick_n`,
-    args: [card.card_id, ...draftIds],
+    args: [card_id, ...draftIds],
   });
 
   // Get cube sizes for each draft
@@ -224,11 +231,11 @@ export async function getCardPickStats(
     sql: `SELECT dc.draft_id, dc.seat, dc.zone
           FROM deck_cards dc
           WHERE dc.card_id = ? AND dc.draft_id IN (${placeholders})`,
-    args: [card.card_id, ...draftIds],
+    args: [card_id, ...draftIds],
   });
 
   const result: CardPickStatsResult = {
-    card_name: card.name,
+    card_name: card_name,
     drafts_seen,
     times_picked,
     avg_pick_n: Math.round(avg_pick_n * 10) / 10,
@@ -312,26 +319,36 @@ export interface CardStatsResult {
 export async function getCardStats(
   params: GetCardStatsParams
 ): Promise<CardStatsResult | null> {
-  // Run lookupCard and getCardPickStats in parallel (both resolve the card independently)
-  const [cardDetails, pickStats] = await Promise.all([
-    lookupCard(params.card_name),
+  // Resolve card once — all sub-functions reuse the resolved card_id
+  const card = await resolveCard(params.card_name);
+  if (!card) return null;
+
+  const cardId = card.card_id;
+  const scryfall = parseScryfallJson(card.scryfall_json);
+  const cardDetails = {
+    name: card.name,
+    oracle_text: scryfall?.oracle_text || null,
+    type_line: scryfall?.type_line || null,
+    mana_cost: scryfall?.mana_cost || null,
+    color_identity: scryfall?.color_identity || [],
+  };
+
+  // Run pick stats and win stats in parallel, passing the resolved card_id
+  const [pickStats, winStats] = await Promise.all([
     getCardPickStats({
-      card_name: params.card_name,
+      card_name: card.name,
+      card_id: cardId,
       date_from: params.date_from,
       date_to: params.date_to,
       draft_name: params.draft_name,
     }),
+    getCardWinStats({
+      card_name: card.name,
+      card_id: cardId,
+      draft_id: params.draft_id,
+      deck_colors: params.deck_colors,
+    }),
   ]);
-
-  // If both return null, card doesn't exist
-  if (!cardDetails && !pickStats) return null;
-
-  // Get win stats (also resolves card internally)
-  const winStats = await getCardWinStats({
-    card_name: params.card_name,
-    draft_id: params.draft_id,
-    deck_colors: params.deck_colors,
-  });
 
   // Build play stats
   // When deck_colors is specified, use the standalone getCardPlayStats (which supports color filtering)
@@ -340,7 +357,8 @@ export async function getCardStats(
   let play: CardStatsResult["play"] = null;
   if (params.deck_colors) {
     const playStats = await getCardPlayStats({
-      card_name: params.card_name,
+      card_name: card.name,
+      card_id: cardId,
       draft_id: params.draft_id,
       deck_colors: params.deck_colors,
     });
@@ -388,7 +406,8 @@ export async function getCardStats(
   } else if (params.deck_colors) {
     // Fallback: fetch overall win stats without color filter
     const overallWinStats = await getCardWinStats({
-      card_name: params.card_name,
+      card_name: card.name,
+      card_id: cardId,
       draft_id: params.draft_id,
     });
     if (overallWinStats && overallWinStats.times_maindecked > 0) {
@@ -408,11 +427,11 @@ export async function getCardStats(
   }
 
   return {
-    card_name: cardDetails?.name ?? pickStats?.card_name ?? params.card_name,
-    oracle_text: cardDetails?.oracle_text ?? null,
-    type_line: cardDetails?.type_line ?? null,
-    mana_cost: cardDetails?.mana_cost ?? null,
-    color_identity: cardDetails?.color_identity ?? [],
+    card_name: cardDetails.name,
+    oracle_text: cardDetails.oracle_text,
+    type_line: cardDetails.type_line,
+    mana_cost: cardDetails.mana_cost,
+    color_identity: cardDetails.color_identity,
     pick: {
       drafts_in_pool: pickStats?.drafts_seen ?? 0,
       times_picked: pickStats?.times_picked ?? 0,
