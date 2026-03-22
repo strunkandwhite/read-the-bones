@@ -5,7 +5,8 @@
 
 import type { Client } from "@libsql/client";
 import type { CardPick } from "./types";
-import { normalizeCardName, parseDraftPicks, isDraftComplete } from "./parseCsv";
+import type { ParsedPicks } from "./parseSheetRows";
+import { normalizeCardName } from "./parseSheetRows";
 import { fetchCard, fetchCardFuzzy } from "../build/scryfall";
 import { getFrontFace } from "./cardNames";
 import { sleep } from "./utils";
@@ -205,12 +206,12 @@ export async function markDraftComplete(
 export async function incrementalIngest(
   client: Client,
   draftId: string,
-  picksCsv: string,
+  parsedPicks: ParsedPicks,
 ): Promise<{
   status: "no_change" | "updated" | "completed" | "diverged";
   picksInserted: number;
 }> {
-  const { picks } = parseDraftPicks(picksCsv, draftId);
+  const { picks, isComplete } = parsedPicks;
   if (picks.length === 0) {
     return { status: "no_change", picksInserted: 0 };
   }
@@ -221,7 +222,7 @@ export async function incrementalIngest(
   // Check for divergence (picks removed or renumbered)
   if (detectDivergence(csvMaxPick, dbMaxPick)) {
     console.warn(
-      `[sync] Divergence detected for draft ${draftId}: CSV max pick ${csvMaxPick} < DB max pick ${dbMaxPick}. Skipping — run pnpm ingest to resolve.`,
+      `[sync] Divergence detected for draft ${draftId}: CSV max pick ${csvMaxPick} < DB max pick ${dbMaxPick}. Skipping — run pnpm sync to resolve.`,
     );
     return { status: "diverged", picksInserted: 0 };
   }
@@ -236,7 +237,7 @@ export async function incrementalIngest(
   console.log(`[sync] Inserted ${insertedCount} new picks for draft ${draftId}`);
 
   // Check if draft just completed
-  if (isDraftComplete(picksCsv)) {
+  if (isComplete) {
     await markDraftComplete(client, draftId);
     console.log(`[sync] Draft ${draftId} marked as complete`);
     return { status: "completed", picksInserted: insertedCount };
