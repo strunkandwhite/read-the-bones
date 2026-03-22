@@ -11,6 +11,9 @@ import { calculatePickWeight, weightedGeometricMean } from "../../utils";
 import { wilsonInterval } from "../../wilsonInterval";
 import { DEFAULT_POOL_SIZE } from "../../types";
 
+/** Minimum number of match results needed for confident win rate statistics. */
+const MIN_SAMPLE_SIZE = 5;
+
 export interface GetCardPickStatsParams {
   card_name: string;
   date_from?: string;
@@ -378,7 +381,7 @@ export async function getCardStats(
       game_losses: winStats.game_losses,
       win_rate: winStats.win_rate,
       win_rate_ci: ci,
-      low_sample: winStats.times_maindecked < 5,
+      low_sample: winStats.times_maindecked < MIN_SAMPLE_SIZE,
       drafts_with_data: winStats.drafts_with_data,
       filtered: !!params.deck_colors,
     };
@@ -397,7 +400,7 @@ export async function getCardStats(
         game_losses: overallWinStats.game_losses,
         win_rate: overallWinStats.win_rate,
         win_rate_ci: ci,
-        low_sample: overallWinStats.times_maindecked < 5,
+        low_sample: overallWinStats.times_maindecked < MIN_SAMPLE_SIZE,
         drafts_with_data: overallWinStats.drafts_with_data,
         filtered: false,
       };
@@ -741,13 +744,13 @@ export async function rankAvailableCards(
       const total = win.wins + win.losses;
       winRate = Math.round((win.wins / total) * 1000) / 1000;
       winRateCi = wilsonInterval(win.wins, total);
-      lowSample = win.seats < 5;
+      lowSample = win.seats < MIN_SAMPLE_SIZE;
       winFiltered = !!matchingSeats;
     } else if (matchingSeats && winOverall && (winOverall.wins + winOverall.losses) > 0) {
       const total = winOverall.wins + winOverall.losses;
       winRate = Math.round((winOverall.wins / total) * 1000) / 1000;
       winRateCi = wilsonInterval(winOverall.wins, total);
-      lowSample = winOverall.seats < 5;
+      lowSample = winOverall.seats < MIN_SAMPLE_SIZE;
       winFiltered = false;
     }
 
