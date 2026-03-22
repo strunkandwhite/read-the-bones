@@ -409,7 +409,7 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
         {/* Controls */}
         <div
           ref={controlsBarRef}
-          className="sticky top-0 z-30 -mx-4 mb-6 flex flex-wrap items-center gap-4 border-b border-zinc-200 bg-zinc-50/95 px-4 py-3 shadow-[0_4px_12px_-2px_rgba(0,0,0,0.08)] backdrop-blur-sm sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 dark:border-zinc-800 dark:bg-zinc-950/95 dark:shadow-[0_4px_12px_-2px_rgba(0,0,0,0.4)]"
+          className="lg:sticky lg:top-0 z-30 -mx-4 mb-6 flex flex-wrap items-center gap-4 border-b border-zinc-200 bg-zinc-50/95 px-4 py-3 lg:shadow-[0_4px_12px_-2px_rgba(0,0,0,0.08)] lg:backdrop-blur-sm sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 dark:border-zinc-800 dark:bg-zinc-950/95 lg:dark:shadow-[0_4px_12px_-2px_rgba(0,0,0,0.4)]"
         >
           {/* Search Input */}
           <div className="shrink-0">

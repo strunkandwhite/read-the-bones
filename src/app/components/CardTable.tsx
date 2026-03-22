@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   useReactTable,
   getCoreRowModel,
@@ -9,6 +9,7 @@ import {
   flexRender,
   createColumnHelper,
   SortingState,
+  VisibilityState,
 } from "@tanstack/react-table";
 import type { EnrichedCardStats } from "@/core/types";
 import type { ColorFilterMode } from "@/core/colorFilter";
@@ -82,6 +83,40 @@ export function CardTable({
   onRemoveSpeculativeRef.current = onRemoveSpeculative;
 
   const [sorting, setSorting] = useState<SortingState>([{ id: "pickScore", desc: false }]);
+
+  // Track responsive breakpoint based on actual container width (handles browser zoom)
+  const [breakpoint, setBreakpoint] = useState<"mobile" | "tablet" | "desktop">("desktop");
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      const width = entries[0].contentRect.width;
+      if (width >= 940) setBreakpoint("desktop");
+      else if (width >= 580) setBreakpoint("tablet");
+      else setBreakpoint("mobile");
+    });
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Mobile: Card + P# only | Tablet: + Cost, Colors | Desktop: all columns
+  const columnVisibility: VisibilityState = useMemo(() => {
+    const showSm = breakpoint !== "mobile";
+    const showMd = breakpoint === "desktop";
+    return {
+      manaCost: showSm,
+      type: showMd,
+      colors: showSm,
+      distribution: showMd,
+      decklistWinRate: showMd,
+      history: showMd,
+      timesPicked: showMd,
+    };
+  }, [breakpoint]);
 
   const handleSortingChange = useCallback((updater: SortingState | ((prev: SortingState) => SortingState)) => {
     setSorting((prev) => {
@@ -262,7 +297,7 @@ export function CardTable({
   const table = useReactTable({
     data: filteredData,
     columns,
-    state: { sorting },
+    state: { sorting, columnVisibility },
     onSortingChange: handleSortingChange,
     enableSortingRemoval: false,
     getCoreRowModel: getCoreRowModel(),
@@ -271,35 +306,27 @@ export function CardTable({
   });
 
   return (
-    <div>
-      {/* Mobile-only help text */}
-      <div className="mb-4 space-y-4 rounded-lg bg-zinc-100 p-3 text-xs whitespace-pre-line text-zinc-600 md:hidden dark:bg-zinc-800 dark:text-zinc-400">
-        <div>
-          <p className="mb-2 font-semibold text-zinc-700 dark:text-zinc-300">P#</p>
-          {PICK_EXPLANATION}
-        </div>
-      </div>
-
+    <div ref={containerRef}>
       <div className="relative">
-        {/* Scroll shadow indicators */}
-        <div className="pointer-events-none absolute top-0 right-0 bottom-0 z-10 w-8 bg-gradient-to-l from-white to-transparent md:hidden dark:from-zinc-900" />
-        <div className="rounded-lg border border-zinc-200 overflow-x-auto md:overflow-x-visible overscroll-x-contain [-webkit-overflow-scrolling:touch] dark:border-zinc-700">
-          <table className="w-full table-fixed text-left">
-            <colgroup>
-              {table.getAllColumns().map((col) => (
-                <col key={col.id} style={{ width: col.getSize() }} />
-              ))}
-            </colgroup>
+        <div className="rounded-lg border border-zinc-200 dark:border-zinc-700">
+          <table className={`w-full text-left ${breakpoint === "desktop" ? "table-fixed" : "table-auto"}`}>
+            {breakpoint === "desktop" && (
+              <colgroup>
+                {table.getVisibleLeafColumns().map((col) => (
+                  <col key={col.id} style={{ width: col.getSize() }} />
+                ))}
+              </colgroup>
+            )}
             <thead
               className="bg-zinc-50 dark:bg-zinc-800"
-              style={stickyTopOffset != null ? { position: "sticky", top: stickyTopOffset, zIndex: 20 } : undefined}
+              style={stickyTopOffset != null && breakpoint === "desktop" ? { position: "sticky", top: stickyTopOffset, zIndex: 20 } : undefined}
             >
               {table.getHeaderGroups().map((headerGroup) => (
                 <tr key={headerGroup.id}>
                   {headerGroup.headers.map((header) => (
                     <th
                       key={header.id}
-                      className={`px-4 py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300 ${
+                      className={`px-2 py-2 sm:px-4 sm:py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300 ${
                         header.column.getCanSort()
                           ? "cursor-pointer select-none hover:bg-zinc-100 dark:hover:bg-zinc-700"
                           : ""
@@ -326,7 +353,7 @@ export function CardTable({
               {table.getRowModel().rows.length === 0 ? (
                 <tr>
                   <td
-                    colSpan={columns.length}
+                    colSpan={table.getVisibleLeafColumns().length}
                     className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400"
                   >
                     No cards found
@@ -348,7 +375,7 @@ export function CardTable({
                     {row.getVisibleCells().map((cell) => (
                       <td
                         key={cell.id}
-                        className="px-4 py-3"
+                        className="px-2 py-2 sm:px-4 sm:py-3"
                       >
                         {flexRender(cell.column.columnDef.cell, cell.getContext())}
                       </td>
