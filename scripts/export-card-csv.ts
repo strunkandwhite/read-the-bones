@@ -40,7 +40,7 @@ async function main() {
       deckWR = (wr.winRate * 100).toFixed(1) + "%";
       deckGames = String(total);
 
-      const [lo, hi] = wilsonInterval(wr.gameWins, total);
+      const { lower: lo, upper: hi } = wilsonInterval(wr.gameWins, total);
       ciLow = (lo * 100).toFixed(1) + "%";
       ciHigh = (hi * 100).toFixed(1) + "%";
     }

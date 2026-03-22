@@ -108,7 +108,7 @@ async function computeWinRateBySeat(
     const wins = Number(row.total_wins);
     const losses = Number(row.total_losses);
     const total = wins + losses;
-    const [ciLower, ciUpper] = wilsonInterval(wins, total);
+    const { lower: ciLower, upper: ciUpper } = wilsonInterval(wins, total);
     return {
       seat: Number(row.seat),
       wins,
@@ -215,7 +215,7 @@ async function computeWinRateByColor(
   return [...colorStats.entries()]
     .map(([color, { wins, losses }]) => {
       const total = wins + losses;
-      const [ciLower, ciUpper] = wilsonInterval(wins, total);
+      const { lower: ciLower, upper: ciUpper } = wilsonInterval(wins, total);
       return {
         color,
         wins,

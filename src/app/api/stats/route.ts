@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
       .sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]))
       .map(([color, { wins, losses }]) => {
         const total = wins + losses;
-        const [ciLower, ciUpper] = wilsonInterval(wins, total);
+        const { lower: ciLower, upper: ciUpper } = wilsonInterval(wins, total);
         return { color, wins, losses, winRate: total > 0 ? wins / total : 0, ciLower, ciUpper };
       });
 

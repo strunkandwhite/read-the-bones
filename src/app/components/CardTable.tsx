@@ -216,7 +216,7 @@ export function CardTable({
                 }
                 const pct = Math.round(wr.winRate * 100);
                 const total = wr.gameWins + wr.gameLosses;
-                const [lower, upper] = wilsonInterval(wr.gameWins, total);
+                const { lower, upper } = wilsonInterval(wr.gameWins, total);
                 const margin = ((upper - lower) / 2 * 100).toFixed(0);
                 return (
                   <div className="group relative">

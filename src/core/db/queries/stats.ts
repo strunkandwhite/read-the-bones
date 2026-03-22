@@ -7,7 +7,8 @@ import { getSeatsMatchingColors } from "./helpers";
 import { resolveCard, lookupCard } from "./cards";
 import { getAvailableCards } from "./picks";
 import { getCardPlayStats, getCardWinStats } from "./decklists";
-import { calculatePickWeight, weightedGeometricMean, wilsonInterval } from "../../utils";
+import { calculatePickWeight, weightedGeometricMean } from "../../utils";
+import { wilsonInterval } from "../../wilsonInterval";
 import { DEFAULT_POOL_SIZE } from "../../types";
 
 export interface GetCardPickStatsParams {

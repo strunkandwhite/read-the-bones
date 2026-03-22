@@ -48,27 +48,9 @@ export function weightedGeometricMean(items: Array<{ weight: number; value: numb
   return Math.exp(weightedLogSum / totalWeight);
 }
 
-/**
- * Wilson score interval for binomial proportions.
- * Provides a confidence interval that works well with small samples.
- */
-export function wilsonInterval(
-  wins: number,
-  total: number,
-  z: number = 1.96
-): { lower: number; center: number; upper: number } {
-  if (total === 0) return { lower: 0, center: 0, upper: 0 };
-
-  const p = wins / total;
-  const denominator = 1 + z * z / total;
-  const center = (p + z * z / (2 * total)) / denominator;
-  const margin = (z / denominator) * Math.sqrt(p * (1 - p) / total + z * z / (4 * total * total));
-
-  return {
-    lower: Math.round(Math.max(0, center - margin) * 1000) / 1000,
-    center: Math.round(center * 1000) / 1000,
-    upper: Math.round(Math.min(1, center + margin) * 1000) / 1000,
-  };
+/** Round a number to 3 decimal places. */
+export function round3(n: number): number {
+  return Math.round(n * 1000) / 1000;
 }
 
 /**
