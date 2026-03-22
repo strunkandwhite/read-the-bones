@@ -44,7 +44,12 @@ pnpm ingest                    # Ingest all drafts (incremental by default)
 pnpm ingest tarkir             # Ingest a specific draft
 pnpm ingest --force            # Force full reimport of all drafts
 pnpm ingest --force tarkir     # Force full reimport of a specific draft
+
+# Decklists
+npx tsx scripts/match-decklists.ts  # Fetch decklists from sealeddeck.tech and match to seats
 ```
+
+**Decklists:** To import or update decklists, add sealeddeck.tech URLs to `data/decklists.txt` (grouped by draft name), then run `npx tsx scripts/match-decklists.ts`. The script fetches each deck, matches it to a seat by card overlap with `picks.csv`, and writes `decklists.csv` + `decks/<seat>.json` files. Then run `pnpm ingest` to load them into Turso.
 
 **Ingestion:** `pnpm ingest` is incremental by default. When a draft's source files change, it appends new picks, INSERT OR IGNOREs new matches, and diffs decklists per-seat by hash — without deleting existing data. Use `--force` when you need to correct old data (edited picks, changed match scores, pool changes). Never clear the entire Turso database.
 

@@ -55,12 +55,21 @@ export async function resolveCardNameToId(
   cardName: string,
 ): Promise<number | null> {
   const normalized = normalizeCardName(cardName);
+  // Exact match first
   const result = await client.execute({
     sql: "SELECT card_id FROM cards WHERE LOWER(name) = LOWER(?)",
     args: [normalized],
   });
-  if (result.rows.length === 0) return null;
-  return result.rows[0].card_id as number;
+  if (result.rows.length > 0) return result.rows[0].card_id as number;
+
+  // Fall back to front-face match for double-faced cards (name stored as "Front // Back")
+  const dfcResult = await client.execute({
+    sql: "SELECT card_id FROM cards WHERE LOWER(name) LIKE LOWER(? || ' // %')",
+    args: [normalized],
+  });
+  if (dfcResult.rows.length > 0) return dfcResult.rows[0].card_id as number;
+
+  return null;
 }
 
 /**

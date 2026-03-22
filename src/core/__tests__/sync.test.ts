@@ -105,17 +105,28 @@ describe("getDbMaxPickN", () => {
 });
 
 describe("resolveCardNameToId", () => {
-  it("returns card_id for existing card", async () => {
+  it("returns card_id for exact match", async () => {
     const client = {
       execute: vi.fn().mockResolvedValue({ rows: [{ card_id: 123 }] }),
     };
     expect(await resolveCardNameToId(client as any, "Lightning Bolt")).toBe(123);
   });
 
-  it("returns null for unknown card", async () => {
+  it("falls back to front-face match for double-faced cards", async () => {
+    const client = {
+      execute: vi.fn()
+        .mockResolvedValueOnce({ rows: [] }) // exact match fails
+        .mockResolvedValueOnce({ rows: [{ card_id: 456 }] }), // DFC LIKE match
+    };
+    expect(await resolveCardNameToId(client as any, "Fable of the Mirror-Breaker")).toBe(456);
+    expect(client.execute).toHaveBeenCalledTimes(2);
+  });
+
+  it("returns null when neither exact nor front-face match", async () => {
     const client = {
       execute: vi.fn().mockResolvedValue({ rows: [] }),
     };
     expect(await resolveCardNameToId(client as any, "Not A Card")).toBeNull();
+    expect(client.execute).toHaveBeenCalledTimes(2);
   });
 });
