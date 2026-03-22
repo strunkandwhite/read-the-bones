@@ -280,7 +280,7 @@ export function DraftStats({ data }: DraftStatsProps) {
       : COLOR_INDIVIDUAL_EXPLANATION;
 
   return (
-    <div className="mb-6 grid gap-4 sm:grid-cols-2">
+    <div className="grid gap-4 sm:grid-cols-2">
       {seatBars.length > 0 && (
         <div className="rounded-lg border border-dashed border-zinc-300 bg-white px-4 pt-3 pb-2 dark:border-zinc-700 dark:bg-zinc-900/60">
           <div className="mb-1 flex items-center justify-between">

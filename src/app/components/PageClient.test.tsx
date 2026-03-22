@@ -24,8 +24,8 @@ vi.mock("./Settings", () => ({
     return <div data-testid="settings" />;
   },
 }));
-vi.mock("./DraftStats", () => ({
-  DraftStats: () => <div data-testid="draft-stats" />,
+vi.mock("./StatsModal", () => ({
+  StatsModal: () => <div data-testid="stats-modal" />,
 }));
 
 vi.mock("next/navigation", () => ({
@@ -113,7 +113,7 @@ describe("PageClient", () => {
 
   it("shows precomputed data with default selection", () => {
     render(<PageClient {...makeTestProps()} />);
-    expect(screen.getByText(/2 drafts/)).toBeDefined();
+    expect(screen.getByText(/Read the Bones/)).toBeDefined();
   });
 
   it("does not fetch on initial render with default selection", () => {
@@ -197,7 +197,7 @@ describe("PageClient", () => {
       await onDraftsChange(new Set());
     });
 
-    expect(screen.getByText("No drafts selected")).toBeDefined();
+    expect(screen.getByText(/No drafts selected/)).toBeDefined();
   });
 
   it("recovers when returning to default selection after failed fetch", async () => {
@@ -231,7 +231,7 @@ describe("PageClient", () => {
       await onDraftsChange(new Set(["draft-a", "draft-b"]));
     });
 
-    expect(screen.getByText(/2 drafts/)).toBeDefined();
+    expect(screen.getByText(/Read the Bones/)).toBeDefined();
     consoleSpy.mockRestore();
   });
 

@@ -28,35 +28,33 @@ export function ActiveDraftIndicator({
 
   if (draftComplete) {
     return (
-      <div className="flex items-center gap-2 text-sm">
-        <span className="h-2 w-2 rounded-full bg-zinc-500" />
+      <div className="flex items-center gap-1.5 text-xs">
+        <span className="h-2 w-2 shrink-0 rounded-full bg-zinc-500" />
         <span className="font-medium text-zinc-400">{draftName}</span>
         <span className="text-zinc-600">·</span>
-        <span className="text-zinc-500">Draft complete</span>
+        <span className="text-zinc-500">Complete</span>
       </div>
     );
   }
 
+  const syncLabel = syncInProgress ? "Syncing…" : `Synced ${timeAgo}`;
+
   return (
-    <div className="flex items-center gap-2 text-sm">
+    <div className="flex items-center gap-1.5 text-xs">
       <span
-        className={`h-2 w-2 rounded-full ${
+        className={`h-2 w-2 shrink-0 rounded-full ${
           syncInProgress ? "bg-amber-400 animate-pulse" : "bg-emerald-400"
         }`}
       />
       <span className="font-medium text-emerald-400">{draftName}</span>
       <span className="text-zinc-600">·</span>
-      <span className="text-zinc-400">{availableCount} available</span>
+      <span className="text-zinc-400" title={`${availableCount} available`}>{availableCount}A</span>
       {bannedCardNames && bannedCardNames.length > 0 && (
         <>
           <span className="text-zinc-600">·</span>
           <BansTooltip bannedCardNames={bannedCardNames} />
         </>
       )}
-      <span className="text-zinc-600">·</span>
-      <span className="text-zinc-500">
-        {syncInProgress ? "Syncing…" : `Synced ${timeAgo}`}
-      </span>
       <button
         onClick={() => {
           const then = parseInt(lastSyncedAt, 10) * 1000;
@@ -68,9 +66,10 @@ export function ActiveDraftIndicator({
           onSyncNow();
         }}
         disabled={syncDisabled || syncInProgress}
-        className="ml-1 cursor-pointer rounded border border-zinc-700 px-2 py-0.5 text-xs text-zinc-400 hover:border-zinc-500 hover:text-zinc-300 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600"
+        title={syncLabel}
+        className="ml-0.5 cursor-pointer rounded border border-zinc-700 px-1.5 py-0.5 text-[11px] text-zinc-400 hover:border-zinc-500 hover:text-zinc-300 disabled:cursor-not-allowed disabled:border-zinc-800 disabled:text-zinc-600"
       >
-        Sync Now
+        {syncInProgress ? "…" : "Sync"}
       </button>
     </div>
   );
@@ -85,8 +84,8 @@ function BansTooltip({ bannedCardNames }: { bannedCardNames: string[] }) {
       onMouseEnter={() => setOpen(true)}
       onMouseLeave={() => setOpen(false)}
     >
-      <span className="text-zinc-500 cursor-default hover:text-zinc-400 transition-colors">
-        {bannedCardNames.length} banned
+      <span className="text-zinc-500 cursor-default hover:text-zinc-400 transition-colors" title={`${bannedCardNames.length} banned`}>
+        {bannedCardNames.length}B
       </span>
       {open && (
         <div className="absolute left-1/2 top-full z-50 mt-3 -translate-x-1/2 rounded border border-zinc-700 bg-zinc-800 px-3 py-2.5 shadow-lg">

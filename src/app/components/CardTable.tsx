@@ -11,6 +11,7 @@ import {
   SortingState,
   VisibilityState,
 } from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import type { EnrichedCardStats } from "@/core/types";
 import type { ColorFilterMode } from "@/core/colorFilter";
 import { filterCardsByColor } from "@/core/colorFilter";
@@ -34,7 +35,6 @@ export interface CardTableProps {
   onRemoveSpeculative?: (cardName: string) => void;
   deckBuilderCardCounts?: Map<string, number>;
   speculativeCardNames?: Set<string>;
-  stickyTopOffset?: number;
 }
 
 const columnHelper = createColumnHelper<EnrichedCardStats>();
@@ -66,7 +66,6 @@ export function CardTable({
   onRemoveSpeculative,
   deckBuilderCardCounts,
   speculativeCardNames,
-  stickyTopOffset,
 }: CardTableProps) {
   useSlowRenderTracking("card_table");
   const deckBuilderCardCountsRef = useRef(deckBuilderCardCounts);
@@ -305,90 +304,137 @@ export function CardTable({
     getFilteredRowModel: getFilteredRowModel(),
   });
 
+  // Virtualization: scroll container fills remaining viewport height
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [scrollHeight, setScrollHeight] = useState<number>(600);
+
+  useEffect(() => {
+    const el = scrollContainerRef.current;
+    if (!el) return;
+
+    const updateHeight = () => {
+      const rect = el.getBoundingClientRect();
+      // Fill viewport minus bottom padding for the footer bar (~40px) and page margin
+      setScrollHeight(Math.max(400, window.innerHeight - rect.top - 48));
+    };
+
+    updateHeight();
+    window.addEventListener("resize", updateHeight);
+    return () => window.removeEventListener("resize", updateHeight);
+  }, []);
+
+  const rows = table.getRowModel().rows;
+  const ROW_HEIGHT_ESTIMATE = 48;
+
+  const rowVirtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollContainerRef.current,
+    estimateSize: () => ROW_HEIGHT_ESTIMATE,
+    overscan: 10,
+  });
+
+  const virtualRows = rowVirtualizer.getVirtualItems();
+  const totalSize = rowVirtualizer.getTotalSize();
+  const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
+  const paddingBottom = virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
+
   return (
     <div ref={containerRef}>
       <div className="relative">
         <div className="rounded-lg border border-zinc-200 dark:border-zinc-700">
-          <table className={`w-full text-left ${breakpoint === "desktop" ? "table-fixed" : "table-auto"}`}>
-            {breakpoint === "desktop" && (
-              <colgroup>
-                {table.getVisibleLeafColumns().map((col) => (
-                  <col key={col.id} style={{ width: col.getSize() }} />
-                ))}
-              </colgroup>
-            )}
-            <thead
-              className="bg-zinc-50 dark:bg-zinc-800"
-              style={stickyTopOffset != null && breakpoint === "desktop" ? { position: "sticky", top: stickyTopOffset, zIndex: 20 } : undefined}
-            >
-              {table.getHeaderGroups().map((headerGroup) => (
-                <tr key={headerGroup.id}>
-                  {headerGroup.headers.map((header) => (
-                    <th
-                      key={header.id}
-                      className={`px-2 py-2 sm:px-4 sm:py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300 ${
-                        header.column.getCanSort()
-                          ? "cursor-pointer select-none hover:bg-zinc-100 dark:hover:bg-zinc-700"
-                          : ""
-                      }`}
-                      onClick={header.column.getToggleSortingHandler()}
-                    >
-                      <div className="flex items-center gap-1">
-                        {flexRender(header.column.columnDef.header, header.getContext())}
-                        {header.column.getCanSort() && (
-                          <span className="text-zinc-400">
-                            {{
-                              asc: " ▲",
-                              desc: " ▼",
-                            }[header.column.getIsSorted() as string] ?? " ⬍"}
-                          </span>
-                        )}
-                      </div>
-                    </th>
+          <div
+            ref={scrollContainerRef}
+            style={{ height: scrollHeight, overflowY: "auto" }}
+          >
+            <table className={`w-full text-left ${breakpoint === "desktop" ? "table-fixed" : "table-auto"}`}>
+              {breakpoint === "desktop" && (
+                <colgroup>
+                  {table.getVisibleLeafColumns().map((col) => (
+                    <col key={col.id} style={{ width: col.getSize() }} />
                   ))}
-                </tr>
-              ))}
-            </thead>
-            <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
-              {table.getRowModel().rows.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={table.getVisibleLeafColumns().length}
-                    className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400"
-                  >
-                    No cards found
-                  </td>
-                </tr>
-              ) : (
-                table.getRowModel().rows.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="bg-white transition-colors hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
-                    style={{
-                      opacity:
-                        takenCardNames?.has(row.original.cardName) &&
-                        !seatCardNames?.has(row.original.cardName)
-                          ? 0.35
-                          : 1,
-                    }}
-                  >
-                    {row.getVisibleCells().map((cell) => (
-                      <td
-                        key={cell.id}
-                        className="px-2 py-2 sm:px-4 sm:py-3"
+                </colgroup>
+              )}
+              <thead
+                className="bg-zinc-50 dark:bg-zinc-800"
+                style={{ position: "sticky", top: 0, zIndex: 20 }}
+              >
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <tr key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <th
+                        key={header.id}
+                        className={`px-2 py-2 sm:px-4 sm:py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300 ${
+                          header.column.getCanSort()
+                            ? "cursor-pointer select-none hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                            : ""
+                        }`}
+                        onClick={header.column.getToggleSortingHandler()}
                       >
-                        {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                      </td>
+                        <div className="flex items-center gap-1">
+                          {flexRender(header.column.columnDef.header, header.getContext())}
+                          {header.column.getCanSort() && (
+                            <span className="text-zinc-400">
+                              {{
+                                asc: " ▲",
+                                desc: " ▼",
+                              }[header.column.getIsSorted() as string] ?? " ⬍"}
+                            </span>
+                          )}
+                        </div>
+                      </th>
                     ))}
                   </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-
-          {/* Footer with count */}
-          <div className="border-t border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400">
-            Showing {filteredData.length} of {cards.length} unique cards
+                ))}
+              </thead>
+              <tbody className="divide-y divide-zinc-200 dark:divide-zinc-700">
+                {rows.length === 0 ? (
+                  <tr>
+                    <td
+                      colSpan={table.getVisibleLeafColumns().length}
+                      className="px-4 py-8 text-center text-zinc-500 dark:text-zinc-400"
+                    >
+                      No cards found
+                    </td>
+                  </tr>
+                ) : (
+                  <>
+                    {paddingTop > 0 && (
+                      <tr><td style={{ height: paddingTop, padding: 0, border: "none" }} /></tr>
+                    )}
+                    {virtualRows.map((virtualRow) => {
+                      const row = rows[virtualRow.index];
+                      return (
+                        <tr
+                          key={row.id}
+                          data-index={virtualRow.index}
+                          ref={rowVirtualizer.measureElement}
+                          className="bg-white transition-colors hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
+                          style={{
+                            opacity:
+                              takenCardNames?.has(row.original.cardName) &&
+                              !seatCardNames?.has(row.original.cardName)
+                                ? 0.35
+                                : 1,
+                          }}
+                        >
+                          {row.getVisibleCells().map((cell) => (
+                            <td
+                              key={cell.id}
+                              className="px-2 py-2 sm:px-4 sm:py-3"
+                            >
+                              {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                            </td>
+                          ))}
+                        </tr>
+                      );
+                    })}
+                    {paddingBottom > 0 && (
+                      <tr><td style={{ height: paddingBottom, padding: 0, border: "none" }} /></tr>
+                    )}
+                  </>
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
