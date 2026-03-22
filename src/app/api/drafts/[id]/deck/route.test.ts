@@ -33,5 +33,22 @@ describe("GET /api/drafts/[id]/deck", () => {
     });
     expect(res.status).toBe(200);
     expect(queries.getDeck).toHaveBeenCalledWith({ draft_id: "tarkir", seat: 3 });
+    const body = await res.json();
+    expect(body).toHaveProperty("draft_id", "tarkir");
+    expect(body).toHaveProperty("seat", 3);
+    expect(body).toHaveProperty("deck");
+    expect(body).toHaveProperty("sideboard");
+    expect(Array.isArray(body.deck)).toBe(true);
+    expect(Array.isArray(body.sideboard)).toBe(true);
+  });
+
+  it("returns 500 when query throws", async () => {
+    vi.mocked(queries.getDeck).mockRejectedValueOnce(new Error("DB error"));
+    const res = await GET(makeRequest("tarkir", { seat: "3" }), {
+      params: Promise.resolve({ id: "tarkir" }),
+    });
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toHaveProperty("error");
   });
 });

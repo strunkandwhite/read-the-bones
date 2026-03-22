@@ -30,6 +30,11 @@ describe("GET /api/drafts/[id]/picks", () => {
       pick_n_max: 120,
       card_name: undefined,
     });
+    const body = await res.json();
+    expect(body).toHaveProperty("draft_id");
+    expect(body).toHaveProperty("total");
+    expect(body).toHaveProperty("picks");
+    expect(Array.isArray(body.picks)).toBe(true);
   });
 
   it("handles card_name filter", async () => {
@@ -42,5 +47,16 @@ describe("GET /api/drafts/[id]/picks", () => {
     expect(queries.getPicks).toHaveBeenCalledWith(
       expect.objectContaining({ card_name: "Lightning Bolt" }),
     );
+  });
+
+  it("returns 500 when query throws", async () => {
+    vi.mocked(queries.getPicks).mockRejectedValueOnce(new Error("DB error"));
+    const res = await GET(
+      makeRequest("tarkir", { seat: "1" }),
+      { params: Promise.resolve({ id: "tarkir" }) },
+    );
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toHaveProperty("error");
   });
 });

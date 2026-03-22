@@ -42,6 +42,13 @@ describe("GET /api/drafts/[id]/pool", () => {
       type_contains: "Creature",
       name_contains: undefined,
     });
+    const body = await res.json();
+    expect(body).toHaveProperty("draft_id", "tarkir");
+    expect(body).toHaveProperty("draft_name", "Tarkir");
+    expect(body).toHaveProperty("draft_date");
+    expect(body).toHaveProperty("total_cards");
+    expect(body).toHaveProperty("cards");
+    expect(Array.isArray(body.cards)).toBe(true);
   });
 
   it("returns 404 when draft pool not found", async () => {
@@ -50,5 +57,17 @@ describe("GET /api/drafts/[id]/pool", () => {
       params: Promise.resolve({ id: "missing" }),
     });
     expect(res.status).toBe(404);
+    const body = await res.json();
+    expect(body).toHaveProperty("error");
+  });
+
+  it("returns 500 when query throws", async () => {
+    vi.mocked(queries.getDraftPool).mockRejectedValueOnce(new Error("DB error"));
+    const res = await GET(makeRequest("tarkir"), {
+      params: Promise.resolve({ id: "tarkir" }),
+    });
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toHaveProperty("error");
   });
 });

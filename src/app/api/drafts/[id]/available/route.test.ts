@@ -36,5 +36,21 @@ describe("GET /api/drafts/[id]/available", () => {
       color: "R",
       type_contains: undefined,
     });
+    const body = await res.json();
+    expect(body).toHaveProperty("draft_id");
+    expect(body).toHaveProperty("before_pick_n");
+    expect(body).toHaveProperty("cards");
+    expect(Array.isArray(body.cards)).toBe(true);
+  });
+
+  it("returns 500 when query throws", async () => {
+    vi.mocked(queries.getAvailableCards).mockRejectedValueOnce(new Error("DB error"));
+    const res = await GET(
+      makeRequest("tarkir", { before_pick_n: "50" }),
+      { params: Promise.resolve({ id: "tarkir" }) },
+    );
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toHaveProperty("error");
   });
 });

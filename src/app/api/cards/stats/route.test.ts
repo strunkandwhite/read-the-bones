@@ -34,6 +34,12 @@ describe("GET /api/cards/stats", () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.card_name).toBe("Lightning Bolt");
+    expect(body).toHaveProperty("pick");
+    expect(body.pick).toEqual(
+      expect.objectContaining({ drafts_in_pool: 3, times_picked: 3, avg_pick: 12 }),
+    );
+    expect(body).toHaveProperty("play");
+    expect(body).toHaveProperty("wins");
   });
 
   it("returns 404 with suggestions when card not found", async () => {
@@ -46,6 +52,14 @@ describe("GET /api/cards/stats", () => {
     expect(res.status).toBe(404);
     const body = await res.json();
     expect(body.candidates).toContain("Lightning Bolt");
+  });
+
+  it("returns 500 when query throws", async () => {
+    vi.mocked(queries.getCardStats).mockRejectedValueOnce(new Error("DB error"));
+    const res = await GET(makeRequest({ card_name: "Lightning Bolt" }));
+    expect(res.status).toBe(500);
+    const body = await res.json();
+    expect(body).toHaveProperty("error");
   });
 
   it("passes optional filters", async () => {
