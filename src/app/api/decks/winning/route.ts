@@ -2,6 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import * as queries from "@/core/db/queries";
 
 const VALID_COLOR_PAIR = /^[WUBRG]{1,2}$|^C$/;
+const WUBRG = "WUBRG";
+
+function normalizeColorPair(input: string): string | null {
+  const upper = input.toUpperCase();
+  if (!VALID_COLOR_PAIR.test(upper)) return null;
+  if (upper.length === 2 && upper[0] === upper[1]) return null;
+  if (upper === "C") return "C";
+  return upper.split("").sort((a, b) => WUBRG.indexOf(a) - WUBRG.indexOf(b)).join("");
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -12,10 +21,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "color_pair is required" }, { status: 400 });
     }
 
-    const normalized = colorPair.toUpperCase();
-    if (!VALID_COLOR_PAIR.test(normalized)) {
+    const normalized = normalizeColorPair(colorPair);
+    if (!normalized) {
       return NextResponse.json(
-        { error: "color_pair must be 1-2 characters from WUBRG, or C" },
+        { error: "color_pair must be 1-2 distinct characters from WUBRG, or C" },
         { status: 400 },
       );
     }

@@ -25,12 +25,31 @@ describe("GET /api/decks/winning", () => {
     const res = await GET(makeRequest({ color_pair: "XY" }));
     expect(res.status).toBe(400);
     const body = await res.json();
-    expect(body.error).toContain("1-2 characters from WUBRG");
+    expect(body.error).toContain("1-2 distinct characters from WUBRG");
   });
 
   it("rejects three-color input", async () => {
     const res = await GET(makeRequest({ color_pair: "WUB" }));
     expect(res.status).toBe(400);
+  });
+
+  it("rejects duplicate characters like WW", async () => {
+    const res = await GET(makeRequest({ color_pair: "WW" }));
+    expect(res.status).toBe(400);
+  });
+
+  it("normalizes color pair to WUBRG order", async () => {
+    vi.mocked(queries.getWinningDecksByColor).mockResolvedValue({
+      color_pair: "WB",
+      decks: [],
+      overlap_cards: [],
+    });
+    const res = await GET(makeRequest({ color_pair: "BW" }));
+    expect(res.status).toBe(200);
+    expect(queries.getWinningDecksByColor).toHaveBeenCalledWith({
+      color_pair: "WB",
+      draft_ids: undefined,
+    });
   });
 
   it("accepts valid color pairs", async () => {
