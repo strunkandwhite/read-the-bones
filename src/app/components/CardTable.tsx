@@ -20,6 +20,7 @@ import { CardNameCell } from "./CardNameCell";
 import { DistributionHistogram } from "./DistributionHistogram";
 import { track } from "@vercel/analytics/react";
 import { useSlowRenderTracking } from "../hooks/useSlowRenderTracking";
+import { InfoTooltip } from "./InfoTooltip";
 
 export interface CardTableProps {
   cards: EnrichedCardStats[];
@@ -37,20 +38,6 @@ export interface CardTableProps {
 
 const columnHelper = createColumnHelper<EnrichedCardStats>();
 
-// Info tooltip component
-function InfoTooltip({ text }: { text: string }) {
-  return (
-    <div className="group relative ml-1 inline-block">
-      <span className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-zinc-200 text-xs text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400">
-        ?
-      </span>
-      <div className="absolute top-6 -left-32 z-50 hidden w-72 rounded-lg bg-zinc-800 p-3 text-xs whitespace-pre-line text-white shadow-xl group-hover:block dark:bg-zinc-900">
-        {text}
-        <div className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 bg-zinc-800 dark:bg-zinc-900" />
-      </div>
-    </div>
-  );
-}
 
 const PICK_EXPLANATION = `Weighted geometric mean of pick positions across all drafts.
 

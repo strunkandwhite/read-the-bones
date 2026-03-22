@@ -4,21 +4,8 @@ import { useState, useMemo } from "react";
 import type { DraftStatsResponse } from "@/core/getDraftStats";
 import { decomposeColorPairs } from "@/core/colorDecomposition";
 import { useSlowRenderTracking } from "../hooks/useSlowRenderTracking";
+import { InfoTooltip } from "./InfoTooltip";
 
-// ─── Info Tooltip ─────────────────────────────────────────────────
-
-function InfoTooltip({ text }: { text: string }) {
-  return (
-    <div className="group relative ml-1.5 inline-block">
-      <span className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-zinc-200 text-xs text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400">
-        ?
-      </span>
-      <div className="absolute top-6 right-0 z-50 hidden w-72 rounded-lg bg-zinc-800 p-3 text-xs leading-relaxed whitespace-pre-line text-white shadow-xl group-hover:block dark:bg-zinc-900">
-        {text}
-      </div>
-    </div>
-  );
-}
 
 const SEAT_EXPLANATION = `Game win rate per draft seat position, aggregated across all 10-seat drafts. Drafts with a different number of seats are excluded since seat position is not comparable across different draft sizes.
 
@@ -300,7 +287,7 @@ export function DraftStats({ data }: DraftStatsProps) {
             <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
               Win Rate by Seat
             </h3>
-            <InfoTooltip text={SEAT_EXPLANATION} />
+            <InfoTooltip align="right" text={SEAT_EXPLANATION} />
           </div>
           <WinRateHistogram bars={seatBars} theme={BLUE_THEME} />
         </div>
@@ -338,7 +325,7 @@ export function DraftStats({ data }: DraftStatsProps) {
                 </button>
               </div>
             </div>
-            <InfoTooltip text={activeColorExplanation} />
+            <InfoTooltip align="right" text={activeColorExplanation} />
           </div>
           <WinRateHistogram bars={activeColorBars} theme={AMBER_THEME} />
         </div>
