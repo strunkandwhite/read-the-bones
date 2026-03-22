@@ -34,6 +34,12 @@ export function ManaSymbols({ cost }: { cost: string }) {
             width={16}
             height={16}
             className="inline-block"
+            onError={(e) => {
+              const span = document.createElement("span");
+              span.textContent = sym;
+              span.className = "text-xs text-zinc-400";
+              e.currentTarget.replaceWith(span);
+            }}
           />
         );
       })}
@@ -67,6 +73,12 @@ export function ColorPills({ colors }: { colors: string[] }) {
           width={16}
           height={16}
           className="inline-block"
+          onError={(e) => {
+            const span = document.createElement("span");
+            span.textContent = color;
+            span.className = "text-xs text-zinc-400";
+            e.currentTarget.replaceWith(span);
+          }}
         />
       ))}
     </span>
