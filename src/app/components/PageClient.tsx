@@ -497,13 +497,13 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
                     </li>
                     <li>
                       <code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">
-                        cmc=3
+                        mv=3
                       </code>{" "}
                       mana value
                     </li>
                     <li>
                       <code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">
-                        cmc&lt;=2
+                        mv&lt;=2
                       </code>{" "}
                       comparison
                     </li>

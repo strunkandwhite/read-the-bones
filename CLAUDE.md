@@ -117,8 +117,8 @@ Local Scryfall-style search (searches only cards in the cube):
 - `o:"draw a card"` - quoted phrases
 - `c:r` - color (w/u/b/r/g, c=colorless)
 - `c:ub` - multicolor (blue AND black)
-- `cmc=3` - exact mana value
-- `cmc<=2` - comparison (<, >, <=, >=)
+- `mv=3` - exact mana value
+- `mv<=2` - comparison (<, >, <=, >=)
 - `bolt` - name search (plain text)
 - `t:instant c:u` - combine terms (AND logic)
 

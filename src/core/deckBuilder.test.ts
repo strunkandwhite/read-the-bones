@@ -8,6 +8,7 @@ import {
   formatDecklistText,
   generateDeckId,
   getColumnKey,
+  migrateDeckState,
 } from "./deckBuilder";
 
 function makeScryCard(overrides: Partial<ScryCard>): ScryCard {
@@ -51,39 +52,39 @@ const scryfallData = new Map<string, ScryCard>([
 ]);
 
 describe("getColumnKey", () => {
-  it("assigns CMC 0 to cmc-0-1", () => {
-    expect(getColumnKey(moxRuby)).toBe("cmc-0-1");
+  it("assigns MV 0 to mv-0-1", () => {
+    expect(getColumnKey(moxRuby)).toBe("mv-0-1");
   });
 
-  it("assigns CMC 1 to cmc-0-1", () => {
-    expect(getColumnKey(bolt)).toBe("cmc-0-1");
+  it("assigns MV 1 to mv-0-1", () => {
+    expect(getColumnKey(bolt)).toBe("mv-0-1");
   });
 
-  it("assigns CMC 2 to cmc-2", () => {
-    expect(getColumnKey(counterspell)).toBe("cmc-2");
+  it("assigns MV 2 to mv-2", () => {
+    expect(getColumnKey(counterspell)).toBe("mv-2");
   });
 
-  it("assigns CMC 3 to cmc-3", () => {
-    expect(getColumnKey(vendilion)).toBe("cmc-3");
+  it("assigns MV 3 to mv-3", () => {
+    expect(getColumnKey(vendilion)).toBe("mv-3");
   });
 
-  it("assigns CMC 4 to cmc-4", () => {
-    expect(getColumnKey(jace)).toBe("cmc-4");
+  it("assigns MV 4 to mv-4", () => {
+    expect(getColumnKey(jace)).toBe("mv-4");
   });
 
-  it("assigns CMC 5 to cmc-5", () => {
-    expect(getColumnKey(forceOfWill)).toBe("cmc-5");
+  it("assigns MV 5 to mv-5", () => {
+    expect(getColumnKey(forceOfWill)).toBe("mv-5");
   });
 
-  it("assigns CMC 6 to cmc-6+", () => {
-    expect(getColumnKey(sixDrop)).toBe("cmc-6+");
+  it("assigns MV 6 to mv-6+", () => {
+    expect(getColumnKey(sixDrop)).toBe("mv-6+");
   });
 
-  it("assigns CMC 10 to cmc-6+", () => {
-    expect(getColumnKey(tenDrop)).toBe("cmc-6+");
+  it("assigns MV 10 to mv-6+", () => {
+    expect(getColumnKey(tenDrop)).toBe("mv-6+");
   });
 
-  it("assigns lands to lands regardless of CMC", () => {
+  it("assigns lands to lands regardless of MV", () => {
     expect(getColumnKey(tundra)).toBe("lands");
   });
 
@@ -99,12 +100,12 @@ describe("COLUMN_KEYS", () => {
 
   it("is in the expected order", () => {
     expect(COLUMN_KEYS).toEqual([
-      "cmc-0-1",
-      "cmc-2",
-      "cmc-3",
-      "cmc-4",
-      "cmc-5",
-      "cmc-6+",
+      "mv-0-1",
+      "mv-2",
+      "mv-3",
+      "mv-4",
+      "mv-5",
+      "mv-6+",
       "lands",
     ]);
   });
@@ -116,17 +117,17 @@ describe("assignCardsToColumns", () => {
       ["Lightning Bolt", "Counterspell", "Tundra"],
       scryfallData,
     );
-    expect(result["cmc-0-1"]).toEqual(["Lightning Bolt"]);
-    expect(result["cmc-2"]).toEqual(["Counterspell"]);
+    expect(result["mv-0-1"]).toEqual(["Lightning Bolt"]);
+    expect(result["mv-2"]).toEqual(["Counterspell"]);
     expect(result["lands"]).toEqual(["Tundra"]);
   });
 
-  it("falls back to cmc-0-1 for unknown cards", () => {
+  it("falls back to mv-0-1 for unknown cards", () => {
     const result = assignCardsToColumns(
       ["Unknown Card"],
       scryfallData,
     );
-    expect(result["cmc-0-1"]).toEqual(["Unknown Card"]);
+    expect(result["mv-0-1"]).toEqual(["Unknown Card"]);
   });
 
   it("preserves order within a column", () => {
@@ -134,7 +135,7 @@ describe("assignCardsToColumns", () => {
       ["Lightning Bolt", "Mox Ruby"],
       scryfallData,
     );
-    expect(result["cmc-0-1"]).toEqual(["Lightning Bolt", "Mox Ruby"]);
+    expect(result["mv-0-1"]).toEqual(["Lightning Bolt", "Mox Ruby"]);
   });
 });
 
@@ -195,8 +196,8 @@ describe("deckReducer", () => {
         draftId: "tarkir",
         seat: 1,
       });
-      expect(result.zones.deck["cmc-0-1"]).toEqual(["Lightning Bolt"]);
-      expect(result.zones.deck["cmc-2"]).toEqual(["Counterspell"]);
+      expect(result.zones.deck["mv-0-1"]).toEqual(["Lightning Bolt"]);
+      expect(result.zones.deck["mv-2"]).toEqual(["Counterspell"]);
       expect(result.zones.deck["lands"]).toEqual(["Tundra"]);
       // Sideboard should be empty
       for (const key of COLUMN_KEYS) {
@@ -220,12 +221,12 @@ describe("deckReducer", () => {
         cardName: "Lightning Bolt",
         fromZone: "deck",
         toZone: "sideboard",
-        fromColumn: "cmc-0-1",
-        toColumn: "cmc-0-1",
+        fromColumn: "mv-0-1",
+        toColumn: "mv-0-1",
         toIndex: 0,
       });
-      expect(result.zones.deck["cmc-0-1"]).toEqual([]);
-      expect(result.zones.sideboard["cmc-0-1"]).toEqual(["Lightning Bolt"]);
+      expect(result.zones.deck["mv-0-1"]).toEqual([]);
+      expect(result.zones.sideboard["mv-0-1"]).toEqual(["Lightning Bolt"]);
     });
 
     it("moves a card between columns within the same zone", () => {
@@ -242,12 +243,12 @@ describe("deckReducer", () => {
         cardName: "Lightning Bolt",
         fromZone: "deck",
         toZone: "deck",
-        fromColumn: "cmc-0-1",
-        toColumn: "cmc-2",
+        fromColumn: "mv-0-1",
+        toColumn: "mv-2",
         toIndex: 0,
       });
-      expect(result.zones.deck["cmc-0-1"]).toEqual([]);
-      expect(result.zones.deck["cmc-2"]).toEqual(["Lightning Bolt"]);
+      expect(result.zones.deck["mv-0-1"]).toEqual([]);
+      expect(result.zones.deck["mv-2"]).toEqual(["Lightning Bolt"]);
     });
 
     it("returns original state if card not found", () => {
@@ -257,8 +258,8 @@ describe("deckReducer", () => {
         cardName: "Nonexistent",
         fromZone: "sideboard",
         toZone: "deck",
-        fromColumn: "cmc-0-1",
-        toColumn: "cmc-0-1",
+        fromColumn: "mv-0-1",
+        toColumn: "mv-0-1",
         toIndex: 0,
       });
       expect(result).toBe(state);
@@ -274,7 +275,7 @@ describe("deckReducer", () => {
         scryfallData,
       });
       expect(result.speculativeCards).toEqual(["Lightning Bolt"]);
-      expect(result.zones.deck["cmc-0-1"]).toContain("Lightning Bolt");
+      expect(result.zones.deck["mv-0-1"]).toContain("Lightning Bolt");
     });
 
     it("prevents duplicate speculative cards", () => {
@@ -308,7 +309,7 @@ describe("deckReducer", () => {
         maxCopies: 2,
       });
       expect(result.speculativeCards).toEqual(["Lightning Bolt", "Lightning Bolt"]);
-      expect(result.zones.deck["cmc-0-1"].filter((c: string) => c === "Lightning Bolt")).toHaveLength(2);
+      expect(result.zones.deck["mv-0-1"].filter((c: string) => c === "Lightning Bolt")).toHaveLength(2);
     });
 
     it("blocks adding beyond maxCopies", () => {
@@ -349,7 +350,7 @@ describe("deckReducer", () => {
         cardName: "Lightning Bolt",
       });
       expect(result.speculativeCards).toEqual([]);
-      expect(result.zones.deck["cmc-0-1"]).not.toContain("Lightning Bolt");
+      expect(result.zones.deck["mv-0-1"]).not.toContain("Lightning Bolt");
     });
 
     it("removes a speculative card that was moved to sideboard", () => {
@@ -364,8 +365,8 @@ describe("deckReducer", () => {
         cardName: "Lightning Bolt",
         fromZone: "deck",
         toZone: "sideboard",
-        fromColumn: "cmc-0-1",
-        toColumn: "cmc-0-1",
+        fromColumn: "mv-0-1",
+        toColumn: "mv-0-1",
         toIndex: 0,
       });
       const result = deckReducer(state, {
@@ -373,7 +374,7 @@ describe("deckReducer", () => {
         cardName: "Lightning Bolt",
       });
       expect(result.speculativeCards).toEqual([]);
-      expect(result.zones.sideboard["cmc-0-1"]).not.toContain("Lightning Bolt");
+      expect(result.zones.sideboard["mv-0-1"]).not.toContain("Lightning Bolt");
     });
   });
 
@@ -458,8 +459,8 @@ describe("deckReducer", () => {
         type: "CLEAR_DECK",
         scryfallData,
       });
-      expect(result.zones.deck["cmc-0-1"]).toEqual([]);
-      expect(result.zones.sideboard["cmc-0-1"]).toContain("Lightning Bolt");
+      expect(result.zones.deck["mv-0-1"]).toEqual([]);
+      expect(result.zones.sideboard["mv-0-1"]).toContain("Lightning Bolt");
     });
 
     it("resets basic lands", () => {
@@ -492,21 +493,21 @@ describe("deckReducer", () => {
         seat: 5,
         zones: {
           deck: {
-            "cmc-0-1": ["Lightning Bolt"],
-            "cmc-2": [],
-            "cmc-3": [],
-            "cmc-4": [],
-            "cmc-5": [],
-            "cmc-6+": [],
+            "mv-0-1": ["Lightning Bolt"],
+            "mv-2": [],
+            "mv-3": [],
+            "mv-4": [],
+            "mv-5": [],
+            "mv-6+": [],
             lands: [],
           },
           sideboard: {
-            "cmc-0-1": [],
-            "cmc-2": ["Counterspell"],
-            "cmc-3": [],
-            "cmc-4": [],
-            "cmc-5": [],
-            "cmc-6+": [],
+            "mv-0-1": [],
+            "mv-2": ["Counterspell"],
+            "mv-3": [],
+            "mv-4": [],
+            "mv-5": [],
+            "mv-6+": [],
             lands: [],
           },
         },
@@ -519,7 +520,7 @@ describe("deckReducer", () => {
       });
       expect(result.draftId).toBe("innistrad");
       expect(result.seat).toBe(5);
-      expect(result.zones.deck["cmc-0-1"]).toEqual(["Lightning Bolt"]);
+      expect(result.zones.deck["mv-0-1"]).toEqual(["Lightning Bolt"]);
       // Verify it's a clone, not the same reference
       expect(result).not.toBe(snapshot);
     });
@@ -533,8 +534,8 @@ describe("deckReducer", () => {
         pickedCardNames: ["Lightning Bolt", "Counterspell"],
         scryfallData,
       });
-      expect(result.zones.deck["cmc-0-1"]).toContain("Lightning Bolt");
-      expect(result.zones.deck["cmc-2"]).toContain("Counterspell");
+      expect(result.zones.deck["mv-0-1"]).toContain("Lightning Bolt");
+      expect(result.zones.deck["mv-2"]).toContain("Counterspell");
     });
 
     it("promotes speculative cards to real (removes from speculativeCards, keeps position)", () => {
@@ -550,12 +551,12 @@ describe("deckReducer", () => {
         cardName: "Lightning Bolt",
         fromZone: "deck",
         toZone: "sideboard",
-        fromColumn: "cmc-0-1",
-        toColumn: "cmc-0-1",
+        fromColumn: "mv-0-1",
+        toColumn: "mv-0-1",
         toIndex: 0,
       });
       expect(state.speculativeCards).toEqual(["Lightning Bolt"]);
-      expect(state.zones.sideboard["cmc-0-1"]).toContain("Lightning Bolt");
+      expect(state.zones.sideboard["mv-0-1"]).toContain("Lightning Bolt");
 
       const result = deckReducer(state, {
         type: "SYNC_PICKS",
@@ -564,7 +565,7 @@ describe("deckReducer", () => {
       });
       expect(result.speculativeCards).toEqual([]);
       // Card stays in the sideboard zone where user placed it
-      expect(result.zones.sideboard["cmc-0-1"]).toContain("Lightning Bolt");
+      expect(result.zones.sideboard["mv-0-1"]).toContain("Lightning Bolt");
     });
 
     it("returns same state reference when nothing changes", () => {
@@ -597,8 +598,8 @@ describe("deckReducer", () => {
         scryfallData,
       });
       expect(result.speculativeCards).toEqual([]);
-      expect(result.zones.deck["cmc-0-1"]).toContain("Lightning Bolt");
-      expect(result.zones.deck["cmc-2"]).toContain("Counterspell");
+      expect(result.zones.deck["mv-0-1"]).toContain("Lightning Bolt");
+      expect(result.zones.deck["mv-2"]).toContain("Counterspell");
     });
 
     it("removes speculative cards taken by other players", () => {
@@ -609,7 +610,7 @@ describe("deckReducer", () => {
         scryfallData,
       });
       expect(state.speculativeCards).toEqual(["Lightning Bolt"]);
-      expect(state.zones.deck["cmc-0-1"]).toContain("Lightning Bolt");
+      expect(state.zones.deck["mv-0-1"]).toContain("Lightning Bolt");
 
       const result = deckReducer(state, {
         type: "SYNC_PICKS",
@@ -618,8 +619,8 @@ describe("deckReducer", () => {
         scryfallData,
       });
       expect(result.speculativeCards).toEqual([]);
-      expect(result.zones.deck["cmc-0-1"]).not.toContain("Lightning Bolt");
-      expect(result.zones.sideboard["cmc-0-1"]).not.toContain("Lightning Bolt");
+      expect(result.zones.deck["mv-0-1"]).not.toContain("Lightning Bolt");
+      expect(result.zones.sideboard["mv-0-1"]).not.toContain("Lightning Bolt");
     });
 
     it("keeps speculative cards that are not taken", () => {
@@ -636,7 +637,7 @@ describe("deckReducer", () => {
         scryfallData,
       });
       expect(result.speculativeCards).toEqual(["Lightning Bolt"]);
-      expect(result.zones.deck["cmc-0-1"]).toContain("Lightning Bolt");
+      expect(result.zones.deck["mv-0-1"]).toContain("Lightning Bolt");
     });
   });
 
@@ -650,19 +651,19 @@ describe("deckReducer", () => {
         draftId: "tarkir",
         seat: 1,
       });
-      // Both end up in deck cmc-0-1
-      expect(state.zones.deck["cmc-0-1"]).toEqual([
+      // Both end up in deck mv-0-1
+      expect(state.zones.deck["mv-0-1"]).toEqual([
         "Lightning Bolt",
         "Mox Ruby",
       ]);
       const result = deckReducer(state, {
         type: "REORDER_CARD",
         zone: "deck",
-        column: "cmc-0-1",
+        column: "mv-0-1",
         fromIndex: 0,
         toIndex: 1,
       });
-      expect(result.zones.deck["cmc-0-1"]).toEqual([
+      expect(result.zones.deck["mv-0-1"]).toEqual([
         "Mox Ruby",
         "Lightning Bolt",
       ]);
@@ -687,7 +688,7 @@ describe("deckReducer", () => {
 
     it("aggregates multiple copies", () => {
       const state = createEmptyDeckState("tarkir", 1);
-      state.zones.deck["cmc-0-1"] = ["Lightning Bolt", "Lightning Bolt"];
+      state.zones.deck["mv-0-1"] = ["Lightning Bolt", "Lightning Bolt"];
       const text = formatDecklistText(state);
       expect(text).toContain("2 Lightning Bolt");
       expect(text).not.toContain("1 Lightning Bolt");
@@ -695,8 +696,8 @@ describe("deckReducer", () => {
 
     it("includes sideboard section", () => {
       const state = createEmptyDeckState("tarkir", 1);
-      state.zones.deck["cmc-0-1"] = ["Lightning Bolt"];
-      state.zones.sideboard["cmc-2"] = ["Counterspell"];
+      state.zones.deck["mv-0-1"] = ["Lightning Bolt"];
+      state.zones.sideboard["mv-2"] = ["Counterspell"];
       const text = formatDecklistText(state);
       expect(text).toBe("Deck\n1 Lightning Bolt\n\nSideboard\n1 Counterspell");
     });
@@ -706,5 +707,47 @@ describe("deckReducer", () => {
       const text = formatDecklistText(state);
       expect(text).toBe("");
     });
+  });
+});
+
+describe("migrateDeckState", () => {
+  it("renames cmc-* keys to mv-*", () => {
+    const legacy: DeckState = {
+      draftId: "tarkir",
+      seat: 1,
+      zones: {
+        deck: {
+          "cmc-0-1": ["Lightning Bolt"],
+          "cmc-2": ["Counterspell"],
+          "cmc-3": [],
+          "cmc-4": [],
+          "cmc-5": [],
+          "cmc-6+": [],
+          lands: ["Tundra"],
+        },
+        sideboard: {
+          "cmc-0-1": [],
+          "cmc-2": [],
+          "cmc-3": ["Vendilion Clique"],
+          "cmc-4": [],
+          "cmc-5": [],
+          "cmc-6+": [],
+          lands: [],
+        },
+      },
+      speculativeCards: [],
+      basicLands: { Plains: 0, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
+    };
+    const migrated = migrateDeckState(legacy);
+    expect(migrated.zones.deck["mv-0-1"]).toEqual(["Lightning Bolt"]);
+    expect(migrated.zones.deck["mv-2"]).toEqual(["Counterspell"]);
+    expect(migrated.zones.deck["lands"]).toEqual(["Tundra"]);
+    expect(migrated.zones.sideboard["mv-3"]).toEqual(["Vendilion Clique"]);
+    expect("cmc-0-1" in migrated.zones.deck).toBe(false);
+  });
+
+  it("returns same state if already using mv-* keys", () => {
+    const state = createEmptyDeckState("tarkir", 1);
+    expect(migrateDeckState(state)).toBe(state);
   });
 });

@@ -35,10 +35,10 @@ describe("useDeckBuilder", () => {
       });
     });
 
-    expect(result.current.state.zones.deck["cmc-0-1"]).toContain(
+    expect(result.current.state.zones.deck["mv-0-1"]).toContain(
       "Card A",
     );
-    expect(result.current.state.zones.deck["cmc-3"]).toContain("Card B");
+    expect(result.current.state.zones.deck["mv-3"]).toContain("Card B");
   });
 
   it("persists state to localStorage", () => {
@@ -59,7 +59,7 @@ describe("useDeckBuilder", () => {
     const stored = localStorage.getItem("deckState:tarkir:1");
     expect(stored).not.toBeNull();
     const parsed = JSON.parse(stored!);
-    expect(parsed.zones.deck["cmc-0-1"]).toContain("Card A");
+    expect(parsed.zones.deck["mv-0-1"]).toContain("Card A");
   });
 
   it("hydrates from localStorage on mount", () => {
@@ -68,21 +68,21 @@ describe("useDeckBuilder", () => {
       seat: 1,
       zones: {
         deck: {
-          "cmc-0-1": ["Card A"],
-          "cmc-2": [],
-          "cmc-3": [],
-          "cmc-4": [],
-          "cmc-5": [],
-          "cmc-6+": [],
+          "mv-0-1": ["Card A"],
+          "mv-2": [],
+          "mv-3": [],
+          "mv-4": [],
+          "mv-5": [],
+          "mv-6+": [],
           lands: [],
         },
         sideboard: {
-          "cmc-0-1": [],
-          "cmc-2": [],
-          "cmc-3": [],
-          "cmc-4": [],
-          "cmc-5": [],
-          "cmc-6+": [],
+          "mv-0-1": [],
+          "mv-2": [],
+          "mv-3": [],
+          "mv-4": [],
+          "mv-5": [],
+          "mv-6+": [],
           lands: [],
         },
       },
@@ -95,7 +95,7 @@ describe("useDeckBuilder", () => {
       useDeckBuilder({ draftId: "tarkir", seat: 1 }),
     );
 
-    expect(result.current.state.zones.deck["cmc-0-1"]).toContain("Card A");
+    expect(result.current.state.zones.deck["mv-0-1"]).toContain("Card A");
   });
 
   it("resets state when draft/seat changes", () => {
@@ -117,6 +117,6 @@ describe("useDeckBuilder", () => {
     rerender({ draftId: "dominaria", seat: 2 });
 
     expect(result.current.state.draftId).toBe("dominaria");
-    expect(result.current.state.zones.sideboard["cmc-0-1"]).toEqual([]);
+    expect(result.current.state.zones.sideboard["mv-0-1"]).toEqual([]);
   });
 });

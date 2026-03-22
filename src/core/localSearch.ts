@@ -13,7 +13,7 @@ type SearchTerm =
   | { type: "type"; value: string }
   | { type: "oracle"; value: string }
   | { type: "color"; value: string }
-  | { type: "cmc"; operator: "=" | "<" | ">" | "<=" | ">="; value: number };
+  | { type: "mv"; operator: "=" | "<" | ">" | "<=" | ">="; value: number };
 
 /**
  * Color letter to Scryfall color code mapping.
@@ -91,7 +91,7 @@ function stripQuotes(value: string): string {
 /**
  * Parses a single term into a SearchTerm.
  *
- * @param term - A single search term (e.g., "t:creature", 'o:"draw a card"', "cmc=3")
+ * @param term - A single search term (e.g., "t:creature", 'o:"draw a card"', "mv=3")
  * @returns Parsed SearchTerm or null if empty
  */
 function parseTerm(term: string): SearchTerm | null {
@@ -118,23 +118,23 @@ function parseTerm(term: string): SearchTerm | null {
     return { type: "color", value: stripQuotes(colorMatch[1]).toLowerCase() };
   }
 
-  // CMC operator with comparison: cmc=3, cmc<3, cmc>3, cmc<=3, cmc>=3
-  const cmcMatch = trimmed.match(/^cmc(<=|>=|=|<|>)(\d+)$/i);
-  if (cmcMatch) {
+  // Mana value operator: mv=3, mv<3, mv>3, mv<=3, mv>=3 (also cmc as alias)
+  const mvMatch = trimmed.match(/^(?:mv|cmc)(<=|>=|=|<|>)(\d+)$/i);
+  if (mvMatch) {
     return {
-      type: "cmc",
-      operator: cmcMatch[1] as "=" | "<" | ">" | "<=" | ">=",
-      value: parseInt(cmcMatch[2], 10),
+      type: "mv",
+      operator: mvMatch[1] as "=" | "<" | ">" | "<=" | ">=",
+      value: parseInt(mvMatch[2], 10),
     };
   }
 
-  // MV shorthand: mv:3 (equivalent to cmc=3)
-  const mvMatch = trimmed.match(/^mv:(\d+)$/i);
-  if (mvMatch) {
+  // MV colon shorthand: mv:3 (equivalent to mv=3)
+  const mvColonMatch = trimmed.match(/^mv:(\d+)$/i);
+  if (mvColonMatch) {
     return {
-      type: "cmc",
+      type: "mv",
       operator: "=",
-      value: parseInt(mvMatch[1], 10),
+      value: parseInt(mvColonMatch[1], 10),
     };
   }
 
@@ -163,8 +163,8 @@ function matchesTerm(card: ScryCard, term: SearchTerm): boolean {
     case "color":
       return matchesColor(card, term.value);
 
-    case "cmc":
-      return matchesCmc(card, term.operator, term.value);
+    case "mv":
+      return matchesMv(card, term.operator, term.value);
 
     default:
       return false;
@@ -200,14 +200,14 @@ function matchesColor(card: ScryCard, colorQuery: string): boolean {
 }
 
 /**
- * Checks if a card matches a CMC comparison.
+ * Checks if a card matches a mana value comparison.
  *
  * @param card - The card to check
  * @param operator - The comparison operator
- * @param value - The CMC value to compare against
+ * @param value - The mana value to compare against
  * @returns True if the card's mana value satisfies the comparison
  */
-function matchesCmc(
+function matchesMv(
   card: ScryCard,
   operator: "=" | "<" | ">" | "<=" | ">=",
   value: number
@@ -237,7 +237,7 @@ function matchesCmc(
  * - `type:` / `t:` - Match type line (case-insensitive substring)
  * - `oracle:` / `o:` - Match oracle text (case-insensitive substring)
  * - `color:` / `c:` - Match colors (w/u/b/r/g, c=colorless)
- * - `cmc` / `mv:` - Match mana value (=, <, >, <=, >=)
+ * - `mv` / `cmc` - Match mana value (=, <, >, <=, >=)
  * - Plain text - Match card name (case-insensitive substring)
  *
  * All terms are ANDed together.
@@ -245,7 +245,7 @@ function matchesCmc(
  * @example
  * searchLocalCards("t:creature", cards)  // all creatures
  * searchLocalCards("o:flying", cards)    // cards with "flying" in oracle text
- * searchLocalCards("c:r cmc=1", cards)   // red cards with CMC 1
+ * searchLocalCards("c:r mv=1", cards)    // red cards with mana value 1
  * searchLocalCards("bolt", cards)        // cards with "bolt" in name
  *
  * @param query - The search query string

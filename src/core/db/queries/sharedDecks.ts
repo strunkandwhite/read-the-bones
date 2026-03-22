@@ -3,7 +3,7 @@
  */
 
 import { getClient } from "../client";
-import { generateDeckId } from "../../deckBuilder";
+import { generateDeckId, migrateDeckState } from "../../deckBuilder";
 import type { DeckState } from "../../types";
 
 export interface SharedDeckResult {
@@ -56,7 +56,7 @@ export async function getSharedDeck(
     deckId: row.deck_id as string,
     draftId: row.draft_id as string,
     seat: row.seat as number,
-    deckState: JSON.parse(row.deck_state as string) as DeckState,
+    deckState: migrateDeckState(JSON.parse(row.deck_state as string) as DeckState),
     createdAt: row.created_at as string,
   };
 }

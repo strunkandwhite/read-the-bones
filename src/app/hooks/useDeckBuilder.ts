@@ -2,6 +2,7 @@ import { useReducer, useEffect, useRef } from "react";
 import {
   deckReducer,
   createEmptyDeckState,
+  migrateDeckState,
   type DeckAction,
 } from "@/core/deckBuilder";
 import type { DeckState } from "@/core/types";
@@ -20,7 +21,7 @@ function loadFromStorage(draftId: string, seat: number): DeckState | null {
   const stored = localStorage.getItem(key);
   if (!stored) return null;
   try {
-    return JSON.parse(stored) as DeckState;
+    return migrateDeckState(JSON.parse(stored) as DeckState);
   } catch {
     return null;
   }

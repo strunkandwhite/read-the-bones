@@ -27,20 +27,24 @@ describe("hasScryfallOperators", () => {
   });
 
   describe("mana value operators", () => {
-    it("should detect cmc= operator", () => {
-      expect(hasScryfallOperators("cmc=3")).toBe(true);
+    it("should detect mv= operator", () => {
+      expect(hasScryfallOperators("mv=3")).toBe(true);
     });
 
-    it("should detect cmc> operator", () => {
-      expect(hasScryfallOperators("cmc>2")).toBe(true);
+    it("should detect mv> operator", () => {
+      expect(hasScryfallOperators("mv>2")).toBe(true);
     });
 
-    it("should detect cmc< operator", () => {
-      expect(hasScryfallOperators("cmc<5")).toBe(true);
+    it("should detect mv< operator", () => {
+      expect(hasScryfallOperators("mv<5")).toBe(true);
     });
 
     it("should detect mv: operator", () => {
       expect(hasScryfallOperators("mv:4")).toBe(true);
+    });
+
+    it("should detect cmc= alias", () => {
+      expect(hasScryfallOperators("cmc=3")).toBe(true);
     });
   });
 
@@ -84,7 +88,7 @@ describe("hasScryfallOperators", () => {
     });
 
     it("should detect multiple operators", () => {
-      expect(hasScryfallOperators("c:r cmc<3")).toBe(true);
+      expect(hasScryfallOperators("c:r mv<3")).toBe(true);
     });
 
     it("should be case insensitive", () => {

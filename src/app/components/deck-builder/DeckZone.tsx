@@ -8,12 +8,12 @@ import type { ColumnMap, ScryCard, CardStats } from "@/core/types";
 const BASIC_LAND_SET = new Set(["Plains", "Island", "Swamp", "Mountain", "Forest"]);
 
 const COLUMN_LABELS: Record<string, string> = {
-  "cmc-0-1": "0-1",
-  "cmc-2": "2",
-  "cmc-3": "3",
-  "cmc-4": "4",
-  "cmc-5": "5",
-  "cmc-6+": "6+",
+  "mv-0-1": "0-1",
+  "mv-2": "2",
+  "mv-3": "3",
+  "mv-4": "4",
+  "mv-5": "5",
+  "mv-6+": "6+",
   lands: "Lands",
 };
 

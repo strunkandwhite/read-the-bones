@@ -7,16 +7,48 @@ import type {
 
 /** The ordered list of column keys for deck builder zones. */
 export const COLUMN_KEYS = [
-  "cmc-0-1",
-  "cmc-2",
-  "cmc-3",
-  "cmc-4",
-  "cmc-5",
-  "cmc-6+",
+  "mv-0-1",
+  "mv-2",
+  "mv-3",
+  "mv-4",
+  "mv-5",
+  "mv-6+",
   "lands",
 ] as const;
 
 export type ColumnKey = (typeof COLUMN_KEYS)[number];
+
+const LEGACY_KEY_MAP: [string, ColumnKey][] = [
+  ["cmc-0-1", "mv-0-1"],
+  ["cmc-2", "mv-2"],
+  ["cmc-3", "mv-3"],
+  ["cmc-4", "mv-4"],
+  ["cmc-5", "mv-5"],
+  ["cmc-6+", "mv-6+"],
+];
+
+/** Migrate legacy cmc-* column keys to mv-* in a persisted DeckState. */
+export function migrateDeckState(state: DeckState): DeckState {
+  const needsMigration = Object.keys(state.zones.deck).some((k) => k.startsWith("cmc-"));
+  if (!needsMigration) return state;
+
+  const migrateZone = (zone: Record<string, string[]>): Record<string, string[]> => {
+    const migrated: Record<string, string[]> = {};
+    for (const [key, cards] of Object.entries(zone)) {
+      const rename = LEGACY_KEY_MAP.find(([old]) => old === key);
+      migrated[rename ? rename[1] : key] = cards;
+    }
+    return migrated;
+  };
+
+  return {
+    ...state,
+    zones: {
+      deck: migrateZone(state.zones.deck),
+      sideboard: migrateZone(state.zones.sideboard),
+    },
+  };
+}
 
 const BASIC_LAND_NAMES = [
   "Plains",
@@ -32,12 +64,12 @@ export function getColumnKey(scryfall: ScryCard): ColumnKey {
     return "lands";
   }
   const mv = scryfall.manaValue;
-  if (mv <= 1) return "cmc-0-1";
-  if (mv === 2) return "cmc-2";
-  if (mv === 3) return "cmc-3";
-  if (mv === 4) return "cmc-4";
-  if (mv === 5) return "cmc-5";
-  return "cmc-6+";
+  if (mv <= 1) return "mv-0-1";
+  if (mv === 2) return "mv-2";
+  if (mv === 3) return "mv-3";
+  if (mv === 4) return "mv-4";
+  if (mv === 5) return "mv-5";
+  return "mv-6+";
 }
 
 /** Create a ColumnMap with all 7 columns initialized to empty arrays. */
@@ -57,7 +89,7 @@ export function assignCardsToColumns(
   const columns = createEmptyColumnMap();
   for (const name of cardNames) {
     const scry = scryfallData.get(name);
-    const key = scry ? getColumnKey(scry) : "cmc-0-1";
+    const key = scry ? getColumnKey(scry) : "mv-0-1";
     columns[key].push(name);
   }
   return columns;
@@ -177,7 +209,7 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
       const next = structuredClone(state);
       next.speculativeCards.push(action.cardName);
       const scry = action.scryfallData.get(action.cardName);
-      const col = scry ? getColumnKey(scry) : "cmc-0-1";
+      const col = scry ? getColumnKey(scry) : "mv-0-1";
       next.zones.deck[col].push(action.cardName);
       return next;
     }
@@ -278,7 +310,7 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
         if (toAdd > 0) {
           if (!next) next = structuredClone(state);
           const scry = action.scryfallData.get(cardName);
-          const col = scry ? getColumnKey(scry) : "cmc-0-1";
+          const col = scry ? getColumnKey(scry) : "mv-0-1";
           for (let i = 0; i < toAdd; i++) {
             next.zones.deck[col].push(cardName);
           }

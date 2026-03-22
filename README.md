@@ -12,7 +12,7 @@ Analytics tool for Magic: the Gathering rotisserie drafts. Aggregates pick data 
 
 ## Features
 
-- **Scryfall-style search:** `t:creature`, `o:flying`, `c:r`, `cmc<=2`, quoted phrases
+- **Scryfall-style search:** `t:creature`, `o:flying`, `c:r`, `mv<=2`, quoted phrases
 - **Color filtering:** Filter by W/U/B/R/G/C (inclusive or exclusive matching)
 - **Multiple copy handling:** First copy weighted more than subsequent copies
 - **Unpicked card tracking:** Cards available but not drafted are penalized appropriately

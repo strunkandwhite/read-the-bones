@@ -7,13 +7,13 @@ import { hasScryfallOperators } from "@/core/searchUtils";
 import { getFrontFace } from "@/core/cardNames";
 
 function classifyQueryType(query: string): string {
-  const prefixes = ["t:", "o:", "c:", "cmc"];
+  const prefixes = ["t:", "o:", "c:", "mv", "cmc"];
   const found = prefixes.filter((p) => query.includes(p));
   if (found.length > 1) return "multi";
   if (found[0] === "t:") return "type";
   if (found[0] === "o:") return "oracle";
   if (found[0] === "c:") return "color";
-  if (found[0] === "cmc") return "cmc";
+  if (found[0] === "mv" || found[0] === "cmc") return "mv";
   return "unknown";
 }
 

@@ -156,7 +156,7 @@ export type MatchResult = {
 
 /**
  * Column assignment for deck builder zones.
- * Keys are column IDs (e.g., "cmc-0-1", "cmc-2", "lands").
+ * Keys are column IDs (e.g., "mv-0-1", "mv-2", "lands").
  * Values are ordered lists of card names in that column.
  */
 export type ColumnMap = Record<string, string[]>;

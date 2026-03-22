@@ -4,7 +4,7 @@
 
 /**
  * Regex pattern to detect Scryfall search operators.
- * Matches common operators like type:, t:, c:, color:, cmc=, etc.
+ * Matches common operators like type:, t:, c:, color:, mv=, cmc=, etc.
  */
 const SCRYFALL_OPERATOR_PATTERN = /\b(type|t|c|color|cmc|mv|o|oracle)[:=<>]/i;
 
@@ -16,7 +16,7 @@ const SCRYFALL_OPERATOR_PATTERN = /\b(type|t|c|color|cmc|mv|o|oracle)[:=<>]/i;
  *
  * @example
  * hasScryfallOperators("type:creature") // true
- * hasScryfallOperators("c:r cmc<3") // true
+ * hasScryfallOperators("c:r mv<3") // true
  * hasScryfallOperators("Lightning Bolt") // false
  */
 export function hasScryfallOperators(query: string): boolean {

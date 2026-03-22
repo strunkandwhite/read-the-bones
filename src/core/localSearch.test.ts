@@ -301,54 +301,71 @@ describe("searchLocalCards", () => {
     });
   });
 
-  describe("cmc operator", () => {
-    it("should find cards with exact cmc using cmc=", () => {
-      const result = searchLocalCards("cmc=1", testCards);
+  describe("mv operator (mana value)", () => {
+    it("should find cards with exact mana value using mv=", () => {
+      const result = searchLocalCards("mv=1", testCards);
       expect(result.length).toBeGreaterThan(0);
       expect(result.every((c) => c.manaValue === 1)).toBe(true);
     });
 
-    it("should find cards with cmc less than value using cmc<", () => {
-      const result = searchLocalCards("cmc<2", testCards);
+    it("should find cards with mv less than value using mv<", () => {
+      const result = searchLocalCards("mv<2", testCards);
       expect(result.length).toBeGreaterThan(0);
       expect(result.every((c) => c.manaValue < 2)).toBe(true);
     });
 
-    it("should find cards with cmc greater than value using cmc>", () => {
-      const result = searchLocalCards("cmc>10", testCards);
+    it("should find cards with mv greater than value using mv>", () => {
+      const result = searchLocalCards("mv>10", testCards);
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe("Emrakul, the Aeons Torn");
     });
 
-    it("should find cards with cmc less than or equal using cmc<=", () => {
-      const result = searchLocalCards("cmc<=1", testCards);
+    it("should find cards with mv less than or equal using mv<=", () => {
+      const result = searchLocalCards("mv<=1", testCards);
       expect(result.length).toBeGreaterThan(0);
       expect(result.every((c) => c.manaValue <= 1)).toBe(true);
     });
 
-    it("should find cards with cmc greater than or equal using cmc>=", () => {
-      const result = searchLocalCards("cmc>=15", testCards);
+    it("should find cards with mv greater than or equal using mv>=", () => {
+      const result = searchLocalCards("mv>=15", testCards);
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe("Emrakul, the Aeons Torn");
     });
 
-    it("should be case-insensitive for cmc operator", () => {
-      const result = searchLocalCards("CMC=1", testCards);
+    it("should be case-insensitive for mv operator", () => {
+      const result = searchLocalCards("MV=1", testCards);
       expect(result.length).toBeGreaterThan(0);
     });
-  });
 
-  describe("mv operator (mana value shorthand)", () => {
-    it("should find cards with exact mana value using mv:", () => {
+    it("should find cards with exact mana value using mv: shorthand", () => {
       const result = searchLocalCards("mv:1", testCards);
       expect(result.length).toBeGreaterThan(0);
       expect(result.every((c) => c.manaValue === 1)).toBe(true);
     });
 
-    it("should be case-insensitive for mv operator", () => {
+    it("should be case-insensitive for mv: shorthand", () => {
       const result = searchLocalCards("MV:2", testCards);
       expect(result.length).toBeGreaterThan(0);
       expect(result.every((c) => c.manaValue === 2)).toBe(true);
+    });
+  });
+
+  describe("cmc alias (backward compatibility)", () => {
+    it("should find cards with exact mana value using cmc=", () => {
+      const result = searchLocalCards("cmc=1", testCards);
+      expect(result.length).toBeGreaterThan(0);
+      expect(result.every((c) => c.manaValue === 1)).toBe(true);
+    });
+
+    it("should support cmc with comparison operators", () => {
+      const result = searchLocalCards("cmc<=1", testCards);
+      expect(result.length).toBeGreaterThan(0);
+      expect(result.every((c) => c.manaValue <= 1)).toBe(true);
+    });
+
+    it("should be case-insensitive for cmc alias", () => {
+      const result = searchLocalCards("CMC=1", testCards);
+      expect(result.length).toBeGreaterThan(0);
     });
   });
 
@@ -364,8 +381,8 @@ describe("searchLocalCards", () => {
       ).toBe(true);
     });
 
-    it("should combine type and cmc", () => {
-      const result = searchLocalCards("t:instant cmc=2", testCards);
+    it("should combine type and mv", () => {
+      const result = searchLocalCards("t:instant mv=2", testCards);
       expect(result).toHaveLength(2); // Counterspell and Searing Blaze
     });
 
@@ -375,7 +392,7 @@ describe("searchLocalCards", () => {
     });
 
     it("should combine multiple operators", () => {
-      const result = searchLocalCards("t:instant c:r cmc=1", testCards);
+      const result = searchLocalCards("t:instant c:r mv=1", testCards);
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe("Lightning Bolt");
     });
@@ -424,17 +441,17 @@ describe("searchLocalCards", () => {
       expect(result.length).toBeGreaterThan(0);
     });
 
-    it("should handle cmc=0", () => {
+    it("should handle mv=0", () => {
       const zeroManaCard = createCard({
         name: "Zero Mana Card",
         manaValue: 0,
       });
-      const result = searchLocalCards("cmc=0", [zeroManaCard]);
+      const result = searchLocalCards("mv=0", [zeroManaCard]);
       expect(result).toHaveLength(1);
     });
 
     it("should handle search for specific mana values", () => {
-      const result = searchLocalCards("cmc=15", testCards);
+      const result = searchLocalCards("mv=15", testCards);
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe("Emrakul, the Aeons Torn");
     });
@@ -442,7 +459,7 @@ describe("searchLocalCards", () => {
 
   describe("real-world query examples", () => {
     it("should find cheap red burn spells", () => {
-      const result = searchLocalCards("c:r cmc<=2 o:damage", testCards);
+      const result = searchLocalCards("c:r mv<=2 o:damage", testCards);
       expect(result).toHaveLength(2); // Lightning Bolt and Searing Blaze
     });
 
