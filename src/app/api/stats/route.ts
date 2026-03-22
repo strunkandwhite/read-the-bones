@@ -16,6 +16,8 @@ export async function GET(request: NextRequest) {
       winRateBySeat: result.winRateBySeat,
       winRateByColorPair: result.winRateByColor,
       winRateByIndividualColor,
+    }, {
+      headers: { "Cache-Control": "public, s-maxage=300" },
     });
   } catch (error) {
     console.error("[/api/stats] Error:", error);

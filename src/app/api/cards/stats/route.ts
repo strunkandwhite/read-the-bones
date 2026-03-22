@@ -29,7 +29,9 @@ export async function GET(request: NextRequest) {
         { status: 404 },
       );
     }
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      headers: { "Cache-Control": "public, s-maxage=300" },
+    });
   } catch (error) {
     console.error("[/api/cards/stats] Error:", error);
     return NextResponse.json(

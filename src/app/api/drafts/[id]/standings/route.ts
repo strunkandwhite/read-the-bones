@@ -8,7 +8,9 @@ export async function GET(
   try {
     const { id } = await params;
     const result = await queries.getStandings(id);
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      headers: { "Cache-Control": "public, s-maxage=60" },
+    });
   } catch (error) {
     console.error("[/api/drafts/[id]/standings] Error:", error);
     return NextResponse.json(

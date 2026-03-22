@@ -28,7 +28,9 @@ export async function GET(
       color: searchParams.get("color") ?? undefined,
       type_contains: searchParams.get("type_contains") ?? undefined,
     });
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      headers: { "Cache-Control": "public, s-maxage=60" },
+    });
   } catch (error) {
     console.error("[/api/drafts/[id]/available] Error:", error);
     return NextResponse.json(

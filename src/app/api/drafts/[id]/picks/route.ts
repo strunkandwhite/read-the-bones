@@ -16,7 +16,9 @@ export async function GET(
       pick_n_max: intParam(searchParams.get("pick_n_max")),
       card_name: searchParams.get("card_name") ?? undefined,
     });
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      headers: { "Cache-Control": "public, s-maxage=60" },
+    });
   } catch (error) {
     console.error("[/api/drafts/[id]/picks] Error:", error);
     return NextResponse.json(

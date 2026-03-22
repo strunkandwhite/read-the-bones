@@ -9,7 +9,9 @@ export async function GET(request: NextRequest) {
       date_to: searchParams.get("date_to") ?? undefined,
       draft_name: searchParams.get("draft_name") ?? undefined,
     });
-    return NextResponse.json(result);
+    return NextResponse.json(result, {
+      headers: { "Cache-Control": "public, s-maxage=60" },
+    });
   } catch (error) {
     console.error("[/api/drafts] Error:", error);
     return NextResponse.json(
