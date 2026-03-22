@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "predev": "tsx scripts/sync-sheets.ts",
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
@@ -17,10 +16,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "screenshot": "npx tsx scripts/screenshot.ts",
-    "add-draft": "tsx scripts/add-draft.ts",
-    "sync-sheets": "tsx scripts/sync-sheets.ts",
-    "db:migrate": "tsx src/core/db/migrate.ts",
-    "ingest": "tsx src/core/db/ingest.ts"
+    "sync": "tsx scripts/sync.ts",
+    "draft:create": "tsx scripts/draft-create.ts",
+    "draft:reset": "tsx scripts/draft-reset.ts",
+    "decklists": "tsx scripts/decklists.ts",
+    "db:migrate": "tsx src/core/db/migrate.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -33,7 +33,6 @@
     "google-auth-library": "^10.5.0",
     "google-spreadsheet": "^5.0.2",
     "next": "16.1.1",
-    "papaparse": "^5.5.3",
     "react": "19.2.3",
     "react-dom": "19.2.3"
   },
@@ -43,7 +42,6 @@
     "@tailwindcss/typography": "^0.5.19",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^20",
-    "@types/papaparse": "^5.3.16",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

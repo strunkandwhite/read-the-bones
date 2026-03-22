@@ -9,25 +9,21 @@ src/
   core/           # Framework-agnostic logic (parsing, stats, Scryfall)
     db/           # Turso database client, migrations
       queries/    # Domain-based query modules (cards, drafts, picks, pool, decklists, stats)
-      ingest/     # Domain-based ingestion modules (discover, scryfall, incremental, full-import)
-  build/          # Build-time utilities (Scryfall cache, Google Sheets sync)
+      ingest/     # Ingestion helpers (Scryfall resolution, db-helpers, utils)
+      sync/       # Unified sync pipeline (domain hashing, batch ops, card cache, orchestrator)
+  build/          # Build-time utilities (Scryfall cache)
   app/            # Next.js web app
     components/   # React components
       deck-builder/ # Deck builder panel and card management
     hooks/        # Custom hooks (draft selection, card data, search, filtering, deck builder)
     api/          # API routes (internal + REST)
-data/
-  <draft-name>/
-    picks.csv     # Draft picks (ingestion source)
-    pool.csv      # Available card pool (ingestion source)
-    matches.csv   # Match results (optional)
-    metadata.json # Draft metadata (name, date, sheetId)
+scripts/          # CLI tools (sync, draft:create, draft:reset, decklists)
 ```
 
 ## Key Commands
 
 ```bash
-pnpm dev         # Start dev server (syncs sheets first)
+pnpm dev         # Start dev server
 pnpm build       # Build for production (dynamic SSR, no prebuild step)
 pnpm test        # Run tests
 pnpm screenshot  # Take screenshot (requires dev server running)
@@ -40,25 +36,28 @@ pnpm precommit   # Run all checks: typecheck → lint → knip → tests
 
 # Database commands
 pnpm db:migrate  # Run database migrations (creates tables in Turso)
-pnpm ingest                    # Ingest all drafts (incremental by default)
-pnpm ingest tarkir             # Ingest a specific draft
-pnpm ingest --force            # Force full reimport of all drafts
-pnpm ingest --force tarkir     # Force full reimport of a specific draft
+
+# Sync pipeline
+pnpm sync                      # Sync all active drafts from Google Sheets → Turso
+pnpm sync tarkir               # Sync a specific draft
+pnpm sync --dry-run            # Preview what would change without writing to DB
+
+# Draft lifecycle
+pnpm draft:create --name "Draft Name" --date 2026-01-15 --sheet-id <id>  # Create new draft
+pnpm draft:reset <draft-name>  # Reset a draft (clear all data, re-sync from scratch)
 
 # Decklists
-npx tsx scripts/match-decklists.ts  # Fetch decklists from sealeddeck.tech and match to seats
+pnpm decklists                 # Fetch decklists from sealeddeck.tech and write to Turso
+pnpm decklists tarkir          # Fetch decklists for a specific draft
 ```
 
-**Decklists:** To import or update decklists, add sealeddeck.tech URLs to `data/decklists.txt` (grouped by draft name), then run `npx tsx scripts/match-decklists.ts`. The script fetches each deck, matches it to a seat by card overlap with `picks.csv`, and writes `decklists.csv` + `decks/<seat>.json` files. Then run `pnpm ingest` to load them into Turso.
+**Decklists:** Add sealeddeck.tech URLs to `decklists.txt` (grouped by draft name), then run `pnpm decklists`. The script fetches each deck, matches it to a seat by card overlap with pick data from Turso, and writes deck cards directly to the database.
 
-**Ingestion:** `pnpm ingest` is incremental by default. When a draft's source files change, it appends new picks, INSERT OR IGNOREs new matches, and diffs decklists per-seat by hash — without deleting existing data. Use `--force` when you need to correct old data (edited picks, changed match scores, pool changes). Never clear the entire Turso database.
+**Sync:** `pnpm sync` fetches data from Google Sheets and writes it to Turso. Per-domain hashing (pool, picks, matches) means only changed data is replaced. Use `pnpm draft:reset <name>` followed by `pnpm sync <name>` to force a full reimport.
 
 **Data flow:** The web app queries Turso at request time (SSR). To update draft data:
-1. Sync from Google Sheets: `pnpm sync-sheets` (or `pnpm dev` runs this automatically)
-2. Ingest CSVs into Turso: `pnpm ingest`
-3. Deploy or restart the dev server — data is fetched live from Turso
-
-**Note:** CSV files are the ingestion source but are NOT tracked in git (privacy - they contain player names). Keep local backups.
+1. Run `pnpm sync` to pull latest from Google Sheets into Turso
+2. Deploy or restart the dev server — data is fetched live from Turso
 
 ## REST API
 
@@ -98,11 +97,12 @@ Kill running dev processes as soon as they're no longer needed. Don't leave `pnp
 
 ## Data Format
 
-**picks.csv:** Row 3 = drafter names, rows 4+ = picks. Pick number in column A, card names in drafter columns. Card colors in rightmost columns.
+Draft data lives in Google Sheets with three tabs:
+- **Draft** tab: Row 3 = drafter names, rows 4+ = picks. Pick number in column A, card names in drafter columns. Card colors in rightmost columns.
+- **Cube** tab: List of all cards available in the cube for that draft.
+- **Matches** tab: Round robin match results.
 
-**pool.csv:** List of all cards available in the cube for that draft.
-
-**metadata.json:** Draft metadata including `name`, `date`, optional `sheetId` (Google Sheets ID for live sync), and optional `bannedCards` (array of card names excluded from the draft).
+Draft metadata (name, date, sheetId, bannedCards) is stored in the `drafts` table in Turso, created via `pnpm draft:create`.
 
 ## Card Name Normalization
 
@@ -161,6 +161,7 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/specs/2026-03-20-deck-builder-design.md` - Deck builder panel
 - `docs/superpowers/specs/2026-03-21-deck-builder-modal-and-sharing-design.md` - Deck builder modal and sharing
 - `docs/superpowers/specs/2026-03-21-analytics-custom-events-design.md` - Analytics custom events
+- `docs/superpowers/specs/2026-03-22-unified-sync-pipeline-design.md` - Unified sync pipeline (Sheets → Turso)
 
 ### Superpowers Plans
 
@@ -174,3 +175,4 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/plans/2026-03-21-deck-builder-modal-and-sharing.md` - Deck builder modal and sharing implementation
 - `docs/superpowers/plans/2026-03-21-analytics-custom-events.md` - Analytics custom events implementation
 - `docs/superpowers/plans/2026-03-20-codebase-cleanup.md` - Codebase cleanup (dead code, file splits, test quality)
+- `docs/superpowers/plans/2026-03-22-unified-sync-pipeline.md` - Unified sync pipeline implementation

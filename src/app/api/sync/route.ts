@@ -8,7 +8,8 @@ import {
   incrementalIngest,
   isRateLimited,
 } from "@/core/sync";
-import { fetchDraftFromSheet } from "@/core/sheets";
+import { fetchDraftTabsRaw } from "@/core/sheets";
+import { parsePickRows } from "@/core/parseSheetRows";
 
 async function runSync(): Promise<NextResponse> {
   const client = await getClient();
@@ -39,25 +40,26 @@ async function runSync(): Promise<NextResponse> {
 
     for (const draft of activeDrafts) {
       try {
-        // Fetch CSV data from Google Sheets
-        const sheetData = await fetchDraftFromSheet(draft.sheetId, apiKey);
+        // Fetch row data from Google Sheets
+        const sheetData = await fetchDraftTabsRaw(draft.sheetId, apiKey);
 
         if (!sheetData.picks) {
           console.warn(`[sync] No picks tab found for draft ${draft.draftId}`);
           continue;
         }
 
-        // Run incremental ingestion
+        // Parse rows and run incremental ingestion
+        const parsedPicks = parsePickRows(sheetData.picks, draft.draftId);
         const result = await incrementalIngest(
           client,
           draft.draftId,
-          sheetData.picks,
+          parsedPicks,
         );
         totalPicksInserted += result.picksInserted;
 
         if (result.status === "diverged") {
           console.warn(
-            `[sync] Draft ${draft.draftId} has diverged data — run pnpm ingest to fix`,
+            `[sync] Draft ${draft.draftId} has diverged data — run pnpm sync to fix`,
           );
         }
       } catch (error) {

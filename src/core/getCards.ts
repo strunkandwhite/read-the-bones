@@ -6,6 +6,8 @@
  * replacing the build-time loadCardDataFromTurso().
  */
 
+import { createHash } from "node:crypto";
+
 import { getFrontFace } from "./cardNames";
 import {
   DEFAULT_POOL_SIZE,
@@ -17,7 +19,7 @@ import {
 } from "./types";
 import { calculateCardStats, DISTRIBUTION_BUCKET_COUNT } from "./calculateStats";
 import { getClient } from "./db/client";
-import { cardNameKey } from "./parseCsv";
+import { cardNameKey } from "./parseSheetRows";
 import { round3 } from "./utils";
 
 export type GetCardsParams = {
@@ -92,21 +94,20 @@ function getColorFromIdentity(colorIdentity: string[]): string {
 export async function getCards(params: GetCardsParams): Promise<CardStatsResponse> {
   const client = await getClient();
 
-  // 1. Load all drafts with metadata
-  const [draftsResult, hashResult] = await Promise.all([
-    client.execute({
-      sql: `SELECT d.draft_id, d.draft_name, d.draft_date, d.cube_snapshot_id, d.num_seats, d.is_complete, d.banned_cards
-            FROM drafts d
-            ORDER BY d.draft_date DESC`,
-      args: [],
-    }),
-    client.execute({
-      sql: `SELECT value FROM ingestion_meta WHERE key = 'last_hash'`,
-      args: [],
-    }),
-  ]);
+  // 1. Load all drafts with metadata (including domain hashes for cache fingerprint)
+  const draftsResult = await client.execute({
+    sql: `SELECT d.draft_id, d.draft_name, d.draft_date, d.cube_snapshot_id, d.num_seats, d.is_complete, d.banned_cards,
+                 d.pool_hash, d.picks_hash, d.matches_hash
+          FROM drafts d
+          ORDER BY d.draft_date DESC`,
+    args: [],
+  });
 
-  const ingestionHash = (hashResult.rows[0]?.value as string) ?? "unknown";
+  // Compute cache fingerprint from per-domain hashes
+  const combined = draftsResult.rows
+    .map((r) => `${r.pool_hash ?? ""}:${r.picks_hash ?? ""}:${r.matches_hash ?? ""}`)
+    .join("|");
+  const ingestionHash = createHash("sha256").update(combined).digest("hex").slice(0, 16);
 
   if (draftsResult.rows.length === 0) {
     return {

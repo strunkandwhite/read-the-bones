@@ -30,14 +30,15 @@ CREATE TABLE IF NOT EXISTS cube_snapshot_cards (
 
 -- Draft metadata
 -- draft_id is the folder name / draft identifier
--- import_hash detects when source data has changed
 -- num_seats stores the number of drafters
 CREATE TABLE IF NOT EXISTS drafts (
   draft_id TEXT PRIMARY KEY,
   draft_name TEXT NOT NULL,
   draft_date TEXT NOT NULL,
   cube_snapshot_id INTEGER NOT NULL REFERENCES cube_snapshots(cube_snapshot_id),
-  import_hash TEXT NOT NULL,
+  pool_hash TEXT,
+  picks_hash TEXT,
+  matches_hash TEXT,
   num_seats INTEGER NOT NULL DEFAULT 10,
   is_complete INTEGER NOT NULL DEFAULT 1,
   sheet_id TEXT
@@ -52,6 +53,13 @@ ALTER TABLE drafts ADD COLUMN sheet_id TEXT;
 
 -- Per-draft card bans (JSON array of card names, e.g. '["Reanimate","Channel"]')
 ALTER TABLE drafts ADD COLUMN banned_cards TEXT;
+
+-- Per-domain hashes for unified sync pipeline (replaces import_hash)
+ALTER TABLE drafts ADD COLUMN pool_hash TEXT;
+ALTER TABLE drafts ADD COLUMN picks_hash TEXT;
+ALTER TABLE drafts ADD COLUMN matches_hash TEXT;
+
+DELETE FROM ingestion_meta WHERE key = 'last_hash';
 
 INSERT OR IGNORE INTO ingestion_meta (key, value) VALUES ('sync_lock', '');
 INSERT OR IGNORE INTO ingestion_meta (key, value) VALUES ('last_synced_at', '0');
