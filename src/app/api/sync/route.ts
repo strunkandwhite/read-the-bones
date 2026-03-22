@@ -8,7 +8,7 @@ import {
   incrementalIngest,
   isRateLimited,
 } from "@/core/sync";
-import { fetchDraftFromSheet } from "@/build/sheets";
+import { fetchDraftFromSheet } from "@/core/sheets";
 
 async function runSync(): Promise<NextResponse> {
   const client = await getClient();
