@@ -21,6 +21,25 @@ export async function getDraftImportHash(
 }
 
 /**
+ * Reset a draft's domain data without deleting the draft record.
+ * Clears picks, matches, decklists, opt-outs, and nulls domain hashes.
+ * The draft row and cube snapshot are preserved.
+ */
+export async function resetDraft(client: Client, draftId: string): Promise<void> {
+  await client.batch([
+    { sql: "DELETE FROM match_events WHERE draft_id = ?", args: [draftId] },
+    { sql: "DELETE FROM deck_cards WHERE draft_id = ?", args: [draftId] },
+    { sql: "DELETE FROM deck_hashes WHERE draft_id = ?", args: [draftId] },
+    { sql: "DELETE FROM pick_events WHERE draft_id = ?", args: [draftId] },
+    { sql: "DELETE FROM privacy_opt_outs WHERE draft_id = ?", args: [draftId] },
+    {
+      sql: "UPDATE drafts SET pool_hash = NULL, picks_hash = NULL, matches_hash = NULL, num_seats = 0, is_complete = 0 WHERE draft_id = ?",
+      args: [draftId],
+    },
+  ]);
+}
+
+/**
  * Delete a draft and all related data.
  */
 export async function deleteDraft(client: Client, draftId: string): Promise<void> {
