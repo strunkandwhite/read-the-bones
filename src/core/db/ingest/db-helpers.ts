@@ -2,25 +2,6 @@ import type { Client } from "@libsql/client";
 import { log } from "./utils";
 
 /**
- * Check if a draft exists and return its import hash.
- */
-export async function getDraftImportHash(
-  client: Client,
-  draftId: string
-): Promise<string | null> {
-  const result = await client.execute({
-    sql: "SELECT import_hash FROM drafts WHERE draft_id = ?",
-    args: [draftId],
-  });
-
-  if (result.rows.length === 0) {
-    return null;
-  }
-
-  return result.rows[0].import_hash as string;
-}
-
-/**
  * Reset a draft's domain data without deleting the draft record.
  * Clears picks, matches, decklists, opt-outs, and nulls domain hashes.
  * The draft row and cube snapshot are preserved.
@@ -37,89 +18,6 @@ export async function resetDraft(client: Client, draftId: string): Promise<void>
       args: [draftId],
     },
   ]);
-}
-
-/**
- * Delete a draft and all related data.
- */
-export async function deleteDraft(client: Client, draftId: string): Promise<void> {
-  // Delete in order respecting foreign key constraints
-  await client.execute({
-    sql: "DELETE FROM match_events WHERE draft_id = ?",
-    args: [draftId],
-  });
-  await client.execute({
-    sql: "DELETE FROM deck_cards WHERE draft_id = ?",
-    args: [draftId],
-  });
-  await client.execute({
-    sql: "DELETE FROM deck_hashes WHERE draft_id = ?",
-    args: [draftId],
-  });
-  await client.execute({
-    sql: "DELETE FROM pick_events WHERE draft_id = ?",
-    args: [draftId],
-  });
-  await client.execute({
-    sql: "DELETE FROM drafts WHERE draft_id = ?",
-    args: [draftId],
-  });
-}
-
-/**
- * Create a draft record.
- */
-export async function createDraft(
-  client: Client,
-  draftId: string,
-  draftName: string,
-  draftDate: string,
-  cubeSnapshotId: number,
-  importHash: string,
-  numSeats: number,
-  isComplete: boolean,
-  sheetId: string | null,
-  bannedCards: string | null
-): Promise<void> {
-  await client.execute({
-    sql: `INSERT INTO drafts (draft_id, draft_name, draft_date, cube_snapshot_id, import_hash, num_seats, is_complete, sheet_id, banned_cards)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    args: [draftId, draftName, draftDate, cubeSnapshotId, importHash, numSeats, isComplete ? 1 : 0, sheetId, bannedCards],
-  });
-}
-
-/**
- * Insert a pick event.
- */
-export async function insertPickEvent(
-  client: Client,
-  draftId: string,
-  pickN: number,
-  seat: number,
-  cardId: number
-): Promise<void> {
-  await client.execute({
-    sql: "INSERT INTO pick_events (draft_id, pick_n, seat, card_id) VALUES (?, ?, ?, ?)",
-    args: [draftId, pickN, seat, cardId],
-  });
-}
-
-/**
- * Insert a match event.
- */
-export async function insertMatchEvent(
-  client: Client,
-  draftId: string,
-  seat1: number,
-  seat2: number,
-  seat1Wins: number,
-  seat2Wins: number
-): Promise<void> {
-  await client.execute({
-    sql: `INSERT INTO match_events (draft_id, seat1, seat2, seat1_wins, seat2_wins)
-          VALUES (?, ?, ?, ?, ?)`,
-    args: [draftId, seat1, seat2, seat1Wins, seat2Wins],
-  });
 }
 
 /**
@@ -147,45 +45,6 @@ export async function insertOptOuts(
   }
 
   return count;
-}
-
-/**
- * Ensure a card exists in the cards table, return card_id.
- */
-export async function ensureCard(
-  client: Client,
-  oracleId: string,
-  name: string,
-  scryfallJson: string | null
-): Promise<number> {
-  // Try to find existing card by oracle_id
-  const existing = await client.execute({
-    sql: "SELECT card_id, scryfall_json FROM cards WHERE oracle_id = ?",
-    args: [oracleId],
-  });
-
-  if (existing.rows.length > 0) {
-    const cardId = existing.rows[0].card_id as number;
-    const existingJson = existing.rows[0].scryfall_json as string | null;
-
-    // Update scryfall_json if we have new data but the existing record is missing it
-    if (scryfallJson && !existingJson) {
-      await client.execute({
-        sql: "UPDATE cards SET scryfall_json = ? WHERE card_id = ?",
-        args: [scryfallJson, cardId],
-      });
-    }
-
-    return cardId;
-  }
-
-  // Insert new card
-  const result = await client.execute({
-    sql: "INSERT INTO cards (oracle_id, name, scryfall_json) VALUES (?, ?, ?)",
-    args: [oracleId, name, scryfallJson],
-  });
-
-  return Number(result.lastInsertRowid);
 }
 
 /**

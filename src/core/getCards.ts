@@ -19,7 +19,7 @@ import {
 } from "./types";
 import { calculateCardStats, DISTRIBUTION_BUCKET_COUNT } from "./calculateStats";
 import { getClient } from "./db/client";
-import { cardNameKey } from "./parseCsv";
+import { cardNameKey } from "./parseSheetRows";
 import { round3 } from "./utils";
 
 export type GetCardsParams = {

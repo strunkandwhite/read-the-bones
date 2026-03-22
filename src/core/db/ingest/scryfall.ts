@@ -1,15 +1,10 @@
 import { join } from "path";
 import type { ScryCard } from "../../types";
-import { cardNameKey } from "../../parseCsv";
 import { getFrontFace } from "../../cardNames";
-import { fetchCard, loadCache, saveCache } from "../../../build/scryfall";
-import { sleep } from "../../utils";
-import { PROJECT_ROOT, log } from "./utils";
+import { loadCache } from "../../../build/scryfall";
+import { PROJECT_ROOT } from "./utils";
 
 const SCRYFALL_CACHE_PATH = join(PROJECT_ROOT, "cache", "scryfall.json");
-
-/** Rate limit delay between Scryfall API requests (ms) */
-const RATE_LIMIT_DELAY_MS = 75;
 
 export function loadScryfallCache(): Map<string, ScryCard> {
   const cache = loadCache(SCRYFALL_CACHE_PATH);
@@ -28,43 +23,6 @@ export function loadScryfallCache(): Map<string, ScryCard> {
   }
 
   return cache;
-}
-
-/**
- * Fetch any cards missing from the Scryfall cache.
- * Updates the cache map in place and saves to disk.
- */
-export async function fetchMissingScryfallCards(
-  cache: Map<string, ScryCard>,
-  cardNames: string[]
-): Promise<number> {
-  const missing = cardNames.filter((name) => !cache.has(cardNameKey(name)));
-  if (missing.length === 0) return 0;
-
-  log(`Fetching ${missing.length} cards from Scryfall...`);
-
-  let fetched = 0;
-  for (let i = 0; i < missing.length; i++) {
-    if (i > 0) await sleep(RATE_LIMIT_DELAY_MS);
-
-    const card = await fetchCard(missing[i]);
-    if (card) {
-      cache.set(cardNameKey(missing[i]), card);
-      // Index DFC front face
-      const frontFace = getFrontFace(card.name);
-      if (frontFace) {
-        cache.set(cardNameKey(frontFace), card);
-      }
-      fetched++;
-    }
-  }
-
-  if (fetched > 0) {
-    saveCache(SCRYFALL_CACHE_PATH, cache);
-  }
-
-  log(`Fetched ${fetched}/${missing.length} cards from Scryfall`);
-  return fetched;
 }
 
 /**

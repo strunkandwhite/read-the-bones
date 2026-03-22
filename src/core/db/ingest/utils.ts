@@ -1,4 +1,3 @@
-import { readFileSync, existsSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { createHash } from "crypto";
@@ -6,18 +5,6 @@ import dotenv from "dotenv";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const PROJECT_ROOT = join(__dirname, "..", "..", "..", "..");
-
-// ============================================================================
-// Types
-// ============================================================================
-
-export interface IngestDraftMetadata {
-  name: string;
-  date: string;
-  sheetId?: string;
-  status?: string;
-  bans?: string[];
-}
 
 // ============================================================================
 // Environment Setup
@@ -55,28 +42,6 @@ export function logIndent(message: string): void {
 export function generateOracleId(cardName: string): string {
   const normalized = cardName.toLowerCase().replace(/[^a-z0-9]/g, "-");
   return `generated:${normalized}`;
-}
-
-/**
- * Compute SHA256 hash of file contents.
- */
-export function hashFile(filePath: string): string {
-  if (!existsSync(filePath)) return "";
-  const content = readFileSync(filePath, "utf-8");
-  return createHash("sha256").update(content).digest("hex").slice(0, 16);
-}
-
-/**
- * Compute import hash from picks.csv, pool.csv, and matches.csv.
- */
-export function computeImportHash(draftPath: string): string {
-  const picksHash = hashFile(join(draftPath, "picks.csv"));
-  const poolHash = hashFile(join(draftPath, "pool.csv"));
-  const matchesHash = hashFile(join(draftPath, "matches.csv"));
-  const decklistsHash = hashFile(join(draftPath, "decklists.csv"));
-  const metadataHash = hashFile(join(draftPath, "metadata.json"));
-  const combined = `${picksHash}:${poolHash}:${matchesHash}:${decklistsHash}:${metadataHash}`;
-  return createHash("sha256").update(combined).digest("hex").slice(0, 16);
 }
 
 /**

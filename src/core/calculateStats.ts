@@ -5,7 +5,7 @@
 
 import type { CardPick, CardStats, DraftMetadata, DraftScore } from "./types";
 import { groupBy, calculatePickWeight, weightedGeometricMean } from "./utils";
-import { cardNameKey } from "./parseCsv";
+import { cardNameKey } from "./parseSheetRows";
 
 /** Default number of drafters when not specified (typical rotisserie draft size) */
 const DEFAULT_NUM_DRAFTERS = 10;

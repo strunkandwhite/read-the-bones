@@ -11,7 +11,7 @@ import {
   transformApiResponse,
   type ScryfallApiResponse,
 } from "../core/scryfallApi";
-import { cardNameKey } from "../core/parseCsv";
+import { cardNameKey } from "../core/parseSheetRows";
 
 /**
  * Fetch a single card from the Scryfall API.

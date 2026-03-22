@@ -9,7 +9,7 @@ vi.mock("fs", async () => {
 
 import { fetchCard, loadCache, saveCache } from "./scryfall";
 import type { ScryCard } from "../core/types";
-import { cardNameKey } from "../core/parseCsv";
+import { cardNameKey } from "../core/parseSheetRows";
 
 // Mock fetch globally
 const mockFetch = vi.fn();

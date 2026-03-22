@@ -12,39 +12,11 @@ export const TAB_NAMES = {
   matches: "Matches",
 } as const;
 
-/** Result of fetching a draft from Google Sheets */
-export type DraftSheetData = {
-  picks: string | null;
-  pool: string | null;
-  matches: string | null;
-};
-
 /** Result of fetching raw row arrays from a draft Google Sheet */
 export interface DraftSheetRawData {
   picks: string[][] | null;
   pool: string[][] | null;
   matches: string[][] | null;
-}
-
-/**
- * Convert a 2D array of cell values to CSV format.
- * Handles proper escaping of commas and quotes.
- */
-export function rowsToCsv(rows: (string | number | boolean | null | undefined)[][]): string {
-  return rows
-    .map((row) =>
-      row
-        .map((cell) => {
-          const value = cell?.toString() ?? "";
-          // Escape quotes and wrap in quotes if contains comma, quote, or newline
-          if (value.includes(",") || value.includes('"') || value.includes("\n")) {
-            return `"${value.replace(/"/g, '""')}"`;
-          }
-          return value;
-        })
-        .join(",")
-    )
-    .join("\n");
 }
 
 /**
@@ -134,46 +106,3 @@ export async function fetchDraftTabsRaw(
   };
 }
 
-/**
- * Fetch draft data from a Google Sheet.
- * Returns CSV strings for picks, pool, and matches tabs.
- *
- * @param sheetId - The Google Sheets document ID
- * @param apiKey - Google API key for authentication
- * @returns Object with CSV strings for each tab (null if tab not found)
- */
-export async function fetchDraftFromSheet(
-  sheetId: string,
-  apiKey: string
-): Promise<DraftSheetData> {
-  const doc = new GoogleSpreadsheet(sheetId, { apiKey });
-
-  await doc.loadInfo();
-
-  const result: DraftSheetData = {
-    picks: null,
-    pool: null,
-    matches: null,
-  };
-
-  // Fetch each tab
-  for (const [key, tabName] of Object.entries(TAB_NAMES)) {
-    const rows = await fetchSheetTab(doc, tabName);
-    if (rows) {
-      result[key as keyof DraftSheetData] = rowsToCsv(rows);
-    }
-  }
-
-  return result;
-}
-
-/**
- * Extract sheet ID from a Google Sheets URL.
- * @example
- * parseSheetIdFromUrl("https://docs.google.com/spreadsheets/d/1KRXt6DfuGHmJG8yYfgCjSNtMJbMKPQDo1UUsdsJGMKY/edit?gid=123")
- * // Returns "1KRXt6DfuGHmJG8yYfgCjSNtMJbMKPQDo1UUsdsJGMKY"
- */
-export function parseSheetIdFromUrl(url: string): string | null {
-  const match = url.match(/\/d\/([a-zA-Z0-9-_]+)/);
-  return match?.[1] ?? null;
-}
