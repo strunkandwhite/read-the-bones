@@ -8,12 +8,16 @@ Surface the top-performing decklists for any color archetype across all drafts. 
 
 **`GET /api/decks/winning`**
 
+This is a cross-draft query, so it lives at the top level rather than under `/api/drafts/[id]/`.
+
 ### Parameters
 
 | Param | Required | Type | Description |
 |-------|----------|------|-------------|
-| `color_pair` | yes | string | Exact inferred color identity (e.g. `UB`, `R`, `WUG`) |
+| `color_pair` | yes | string | Exact inferred color identity: 1-2 uppercase WUBRG characters, or `C` for colorless |
 | `draft_ids` | no | string | Comma-separated draft IDs to restrict the search |
+
+**Validation:** `color_pair` must be 1-2 characters from `WUBRG` (in WUBRG order) or the single character `C`. Invalid values return 400. This matches the output space of `inferDeckColor`, which produces at most two colors.
 
 ### Response
 
@@ -25,7 +29,12 @@ Surface the top-performing decklists for any color archetype across all drafts. 
       "draft_id": "tarkir",
       "draft_name": "Tarkir",
       "seat": 3,
-      "record": { "match_wins": 7, "match_losses": 2 }
+      "record": {
+        "match_wins": 7,
+        "match_losses": 2,
+        "game_wins": 14,
+        "game_losses": 7
+      }
     }
   ],
   "overlap_cards": [
@@ -35,8 +44,8 @@ Surface the top-performing decklists for any color archetype across all drafts. 
 }
 ```
 
-- **`decks`** — Top 4 decks of the requested archetype, sorted by match wins DESC then game win rate DESC.
-- **`overlap_cards`** — Cards maindecked in two or more of the returned decks, sorted by count DESC then name ASC.
+- **`decks`** — Up to 4 decks of the requested archetype, sorted by match wins DESC then game win rate DESC. May return 0-3 if fewer matching decks exist.
+- **`overlap_cards`** — Cards maindecked in two or more of the returned decks, sorted by count DESC then name ASC. Empty array when fewer than 2 decks are returned.
 
 ### Caching
 
@@ -44,18 +53,18 @@ Surface the top-performing decklists for any color archetype across all drafts. 
 
 ## Query Logic
 
-1. Find all seats with decklists across all drafts (or drafts matching `draft_ids`).
-2. Exclude privacy-opted-out seats.
+1. Find all seats with maindecked cards (`deck_cards` where `zone = 'deck'`) across all drafts (or drafts matching `draft_ids`).
+2. Exclude privacy-opted-out seats. Since this is a cross-draft query, gather opt-outs for all relevant drafts in a single query rather than calling `getOptedOutSeats()` per draft.
 3. Infer each seat's deck color from maindecked cards using the existing 30% threshold algorithm (`inferDeckColor`).
 4. Keep only seats whose inferred color exactly matches `color_pair`.
-5. Join with `match_events` to compute each seat's match record (wins, losses).
-6. Rank by match wins DESC, then game win rate DESC.
+5. Join with `match_events` to compute each seat's match record (match wins/losses, game wins/losses). Seats without match data are excluded — a deck without results cannot be ranked.
+6. Rank by match wins DESC, then game win rate (game_wins / (game_wins + game_losses)) DESC.
 7. Take the top 4.
-8. Compute overlap: collect all maindecked card names across the 4 decks, return those appearing in 2+ decks with their count.
+8. Compute overlap: collect all maindecked card names across the returned decks, return those appearing in 2+ decks with their count.
 
 ### Why color-first, not standings-first
 
-Filtering by color before ranking avoids the failure mode where a color archetype never appears in the top 3 finishers of any draft. By gathering all decks of the archetype first, we always return the best-performing builds for that color pair, regardless of overall draft placement.
+Filtering by color before ranking avoids the failure mode where a color archetype never appears in the top finishers of any draft. By gathering all decks of the archetype first, we always return the best-performing builds for that color pair, regardless of overall draft placement.
 
 ## Deck Lookup
 
@@ -69,7 +78,7 @@ Each returned deck provides `draft_id` and `seat` — enough to fetch the full d
 |-------|-------|
 | **Input** | `color_pair` (required string), `draft_ids` (optional string array) |
 | **Output** | Same JSON shape as the API response |
-| **Implementation** | HTTP GET to `/api/decks/winning` |
+| **Implementation** | HTTP GET to `/api/decks/winning`, joining `draft_ids` array into comma-separated string |
 
 A thin proxy, consistent with the existing MCP tools in the adjacent server.
 
@@ -86,7 +95,6 @@ Opted-out seats are excluded entirely — they do not appear in the returned dec
 
 ### Reused code
 - `inferDeckColor()` from `src/core/inferDeckColor.ts`
-- `getOptedOutSeats()` from `src/core/db/queries/helpers.ts`
 - `parseScryfallJson()` from `src/core/db/queries/helpers.ts`
 - Turso client from `src/core/db/client.ts`
 
