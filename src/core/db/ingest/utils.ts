@@ -11,7 +11,7 @@ export const PROJECT_ROOT = join(__dirname, "..", "..", "..", "..");
 // Types
 // ============================================================================
 
-export interface DraftMetadata {
+export interface IngestDraftMetadata {
   name: string;
   date: string;
   sheetId?: string;

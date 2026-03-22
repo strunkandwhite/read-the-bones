@@ -10,7 +10,7 @@ import {
 } from "../../parseCsv";
 import { parseMatches } from "../../parseMatches";
 import type { ScryCard } from "../../types";
-import type { DraftMetadata } from "./utils";
+import type { IngestDraftMetadata } from "./utils";
 import { log, logIndent, generateOracleId, computeCubeHash } from "./utils";
 import {
   createDraft,
@@ -108,7 +108,7 @@ export async function processDraftInner(
   const startTime = Date.now();
 
   // Load metadata
-  let metadata: DraftMetadata = {
+  let metadata: IngestDraftMetadata = {
     name: draftId,
     date: new Date().toISOString().split("T")[0],
   };
@@ -119,7 +119,7 @@ export async function processDraftInner(
         join(draftPath, "metadata.json"),
         "utf-8"
       );
-      metadata = JSON.parse(metadataContent) as DraftMetadata;
+      metadata = JSON.parse(metadataContent) as IngestDraftMetadata;
     } catch (error) {
       log(`Warning: Failed to parse metadata.json: ${error}`);
     }
