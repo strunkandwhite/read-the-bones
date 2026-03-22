@@ -6,6 +6,9 @@
 import type { Client } from "@libsql/client";
 import type { CardPick } from "./types";
 import { normalizeCardName, parseDraftPicks, isDraftComplete } from "./parseCsv";
+import { fetchCard, fetchCardFuzzy } from "../build/scryfall";
+import { getFrontFace } from "./cardNames";
+import { sleep } from "./utils";
 
 /**
  * Given all picks parsed from CSV and the current max pick_n in the database,
@@ -55,19 +58,72 @@ export async function resolveCardNameToId(
   cardName: string,
 ): Promise<number | null> {
   const normalized = normalizeCardName(cardName);
-  // Exact match first
+
+  // 1. Exact match
   const result = await client.execute({
     sql: "SELECT card_id FROM cards WHERE LOWER(name) = LOWER(?)",
     args: [normalized],
   });
   if (result.rows.length > 0) return result.rows[0].card_id as number;
 
-  // Fall back to front-face match for double-faced cards (name stored as "Front // Back")
-  const dfcResult = await client.execute({
+  // 2. Front-face DFC match (name stored as "Front // Back")
+  const dfcFrontResult = await client.execute({
     sql: "SELECT card_id FROM cards WHERE LOWER(name) LIKE LOWER(? || ' // %')",
     args: [normalized],
   });
-  if (dfcResult.rows.length > 0) return dfcResult.rows[0].card_id as number;
+  if (dfcFrontResult.rows.length > 0) return dfcFrontResult.rows[0].card_id as number;
+
+  // 3. Back-face DFC match
+  const dfcBackResult = await client.execute({
+    sql: "SELECT card_id FROM cards WHERE LOWER(name) LIKE LOWER('% // ' || ?)",
+    args: [normalized],
+  });
+  if (dfcBackResult.rows.length > 0) return dfcBackResult.rows[0].card_id as number;
+
+  // 4. Alias table lookup (diacritics, Omen Paths digital names)
+  const aliasResult = await client.execute({
+    sql: "SELECT card_id FROM card_aliases WHERE alias = LOWER(?)",
+    args: [normalized],
+  });
+  if (aliasResult.rows.length > 0) return aliasResult.rows[0].card_id as number;
+
+  // 5. Scryfall API fallback — auto-discover and cache as alias
+  return resolveViaScryfall(client, normalized);
+}
+
+/** Rate limit delay between Scryfall API requests (ms) */
+const SCRYFALL_RATE_LIMIT_MS = 75;
+
+async function resolveViaScryfall(
+  client: Client,
+  cardName: string,
+): Promise<number | null> {
+  await sleep(SCRYFALL_RATE_LIMIT_MS);
+  // Try exact match first, then fuzzy (handles Omen Paths digital names)
+  const scryfallCard = await fetchCard(cardName) ?? await fetchCardFuzzy(cardName);
+  if (!scryfallCard) return null;
+
+  // Scryfall resolved the name — find the canonical card in our DB
+  const scryfallName = scryfallCard.name;
+  const frontFace = getFrontFace(scryfallName);
+  const namesToTry = frontFace ? [scryfallName, frontFace] : [scryfallName];
+
+  for (const name of namesToTry) {
+    const match = await client.execute({
+      sql: "SELECT card_id FROM cards WHERE LOWER(name) = LOWER(?)",
+      args: [name],
+    });
+    if (match.rows.length > 0) {
+      const cardId = match.rows[0].card_id as number;
+      // Cache the alias for future lookups
+      await client.execute({
+        sql: "INSERT OR IGNORE INTO card_aliases (alias, card_id) VALUES (LOWER(?), ?)",
+        args: [cardName, cardId],
+      });
+      console.log(`[alias] "${cardName}" → "${scryfallName}" (card_id: ${cardId})`);
+      return cardId;
+    }
+  }
 
   return null;
 }

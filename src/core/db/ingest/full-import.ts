@@ -21,6 +21,7 @@ import {
   insertOptOuts,
 } from "./db-helpers";
 import type { DraftFolder } from "./discover";
+import { resolveCardNameToId } from "../../sync";
 
 /**
  * Ingest decklists from pre-generated JSON files.
@@ -63,7 +64,8 @@ export async function ingestDecklists(
 
     // Insert deck cards
     for (const cardName of deckData.deck) {
-      const cardId = cardNameToId.get(normalizeCardName(cardName).toLowerCase());
+      const cardId = cardNameToId.get(normalizeCardName(cardName).toLowerCase())
+        ?? await resolveCardNameToId(client, cardName);
       if (!cardId) {
         log(`Warning: Deck card not found in cube: "${cardName}" (seat ${seat})`);
         continue;
@@ -76,7 +78,8 @@ export async function ingestDecklists(
 
     // Insert sideboard cards
     for (const cardName of deckData.sideboard) {
-      const cardId = cardNameToId.get(normalizeCardName(cardName).toLowerCase());
+      const cardId = cardNameToId.get(normalizeCardName(cardName).toLowerCase())
+        ?? await resolveCardNameToId(client, cardName);
       if (!cardId) {
         // Sideboard may include cards not in cube (e.g. basic lands) — skip silently
         continue;

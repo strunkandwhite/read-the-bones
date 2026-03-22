@@ -46,6 +46,35 @@ export async function fetchCard(cardName: string): Promise<ScryCard | null> {
 }
 
 /**
+ * Fetch a single card using Scryfall's fuzzy name matching.
+ * Handles Omen Paths digital names and other alternate names.
+ */
+export async function fetchCardFuzzy(cardName: string): Promise<ScryCard | null> {
+  const encodedName = encodeURIComponent(cardName);
+  const url = `${SCRYFALL_API_BASE}/cards/named?fuzzy=${encodedName}`;
+
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      console.warn(
+        `[Scryfall] Fuzzy API error for "${cardName}": ${response.status} ${response.statusText}`
+      );
+      return null;
+    }
+
+    const data = (await response.json()) as ScryfallApiResponse;
+    return transformApiResponse(data);
+  } catch (error) {
+    console.warn(`[Scryfall] Failed fuzzy fetch "${cardName}":`, error);
+    return null;
+  }
+}
+
+/**
  * Load cached card data from a JSON file.
  * Uses lowercase keys for case-insensitive matching.
  *

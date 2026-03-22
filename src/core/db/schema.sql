@@ -108,6 +108,14 @@ CREATE TABLE IF NOT EXISTS deck_hashes (
   PRIMARY KEY (draft_id, seat)
 );
 
+-- Card name aliases for alternate names (diacritics, Omen Paths digital names)
+-- Maps alternate lowercase names to canonical card_ids
+CREATE TABLE IF NOT EXISTS card_aliases (
+  alias TEXT NOT NULL,
+  card_id INTEGER NOT NULL REFERENCES cards(card_id),
+  PRIMARY KEY (alias)
+);
+
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_cards_name ON cards(name);
 CREATE INDEX IF NOT EXISTS idx_pick_events_card ON pick_events(card_id);

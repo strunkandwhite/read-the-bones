@@ -8,6 +8,12 @@ import {
 } from "../sync";
 import type { CardPick } from "../types";
 
+// Mock Scryfall fetch to avoid network calls in tests
+vi.mock("../../build/scryfall", () => ({
+  fetchCard: vi.fn().mockResolvedValue(null),
+  fetchCardFuzzy: vi.fn().mockResolvedValue(null),
+}));
+
 // Helper to create a CardPick with required fields
 function pick(name: string, position: number, seat: number): CardPick {
   return {
@@ -112,21 +118,45 @@ describe("resolveCardNameToId", () => {
     expect(await resolveCardNameToId(client as any, "Lightning Bolt")).toBe(123);
   });
 
-  it("falls back to front-face match for double-faced cards", async () => {
+  it("falls back to front-face DFC match", async () => {
     const client = {
       execute: vi.fn()
         .mockResolvedValueOnce({ rows: [] }) // exact match fails
-        .mockResolvedValueOnce({ rows: [{ card_id: 456 }] }), // DFC LIKE match
+        .mockResolvedValueOnce({ rows: [{ card_id: 456 }] }), // front-face DFC
     };
     expect(await resolveCardNameToId(client as any, "Fable of the Mirror-Breaker")).toBe(456);
     expect(client.execute).toHaveBeenCalledTimes(2);
   });
 
-  it("returns null when neither exact nor front-face match", async () => {
+  it("falls back to back-face DFC match", async () => {
+    const client = {
+      execute: vi.fn()
+        .mockResolvedValueOnce({ rows: [] }) // exact match fails
+        .mockResolvedValueOnce({ rows: [] }) // front-face DFC fails
+        .mockResolvedValueOnce({ rows: [{ card_id: 789 }] }), // back-face DFC
+    };
+    expect(await resolveCardNameToId(client as any, "Death")).toBe(789);
+    expect(client.execute).toHaveBeenCalledTimes(3);
+  });
+
+  it("falls back to alias table lookup", async () => {
+    const client = {
+      execute: vi.fn()
+        .mockResolvedValueOnce({ rows: [] }) // exact match fails
+        .mockResolvedValueOnce({ rows: [] }) // front-face DFC fails
+        .mockResolvedValueOnce({ rows: [] }) // back-face DFC fails
+        .mockResolvedValueOnce({ rows: [{ card_id: 101 }] }), // alias match
+    };
+    expect(await resolveCardNameToId(client as any, "troll of khazad-dum")).toBe(101);
+    expect(client.execute).toHaveBeenCalledTimes(4);
+  });
+
+  it("returns null when all lookups fail", async () => {
     const client = {
       execute: vi.fn().mockResolvedValue({ rows: [] }),
     };
     expect(await resolveCardNameToId(client as any, "Not A Card")).toBeNull();
-    expect(client.execute).toHaveBeenCalledTimes(2);
+    // 4 DB queries: exact, front-face DFC, back-face DFC, alias table
+    expect(client.execute).toHaveBeenCalledTimes(4);
   });
 });
