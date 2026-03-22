@@ -19,6 +19,13 @@ export type DraftSheetData = {
   matches: string | null;
 };
 
+/** Result of fetching raw row arrays from a draft Google Sheet */
+export interface DraftSheetRawData {
+  picks: string[][] | null;
+  pool: string[][] | null;
+  matches: string[][] | null;
+}
+
 /**
  * Convert a 2D array of cell values to CSV format.
  * Handles proper escaping of commas and quotes.
@@ -102,6 +109,29 @@ async function fetchSheetTab(
   }
 
   return rows;
+}
+
+/**
+ * Fetch draft data from a Google Sheet as raw row arrays.
+ * Returns string[][] for each tab without CSV conversion.
+ *
+ * @public
+ * @param sheetId - The Google Sheets document ID
+ * @param apiKey - Google API key for authentication
+ * @returns Object with raw row arrays for each tab (null if tab not found)
+ */
+export async function fetchDraftTabsRaw(
+  sheetId: string,
+  apiKey: string,
+): Promise<DraftSheetRawData> {
+  const doc = new GoogleSpreadsheet(sheetId, { apiKey });
+  await doc.loadInfo();
+
+  return {
+    picks: await fetchSheetTab(doc, TAB_NAMES.picks),
+    pool: await fetchSheetTab(doc, TAB_NAMES.pool),
+    matches: await fetchSheetTab(doc, TAB_NAMES.matches),
+  };
 }
 
 /**
