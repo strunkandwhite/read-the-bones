@@ -4,6 +4,7 @@
 
 import { getClient } from "../client";
 import type { Card, ScryfallCardData } from "../schema";
+import { inferDeckColor } from "../../inferDeckColor";
 import { SCRYFALL_API_BASE, transformApiResponse, type ScryfallApiResponse } from "../../scryfallApi";
 
 /**
@@ -60,8 +61,8 @@ export function matchesColorFilter(colorIdentity: string[], filterColor: string)
  * Returns a Set of "draftId:seat" keys for seats whose inferred colors
  * contain all the requested colors.
  *
- * Uses the same 30% threshold as inferDrafterColors in draftState.ts:
- * top 1-2 colors where the 2nd must be >= 30% as frequent as the 1st.
+ * Uses the 30% threshold from inferDeckColor: top 1-2 colors where the
+ * 2nd must be >= 30% as frequent as the 1st.
  */
 export async function getSeatsMatchingColors(
   draftIds: string[],
@@ -102,24 +103,8 @@ export async function getSeatsMatchingColors(
   const matchingSeats = new Set<string>();
 
   for (const [key, counts] of seatColors) {
-    const sorted = [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([color]) => color);
-
-    if (sorted.length === 0) continue;
-
-    // Apply 30% threshold for 2nd color
-    const inferredColors: string[] = [sorted[0]];
-    if (sorted.length >= 2) {
-      const topCount = counts.get(sorted[0]) || 0;
-      const secondCount = counts.get(sorted[1]) || 0;
-      if (secondCount >= topCount * 0.3) {
-        inferredColors.push(sorted[1]);
-      }
-    }
-
-    // Check if inferred colors contain all requested colors
-    if (requestedColors.every((c) => inferredColors.includes(c))) {
+    const inferred = inferDeckColor(counts);
+    if (requestedColors.every((c) => inferred.includes(c))) {
       matchingSeats.add(key);
     }
   }
