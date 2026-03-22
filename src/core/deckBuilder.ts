@@ -85,12 +85,7 @@ export function createEmptyDeckState(draftId: string, seat: number): DeckState {
 
 /** Generate an 8-character random alphanumeric ID. */
 export function generateDeckId(): string {
-  const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
-  let result = "";
-  for (let i = 0; i < 8; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return result;
+  return crypto.randomUUID().replace(/-/g, "").slice(0, 8);
 }
 
 export type DeckAction =
