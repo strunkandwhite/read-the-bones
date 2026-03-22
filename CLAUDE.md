@@ -71,6 +71,7 @@ The app exposes REST API routes under `/api/` for querying draft data. All route
 | `/api/drafts/[id]/deck` | Decklist for a seat | `seat` (required) |
 | `/api/cards/stats` | Card statistics | `card_name` (required), `draft_id`, `date_from`, `date_to`, `deck_colors` |
 | `/api/stats` | Overall draft statistics | `draft_ids` (comma-separated) |
+| `/api/decks/winning` | Top 4 winning decks for a color archetype | `color_pair` (required), `draft_ids` (comma-separated) |
 
 **Internal routes** (used by the web app, not part of the public API):
 - `/api/cards` — Card data for client-side rendering
