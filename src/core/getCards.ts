@@ -18,6 +18,7 @@ import {
 import { calculateCardStats, DISTRIBUTION_BUCKET_COUNT } from "./calculateStats";
 import { getClient } from "./db/client";
 import { cardNameKey } from "./parseCsv";
+import { round3 } from "./utils";
 
 export type GetCardsParams = {
   draftIds?: string[];
@@ -371,7 +372,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
       const total = gameWins + gameLosses;
 
       decklistWinRates.set(cardNameKey(cardName), {
-        winRate: total > 0 ? Math.round((gameWins / total) * 1000) / 1000 : 0,
+        winRate: total > 0 ? round3(gameWins / total) : 0,
         gameWins,
         gameLosses,
         timesMaindecked: row.times_maindecked as number,

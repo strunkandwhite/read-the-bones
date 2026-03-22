@@ -7,7 +7,7 @@ import { getSeatsMatchingColors, parseScryfallJson } from "./helpers";
 import { resolveCard } from "./cards";
 import { getAvailableCards } from "./picks";
 import { getCardPlayStats, getCardWinStats } from "./decklists";
-import { calculatePickWeight, weightedGeometricMean } from "../../utils";
+import { calculatePickWeight, round3, weightedGeometricMean } from "../../utils";
 import { wilsonInterval } from "../../wilsonInterval";
 import { DEFAULT_POOL_SIZE } from "../../types";
 
@@ -255,8 +255,7 @@ export async function getCardPickStats(
     ).length;
     result.times_in_pool_with_decklist = timesInPool;
     result.times_maindecked = timesMaindecked;
-    result.play_rate =
-      Math.round((timesMaindecked / timesInPool) * 1000) / 1000;
+    result.play_rate = round3(timesMaindecked / timesInPool);
   }
 
   return result;
@@ -744,10 +743,10 @@ export async function rankAvailableCards(
     let playFiltered = false;
 
     if (play && play.total > 0) {
-      playRate = Math.round((play.maindecked / play.total) * 1000) / 1000;
+      playRate = round3(play.maindecked / play.total);
       playFiltered = !!matchingSeats;
     } else if (matchingSeats && playOverall && playOverall.total > 0) {
-      playRate = Math.round((playOverall.maindecked / playOverall.total) * 1000) / 1000;
+      playRate = round3(playOverall.maindecked / playOverall.total);
       playFiltered = false;
     }
 
@@ -761,13 +760,13 @@ export async function rankAvailableCards(
 
     if (win && (win.wins + win.losses) > 0) {
       const total = win.wins + win.losses;
-      winRate = Math.round((win.wins / total) * 1000) / 1000;
+      winRate = round3(win.wins / total);
       winRateCi = wilsonInterval(win.wins, total);
       lowSample = win.seats < MIN_SAMPLE_SIZE;
       winFiltered = !!matchingSeats;
     } else if (matchingSeats && winOverall && (winOverall.wins + winOverall.losses) > 0) {
       const total = winOverall.wins + winOverall.losses;
-      winRate = Math.round((winOverall.wins / total) * 1000) / 1000;
+      winRate = round3(winOverall.wins / total);
       winRateCi = wilsonInterval(winOverall.wins, total);
       lowSample = winOverall.seats < MIN_SAMPLE_SIZE;
       winFiltered = false;

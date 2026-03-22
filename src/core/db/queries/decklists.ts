@@ -5,6 +5,7 @@
 import { getClient } from "../client";
 import { getOptedOutSeats, getSeatsMatchingColors } from "./helpers";
 import { resolveCard } from "./cards";
+import { round3 } from "../../utils";
 
 export interface GetDeckParams {
   draft_id: string;
@@ -168,7 +169,7 @@ export async function getCardPlayStats(
     card_name: card_name,
     times_drafted: timesDrafted,
     times_maindecked: timesMaindecked,
-    play_rate: Math.round(playRate * 1000) / 1000,
+    play_rate: round3(playRate),
     drafts_with_decklists: draftsWithDecklists.size,
   };
 }
@@ -292,7 +293,7 @@ export async function getCardWinStats(
     times_maindecked: timesMaindecked,
     game_wins: gameWins,
     game_losses: gameLosses,
-    win_rate: Math.round(winRate * 1000) / 1000,
+    win_rate: round3(winRate),
     drafts_with_data: draftsWithData.size,
   };
 }
