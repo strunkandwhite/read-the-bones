@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import type { DraftStatsResponse } from "@/core/getDraftStats";
-import { wilsonInterval } from "@/core/wilsonInterval";
+import { decomposeColorPairs } from "@/core/colorDecomposition";
 import { useSlowRenderTracking } from "../hooks/useSlowRenderTracking";
 
 // ─── Info Tooltip ─────────────────────────────────────────────────
@@ -268,34 +268,18 @@ export function DraftStats({ data }: DraftStatsProps) {
     [winRateByColor]
   );
 
-  // Decompose pair data into individual color buckets
-  const colorIndividualBars: BarDatum[] = useMemo(() => {
-    const buckets = new Map<string, { wins: number; losses: number }>();
-    for (const c of winRateByColor) {
-      const colors = c.color === "C" ? ["C"] : c.color.split("");
-      for (const color of colors) {
-        if (!buckets.has(color)) buckets.set(color, { wins: 0, losses: 0 });
-        const b = buckets.get(color)!;
-        b.wins += c.wins;
-        b.losses += c.losses;
-      }
-    }
-    const order = "WUBRGC";
-    return [...buckets.entries()]
-      .sort((a, b) => order.indexOf(a[0]) - order.indexOf(b[0]))
-      .map(([color, { wins, losses }]) => {
-        const total = wins + losses;
-        const { lower: ciLower, upper: ciUpper } = wilsonInterval(wins, total);
-        return {
-          label: color,
-          winRate: total > 0 ? wins / total : 0,
-          ciLower,
-          ciUpper,
-          wins,
-          losses,
-        };
-      });
-  }, [winRateByColor]);
+  const colorIndividualBars: BarDatum[] = useMemo(
+    () =>
+      decomposeColorPairs(winRateByColor).map((c) => ({
+        label: c.color,
+        winRate: c.winRate,
+        ciLower: c.ciLower,
+        ciUpper: c.ciUpper,
+        wins: c.wins,
+        losses: c.losses,
+      })),
+    [winRateByColor],
+  );
 
   if (winRateBySeat.length === 0 && winRateByColor.length === 0) {
     return null;
