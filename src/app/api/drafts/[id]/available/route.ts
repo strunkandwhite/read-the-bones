@@ -16,6 +16,12 @@ export async function GET(
         { status: 400 },
       );
     }
+    if (beforePickN < 1) {
+      return NextResponse.json(
+        { error: "before_pick_n must be positive" },
+        { status: 400 },
+      );
+    }
     const result = await queries.getAvailableCards({
       draft_id: id,
       before_pick_n: beforePickN,

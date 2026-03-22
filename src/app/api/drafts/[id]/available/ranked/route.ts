@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as queries from "@/core/db/queries";
-import { intParam, requiredIntParam } from "@/app/api/_utils";
+import { requiredIntParam } from "@/app/api/_utils";
 
 export async function GET(
   request: NextRequest,
@@ -22,7 +22,7 @@ export async function GET(
       color: searchParams.get("color") ?? undefined,
       type_contains: searchParams.get("type_contains") ?? undefined,
       deck_colors: searchParams.get("deck_colors") ?? undefined,
-      limit: intParam(searchParams.get("limit")),
+      limit: Math.min(Number(searchParams.get("limit")) || 50, 1000),
       sort_by: (() => {
         const sortByValues = ["geomean_pick", "win_rate", "play_rate"] as const;
         const raw = searchParams.get("sort_by");
