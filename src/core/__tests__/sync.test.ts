@@ -1,5 +1,11 @@
-import { describe, it, expect } from "vitest";
-import { detectNewPicks, detectDivergence } from "../sync";
+import { describe, it, expect, vi } from "vitest";
+import {
+  detectNewPicks,
+  detectDivergence,
+  isRateLimited,
+  getDbMaxPickN,
+  resolveCardNameToId,
+} from "../sync";
 import type { CardPick } from "../types";
 
 // Helper to create a CardPick with required fields
@@ -52,5 +58,64 @@ describe("detectDivergence", () => {
 
   it("no divergence when counts are equal", () => {
     expect(detectDivergence(3, 3)).toBe(false);
+  });
+});
+
+describe("isRateLimited", () => {
+  it("returns false when no last_synced_at exists", async () => {
+    const client = { execute: vi.fn().mockResolvedValue({ rows: [] }) };
+    expect(await isRateLimited(client as any)).toBe(false);
+  });
+
+  it("returns true when synced recently", async () => {
+    const recentTimestamp = Math.floor(Date.now() / 1000) - 10; // 10 seconds ago
+    const client = {
+      execute: vi.fn().mockResolvedValue({
+        rows: [{ value: String(recentTimestamp) }],
+      }),
+    };
+    expect(await isRateLimited(client as any)).toBe(true);
+  });
+
+  it("returns false when synced long ago", async () => {
+    const oldTimestamp = Math.floor(Date.now() / 1000) - 60; // 60 seconds ago
+    const client = {
+      execute: vi.fn().mockResolvedValue({
+        rows: [{ value: String(oldTimestamp) }],
+      }),
+    };
+    expect(await isRateLimited(client as any)).toBe(false);
+  });
+});
+
+describe("getDbMaxPickN", () => {
+  it("returns 0 when no picks exist", async () => {
+    const client = {
+      execute: vi.fn().mockResolvedValue({ rows: [{ max_pick: null }] }),
+    };
+    expect(await getDbMaxPickN(client as any, "draft-1")).toBe(0);
+  });
+
+  it("returns max pick number", async () => {
+    const client = {
+      execute: vi.fn().mockResolvedValue({ rows: [{ max_pick: 42 }] }),
+    };
+    expect(await getDbMaxPickN(client as any, "draft-1")).toBe(42);
+  });
+});
+
+describe("resolveCardNameToId", () => {
+  it("returns card_id for existing card", async () => {
+    const client = {
+      execute: vi.fn().mockResolvedValue({ rows: [{ card_id: 123 }] }),
+    };
+    expect(await resolveCardNameToId(client as any, "Lightning Bolt")).toBe(123);
+  });
+
+  it("returns null for unknown card", async () => {
+    const client = {
+      execute: vi.fn().mockResolvedValue({ rows: [] }),
+    };
+    expect(await resolveCardNameToId(client as any, "Not A Card")).toBeNull();
   });
 });
