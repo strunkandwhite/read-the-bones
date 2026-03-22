@@ -6,6 +6,7 @@
  * replacing the build-time loadCardDataFromTurso().
  */
 
+import { getFrontFace } from "./cardNames";
 import {
   DEFAULT_POOL_SIZE,
   type CardPick,
@@ -300,7 +301,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
       // matches card "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki")
       const draftBans = bannedCardsByDraft.get(draftId);
       if (draftBans) {
-        const frontFace = key.includes(" // ") ? key.split(" // ")[0] : null;
+        const frontFace = getFrontFace(key);
         if (draftBans.has(key) || (frontFace && draftBans.has(frontFace))) continue;
       }
 

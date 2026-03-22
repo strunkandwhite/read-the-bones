@@ -1,6 +1,7 @@
 import { useMemo, useCallback } from "react";
 import type { CardStatsResponse } from "@/core/getCards";
 import type { EnrichedCardStats } from "@/core/types";
+import { getFrontFace } from "@/core/cardNames";
 
 interface UseCardFilteringProps {
   cardData: CardStatsResponse;
@@ -55,10 +56,8 @@ export function useCardFiltering({
     (cardName: string) => {
       if (!bannedCardNamesSet) return false;
       if (bannedCardNamesSet.has(cardName)) return true;
-      if (cardName.includes(" // ")) {
-        return bannedCardNamesSet.has(cardName.split(" // ")[0]);
-      }
-      return false;
+      const frontFace = getFrontFace(cardName);
+      return frontFace ? bannedCardNamesSet.has(frontFace) : false;
     },
     [bannedCardNamesSet]
   );

@@ -4,6 +4,7 @@
 
 import { getClient } from "../client";
 import { getOptedOutSeats, parseScryfallJson, matchesColorFilter } from "./helpers";
+import { getFrontFace } from "../../cardNames";
 
 export interface GetPicksParams {
   draft_id: string;
@@ -200,7 +201,7 @@ export async function getAvailableCards(
 
     if (remaining <= 0) continue;
     const lowerName = cardName.toLowerCase();
-    const frontFace = lowerName.includes(" // ") ? lowerName.split(" // ")[0] : null;
+    const frontFace = getFrontFace(lowerName);
     if (bannedCards.has(lowerName) || (frontFace && bannedCards.has(frontFace))) continue;
 
     // Parse scryfall JSON once if either filter needs it

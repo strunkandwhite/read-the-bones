@@ -4,6 +4,7 @@ import type { ColorFilterMode } from "@/core/colorFilter";
 import type { ScryCard, EnrichedCardStats } from "@/core/types";
 import { searchLocalCards } from "@/core/localSearch";
 import { hasScryfallOperators } from "@/core/searchUtils";
+import { getFrontFace } from "@/core/cardNames";
 
 function classifyQueryType(query: string): string {
   const prefixes = ["t:", "o:", "c:", "cmc"];
@@ -83,9 +84,8 @@ export function useCardSearch({ cards }: UseCardSearchProps): UseCardSearchRetur
     const names = new Set<string>();
     for (const card of scryfallSearchResults) {
       names.add(card.name);
-      if (card.name.includes(" // ")) {
-        names.add(card.name.split(" // ")[0]);
-      }
+      const frontFace = getFrontFace(card.name);
+      if (frontFace) names.add(frontFace);
     }
     return names;
   }, [scryfallSearchResults]);

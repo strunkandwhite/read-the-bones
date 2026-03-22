@@ -1,6 +1,7 @@
 import { join } from "path";
 import type { ScryCard } from "../../types";
 import { cardNameKey } from "../../parseCsv";
+import { getFrontFace } from "../../cardNames";
 import { fetchCard, loadCache, saveCache } from "../../../build/scryfall";
 import { sleep } from "../../utils";
 import { PROJECT_ROOT, log } from "./utils";
@@ -17,8 +18,8 @@ export function loadScryfallCache(): Map<string, ScryCard> {
   // (pool.csv uses "Fable of the Mirror-Breaker", cache key is "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki")
   const dfcEntries: [string, ScryCard][] = [];
   for (const [key, value] of cache) {
-    if (key.includes(" // ")) {
-      const frontFace = key.split(" // ")[0];
+    const frontFace = getFrontFace(key);
+    if (frontFace) {
       dfcEntries.push([frontFace, value]);
     }
   }
@@ -50,8 +51,8 @@ export async function fetchMissingScryfallCards(
     if (card) {
       cache.set(cardNameKey(missing[i]), card);
       // Index DFC front face
-      if (card.name.includes(" // ")) {
-        const frontFace = card.name.split(" // ")[0];
+      const frontFace = getFrontFace(card.name);
+      if (frontFace) {
         cache.set(cardNameKey(frontFace), card);
       }
       fetched++;
