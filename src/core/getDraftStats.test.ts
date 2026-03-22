@@ -28,15 +28,8 @@ describe.skipIf(!hasTurso)("getDraftStats", () => {
     }
   });
 
-  it("filters win rate by color for specific drafts", async () => {
-    const all = await getDraftStats();
-    const firstDraft = all.winRateByColor.length > 0 ? all : null;
-    if (!firstDraft) return;
-
-    // Get with a subset of drafts
-    const result = await getDraftStats();
-    expect(result.ingestionHash).toMatch(/^[a-f0-9]+$/);
-  });
+  // Filtering by draftIds requires known draft IDs from a live database,
+  // so it's not feasible to test here without hardcoding test data.
 
   it("returns ingestion hash", async () => {
     const result = await getDraftStats();
