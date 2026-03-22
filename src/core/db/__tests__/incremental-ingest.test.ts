@@ -41,6 +41,13 @@ describe("incrementalPicks", () => {
           if (params.sql.includes("MAX(pick_n)")) {
             return { rows: [{ max_pick: maxPickN }] };
           }
+          if (params.sql.includes("SELECT card_id, name FROM cards")) {
+            // Return card_id and name for each queried card name
+            const names = (params.args as string[]);
+            return {
+              rows: names.map((n, i) => ({ card_id: 42 + i, name: n })),
+            };
+          }
           if (params.sql.includes("SELECT card_id FROM cards")) {
             return { rows: [{ card_id: 42 }] };
           }
@@ -51,6 +58,12 @@ describe("incrementalPicks", () => {
             return { rows: [], rowsAffected: 1 };
           }
           return { rows: [] };
+        },
+        batch: async (statements: { sql: string; args: unknown[] }[]) => {
+          for (const stmt of statements) {
+            calls.push(stmt);
+          }
+          return statements.map(() => ({ rows: [], rowsAffected: 1 }));
         },
       } as any,
       calls,

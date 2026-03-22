@@ -73,27 +73,51 @@ export async function insertNewPicks(
   draftId: string,
   newPicks: CardPick[],
 ): Promise<number> {
-  let insertedCount = 0;
+  if (newPicks.length === 0) return 0;
 
+  // Batch-resolve all card names in a single query
+  const uniqueNames = [
+    ...new Set(newPicks.map((p) => normalizeCardName(p.cardName))),
+  ];
+  const placeholders = uniqueNames.map(() => "?").join(", ");
+  const result = await client.execute({
+    sql: `SELECT card_id, name FROM cards WHERE LOWER(name) IN (${placeholders})`,
+    args: uniqueNames.map((n) => n.toLowerCase()),
+  });
+  const nameToId = new Map<string, number>();
+  for (const row of result.rows) {
+    nameToId.set(
+      (row.name as string).toLowerCase(),
+      row.card_id as number,
+    );
+  }
+
+  // Batch-insert picks using client.batch()
+  const statements: Array<{
+    sql: string;
+    args: (string | number)[];
+  }> = [];
   for (const pick of newPicks) {
-    const cardId = await resolveCardNameToId(client, pick.cardName);
-    if (cardId === null) {
+    const normalized = normalizeCardName(pick.cardName).toLowerCase();
+    const cardId = nameToId.get(normalized);
+    if (cardId === undefined) {
       console.warn(
         `[sync] Warning: Card "${pick.cardName}" not found in cards table for draft ${draftId}, skipping pick ${pick.pickPosition}`,
       );
       continue;
     }
-
     // pick.seat is 0-indexed from parseDraftPicks, convert to 1-indexed
-    const seat = pick.seat + 1;
-    await client.execute({
+    statements.push({
       sql: "INSERT OR IGNORE INTO pick_events (draft_id, pick_n, seat, card_id) VALUES (?, ?, ?, ?)",
-      args: [draftId, pick.pickPosition, seat, cardId],
+      args: [draftId, pick.pickPosition, pick.seat + 1, cardId],
     });
-    insertedCount++;
   }
 
-  return insertedCount;
+  if (statements.length > 0) {
+    await client.batch(statements);
+  }
+
+  return statements.length;
 }
 
 /**
