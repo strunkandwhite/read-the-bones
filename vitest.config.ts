@@ -13,6 +13,7 @@ export default defineConfig({
       "**/dist/**",
       ".claude/**",
       ".worktrees/**",
+      "e2e/**",
     ],
   },
 });

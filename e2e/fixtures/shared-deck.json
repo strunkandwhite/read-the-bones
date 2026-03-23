@@ -1,0 +1,22 @@
+{
+  "draftId": "gamma",
+  "seat": 3,
+  "zones": {
+    "deck": {
+      "mv-0-1": ["Lightning Bolt", "Swords to Plowshares"],
+      "mv-2": ["Counterspell"],
+      "mv-3": ["Teferi, Time Raveler"]
+    },
+    "sideboard": {
+      "sb": ["Dark Ritual"]
+    }
+  },
+  "speculativeCards": [],
+  "basicLands": {
+    "Plains": 4,
+    "Island": 6,
+    "Swamp": 0,
+    "Mountain": 4,
+    "Forest": 0
+  }
+}

@@ -1,0 +1,222 @@
+{
+  "cards": [
+    {
+      "cardName": "Lightning Bolt",
+      "weightedGeomean": 5.2,
+      "totalPicks": 4,
+      "timesAvailable": 4,
+      "draftsPickedIn": 4,
+      "timesUnpicked": 0,
+      "maxCopiesInDraft": 1,
+      "colors": ["R"],
+      "scoreHistory": [
+        { "draftId": "alpha", "date": "2026-01-01", "draftName": "Alpha Draft", "pickPosition": 3, "wasPicked": true, "numDrafters": 10, "round": 1 },
+        { "draftId": "beta", "date": "2026-02-01", "draftName": "Beta Draft", "pickPosition": 7, "wasPicked": true, "numDrafters": 10, "round": 1 }
+      ],
+      "pickDistribution": [4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "scryfall": {
+        "name": "Lightning Bolt",
+        "imageUri": "https://cards.scryfall.io/normal/front/f/2/f29ba16f-c8fb-42fe-aabf-87089cb214a7.jpg",
+        "manaCost": "{R}",
+        "manaValue": 1,
+        "typeLine": "Instant",
+        "colors": ["R"],
+        "colorIdentity": ["R"],
+        "oracleText": "Lightning Bolt deals 3 damage to any target."
+      }
+    },
+    {
+      "cardName": "Counterspell",
+      "weightedGeomean": 8.1,
+      "totalPicks": 4,
+      "timesAvailable": 4,
+      "draftsPickedIn": 4,
+      "timesUnpicked": 0,
+      "maxCopiesInDraft": 1,
+      "colors": ["U"],
+      "scoreHistory": [
+        { "draftId": "alpha", "date": "2026-01-01", "draftName": "Alpha Draft", "pickPosition": 6, "wasPicked": true, "numDrafters": 10, "round": 1 },
+        { "draftId": "beta", "date": "2026-02-01", "draftName": "Beta Draft", "pickPosition": 10, "wasPicked": true, "numDrafters": 10, "round": 1 }
+      ],
+      "pickDistribution": [4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "scryfall": {
+        "name": "Counterspell",
+        "imageUri": "https://cards.scryfall.io/normal/front/1/9/1920e38a-a362-41e7-8580-69dc6405e497.jpg",
+        "manaCost": "{U}{U}",
+        "manaValue": 2,
+        "typeLine": "Instant",
+        "colors": ["U"],
+        "colorIdentity": ["U"],
+        "oracleText": "Counter target spell."
+      }
+    },
+    {
+      "cardName": "Swords to Plowshares",
+      "weightedGeomean": 4.8,
+      "totalPicks": 4,
+      "timesAvailable": 4,
+      "draftsPickedIn": 4,
+      "timesUnpicked": 0,
+      "maxCopiesInDraft": 1,
+      "colors": ["W"],
+      "scoreHistory": [
+        { "draftId": "alpha", "date": "2026-01-01", "draftName": "Alpha Draft", "pickPosition": 2, "wasPicked": true, "numDrafters": 10, "round": 1 },
+        { "draftId": "beta", "date": "2026-02-01", "draftName": "Beta Draft", "pickPosition": 8, "wasPicked": true, "numDrafters": 10, "round": 1 }
+      ],
+      "pickDistribution": [4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "scryfall": {
+        "name": "Swords to Plowshares",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/0/80f46b80-0728-49bf-9571-64b52e43fc6e.jpg",
+        "manaCost": "{W}",
+        "manaValue": 1,
+        "typeLine": "Instant",
+        "colors": ["W"],
+        "colorIdentity": ["W"],
+        "oracleText": "Exile target creature. Its controller gains life equal to its power."
+      }
+    },
+    {
+      "cardName": "Dark Ritual",
+      "weightedGeomean": 12.3,
+      "totalPicks": 3,
+      "timesAvailable": 4,
+      "draftsPickedIn": 3,
+      "timesUnpicked": 1,
+      "maxCopiesInDraft": 1,
+      "colors": ["B"],
+      "scoreHistory": [
+        { "draftId": "alpha", "date": "2026-01-01", "draftName": "Alpha Draft", "pickPosition": 15, "wasPicked": true, "numDrafters": 10, "round": 2 },
+        { "draftId": "beta", "date": "2026-02-01", "draftName": "Beta Draft", "pickPosition": 10, "wasPicked": true, "numDrafters": 10, "round": 1 }
+      ],
+      "pickDistribution": [3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "scryfall": {
+        "name": "Dark Ritual",
+        "imageUri": "https://cards.scryfall.io/normal/front/9/5/95f27eeb-6f14-4db3-adb9-9be5ed76b34b.jpg",
+        "manaCost": "{B}",
+        "manaValue": 1,
+        "typeLine": "Instant",
+        "colors": ["B"],
+        "colorIdentity": ["B"],
+        "oracleText": "Add {B}{B}{B}."
+      }
+    },
+    {
+      "cardName": "Llanowar Elves",
+      "weightedGeomean": 18.5,
+      "totalPicks": 3,
+      "timesAvailable": 4,
+      "draftsPickedIn": 3,
+      "timesUnpicked": 1,
+      "maxCopiesInDraft": 1,
+      "colors": ["G"],
+      "scoreHistory": [
+        { "draftId": "alpha", "date": "2026-01-01", "draftName": "Alpha Draft", "pickPosition": 20, "wasPicked": true, "numDrafters": 10, "round": 2 },
+        { "draftId": "beta", "date": "2026-02-01", "draftName": "Beta Draft", "pickPosition": 17, "wasPicked": true, "numDrafters": 10, "round": 2 }
+      ],
+      "pickDistribution": [1, 2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "scryfall": {
+        "name": "Llanowar Elves",
+        "imageUri": "https://cards.scryfall.io/normal/front/8/b/8bbcfb77-daa1-4ce5-b5f9-48d0a8c0f862.jpg",
+        "manaCost": "{G}",
+        "manaValue": 1,
+        "typeLine": "Creature — Elf Druid",
+        "colors": ["G"],
+        "colorIdentity": ["G"],
+        "oracleText": "{T}: Add {G}."
+      }
+    },
+    {
+      "cardName": "Sol Ring",
+      "weightedGeomean": 2.1,
+      "totalPicks": 4,
+      "timesAvailable": 4,
+      "draftsPickedIn": 4,
+      "timesUnpicked": 0,
+      "maxCopiesInDraft": 1,
+      "colors": [],
+      "scoreHistory": [
+        { "draftId": "alpha", "date": "2026-01-01", "draftName": "Alpha Draft", "pickPosition": 1, "wasPicked": true, "numDrafters": 10, "round": 1 },
+        { "draftId": "beta", "date": "2026-02-01", "draftName": "Beta Draft", "pickPosition": 3, "wasPicked": true, "numDrafters": 10, "round": 1 }
+      ],
+      "pickDistribution": [4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "scryfall": {
+        "name": "Sol Ring",
+        "imageUri": "https://cards.scryfall.io/normal/front/b/e/beebe533-39ff-4ada-93fa-2e315740e128.jpg",
+        "manaCost": "{1}",
+        "manaValue": 1,
+        "typeLine": "Artifact",
+        "colors": [],
+        "colorIdentity": [],
+        "oracleText": "{T}: Add {C}{C}."
+      }
+    },
+    {
+      "cardName": "Teferi, Time Raveler",
+      "weightedGeomean": 10.7,
+      "totalPicks": 4,
+      "timesAvailable": 4,
+      "draftsPickedIn": 4,
+      "timesUnpicked": 0,
+      "maxCopiesInDraft": 1,
+      "colors": ["W", "U"],
+      "scoreHistory": [
+        { "draftId": "alpha", "date": "2026-01-01", "draftName": "Alpha Draft", "pickPosition": 9, "wasPicked": true, "numDrafters": 10, "round": 1 },
+        { "draftId": "beta", "date": "2026-02-01", "draftName": "Beta Draft", "pickPosition": 12, "wasPicked": true, "numDrafters": 10, "round": 2 }
+      ],
+      "pickDistribution": [3, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "scryfall": {
+        "name": "Teferi, Time Raveler",
+        "imageUri": "https://cards.scryfall.io/normal/front/5/c/5cb76266-ae50-4bbc-8f96-d98f309b02d3.jpg",
+        "manaCost": "{1}{W}{U}",
+        "manaValue": 3,
+        "typeLine": "Legendary Planeswalker — Teferi",
+        "colors": ["W", "U"],
+        "colorIdentity": ["W", "U"],
+        "oracleText": "Each opponent can cast spells only any time they could cast a sorcery.\n+1: Until your next turn, you may cast sorcery spells as though they had flash.\n-3: Return up to one target artifact, creature, or enchantment to its owner's hand. Draw a card."
+      }
+    },
+    {
+      "cardName": "Scalding Tarn",
+      "weightedGeomean": 6.4,
+      "totalPicks": 4,
+      "timesAvailable": 4,
+      "draftsPickedIn": 4,
+      "timesUnpicked": 0,
+      "maxCopiesInDraft": 1,
+      "colors": [],
+      "scoreHistory": [
+        { "draftId": "alpha", "date": "2026-01-01", "draftName": "Alpha Draft", "pickPosition": 5, "wasPicked": true, "numDrafters": 10, "round": 1 },
+        { "draftId": "beta", "date": "2026-02-01", "draftName": "Beta Draft", "pickPosition": 8, "wasPicked": true, "numDrafters": 10, "round": 1 }
+      ],
+      "pickDistribution": [4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+      "scryfall": {
+        "name": "Scalding Tarn",
+        "imageUri": "https://cards.scryfall.io/normal/front/7/1/71e491c5-8c07-449b-b2f1-c0e2f4cbc5f2.jpg",
+        "manaCost": "",
+        "manaValue": 0,
+        "typeLine": "Land",
+        "colors": [],
+        "colorIdentity": ["U", "R"],
+        "oracleText": "{T}, Pay 1 life, Sacrifice Scalding Tarn: Search your library for an Island or Mountain card, put it onto the battlefield, then shuffle."
+      }
+    }
+  ],
+  "draftCount": 2,
+  "cubeCopies": {
+    "Lightning Bolt": 1,
+    "Counterspell": 1,
+    "Swords to Plowshares": 1,
+    "Dark Ritual": 1,
+    "Llanowar Elves": 1,
+    "Sol Ring": 1,
+    "Teferi, Time Raveler": 1,
+    "Scalding Tarn": 1
+  },
+  "draftMetadata": {
+    "alpha": { "name": "Alpha Draft", "date": "2026-01-01" },
+    "beta": { "name": "Beta Draft", "date": "2026-02-01" }
+  },
+  "draftIds": ["alpha", "beta"],
+  "completedDraftIds": ["alpha", "beta"],
+  "ingestionHash": "e2e-test-hash-001"
+}
