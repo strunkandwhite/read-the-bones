@@ -119,4 +119,106 @@ describe("useDeckBuilder", () => {
     expect(result.current.state.draftId).toBe("dominaria");
     expect(result.current.state.zones.sideboard["mv-0-1"]).toEqual([]);
   });
+
+  it("loadSnapshot survives draft/seat prop change without being overwritten", () => {
+    // Simulate: user is on draft A, then loads a shared deck from draft B.
+    // The shared deck snapshot must survive the draft/seat prop change.
+    const sharedDeck = {
+      draftId: "terminate",
+      seat: 7,
+      zones: {
+        deck: {
+          "mv-0-1": ["Card A"],
+          "mv-2": [],
+          "mv-3": ["Card B"],
+          "mv-4": [],
+          "mv-5": [],
+          "mv-6+": [],
+          lands: [],
+        },
+        sideboard: {
+          "mv-0-1": [],
+          "mv-2": [],
+          "mv-3": [],
+          "mv-4": [],
+          "mv-5": [],
+          "mv-6+": [],
+          lands: [],
+        },
+      },
+      speculativeCards: [],
+      basicLands: { Plains: 0, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
+    };
+
+    // Start on a different draft
+    const { result, rerender } = renderHook(
+      ({ draftId, seat }) => useDeckBuilder({ draftId, seat }),
+      { initialProps: { draftId: "maelstrom-pulse", seat: 3 } },
+    );
+
+    // Load the shared deck snapshot (before props change)
+    act(() => {
+      result.current.loadSnapshot(sharedDeck);
+    });
+
+    // Props change to match the shared deck's draft/seat
+    rerender({ draftId: "terminate", seat: 7 });
+
+    // The shared deck must not be overwritten by localStorage or empty state
+    expect(result.current.state.draftId).toBe("terminate");
+    expect(result.current.state.seat).toBe(7);
+    expect(result.current.state.zones.deck["mv-0-1"]).toEqual(["Card A"]);
+    expect(result.current.state.zones.deck["mv-3"]).toEqual(["Card B"]);
+  });
+
+  it("loadSnapshot overwrites stale localStorage for the target draft/seat", () => {
+    // Simulate corrupted localStorage from a prior session
+    const staleState = {
+      draftId: "terminate",
+      seat: 7,
+      zones: {
+        deck: {
+          "mv-0-1": ["Stale Card"],
+          "mv-2": [],
+          "mv-3": [],
+          "mv-4": [],
+          "mv-5": [],
+          "mv-6+": [],
+          lands: [],
+        },
+        sideboard: {
+          "mv-0-1": [],
+          "mv-2": [],
+          "mv-3": [],
+          "mv-4": [],
+          "mv-5": [],
+          "mv-6+": [],
+          lands: [],
+        },
+      },
+      speculativeCards: [],
+      basicLands: { Plains: 0, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
+    };
+    localStorage.setItem("deckState:terminate:7", JSON.stringify(staleState));
+
+    const sharedDeck = { ...staleState, zones: {
+      ...staleState.zones,
+      deck: { ...staleState.zones.deck, "mv-0-1": ["Card A"] },
+    }};
+
+    const { result, rerender } = renderHook(
+      ({ draftId, seat }) => useDeckBuilder({ draftId, seat }),
+      { initialProps: { draftId: "maelstrom-pulse", seat: 3 } },
+    );
+
+    act(() => {
+      result.current.loadSnapshot(sharedDeck);
+    });
+
+    rerender({ draftId: "terminate", seat: 7 });
+
+    // Should show the shared deck, not the stale localStorage data
+    expect(result.current.state.zones.deck["mv-0-1"]).toEqual(["Card A"]);
+    expect(result.current.state.zones.deck["mv-0-1"]).not.toContain("Stale Card");
+  });
 });

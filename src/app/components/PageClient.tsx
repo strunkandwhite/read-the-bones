@@ -203,8 +203,9 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
         draftSelection.setActiveDraft(deckState.draftId);
         draftSelection.setSelectedSeat(deckState.seat);
 
-        // Load the shared deck into the deck builder
-        deckBuilder.dispatch({ type: "INIT_FROM_SNAPSHOT", snapshot: deckState });
+        // Load the shared deck into the deck builder, pre-empting
+        // the localStorage hydration that would otherwise overwrite it
+        deckBuilder.loadSnapshot(deckState);
 
         // Activate and open the deck builder modal
         setDeckBuilderActive(true);

@@ -1,4 +1,4 @@
-import { useReducer, useEffect, useRef } from "react";
+import { useReducer, useEffect, useRef, useCallback } from "react";
 import {
   deckReducer,
   createEmptyDeckState,
@@ -71,7 +71,17 @@ export function useDeckBuilder({ draftId, seat }: UseDeckBuilderProps) {
     localStorage.setItem(key, JSON.stringify(state));
   }, [state]);
 
-  return { state, dispatch } as const;
+  // Load a snapshot while pre-empting the draft/seat change effect.
+  // Writes to localStorage and updates prevKeyRef so the effect sees
+  // the key as unchanged and skips its localStorage reload.
+  const loadSnapshot = useCallback((snapshot: DeckState) => {
+    const key = getStorageKey(snapshot.draftId, snapshot.seat);
+    localStorage.setItem(key, JSON.stringify(snapshot));
+    prevKeyRef.current = `${snapshot.draftId}:${snapshot.seat}`;
+    dispatch({ type: "INIT_FROM_SNAPSHOT", snapshot });
+  }, []);
+
+  return { state, dispatch, loadSnapshot } as const;
 }
 
 export type { DeckAction };
