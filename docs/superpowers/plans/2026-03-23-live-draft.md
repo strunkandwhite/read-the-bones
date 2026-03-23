@@ -12,6 +12,67 @@
 
 ---
 
+## File Structure
+
+### New Files
+
+| File | Responsibility |
+|------|---------------|
+| `src/core/snakeDraft.ts` | Snake draft order computation: `derivePickSeat`, `getNextPick`, `buildPickMatrix`, `getTotalPicks` |
+| `src/core/snakeDraft.test.ts` | Tests for snake draft order with 4-seat and 10-seat examples |
+| `src/core/processPick.ts` | Transactional pick logic: validate, insert, clean queues, cascade auto-picks, phase check |
+| `src/core/processPick.test.ts` | Tests for pick flow including cascade and concurrency |
+| `src/core/cubecobra.ts` | CubeCobra pool fetcher + file fallback |
+| `src/core/cubecobra.test.ts` | Tests for pool source parsing and fetching |
+| `src/core/tokenAuth.ts` | Extract and validate seat tokens from requests |
+| `src/core/tokenAuth.test.ts` | Tests for token extraction and draft-scoped validation |
+| `src/core/db/queries/seatTokens.ts` | CRUD for seat_tokens table |
+| `src/core/db/queries/seatTokens.test.ts` | Tests for token generation, resolution, and updates |
+| `src/core/db/queries/pickQueue.ts` | CRUD for pick_queue table |
+| `src/core/db/queries/pickQueue.test.ts` | Tests for queue get/set/remove/auto-pick candidate |
+| `scripts/draft-create-live.ts` | CLI: create live draft (pool, snapshot, tokens) |
+| `scripts/draft-start.ts` | CLI: transition draft from setup → drafting |
+| `scripts/draft-admin.ts` | CLI: admin subcommands (undo-pick, edit-pick, regen-token, set-phase, bans, matches) |
+| `src/app/api/drafts/[id]/pick/route.ts` | POST: submit a pick with token auth |
+| `src/app/api/drafts/[id]/status/route.ts` | GET: poll draft state, next seat, recent picks |
+| `src/app/api/drafts/[id]/queue/route.ts` | GET/PUT: manage player's pick queue |
+| `src/app/api/drafts/[id]/board/route.ts` | GET: full pick matrix data for draft board |
+| `src/app/api/drafts/[id]/match/route.ts` | POST: report match result |
+| `src/app/api/drafts/[id]/seat-settings/route.ts` | PUT: update auto-pick toggle, display name |
+| `src/app/hooks/useLiveDraftStatus.ts` | Polling hook for draft status + board data fetching |
+| `src/app/hooks/useLiveDraftStatus.test.ts` | Tests for polling intervals and data change detection |
+| `src/app/hooks/useSeatToken.ts` | Token extraction from URL, localStorage persistence |
+| `src/app/hooks/useSeatToken.test.ts` | Tests for token lifecycle |
+| `src/app/hooks/usePickQueue.ts` | Queue state management with server sync |
+| `src/app/hooks/usePickQueue.test.ts` | Tests for add/remove/sync behavior |
+| `src/app/components/draft-board/DraftBoardModal.tsx` | Full-screen modal shell (open/close, escape, scroll lock) |
+| `src/app/components/draft-board/DraftBoardMatrix.tsx` | Pick matrix table (rounds × seats) with snake arrows |
+| `src/app/components/draft-board/DraftBoardCell.tsx` | Individual cell: card name, mana symbols, hover tooltip |
+| `src/app/components/draft-board/StandingsSection.tsx` | Standings table + pick counts during drafting |
+| `src/app/components/draft-board/MatchReporting.tsx` | Match result inputs for authenticated players |
+| `e2e/live-draft.spec.ts` | End-to-end smoke test for full draft lifecycle |
+
+### Modified Files
+
+| File | Changes |
+|------|---------|
+| `src/core/db/schema.sql` | Add phase, in_app, picks_per_player columns; seat_tokens and pick_queue tables; drop is_complete |
+| `src/core/db/schema.ts` | Update Draft interface, add SeatToken and PickQueueEntry interfaces |
+| `src/core/db/queries/index.ts` | Re-export seatTokens and pickQueue modules |
+| `src/core/sync.ts` | Replace is_complete with phase in all queries |
+| `src/core/db/sync/index.ts` | Replace is_complete with phase in sync orchestrator |
+| `src/core/getCards.ts` | Replace is_complete with phase in card queries |
+| `src/core/getDraftStats.ts` | Replace is_complete with phase in stats queries |
+| `src/core/db/ingest/db-helpers.ts` | Replace is_complete with phase in draft reset |
+| `scripts/draft-create.ts` | Replace is_complete with phase in INSERT |
+| `src/core/db/sync/__tests__/sync.test.ts` | Update assertions for phase column |
+| `src/app/components/PageClient.tsx` | Wire in draft board modal, live status, seat token, pick queue |
+| `src/app/components/CardTable.tsx` | Add pick button and queue icon to card rows |
+| `package.json` | Add draft:create-live, draft:start, draft:admin scripts |
+| `CLAUDE.md` | Document live draft commands, API routes, feature overview |
+
+---
+
 ## Chunk 1: Schema, Core Logic, and Query Modules
 
 ### Task 1: Database Migration — New Tables and Column Extensions
@@ -125,59 +186,128 @@ git commit -m "Add live draft schema: phase, seat_tokens, pick_queue tables"
 
 **Files:**
 - Modify: `src/core/db/schema.ts` (remove `is_complete` from Draft interface — done in Task 1)
-- Modify: `src/core/db/sync/index.ts` (lines 110, 142, 222-226)
-- Modify: `src/core/getCards.ts` (lines 66, 125)
-- Modify: `src/core/getDraftStats.ts` (line 210)
-- Modify: `src/core/sync.ts` (lines 197, 339, 345, 361)
-- Modify: `src/core/db/ingest/db-helpers.ts` (line 17)
-- Modify: `scripts/draft-create.ts` (line 77)
-- Modify: `src/core/db/sync/__tests__/sync.test.ts` (references to `is_complete` in assertions)
+- Modify: `src/core/sync.ts:197,339,345,361`
+- Modify: `src/core/db/sync/index.ts:224,387`
+- Modify: `src/core/getCards.ts:66,125`
+- Modify: `src/core/getDraftStats.ts:210`
+- Modify: `src/core/db/ingest/db-helpers.ts:17`
+- Modify: `scripts/draft-create.ts:76`
+- Modify: `src/core/db/sync/__tests__/sync.test.ts:406,409`
+- Modify: `src/core/db/queries/drafts.ts` (if it selects `is_complete` from drafts table)
 
 Each file needs `is_complete` replaced with `phase`:
 
-- [ ] **Step 1: Update sync/index.ts**
+- [ ] **Step 1: Update sync.ts (old sync module)**
 
-Replace `is_complete` references:
-- Line ~110: Parse `isComplete` → set `phase = 'complete'` instead of `is_complete = 1`
-- Line ~222-226: `UPDATE drafts SET phase = 'complete' WHERE draft_id = ?`
+```typescript
+// Line ~197: mark draft complete
+// OLD: UPDATE drafts SET is_complete = 1 WHERE draft_id = ?
+// NEW:
+`UPDATE drafts SET phase = 'complete' WHERE draft_id = ?`
 
-- [ ] **Step 2: Update getCards.ts**
+// Line ~339: comment
+// OLD: Get active draft IDs (is_complete = 0) with their sheet_ids.
+// NEW: Get active draft IDs (phase != 'complete') with their sheet_ids.
 
-- Line ~66: `SELECT ... d.phase` instead of `d.is_complete`
-- Line ~125: `is_complete: row.phase === 'complete'` (or remove if the consumer can use `phase` directly)
+// Line ~345: query active drafts
+// OLD: SELECT draft_id, sheet_id FROM drafts WHERE is_complete = 0 AND sheet_id IS NOT NULL
+// NEW:
+`SELECT draft_id, sheet_id FROM drafts WHERE phase IN ('setup', 'drafting') AND sheet_id IS NOT NULL`
 
-- [ ] **Step 3: Update getDraftStats.ts**
+// Line ~361: query active drafts for seat count
+// OLD: SELECT draft_id, num_seats FROM drafts WHERE is_complete = 0
+// NEW:
+`SELECT draft_id, num_seats FROM drafts WHERE phase IN ('setup', 'drafting')`
+```
 
-- Line ~210: `WHERE phase = 'complete'` instead of `WHERE is_complete = 1`
+- [ ] **Step 2: Update db/sync/index.ts**
 
-- [ ] **Step 4: Update sync.ts (old sync module)**
+```typescript
+// Line ~224: update completion — KEEP CONDITIONAL (original uses dynamic isComplete value)
+// OLD: UPDATE drafts SET is_complete = ? WHERE draft_id = ?  args: [isComplete ? 1 : 0, draftId]
+// NEW:
+`UPDATE drafts SET phase = ? WHERE draft_id = ?`
+// args: [parsedPicks.isComplete ? 'complete' : 'drafting', draftId]
 
-- Line ~197: `UPDATE drafts SET phase = 'complete'` instead of `is_complete = 1`
-- Line ~345: `WHERE phase IN ('setup', 'drafting') AND sheet_id IS NOT NULL` instead of `is_complete = 0`
-- Line ~361: `WHERE phase != 'complete'` instead of `is_complete = 0`
+// Line ~387: query incomplete drafts for sync
+// OLD: WHERE sheet_id IS NOT NULL AND is_complete = 0
+// NEW:
+`WHERE sheet_id IS NOT NULL AND phase IN ('setup', 'drafting')`
+```
+
+- [ ] **Step 3: Update getCards.ts**
+
+```typescript
+// Line ~66: SELECT clause
+// OLD: d.is_complete
+// NEW:
+`d.phase`
+
+// Line ~125: reading the value
+// OLD: if (Number(row.is_complete) === 1) { completedDraftSet.add(draftId); }
+// NEW:
+if (row.phase === 'complete') { completedDraftSet.add(draftId); }
+```
+
+- [ ] **Step 4: Update getDraftStats.ts**
+
+```typescript
+// Line ~210:
+// OLD: WHERE is_complete = 1
+// NEW:
+`WHERE phase = 'complete'`
+```
 
 - [ ] **Step 5: Update db-helpers.ts**
 
-- Line ~17: `phase = 'drafting'` instead of `is_complete = 0` in resetDraft
+```typescript
+// Line ~17: resetDraft
+// OLD: is_complete = 0
+// NEW:
+`phase = 'drafting'`
+```
 
 - [ ] **Step 6: Update draft-create.ts**
 
-- Line ~77: Insert with `phase = 'setup'` instead of `is_complete = 0`
+```typescript
+// Line ~76: INSERT statement
+// OLD: is_complete column in INSERT
+// NEW: replace with phase column:
+`INSERT INTO drafts (draft_id, draft_name, draft_date, cube_snapshot_id, num_seats, phase, sheet_id, banned_cards)
+ VALUES (?, ?, ?, ?, ?, 'setup', ?, ?)`
+```
 
-- [ ] **Step 7: Run full test suite**
+- [ ] **Step 7: Update queries/drafts.ts (if needed)**
+
+Check `src/core/db/queries/drafts.ts` for any `is_complete` references in SELECT or WHERE clauses. Replace with `phase`. If `getDraft` or `listDrafts` returns an `is_complete` field, change it to return `phase` instead.
+
+- [ ] **Step 8: Update sync.test.ts**
+
+```typescript
+// Line ~406: Update comment
+// OLD: Verify is_complete was set to 1
+// NEW: Verify phase was set to 'complete'
+
+// Line ~409: Update assertion
+// OLD: (c[0].sql as string).includes("UPDATE drafts SET is_complete")
+// NEW:
+expect((c[0].sql as string)).toContain("UPDATE drafts SET phase");
+```
+
+- [ ] **Step 9: Run full test suite**
 
 Run: `pnpm test`
 Expected: All tests pass. Fix any failures caused by the is_complete → phase migration.
 
-- [ ] **Step 8: Run precommit checks**
+- [ ] **Step 10: Run precommit checks**
 
 Run: `pnpm precommit`
 Expected: Typecheck, lint, knip, and tests all pass.
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 11: Commit**
 
 ```bash
-git add -A
+git add src/core/sync.ts src/core/db/sync/index.ts src/core/getCards.ts src/core/getDraftStats.ts src/core/db/ingest/db-helpers.ts scripts/draft-create.ts src/core/db/sync/__tests__/sync.test.ts src/core/db/queries/drafts.ts
 git commit -m "Replace is_complete with phase column across all queries"
 ```
 
@@ -777,8 +907,9 @@ export async function processPick(
     throw new Error(`It's seat ${next.seat}'s turn, not seat ${input.seat}'s`);
   }
 
-  // 3. Validate card is available and not banned
-  if (bannedCards.includes(input.cardName)) {
+  // 3. Validate card is available and not banned (case-insensitive, matches existing picks.ts pattern)
+  const bannedLower = bannedCards.map((b: string) => b.toLowerCase());
+  if (bannedLower.includes(input.cardName.toLowerCase())) {
     throw new Error(`${input.cardName} is banned`);
   }
   const alreadyPicked = await client.execute({
@@ -1004,7 +1135,7 @@ Create `scripts/draft-create-live.ts`. Follow the pattern from `scripts/draft-cr
 8. Call `generateSeatTokens(draftId, numSeats)`
 9. Print seat URLs: `https://<host>/drafts/<id>?token=<token>`
 
-Reference: `scripts/draft-create.ts` for DB client initialization and arg parsing pattern. Reference: `src/core/db/sync/index.ts` for card resolution and cube snapshot creation pattern.
+Reference: `scripts/draft-create.ts` for DB client initialization and arg parsing pattern. Reference: `src/core/db/sync/index.ts` for card resolution and cube snapshot creation pattern. The cube snapshot creation uses `batchInsertCubeSnapshotCards()` from `src/core/db/sync/batch.ts` after inserting a `cube_snapshots` row. The CardCache (`src/core/db/sync/card-cache.ts`) handles Scryfall resolution — `loadAll()` to load existing cards, then `markMissing()` + `flushMissing()` for new ones.
 
 - [ ] **Step 2: Add package.json script**
 
@@ -1179,7 +1310,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getClient } from '@/core/db/client';
 import { authenticateSeat } from '@/core/tokenAuth';
 import { processPick } from '@/core/processPick';
-// ... card resolution from existing helpers
 
 export async function POST(
   request: NextRequest,
@@ -1246,29 +1376,118 @@ git commit -m "Add POST /api/drafts/[id]/pick route for submitting draft picks"
 - Create: `src/app/api/drafts/[id]/status/route.ts`
 - Create: `src/app/api/drafts/[id]/status/route.test.ts`
 
-- [ ] **Step 1: Write failing tests, then implement**
+- [ ] **Step 1: Write failing tests**
 
-The route returns:
-```json
-{
-  "phase": "drafting",
-  "latestPickN": 42,
-  "nextSeat": 3,
-  "numSeats": 10,
-  "picksPerPlayer": 45,
-  "recentPicks": [
-    { "pickN": 42, "seat": 2, "cardName": "Lightning Bolt" },
-    { "pickN": 41, "seat": 1, "cardName": "Counterspell" }
-  ],
-  "matchCount": 0,
-  "totalMatches": 45,
-  "seatNames": { "1": "Ray Bees", "2": "joshez" }
+Test cases:
+- Returns 404 for unknown draft
+- Returns phase, latestPickN, nextSeat, numSeats, picksPerPlayer
+- Returns last 10 recent picks with card names
+- Returns seat display names from seat_tokens
+- Returns matchCount and totalMatches during playing/complete phase
+- nextSeat is null when all picks are made
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `pnpm test src/app/api/drafts/[id]/status/route.test.ts`
+Expected: FAIL
+
+- [ ] **Step 3: Write implementation**
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { getClient } from '@/core/db/client';
+import { getNextPick } from '@/core/snakeDraft';
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id: draftId } = await params;
+    const client = getClient();
+
+    // Load draft metadata
+    const draft = await client.execute({
+      sql: `SELECT phase, num_seats, picks_per_player FROM drafts WHERE draft_id = ?`,
+      args: [draftId],
+    });
+    if (draft.rows.length === 0) {
+      return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
+    }
+    const { phase, num_seats: numSeats, picks_per_player: picksPerPlayer } = draft.rows[0];
+
+    // Latest pick number
+    const pickResult = await client.execute({
+      sql: `SELECT COALESCE(MAX(pick_n), 0) as latest FROM pick_events WHERE draft_id = ?`,
+      args: [draftId],
+    });
+    const latestPickN = pickResult.rows[0].latest as number;
+
+    // Next seat (null if all picks made)
+    const next = picksPerPlayer
+      ? getNextPick(latestPickN, numSeats as number, picksPerPlayer as number)
+      : null;
+
+    // Recent picks (last 10)
+    const recentResult = await client.execute({
+      sql: `SELECT pe.pick_n, pe.seat, c.name as card_name
+            FROM pick_events pe
+            JOIN cards c ON c.card_id = pe.card_id
+            WHERE pe.draft_id = ?
+            ORDER BY pe.pick_n DESC LIMIT 10`,
+      args: [draftId],
+    });
+    const recentPicks = recentResult.rows.map((r) => ({
+      pickN: r.pick_n as number,
+      seat: r.seat as number,
+      cardName: r.card_name as string,
+    }));
+
+    // Seat display names
+    const seatResult = await client.execute({
+      sql: `SELECT seat, display_name FROM seat_tokens WHERE draft_id = ? ORDER BY seat`,
+      args: [draftId],
+    });
+    const seatNames: Record<string, string> = {};
+    for (const r of seatResult.rows) {
+      if (r.display_name) seatNames[String(r.seat)] = r.display_name as string;
+    }
+
+    // Match counts (for playing/complete phase)
+    const matchResult = await client.execute({
+      sql: `SELECT COUNT(*) as cnt FROM match_events WHERE draft_id = ?`,
+      args: [draftId],
+    });
+    const matchCount = matchResult.rows[0].cnt as number;
+    const ns = numSeats as number;
+    const totalMatches = ns * (ns - 1) / 2; // round-robin
+
+    return NextResponse.json({
+      phase,
+      latestPickN,
+      nextSeat: next?.seat ?? null,
+      numSeats,
+      picksPerPlayer,
+      recentPicks,
+      seatNames,
+      matchCount,
+      totalMatches,
+    }, {
+      headers: { 'Cache-Control': 'no-cache' },
+    });
+  } catch (error) {
+    console.error('[/api/drafts/[id]/status] Error:', error);
+    return NextResponse.json({ error: 'Failed to load status' }, { status: 500 });
+  }
 }
 ```
 
-Query pattern: `SELECT MAX(pick_n)` + `derivePickSeat` for next seat + last 10 picks joined with card names + seat token display names.
+- [ ] **Step 4: Run tests to verify they pass**
 
-- [ ] **Step 2: Run tests, commit**
+Run: `pnpm test src/app/api/drafts/[id]/status/route.test.ts`
+Expected: All pass.
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/app/api/drafts/[id]/status/
@@ -1281,14 +1500,90 @@ git commit -m "Add GET /api/drafts/[id]/status route for live draft polling"
 - Create: `src/app/api/drafts/[id]/queue/route.ts`
 - Create: `src/app/api/drafts/[id]/queue/route.test.ts`
 
-- [ ] **Step 1: Write tests and implementation**
+- [ ] **Step 1: Write failing tests**
 
-GET: Authenticated, returns the player's queue with card names.
-PUT: Authenticated, replaces the queue. Body is `[{ card_name }]`. Resolve each card name to `card_id` (integer) via the cards table, then call `setQueue()` with the integer card_ids.
+Test cases:
+- GET returns 401 without token
+- GET returns empty array for new player
+- PUT replaces queue, subsequent GET returns new order
+- PUT returns 401 without token
+- PUT resolves card names to card_ids
 
-Both require token auth. Return 401 if unauthenticated.
+- [ ] **Step 2: Run tests to verify they fail**
 
-- [ ] **Step 2: Run tests, commit**
+Run: `pnpm test src/app/api/drafts/[id]/queue/route.test.ts`
+Expected: FAIL
+
+- [ ] **Step 3: Write implementation**
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { getClient } from '@/core/db/client';
+import { authenticateSeat } from '@/core/tokenAuth';
+import { getQueue, setQueue } from '@/core/db/queries/pickQueue';
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id: draftId } = await params;
+    const client = getClient();
+    const { seat } = await authenticateSeat(client, request, draftId);
+    const queue = await getQueue(client, draftId, seat);
+    return NextResponse.json({ queue });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('token')) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    console.error('[/api/drafts/[id]/queue] GET Error:', error);
+    return NextResponse.json({ error: 'Failed to load queue' }, { status: 500 });
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id: draftId } = await params;
+    const client = getClient();
+    const { seat } = await authenticateSeat(client, request, draftId);
+    const body = await request.json();
+    const cardNames: string[] = body.map((entry: { card_name: string }) => entry.card_name);
+
+    // Resolve card names to integer card_ids
+    const cardIds: number[] = [];
+    for (const name of cardNames) {
+      const result = await client.execute({
+        sql: `SELECT card_id FROM cards WHERE name = ?`,
+        args: [name],
+      });
+      if (result.rows.length === 0) {
+        return NextResponse.json({ error: `Card not found: ${name}` }, { status: 400 });
+      }
+      cardIds.push(result.rows[0].card_id as number);
+    }
+
+    await setQueue(client, draftId, seat, cardIds);
+    const queue = await getQueue(client, draftId, seat);
+    return NextResponse.json({ queue });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('token')) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    console.error('[/api/drafts/[id]/queue] PUT Error:', error);
+    return NextResponse.json({ error: 'Failed to update queue' }, { status: 500 });
+  }
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `pnpm test src/app/api/drafts/[id]/queue/route.test.ts`
+Expected: All pass.
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/app/api/drafts/[id]/queue/
@@ -1301,27 +1596,110 @@ git commit -m "Add GET/PUT /api/drafts/[id]/queue routes for pick queue manageme
 - Create: `src/app/api/drafts/[id]/board/route.ts`
 - Create: `src/app/api/drafts/[id]/board/route.test.ts`
 
-- [ ] **Step 1: Write tests and implementation**
+- [ ] **Step 1: Write failing tests**
 
-Returns the full pick matrix for the draft board modal:
-```json
-{
-  "draftId": "tarkir-rotisserie",
-  "numSeats": 10,
-  "picksPerPlayer": 45,
-  "phase": "drafting",
-  "seatNames": { "1": "Ray Bees", "2": "joshez", ... },
-  "picks": [
-    { "pickN": 1, "seat": 1, "cardName": "Sol Ring", "oracleId": "...", "colorIdentity": ["C"], "manaCost": "{1}" },
-    ...
-  ],
-  "bannedCards": ["Card A"]
+Test cases:
+- Returns 404 for unknown draft
+- Returns draft metadata (numSeats, picksPerPlayer, phase)
+- Returns all picks with card name, oracle_id, color_identity, mana_cost
+- Returns seat display names
+- Returns banned cards array
+- No auth required (public endpoint)
+
+- [ ] **Step 2: Run tests to verify they fail**
+
+Run: `pnpm test src/app/api/drafts/[id]/board/route.test.ts`
+Expected: FAIL
+
+- [ ] **Step 3: Write implementation**
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { getClient } from '@/core/db/client';
+
+export async function GET(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id: draftId } = await params;
+    const client = getClient();
+
+    const draft = await client.execute({
+      sql: `SELECT draft_id, num_seats, picks_per_player, phase, banned_cards
+            FROM drafts WHERE draft_id = ?`,
+      args: [draftId],
+    });
+    if (draft.rows.length === 0) {
+      return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
+    }
+    const d = draft.rows[0];
+
+    // All picks with card details from scryfall_json
+    const picksResult = await client.execute({
+      sql: `SELECT pe.pick_n, pe.seat, c.name, c.oracle_id, c.scryfall_json
+            FROM pick_events pe
+            JOIN cards c ON c.card_id = pe.card_id
+            WHERE pe.draft_id = ?
+            ORDER BY pe.pick_n`,
+      args: [draftId],
+    });
+    const picks = picksResult.rows.map((r) => {
+      let colorIdentity: string[] = [];
+      let manaCost = '';
+      try {
+        const sf = JSON.parse(r.scryfall_json as string);
+        colorIdentity = sf.color_identity ?? [];
+        manaCost = sf.mana_cost ?? '';
+      } catch { /* ignore parse errors */ }
+      return {
+        pickN: r.pick_n as number,
+        seat: r.seat as number,
+        cardName: r.name as string,
+        oracleId: r.oracle_id as string,
+        colorIdentity,
+        manaCost,
+      };
+    });
+
+    // Seat display names
+    const seatResult = await client.execute({
+      sql: `SELECT seat, display_name FROM seat_tokens WHERE draft_id = ? ORDER BY seat`,
+      args: [draftId],
+    });
+    const seatNames: Record<string, string> = {};
+    for (const r of seatResult.rows) {
+      if (r.display_name) seatNames[String(r.seat)] = r.display_name as string;
+    }
+
+    const bannedCards: string[] = d.banned_cards
+      ? JSON.parse(d.banned_cards as string)
+      : [];
+
+    return NextResponse.json({
+      draftId,
+      numSeats: d.num_seats,
+      picksPerPlayer: d.picks_per_player,
+      phase: d.phase,
+      seatNames,
+      picks,
+      bannedCards,
+    }, {
+      headers: { 'Cache-Control': 'public, s-maxage=5' },
+    });
+  } catch (error) {
+    console.error('[/api/drafts/[id]/board] Error:', error);
+    return NextResponse.json({ error: 'Failed to load board' }, { status: 500 });
+  }
 }
 ```
 
-The client builds the matrix from this data using `derivePickSeat` + `buildPickMatrix`.
+- [ ] **Step 4: Run tests to verify they pass**
 
-- [ ] **Step 2: Run tests, commit**
+Run: `pnpm test src/app/api/drafts/[id]/board/route.test.ts`
+Expected: All pass.
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/app/api/drafts/[id]/board/
@@ -1334,17 +1712,90 @@ git commit -m "Add GET /api/drafts/[id]/board route for draft board matrix data"
 - Create: `src/app/api/drafts/[id]/match/route.ts`
 - Create: `src/app/api/drafts/[id]/match/route.test.ts`
 
-- [ ] **Step 1: Write tests and implementation**
+- [ ] **Step 1: Write failing tests**
 
-Authenticated route. Body: `{ opponent_seat, wins, losses }`.
+Test cases:
+- Returns 401 without token
+- Returns 400 if opponent_seat, wins, or losses missing
+- Returns 400 if draft phase is not `playing` or `complete`
+- Returns 400 if opponent_seat equals own seat
+- Inserts match result with seat1 < seat2 ordering
+- Overwrites existing result (upsert behavior)
+- Sets reported_by_seat to the authenticated seat
 
-Validates:
-- Draft phase is `playing` or `complete`
-- Token holder's seat is one of the two seats in the match
-- Inserts or replaces match_events row (upsert on `draft_id, seat1, seat2` where seat1 < seat2)
-- Sets `reported_by_seat`
+- [ ] **Step 2: Run tests to verify they fail**
 
-- [ ] **Step 2: Run tests, commit**
+Run: `pnpm test src/app/api/drafts/[id]/match/route.test.ts`
+Expected: FAIL
+
+- [ ] **Step 3: Write implementation**
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { getClient } from '@/core/db/client';
+import { authenticateSeat } from '@/core/tokenAuth';
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id: draftId } = await params;
+    const client = getClient();
+    const { seat: mySeat } = await authenticateSeat(client, request, draftId);
+
+    const body = await request.json();
+    const { opponent_seat, wins, losses } = body;
+    if (opponent_seat == null || wins == null || losses == null) {
+      return NextResponse.json({ error: 'opponent_seat, wins, and losses required' }, { status: 400 });
+    }
+    if (opponent_seat === mySeat) {
+      return NextResponse.json({ error: 'Cannot report a match against yourself' }, { status: 400 });
+    }
+
+    // Validate phase
+    const draft = await client.execute({
+      sql: `SELECT phase FROM drafts WHERE draft_id = ?`,
+      args: [draftId],
+    });
+    if (draft.rows.length === 0) {
+      return NextResponse.json({ error: 'Draft not found' }, { status: 404 });
+    }
+    const phase = draft.rows[0].phase as string;
+    if (phase !== 'playing' && phase !== 'complete') {
+      return NextResponse.json({ error: `Cannot report matches in '${phase}' phase` }, { status: 400 });
+    }
+
+    // Normalize seat order: seat1 < seat2
+    const seat1 = Math.min(mySeat, opponent_seat);
+    const seat2 = Math.max(mySeat, opponent_seat);
+    const seat1Wins = mySeat === seat1 ? wins : losses;
+    const seat2Wins = mySeat === seat2 ? wins : losses;
+
+    // Upsert: INSERT OR REPLACE
+    await client.execute({
+      sql: `INSERT OR REPLACE INTO match_events (draft_id, seat1, seat2, seat1_wins, seat2_wins, reported_by_seat)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [draftId, seat1, seat2, seat1Wins, seat2Wins, mySeat],
+    });
+
+    return NextResponse.json({ success: true, seat1, seat2, seat1Wins, seat2Wins });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('token')) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    console.error('[/api/drafts/[id]/match] Error:', error);
+    return NextResponse.json({ error: 'Failed to report match' }, { status: 500 });
+  }
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `pnpm test src/app/api/drafts/[id]/match/route.test.ts`
+Expected: All pass.
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/app/api/drafts/[id]/match/
@@ -1357,15 +1808,74 @@ git commit -m "Add POST /api/drafts/[id]/match route for match result reporting"
 - Create: `src/app/api/drafts/[id]/seat-settings/route.ts`
 - Create: `src/app/api/drafts/[id]/seat-settings/route.test.ts`
 
-- [ ] **Step 1: Write tests and implementation**
+- [ ] **Step 1: Write failing tests**
 
-Authenticated route for updating seat-level settings (auto-pick toggle, display name).
+Test cases:
+- Returns 401 without token
+- Updates auto_pick when provided
+- Updates display_name when provided
+- Updates both when both provided
+- Returns current settings after update
 
-Body: `{ auto_pick?: boolean, display_name?: string }`
+- [ ] **Step 2: Run tests to verify they fail**
 
-Calls `updateAutoPick()` and/or `updateDisplayName()` from the seatTokens query module.
+Run: `pnpm test src/app/api/drafts/[id]/seat-settings/route.test.ts`
+Expected: FAIL
 
-- [ ] **Step 2: Run tests, commit**
+- [ ] **Step 3: Write implementation**
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server';
+import { getClient } from '@/core/db/client';
+import { authenticateSeat } from '@/core/tokenAuth';
+import { updateAutoPick, updateDisplayName } from '@/core/db/queries/seatTokens';
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id: draftId } = await params;
+    const client = getClient();
+    const { seat } = await authenticateSeat(client, request, draftId);
+
+    const body = await request.json();
+
+    if (body.auto_pick !== undefined) {
+      await updateAutoPick(client, draftId, seat, body.auto_pick);
+    }
+    if (body.display_name !== undefined) {
+      await updateDisplayName(client, draftId, seat, body.display_name || null);
+    }
+
+    // Return current settings
+    const result = await client.execute({
+      sql: `SELECT auto_pick, display_name FROM seat_tokens WHERE draft_id = ? AND seat = ?`,
+      args: [draftId, seat],
+    });
+    const row = result.rows[0];
+
+    return NextResponse.json({
+      seat,
+      autoPick: row.auto_pick === 1,
+      displayName: row.display_name as string | null,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('token')) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    console.error('[/api/drafts/[id]/seat-settings] Error:', error);
+    return NextResponse.json({ error: 'Failed to update settings' }, { status: 500 });
+  }
+}
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+Run: `pnpm test src/app/api/drafts/[id]/seat-settings/route.test.ts`
+Expected: All pass.
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/app/api/drafts/[id]/seat-settings/
@@ -1391,9 +1901,14 @@ Test cases:
 
 - [ ] **Step 2: Write implementation**
 
-Two hooks in one file. `useLiveDraftStatus` polls the status endpoint. `useDraftBoard` fetches full board data from `GET /api/drafts/[id]/board` when `dataChanged` fires (or on manual refresh). Follow the pattern from `src/app/hooks/useSyncStatus.ts`. Returns:
+Two hooks in one file. Follow the pattern from `src/app/hooks/useSyncStatus.ts` (10s polling with `setInterval`, `dataChanged` flag).
 
 ```typescript
+import { useState, useEffect, useRef, useCallback } from 'react';
+
+const DRAFTING_POLL_MS = 3_000;
+const PLAYING_POLL_MS = 15_000;
+
 interface LiveDraftStatus {
   phase: string;
   latestPickN: number;
@@ -1404,18 +1919,106 @@ interface LiveDraftStatus {
   picksPerPlayer: number;
   matchCount: number;
   totalMatches: number;
-  dataChanged: boolean;
+}
+
+interface UseLiveDraftStatusReturn {
+  status: LiveDraftStatus | null;
+  dataChanged: number; // monotonic counter — consumers compare against their last-seen value
+  isLoading: boolean;
+}
+
+export function useLiveDraftStatus(
+  draftId: string | null,
+  enabled: boolean,
+): UseLiveDraftStatusReturn {
+  const [status, setStatus] = useState<LiveDraftStatus | null>(null);
+  const [dataChanged, setDataChanged] = useState(0); // monotonic counter
+  const [isLoading, setIsLoading] = useState(false);
+  const prevPickNRef = useRef<number>(0);
+
+  const fetchStatus = useCallback(async () => {
+    if (!draftId) return;
+    try {
+      const res = await fetch(`/api/drafts/${draftId}/status`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setStatus(data);
+      if (data.latestPickN > prevPickNRef.current) {
+        prevPickNRef.current = data.latestPickN;
+        setDataChanged((prev) => prev + 1); // increment counter
+      }
+    } catch { /* ignore transient errors during polling */ }
+  }, [draftId]);
+
+  useEffect(() => {
+    if (!enabled || !draftId) return;
+    setIsLoading(true);
+    fetchStatus().then(() => setIsLoading(false));
+    const phase = status?.phase;
+    const interval = phase === 'playing' ? PLAYING_POLL_MS : DRAFTING_POLL_MS;
+    const id = setInterval(fetchStatus, interval);
+    return () => clearInterval(id);
+  }, [enabled, draftId, fetchStatus, status?.phase]);
+
+  return { status, dataChanged, isLoading };
+}
+
+/** Fetches full board data when triggered */
+export interface BoardData {
+  picks: { pickN: number; seat: number; cardName: string; oracleId: string; colorIdentity: string[]; manaCost: string }[];
+  numSeats: number;
+  picksPerPlayer: number;
+  phase: string;
+  seatNames: Record<string, string>;
+  bannedCards: string[];
+}
+
+export function useDraftBoard(
+  draftId: string | null,
+  dataChanged: number,
+): { board: BoardData | null; isLoading: boolean; refresh: () => void } {
+  const [board, setBoard] = useState<BoardData | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const lastSeenRef = useRef(0);
+
+  const refresh = useCallback(async () => {
+    if (!draftId) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/drafts/${draftId}/board`);
+      if (res.ok) setBoard(await res.json());
+    } catch { /* ignore */ }
+    setIsLoading(false);
+  }, [draftId]);
+
+  // Fetch on mount
+  useEffect(() => { if (draftId) refresh(); }, [draftId, refresh]);
+
+  // Re-fetch when dataChanged counter increments
+  useEffect(() => {
+    if (dataChanged > lastSeenRef.current) {
+      lastSeenRef.current = dataChanged;
+      refresh();
+    }
+  }, [dataChanged, refresh]);
+
+  return { board, isLoading, refresh };
 }
 ```
 
-- [ ] **Step 3: Run tests, commit**
+- [ ] **Step 3: Run tests to verify they pass**
+
+Run: `pnpm test src/app/hooks/useLiveDraftStatus.test.ts`
+Expected: All pass.
+
+- [ ] **Step 4: Commit**
 
 ```bash
 git add src/app/hooks/useLiveDraftStatus.ts src/app/hooks/useLiveDraftStatus.test.ts
-git commit -m "Add useLiveDraftStatus polling hook for live draft updates"
+git commit -m "Add useLiveDraftStatus polling hook and useDraftBoard data fetcher"
 ```
 
-### Task 18: Token Persistence Hook
+### Task 19: Token Persistence Hook
 
 **Files:**
 - Create: `src/app/hooks/useSeatToken.ts`
@@ -1432,23 +2035,60 @@ Test cases:
 
 - [ ] **Step 2: Write implementation**
 
+Follow the localStorage hydration pattern from `src/app/hooks/useDraftSelection.ts` (initialize with defaults, hydrate in useEffect, persist on change).
+
 ```typescript
-export function useSeatToken(draftId: string | null) {
-  // On mount: check URL for ?token= param
-  // If found, store in localStorage as `seatToken:${draftId}`
-  // Clean the URL (remove token param via replaceState)
-  // Return { token, seat (from status response), hasSeatToken }
+import { useState, useEffect, useRef } from 'react';
+
+interface UseSeatTokenReturn {
+  token: string | null;
+  hasSeatToken: boolean;
+}
+
+export function useSeatToken(draftId: string | null): UseSeatTokenReturn {
+  const [token, setToken] = useState<string | null>(null);
+  const hydratedRef = useRef(false);
+
+  useEffect(() => {
+    if (!draftId) return;
+
+    // Check URL for ?token= param
+    const url = new URL(window.location.href);
+    const urlToken = url.searchParams.get('token');
+    if (urlToken) {
+      // Store and clean URL
+      localStorage.setItem(`seatToken:${draftId}`, urlToken);
+      url.searchParams.delete('token');
+      window.history.replaceState({}, '', url.toString());
+      setToken(urlToken);
+    } else {
+      // Hydrate from localStorage
+      const stored = localStorage.getItem(`seatToken:${draftId}`);
+      setToken(stored);
+    }
+    hydratedRef.current = true;
+  }, [draftId]);
+
+  return {
+    token,
+    hasSeatToken: token !== null,
+  };
 }
 ```
 
-- [ ] **Step 3: Run tests, commit**
+- [ ] **Step 3: Run tests to verify they pass**
+
+Run: `pnpm test src/app/hooks/useSeatToken.test.ts`
+Expected: All pass.
+
+- [ ] **Step 4: Commit**
 
 ```bash
 git add src/app/hooks/useSeatToken.ts src/app/hooks/useSeatToken.test.ts
 git commit -m "Add useSeatToken hook for token extraction and persistence"
 ```
 
-### Task 19: Draft Board Modal Component
+### Task 20: Draft Board Modal Component
 
 **Files:**
 - Create: `src/app/components/draft-board/DraftBoardModal.tsx`
@@ -1469,24 +2109,49 @@ Follow the deck builder modal pattern from `src/app/components/PageClient.tsx` (
 
 - [ ] **Step 2: Create DraftBoardMatrix**
 
+Props interface:
+
+```typescript
+interface DraftBoardMatrixProps {
+  board: BoardData;         // from useDraftBoard hook
+  mySeat: number | null;    // authenticated player's seat, or null for spectators
+  nextPickN: number | null; // from useLiveDraftStatus (null if all picks made)
+  nextSeat: number | null;  // from useLiveDraftStatus
+}
+```
+
 The core matrix table component:
-- Receives picks array and draft config from the board API
 - Uses `buildPickMatrix()` from `src/core/snakeDraft.ts` to compute the grid structure
-- Renders sticky header row with seat names/colors
+- Cross-references `board.picks` by `pickN` against the matrix to fill cells
+- Renders sticky header row with seat names/colors. Seat colors: use a fixed 10-color palette array indexed by `(seat - 1) % 10`, e.g. `const SEAT_COLORS = ['#e8c050', '#ff6050', '#60c0ff', '#70dd70', '#e080d0', '#ff9050', '#50e0c0', '#c0a0ff', '#f0e070', '#ff7090']`
 - Renders rows with round number, snake arrow (→/←), and pick cells
 - Groups round pairs with visual separators
 - Labels double-pick rounds with "DOUBLE" marker
-- Highlights the authenticated player's column
-- Pulsing border on the active pick cell
-- Auto-scrolls to current round on open
+- Highlights `mySeat` column with subtle background
+- Active pick cell: cell where `pickN === nextPickN`, shown with pulsing dashed border
+- Auto-scrolls to current round on open (use `useRef` + `scrollIntoView`)
 
 - [ ] **Step 3: Create DraftBoardCell**
 
+Props interface:
+
+```typescript
+interface DraftBoardCellProps {
+  cardName: string | null;   // null for empty/future cells
+  colorIdentity: string[];   // e.g. ['R'], ['U', 'B'], ['C']
+  manaCost: string;          // e.g. '{2}{R}' — render mana symbols
+  isActive: boolean;         // pulsing dashed border for next pick
+  isMyColumn: boolean;       // subtle highlight
+  secondCardName?: string;   // for double-pick cells (second card in the slot)
+  secondColorIdentity?: string[];
+  secondManaCost?: string;
+}
+```
+
 Individual cell component:
-- Displays card name
-- Shows mana symbol icons from Scryfall color_identity data (use SVG symbols from Scryfall, same approach as existing mana cost rendering in card table)
-- Hover tooltip showing card image + oracle text (reuse existing card hover pattern from CardTable)
-- Double-pick cells show two stacked names
+- Displays card name with mana symbols (parse `{W}`, `{U}`, etc. from manaCost string, render as small colored circles or SVG icons matching the existing card table's mana cost rendering)
+- Hover tooltip showing card art + oracle text — check if `src/app/components/CardTable.tsx` has a reusable tooltip component, otherwise build a simple one using `position: fixed` anchored to cursor
+- Double-pick cells show two stacked names (first card on top, second below with slightly reduced opacity)
 
 - [ ] **Step 4: Create StandingsSection**
 
@@ -1497,11 +2162,26 @@ Below the matrix:
 
 - [ ] **Step 5: Create MatchReporting**
 
+Props interface:
+
+```typescript
+interface MatchReportingProps {
+  draftId: string;
+  mySeat: number;
+  token: string;
+  numSeats: number;
+  matches: { seat1: number; seat2: number; seat1Wins: number; seat2Wins: number }[];
+  seatNames: Record<string, string>;
+  onMatchReported: () => void; // trigger refresh
+}
+```
+
 Part of StandingsSection, visible only to authenticated players during `playing` phase:
-- List of matchups for the player's seat
-- Completed: read-only display
-- Incomplete: input fields (wins/losses) with save button
-- Save calls `POST /api/drafts/[id]/match`
+- List of matchups for the player's seat (enumerate all other seats)
+- Completed: read-only display showing result
+- Incomplete: two number inputs (my wins / their wins) with a Save button
+- Save calls `POST /api/drafts/[id]/match` with body `{ opponent_seat, wins, losses }` and header `X-Seat-Token`
+- On success, calls `onMatchReported()` to refresh standings
 
 - [ ] **Step 6: Run typecheck and lint**
 
@@ -1515,7 +2195,7 @@ git add src/app/components/draft-board/
 git commit -m "Add draft board modal with pick matrix, standings, and match reporting"
 ```
 
-### Task 20: Wire Draft Board into PageClient
+### Task 21: Wire Draft Board into PageClient
 
 **Files:**
 - Modify: `src/app/components/PageClient.tsx`
@@ -1530,7 +2210,20 @@ Follow the deck builder pattern (lines 111-128):
 
 - [ ] **Step 2: Render DraftBoardModal**
 
-Pass: draft config, picks data (from board API), live status, seat token info, standings data.
+DraftBoardModal props:
+
+```typescript
+interface DraftBoardModalProps {
+  draftId: string;
+  board: BoardData | null;           // from useDraftBoard
+  status: LiveDraftStatus | null;    // from useLiveDraftStatus
+  mySeat: number | null;             // from useSeatToken + status response
+  token: string | null;              // from useSeatToken
+  isOpen: boolean;
+  onClose: () => void;
+  onMatchReported: () => void;       // triggers board refresh
+}
+```
 
 - [ ] **Step 3: Integrate useLiveDraftStatus and useSeatToken hooks**
 
@@ -1547,7 +2240,7 @@ git commit -m "Wire draft board modal into main page with live status polling"
 
 ## Chunk 4: Frontend — Card Table Pick/Queue Integration
 
-### Task 21: Pick Action in Card Table
+### Task 22: Pick Action in Card Table
 
 **Files:**
 - Modify: `src/app/components/CardTable.tsx`
@@ -1594,7 +2287,7 @@ git add src/app/components/CardTable.tsx
 git commit -m "Add pick and queue actions to card table for live drafting"
 ```
 
-### Task 22: Queue State Management Hook
+### Task 23: Queue State Management Hook
 
 **Files:**
 - Create: `src/app/hooks/usePickQueue.ts`
@@ -1610,26 +2303,99 @@ Test cases:
 
 - [ ] **Step 2: Write implementation**
 
-Hook that manages queue state, syncs with the server via GET/PUT queue API, and reacts to pick updates from the live draft status hook.
-
 ```typescript
-export function usePickQueue(draftId: string | null, token: string | null) {
-  // Fetch queue on mount via GET /api/drafts/[id]/queue
-  // Provide addToQueue / removeFromQueue functions
-  // PUT to server on change
-  // Re-fetch when live draft status shows new picks (cards may have been removed)
-  return { queue, addToQueue, removeFromQueue, isLoading };
+import { useState, useEffect, useCallback, useMemo } from 'react';
+
+interface QueueEntry {
+  priority: number;
+  cardId: number;
+  cardName: string;
+}
+
+interface UsePickQueueReturn {
+  queue: QueueEntry[];
+  queuedCards: Map<string, number>; // cardName → priority (for CardTable prop)
+  addToQueue: (cardName: string) => void;
+  removeFromQueue: (cardName: string) => void;
+  isLoading: boolean;
+}
+
+export function usePickQueue(
+  draftId: string | null,
+  token: string | null,
+  dataChanged: number,
+): UsePickQueueReturn {
+  const [queue, setQueue] = useState<QueueEntry[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchQueue = useCallback(async () => {
+    if (!draftId || !token) return;
+    try {
+      const res = await fetch(`/api/drafts/${draftId}/queue`, {
+        headers: { 'X-Seat-Token': token },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setQueue(data.queue);
+      }
+    } catch { /* ignore */ }
+  }, [draftId, token]);
+
+  // Fetch on mount and when new picks arrive (cards may have been removed from queue)
+  useEffect(() => { fetchQueue(); }, [fetchQueue]);
+  useEffect(() => { if (dataChanged) fetchQueue(); }, [dataChanged, fetchQueue]);
+
+  const syncQueue = useCallback(async (cardNames: string[]) => {
+    if (!draftId || !token) return;
+    setIsLoading(true);
+    try {
+      const body = cardNames.map((card_name) => ({ card_name }));
+      const res = await fetch(`/api/drafts/${draftId}/queue`, {
+        method: 'PUT',
+        headers: { 'X-Seat-Token': token, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setQueue(data.queue);
+      }
+    } catch { /* ignore */ }
+    setIsLoading(false);
+  }, [draftId, token]);
+
+  const addToQueue = useCallback((cardName: string) => {
+    const newNames = [...queue.map((e) => e.cardName), cardName];
+    syncQueue(newNames);
+  }, [queue, syncQueue]);
+
+  const removeFromQueue = useCallback((cardName: string) => {
+    const newNames = queue.filter((e) => e.cardName !== cardName).map((e) => e.cardName);
+    syncQueue(newNames);
+  }, [queue, syncQueue]);
+
+  // Build lookup map for CardTable (memoize to avoid TanStack React Table re-renders)
+  const queuedCards = useMemo(
+    () => new Map(queue.map((e) => [e.cardName, e.priority])),
+    [queue],
+  );
+
+  return { queue, queuedCards, addToQueue, removeFromQueue, isLoading };
 }
 ```
 
-- [ ] **Step 3: Run tests, commit**
+- [ ] **Step 3: Run tests to verify they pass**
+
+Run: `pnpm test src/app/hooks/usePickQueue.test.ts`
+Expected: All pass.
+
+- [ ] **Step 4: Commit**
 
 ```bash
 git add src/app/hooks/usePickQueue.ts src/app/hooks/usePickQueue.test.ts
 git commit -m "Add usePickQueue hook for queue state management and server sync"
 ```
 
-### Task 23: Wire Pick/Queue into PageClient
+### Task 24: Wire Pick/Queue into PageClient
 
 **Files:**
 - Modify: `src/app/components/PageClient.tsx`
@@ -1645,7 +2411,8 @@ git commit -m "Add usePickQueue hook for queue state management and server sync"
 
 Small toggle in the draft header area (near the draft board and deck builder buttons):
 - "Auto-pick: ON/OFF"
-- Calls PUT to update `seat_tokens.auto_pick` on the server
+- Calls `PUT /api/drafts/[id]/seat-settings` (Task 17) with body `{ auto_pick: true/false }` and header `X-Seat-Token`
+- Only visible when the player has a seat token (`hasSeatToken` from `useSeatToken`)
 
 - [ ] **Step 3: Run full precommit suite**
 
@@ -1661,7 +2428,7 @@ git commit -m "Integrate pick flow and queue management into main page"
 
 ## Chunk 5: Integration and Polish
 
-### Task 24: Update CLAUDE.md Documentation
+### Task 25: Update CLAUDE.md Documentation
 
 **Files:**
 - Modify: `CLAUDE.md`
@@ -1683,29 +2450,49 @@ Add the new routes (status, pick, queue, board, match) to the existing REST API 
 
 Brief section covering: how to create a live draft, how tokens work, how the pick flow works, the draft board modal.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Add spec and plan to document index**
+
+Add to the "Superpowers Specs" section:
+```markdown
+- `docs/superpowers/specs/2026-03-23-live-draft-design.md` - Live draft system (pool, drafting, matches, standings)
+```
+
+Add to the "Superpowers Plans" section:
+```markdown
+- `docs/superpowers/plans/2026-03-23-live-draft.md` - Live draft implementation
+```
+
+- [ ] **Step 5: Commit**
 
 ```bash
 git add CLAUDE.md
 git commit -m "Document live draft CLI commands and API routes"
 ```
 
-### Task 25: End-to-End Smoke Test
+### Task 26: End-to-End Smoke Test
 
 **Files:**
-- Create: `e2e/live-draft.spec.ts` (if Playwright e2e tests exist)
+- Create: `e2e/live-draft.spec.ts`
 
-- [ ] **Step 1: Write a basic integration test**
+Playwright e2e tests exist in `e2e/` with a config at `e2e/playwright.config.ts`. Check existing specs for the fixture/setup pattern.
 
-The test creates a draft via CLI (or direct DB setup), starts it, makes a few picks via the API, and verifies the board endpoint returns correct data. This validates the full stack: schema → processPick → API → board response.
+- [ ] **Step 1: Write Playwright e2e test**
 
-If Playwright is available, add a browser test that:
-1. Opens a draft page with a token URL
-2. Verifies the draft board shows the matrix
-3. Makes a pick from the card table
-4. Verifies the pick appears in the matrix
+The test:
+1. Creates test data directly in the database (or via API setup) — check `e2e/` for existing fixture patterns
+2. Opens a draft page with a seat 1 token URL
+3. Verifies the draft board modal shows the matrix
+4. Makes a pick from the card table
+5. Verifies the pick appears in the matrix
+
+Also write an API-level integration test (can be in the same file or a separate vitest test):
+- POST picks via `/api/drafts/[id]/pick`
+- Verify `/api/drafts/[id]/board` returns the picks
+- Verify `/api/drafts/[id]/status` shows the correct next seat
 
 - [ ] **Step 2: Run e2e tests**
+
+Note: The dev server must be running (`pnpm dev`) before running e2e tests.
 
 Run: `pnpm test:e2e`
 Expected: Pass.
@@ -1717,14 +2504,50 @@ git add e2e/
 git commit -m "Add live draft e2e smoke test"
 ```
 
-### Task 26: Final Verification
+### Task 27: Final Verification
 
 - [ ] **Step 1: Run full precommit suite**
 
 Run: `pnpm precommit`
 Expected: Typecheck, lint, knip (no unused exports), and all tests pass.
 
-- [ ] **Step 2: Manual smoke test**
+- [ ] **Step 2: Create test pool file**
+
+Create `test-pool.txt` with 30+ card names (one per line) for the smoke test. Use well-known cards:
+```
+Lightning Bolt
+Counterspell
+Swords to Plowshares
+Dark Ritual
+Birds of Paradise
+Sol Ring
+Tarmogoyf
+Snapcaster Mage
+Fatal Push
+Noble Hierarch
+Thoughtseize
+Force of Will
+Brainstorm
+Liliana of the Veil
+Jace, the Mind Sculptor
+Ragavan, Nimble Pilferer
+Fury
+Teferi, Time Raveler
+Korvold, Fae-Cursed King
+Craterhoof Behemoth
+Questing Beast
+Goblin Guide
+Stoneforge Mystic
+Flooded Strand
+Verdant Catacombs
+Polluted Delta
+Wooded Foothills
+Arid Mesa
+Scalding Tarn
+Windswept Heath
+```
+
+- [ ] **Step 3: Manual smoke test**
 
 1. Create a test draft: `pnpm draft:create-live --name "Smoke Test" --date 2026-04-01 --seats 4 --picks-per-player 6 --pool file:test-pool.txt`
 2. Start it: `pnpm draft:start smoke-test`
