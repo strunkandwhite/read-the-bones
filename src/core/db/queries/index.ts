@@ -6,3 +6,4 @@ export * from "./pool";
 export * from "./decklists";
 export * from "./stats";
 export * from "./sharedDecks";
+export * from "./search";
