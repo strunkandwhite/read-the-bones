@@ -316,8 +316,8 @@ export function CardTable({
 
     const updateHeight = () => {
       const rect = el.getBoundingClientRect();
-      // Fill viewport minus bottom padding for the footer bar (~40px) and page margin
-      setScrollHeight(Math.max(400, window.innerHeight - rect.top - 48));
+      // Fill viewport minus bottom space for footer and page margin
+      setScrollHeight(Math.max(400, window.innerHeight - rect.top - 56));
     };
 
     updateHeight();
