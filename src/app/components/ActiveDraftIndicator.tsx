@@ -26,16 +26,7 @@ export function ActiveDraftIndicator({
 }: ActiveDraftIndicatorProps) {
   const timeAgo = formatTimeAgo(lastSyncedAt);
 
-  if (draftComplete) {
-    return (
-      <div className="flex items-center gap-1.5 text-xs">
-        <span className="h-2 w-2 shrink-0 rounded-full bg-zinc-500" />
-        <span className="font-medium text-zinc-400">{draftName}</span>
-        <span className="text-zinc-600">·</span>
-        <span className="text-zinc-500">Complete</span>
-      </div>
-    );
-  }
+  if (draftComplete) return null;
 
   const syncLabel = syncInProgress ? "Syncing…" : `Synced ${timeAgo}`;
 
@@ -46,9 +37,7 @@ export function ActiveDraftIndicator({
           syncInProgress ? "bg-amber-400 animate-pulse" : "bg-emerald-400"
         }`}
       />
-      <span className="font-medium text-emerald-400">{draftName}</span>
-      <span className="text-zinc-600">·</span>
-      <span className="text-zinc-400" title={`${availableCount} available`}>{availableCount}A</span>
+      <span className="text-zinc-400" title={`${draftName} — ${availableCount} available`}>{availableCount}A</span>
       {bannedCardNames && bannedCardNames.length > 0 && (
         <>
           <span className="text-zinc-600">·</span>

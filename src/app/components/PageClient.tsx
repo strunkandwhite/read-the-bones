@@ -86,6 +86,18 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
 
   const search = useCardSearch({ cards: cardData.cards });
 
+  // Clear color filter when viewport drops below xl (color filter icons hidden)
+  const clearColorFilter = search.setColorFilter;
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const mq = window.matchMedia("(min-width: 1280px)");
+    const handler = (e: MediaQueryListEvent) => {
+      if (!e.matches) clearColorFilter([]);
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, [clearColorFilter]);
+
   const { displayCards, searchFilteredCards, availableCount, takenCardNamesSet, seatCardNames, seatCardList } =
     useCardFiltering({
       cardData,
@@ -352,10 +364,10 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
             </h1>
           </div>
 
-          {/* Right: Search + Filters + Actions (wraps on narrow viewports) */}
-          <div className="flex flex-1 flex-wrap items-center justify-end gap-3">
+          {/* Right: Search + Filters + Actions */}
+          <div className="flex flex-1 items-center justify-end gap-3">
             {/* Search Input */}
-            <div className="shrink-0">
+            <div className="min-w-0 flex-1">
               <label htmlFor="search" className="sr-only">
                 Search cards
               </label>
@@ -383,7 +395,7 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
                   )}
                 </div>
                 {/* Syntax help tooltip */}
-                <div className="group relative">
+                <div className="group relative hidden sm:block">
                   <button
                     type="button"
                     className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[10px] font-medium text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-600 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300"
@@ -412,13 +424,15 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
               </div>
             </div>
 
-            {/* Color Filter */}
-            <ColorFilter
-              selected={search.colorFilter}
-              onChange={search.setColorFilter}
-              mode={search.colorFilterMode}
-              onModeChange={search.setColorFilterMode}
-            />
+            {/* Color Filter — hidden below xl, search syntax (c:r) covers the same ground */}
+            <div className="hidden xl:block">
+              <ColorFilter
+                selected={search.colorFilter}
+                onChange={search.setColorFilter}
+                mode={search.colorFilterMode}
+                onModeChange={search.setColorFilterMode}
+              />
+            </div>
 
             {/* Deck Builder Toggle */}
             {draftSelection.activeDraft && draftSelection.selectedSeat !== null && (
@@ -449,18 +463,20 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
               </button>
             )}
 
-            {/* Active Draft Indicator */}
+            {/* Active Draft Indicator — hidden below md to preserve search bar width */}
             {draftSelection.activeDraft && (
-              <ActiveDraftIndicator
-                draftName={draftSelection.activeDraft}
-                availableCount={availableCount}
-                bannedCardNames={cardData.bannedCardNames}
-                lastSyncedAt={syncStatus.lastSyncedAt}
-                syncInProgress={syncStatus.syncInProgress || syncStatus.manualSyncInFlight}
-                draftComplete={!syncStatus.activeDrafts.some(d => d.id === draftSelection.activeDraft)}
-                onSyncNow={syncStatus.triggerSync}
-                syncDisabled={syncStatus.manualSyncInFlight}
-              />
+              <div className="hidden md:block">
+                <ActiveDraftIndicator
+                  draftName={draftSelection.activeDraft}
+                  availableCount={availableCount}
+                  bannedCardNames={cardData.bannedCardNames}
+                  lastSyncedAt={syncStatus.lastSyncedAt}
+                  syncInProgress={syncStatus.syncInProgress || syncStatus.manualSyncInFlight}
+                  draftComplete={!syncStatus.activeDrafts.some(d => d.id === draftSelection.activeDraft)}
+                  onSyncNow={syncStatus.triggerSync}
+                  syncDisabled={syncStatus.manualSyncInFlight}
+                />
+              </div>
             )}
 
             {/* Divider */}
