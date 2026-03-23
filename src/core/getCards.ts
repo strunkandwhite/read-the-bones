@@ -18,6 +18,7 @@ import {
 } from "./types";
 import { calculateCardStats, DISTRIBUTION_BUCKET_COUNT } from "./calculateStats";
 import { getClient } from "./db/client";
+import { transformScryfallJson } from "./db/queries/helpers";
 import { cardNameKey } from "./parseSheetRows";
 import { round3 } from "./utils";
 
@@ -40,39 +41,6 @@ export type CardStatsResponse = {
   takenCards?: Array<{ name: string; seat: number }>;
   bannedCardNames?: string[];
 };
-
-/**
- * Transform Scryfall JSON from database to the full ScryCard type (camelCase)
- * with image URI and DFC handling.
- */
-function transformScryfallJson(json: string | null, cardName: string): ScryCard | undefined {
-  if (!json) return undefined;
-
-  try {
-    const data = JSON.parse(json);
-
-    // Handle double-faced cards - use front face image
-    let imageUri = "";
-    if (data.card_faces && data.card_faces[0]?.image_uris?.normal) {
-      imageUri = data.card_faces[0].image_uris.normal;
-    } else if (data.image_uris?.normal) {
-      imageUri = data.image_uris.normal;
-    }
-
-    return {
-      name: data.name || cardName,
-      imageUri,
-      manaCost: data.mana_cost || "",
-      manaValue: data.cmc || 0,
-      typeLine: data.type_line || "",
-      colors: data.colors || [],
-      colorIdentity: data.color_identity || [],
-      oracleText: data.oracle_text || "",
-    };
-  } catch {
-    return undefined;
-  }
-}
 
 /**
  * Get color string from Scryfall color_identity.

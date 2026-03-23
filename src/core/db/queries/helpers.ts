@@ -4,6 +4,7 @@
 
 import { getClient } from "../client";
 import type { Card, ScryfallCardData } from "../schema";
+import type { ScryCard } from "../../types";
 import { inferDeckColor } from "../../inferDeckColor";
 import { SCRYFALL_API_BASE, transformApiResponse, type ScryfallApiResponse } from "../../scryfallApi";
 
@@ -31,8 +32,8 @@ export function rowToCard(row: Record<string, unknown>): Card {
 
 /**
  * Parse Scryfall JSON to the minimal ScryfallCardData shape (snake_case)
- * used for filtering (color, type). See also transformScryfallJson in
- * getCards.ts which parses to the full ScryCard shape for display.
+ * used for filtering (color, type). See also transformScryfallJson which
+ * parses to the full ScryCard shape for display.
  */
 export function parseScryfallJson(json: string | null): ScryfallCardData | null {
   if (!json) return null;
@@ -130,6 +131,39 @@ export interface LookupCardResult {
  * Delegates DFC handling to the shared transformApiResponse, then maps to
  * the slim LookupCardResult shape used by the API.
  */
+/**
+ * Transform Scryfall JSON from database to the full ScryCard type (camelCase)
+ * with image URI and DFC handling. Companion to parseScryfallJson which returns
+ * the minimal snake_case ScryfallCardData shape for DB-level filtering.
+ */
+export function transformScryfallJson(json: string | null, cardName: string): ScryCard | undefined {
+  if (!json) return undefined;
+
+  try {
+    const data = JSON.parse(json);
+
+    let imageUri = "";
+    if (data.card_faces && data.card_faces[0]?.image_uris?.normal) {
+      imageUri = data.card_faces[0].image_uris.normal;
+    } else if (data.image_uris?.normal) {
+      imageUri = data.image_uris.normal;
+    }
+
+    return {
+      name: data.name || cardName,
+      imageUri,
+      manaCost: data.mana_cost || "",
+      manaValue: data.cmc || 0,
+      typeLine: data.type_line || "",
+      colors: data.colors || [],
+      colorIdentity: data.color_identity || [],
+      oracleText: data.oracle_text || "",
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 export async function fetchFromScryfallApi(
   cardName: string
 ): Promise<LookupCardResult | null> {
