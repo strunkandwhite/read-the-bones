@@ -8,6 +8,7 @@
  */
 
 import type { CardPick, MatchResult } from "./types";
+import { getFrontFace } from "./cardNames";
 
 // Re-export types so consumers can import from either location
 export type { CardPick, MatchResult } from "./types";
@@ -32,9 +33,12 @@ export function normalizeCardName(cardName: string): string {
 
 /**
  * Returns a lowercase key for case-insensitive card name matching.
+ * DFC names are normalized to front face (e.g., "Brazen Borrower // Petty Theft" → "brazen borrower").
  */
 export function cardNameKey(cardName: string): string {
-  return normalizeCardName(cardName).toLowerCase();
+  const normalized = normalizeCardName(cardName);
+  const frontFace = getFrontFace(normalized);
+  return (frontFace ?? normalized).toLowerCase();
 }
 
 /**

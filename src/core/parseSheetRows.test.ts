@@ -52,6 +52,20 @@ describe("cardNameKey", () => {
     expect(cardNameKey("")).toBe("");
     expect(cardNameKey("  Scalding Tarn 2  ")).toBe("scalding tarn");
   });
+
+  it("should normalize DFC names to front face", () => {
+    expect(cardNameKey("Brazen Borrower // Petty Theft")).toBe("brazen borrower");
+    expect(cardNameKey("Fable of the Mirror-Breaker // Reflection of Kiki-Jiki")).toBe(
+      "fable of the mirror-breaker"
+    );
+  });
+
+  it("should return same key for front-face-only and full DFC name", () => {
+    expect(cardNameKey("Brazen Borrower")).toBe(cardNameKey("Brazen Borrower // Petty Theft"));
+    expect(cardNameKey("Concealing Curtains")).toBe(
+      cardNameKey("Concealing Curtains // Revealing Eye")
+    );
+  });
 });
 
 describe("isArrow", () => {

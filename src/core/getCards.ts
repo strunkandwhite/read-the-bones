@@ -8,7 +8,6 @@
 
 import { createHash } from "node:crypto";
 
-import { getFrontFace } from "./cardNames";
 import {
   DEFAULT_POOL_SIZE,
   type CardPick,
@@ -299,13 +298,8 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
       const key = cardNameKey(cardInfo.cardName);
 
       // Skip banned cards — they get no entry (picked or unpicked) for this draft
-      // For DFCs, also check front face (e.g. ban "Fable of the Mirror-Breaker"
-      // matches card "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki")
       const draftBans = bannedCardsByDraft.get(draftId);
-      if (draftBans) {
-        const frontFace = getFrontFace(key);
-        if (draftBans.has(key) || (frontFace && draftBans.has(frontFace))) continue;
-      }
+      if (draftBans?.has(key)) continue;
 
       const pickedCount = draftPicks.get(key)?.length || 0;
       const unpickedQty = cardInfo.qty - pickedCount;
@@ -409,6 +403,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
   }
 
   const currentCubeSet = new Set(Object.keys(cubeCopies));
+  const currentCubeKeySet = new Set(Object.keys(cubeCopies).map((n) => cardNameKey(n)));
 
   // 8. Calculate card stats
   const stats = calculateCardStats(allPicks, draftMetadataMap);
@@ -430,15 +425,17 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
     scryfall: scryfallDataMap.get(cardNameKey(stat.cardName)),
   }));
 
-  // 10. Filter to only cards in current cube
+  // 10. Filter to only cards in current cube (key-based to handle DFC name variants)
   const filteredCards =
-    currentCubeSet.size > 0
-      ? enrichedStats.filter((c) => currentCubeSet.has(c.cardName))
+    currentCubeKeySet.size > 0
+      ? enrichedStats.filter((c) => currentCubeKeySet.has(cardNameKey(c.cardName)))
       : enrichedStats;
 
   // 11. Find new cards in current cube that have no historical data
-  const cardsWithStats = new Set(stats.map((s) => s.cardName));
-  const newCards = Array.from(currentCubeSet).filter((name) => !cardsWithStats.has(name));
+  const cardsWithStatsKeys = new Set(stats.map((s) => cardNameKey(s.cardName)));
+  const newCards = Array.from(currentCubeSet).filter(
+    (name) => !cardsWithStatsKeys.has(cardNameKey(name))
+  );
 
   // Create stub entries for new cards
   const newCardEntries: EnrichedCardStats[] = newCards.map((cardName) => ({

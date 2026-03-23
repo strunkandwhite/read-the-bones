@@ -1,5 +1,6 @@
 // src/core/db/sync/card-cache.ts
 import type { Client } from "@libsql/client";
+import { getFrontFace } from "../../cardNames";
 
 interface PendingCard {
   oracleId: string;
@@ -20,7 +21,14 @@ export class CardCache {
   async loadAll(client: Client): Promise<void> {
     const result = await client.execute({ sql: "SELECT card_id, name FROM cards", args: [] });
     for (const row of result.rows) {
-      this.nameToId.set((row.name as string).toLowerCase(), row.card_id as number);
+      const name = row.name as string;
+      const cardId = row.card_id as number;
+      this.nameToId.set(name.toLowerCase(), cardId);
+      // Index DFCs by front face so "Brazen Borrower" finds "Brazen Borrower // Petty Theft"
+      const frontFace = getFrontFace(name);
+      if (frontFace && !this.nameToId.has(frontFace.toLowerCase())) {
+        this.nameToId.set(frontFace.toLowerCase(), cardId);
+      }
     }
   }
 

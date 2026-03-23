@@ -103,6 +103,43 @@ describe("CardCache", () => {
     expect(cache.get("test card")).toBe(42);
   });
 
+  it("indexes DFCs by front face for lookup", async () => {
+    const mockClient = {
+      execute: vi.fn().mockResolvedValue({
+        rows: [
+          { card_id: 638, name: "Brazen Borrower // Petty Theft" },
+          { card_id: 100, name: "Lightning Bolt" },
+        ],
+      }),
+    };
+
+    const cache = new CardCache();
+    await cache.loadAll(mockClient as any);
+
+    // Full DFC name lookup still works
+    expect(cache.get("Brazen Borrower // Petty Theft")).toBe(638);
+    // Front-face-only lookup also works
+    expect(cache.get("Brazen Borrower")).toBe(638);
+  });
+
+  it("prefers front-face-only entry over DFC alias", async () => {
+    const mockClient = {
+      execute: vi.fn().mockResolvedValue({
+        rows: [
+          { card_id: 638, name: "Brazen Borrower // Petty Theft" },
+          { card_id: 708, name: "Brazen Borrower" },
+        ],
+      }),
+    };
+
+    const cache = new CardCache();
+    await cache.loadAll(mockClient as any);
+
+    // When both exist, front-face-only entry (loaded directly) wins
+    expect(cache.get("Brazen Borrower")).toBe(708);
+    expect(cache.get("Brazen Borrower // Petty Theft")).toBe(638);
+  });
+
   it("reports size", async () => {
     const mockClient = {
       execute: vi.fn().mockResolvedValue({
