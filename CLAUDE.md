@@ -73,6 +73,7 @@ The app exposes REST API routes under `/api/` for querying draft data. All route
 | `/api/drafts/[id]/standings` | Match standings | — |
 | `/api/drafts/[id]/pool` | Full draft pool | `include_draft_results`, `include_card_details`, `group_by`, `color`, `type_contains` |
 | `/api/drafts/[id]/deck` | Decklist for a seat | `seat` (required) |
+| `/api/cards/search` | Scryfall-style card search | `q` (required), `draft_id`, `available_only`, `before_pick_n` |
 | `/api/cards/stats` | Card statistics | `card_name` (required), `draft_id`, `date_from`, `date_to`, `deck_colors` |
 | `/api/stats` | Overall draft statistics | `draft_ids` (comma-separated) |
 | `/api/decks/winning` | Top 4 winning decks for a color archetype | `color_pair` (required), `draft_ids` (comma-separated) |
