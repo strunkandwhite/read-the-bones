@@ -55,7 +55,7 @@ All queries referencing `is_complete` are updated to use `phase` instead. The `i
 | `draft_id` | text (FK) | References `drafts.draft_id` |
 | `seat` | integer | 1-indexed seat number |
 | `priority` | integer | 1 = first choice, 2 = second, etc. |
-| `oracle_id` | text (FK) | References `cards.oracle_id` |
+| `card_id` | integer (FK) | References `cards.card_id` — matches `pick_events.card_id` and `cube_snapshot_cards.card_id` |
 
 - Primary key: `(draft_id, seat, priority)`
 
@@ -329,6 +329,7 @@ All admin operations are implemented as core functions, exposed through CLI scri
 | `/api/drafts/[id]/board` | GET | None | Full pick matrix data |
 | `/api/drafts/[id]/match` | POST | Token | Report a match result |
 | `/api/drafts/[id]/standings` | GET | None | Match standings |
+| `/api/drafts/[id]/seat-settings` | PUT | Token | Update auto-pick toggle, display name |
 
 ## Not in v1
 
