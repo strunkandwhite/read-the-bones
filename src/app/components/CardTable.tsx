@@ -84,7 +84,7 @@ export function CardTable({
   const [sorting, setSorting] = useState<SortingState>([{ id: "pickScore", desc: false }]);
 
   // Track responsive breakpoint based on actual container width (handles browser zoom)
-  const [breakpoint, setBreakpoint] = useState<"mobile" | "tablet" | "desktop">("desktop");
+  const [breakpoint, setBreakpoint] = useState<"mobile" | "tablet" | "desktop" | "wide">("wide");
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -93,7 +93,8 @@ export function CardTable({
 
     const observer = new ResizeObserver((entries) => {
       const width = entries[0].contentRect.width;
-      if (width >= 940) setBreakpoint("desktop");
+      if (width >= 1200) setBreakpoint("wide");
+      else if (width >= 940) setBreakpoint("desktop");
       else if (width >= 580) setBreakpoint("tablet");
       else setBreakpoint("mobile");
     });
@@ -102,20 +103,21 @@ export function CardTable({
     return () => observer.disconnect();
   }, []);
 
-  // Mobile: Card + P# only | Tablet: + Cost, Colors | Desktop: all columns
+  // Mobile: Card + P# only | Tablet: + Cost, Colors | Desktop: + Type, GPWR, Picked | Wide: + Distribution, History
+  const isDesktopOrWider = breakpoint === "desktop" || breakpoint === "wide";
   const columnVisibility: VisibilityState = useMemo(() => {
     const showSm = breakpoint !== "mobile";
-    const showMd = breakpoint === "desktop";
+    const showLg = breakpoint === "wide";
     return {
       manaCost: showSm,
-      type: showMd,
+      type: isDesktopOrWider,
       colors: showSm,
-      distribution: showMd,
-      decklistWinRate: showMd,
-      history: showMd,
-      timesPicked: showMd,
+      distribution: showLg,
+      decklistWinRate: isDesktopOrWider,
+      history: showLg,
+      timesPicked: isDesktopOrWider,
     };
-  }, [breakpoint]);
+  }, [breakpoint, isDesktopOrWider]);
 
   const handleSortingChange = useCallback((updater: SortingState | ((prev: SortingState) => SortingState)) => {
     setSorting((prev) => {
@@ -346,8 +348,8 @@ export function CardTable({
             ref={scrollContainerRef}
             style={{ height: scrollHeight, overflowY: "auto" }}
           >
-            <table className={`w-full text-left ${breakpoint === "desktop" ? "table-fixed" : "table-auto"}`}>
-              {breakpoint === "desktop" && (
+            <table className={`w-full text-left ${isDesktopOrWider ? "table-fixed" : "table-auto"}`}>
+              {isDesktopOrWider && (
                 <colgroup>
                   {table.getVisibleLeafColumns().map((col) => (
                     <col key={col.id} style={{ width: col.getSize() }} />
