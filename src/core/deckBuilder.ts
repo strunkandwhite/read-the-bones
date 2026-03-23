@@ -298,11 +298,32 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
       }
 
       for (const [cardName, neededCount] of pickedCounts) {
-        // Promote speculative → real (remove from speculativeCards, keep position)
-        if (state.speculativeCards.includes(cardName)) {
-          if (!next) next = structuredClone(state);
-          next.speculativeCards = next.speculativeCards.filter((c) => c !== cardName);
-          changed = true;
+        // Promote speculative → real only when real copies are insufficient.
+        // speculativeCards may have been mutated by prior iterations, so read from `next` if available.
+        // existingCounts (from original state) is still valid because promotion doesn't change zone contents.
+        const source = next ?? state;
+        const specCount = source.speculativeCards.filter(
+          (c) => c === cardName,
+        ).length;
+        if (specCount > 0) {
+          const realCount =
+            (existingCounts.get(cardName) || 0) - specCount;
+          const toPromote = Math.max(
+            0,
+            Math.min(specCount, neededCount - realCount),
+          );
+          if (toPromote > 0) {
+            if (!next) next = structuredClone(state);
+            let removed = 0;
+            next.speculativeCards = next.speculativeCards.filter((c) => {
+              if (c === cardName && removed < toPromote) {
+                removed++;
+                return false;
+              }
+              return true;
+            });
+            changed = true;
+          }
         }
         // Add missing copies to deck
         const currentCount = existingCounts.get(cardName) || 0;

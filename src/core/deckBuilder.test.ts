@@ -623,6 +623,69 @@ describe("deckReducer", () => {
       expect(result.zones.sideboard["mv-0-1"]).not.toContain("Lightning Bolt");
     });
 
+    it("preserves speculative status when real pick already covers needed count", () => {
+      // Bug: 1 real pick + 1 speculative of same card → SYNC_PICKS was removing
+      // the speculative flag, making both copies appear as real picks
+      let state = createEmptyDeckState("tarkir", 1);
+      state = deckReducer(state, {
+        type: "INIT_FROM_PICKS",
+        picks: ["Lightning Bolt"],
+        scryfallData,
+        draftId: "tarkir",
+        seat: 1,
+      });
+      state = deckReducer(state, {
+        type: "ADD_SPECULATIVE",
+        cardName: "Lightning Bolt",
+        scryfallData,
+        maxCopies: 2,
+      });
+      expect(state.speculativeCards).toEqual(["Lightning Bolt"]);
+      expect(
+        state.zones.deck["mv-0-1"].filter((c: string) => c === "Lightning Bolt"),
+      ).toHaveLength(2);
+
+      const result = deckReducer(state, {
+        type: "SYNC_PICKS",
+        pickedCardNames: ["Lightning Bolt"],
+        scryfallData,
+      });
+      // The speculative copy should remain speculative
+      expect(result.speculativeCards).toEqual(["Lightning Bolt"]);
+      expect(
+        result.zones.deck["mv-0-1"].filter((c: string) => c === "Lightning Bolt"),
+      ).toHaveLength(2);
+    });
+
+    it("partially promotes when picks cover some speculative copies", () => {
+      // 2 speculative copies, 1 real pick arrives → promote 1, keep 1 speculative
+      let state = createEmptyDeckState("tarkir", 1);
+      state = deckReducer(state, {
+        type: "ADD_SPECULATIVE",
+        cardName: "Lightning Bolt",
+        scryfallData,
+        maxCopies: 2,
+      });
+      state = deckReducer(state, {
+        type: "ADD_SPECULATIVE",
+        cardName: "Lightning Bolt",
+        scryfallData,
+        maxCopies: 2,
+      });
+      expect(state.speculativeCards).toEqual(["Lightning Bolt", "Lightning Bolt"]);
+
+      const result = deckReducer(state, {
+        type: "SYNC_PICKS",
+        pickedCardNames: ["Lightning Bolt"],
+        scryfallData,
+      });
+      // 1 promoted to real, 1 remains speculative
+      expect(result.speculativeCards).toEqual(["Lightning Bolt"]);
+      expect(
+        result.zones.deck["mv-0-1"].filter((c: string) => c === "Lightning Bolt"),
+      ).toHaveLength(2);
+    });
+
     it("keeps speculative cards that are not taken", () => {
       let state = createEmptyDeckState("tarkir", 1);
       state = deckReducer(state, {
