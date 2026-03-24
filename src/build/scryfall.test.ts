@@ -59,6 +59,36 @@ const mockDoubleFacedResponse = {
   ],
 };
 
+// DFC response without top-level colors (as Scryfall actually returns for transform cards)
+const mockDfcNoTopLevelColorsResponse = {
+  name: "Jace, Vryn's Prodigy // Jace, Telepath Unbound",
+  cmc: 2,
+  type_line:
+    "Legendary Creature — Human Wizard // Legendary Planeswalker — Jace",
+  color_identity: ["U"],
+  // No top-level colors — Scryfall puts them on card_faces for DFCs
+  card_faces: [
+    {
+      name: "Jace, Vryn's Prodigy",
+      mana_cost: "{1}{U}",
+      oracle_text: "{T}: Draw a card, then discard a card.",
+      colors: ["U"],
+      image_uris: {
+        normal: "https://cards.scryfall.io/normal/front/jace.jpg",
+      },
+    },
+    {
+      name: "Jace, Telepath Unbound",
+      mana_cost: "",
+      oracle_text: "Back face text",
+      colors: ["U"],
+      image_uris: {
+        normal: "https://cards.scryfall.io/normal/back/jace.jpg",
+      },
+    },
+  ],
+};
+
 describe("fetchCard", () => {
   beforeEach(() => {
     mockFetch.mockReset();
@@ -198,6 +228,20 @@ describe("fetchCard", () => {
       oracleText:
         "At the beginning of your upkeep, look at the top card of your library. You may reveal that card. If an instant or sorcery card is revealed this way, transform Delver of Secrets.\n\nFlying",
     });
+  });
+
+  it("should derive colors from card_faces when top-level colors is missing", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => mockDfcNoTopLevelColorsResponse,
+    });
+
+    const card = await fetchCard("Jace, Vryn's Prodigy");
+
+    expect(card).not.toBeNull();
+    expect(card!.colors).toEqual(["U"]);
+    expect(card!.name).toBe("Jace, Vryn's Prodigy // Jace, Telepath Unbound");
   });
 
   it("should URL-encode special characters in card names", async () => {

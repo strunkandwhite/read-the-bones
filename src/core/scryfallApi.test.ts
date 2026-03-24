@@ -95,13 +95,14 @@ describe("transformApiResponse", () => {
         name: "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki",
         cmc: 3,
         type_line: "Enchantment — Saga // Enchantment Creature — Goblin Shaman",
-        colors: [],
         color_identity: ["R"],
+        // No top-level colors (Scryfall omits this for DFCs)
         card_faces: [
           {
             name: "Fable of the Mirror-Breaker",
             mana_cost: "{2}{R}",
             oracle_text: "Front face text",
+            colors: ["R"],
             image_uris: {
               normal: "https://cards.scryfall.io/normal/front/fable.jpg",
             },
@@ -110,6 +111,7 @@ describe("transformApiResponse", () => {
             name: "Reflection of Kiki-Jiki",
             mana_cost: "",
             oracle_text: "Back face text",
+            colors: ["R"],
             image_uris: {
               normal: "https://cards.scryfall.io/normal/back/fable.jpg",
             },
@@ -120,6 +122,64 @@ describe("transformApiResponse", () => {
       const result = transformApiResponse(apiResponse);
 
       expect(result.manaCost).toBe("{2}{R}");
+      expect(result.colors).toEqual(["R"]);
+    });
+
+    it("should derive colors from card_faces when top-level colors is missing", () => {
+      const apiResponse: ScryfallApiResponse = {
+        name: "Jace, Vryn's Prodigy // Jace, Telepath Unbound",
+        cmc: 2,
+        type_line: "Legendary Creature — Human Wizard // Legendary Planeswalker — Jace",
+        color_identity: ["U"],
+        card_faces: [
+          {
+            name: "Jace, Vryn's Prodigy",
+            mana_cost: "{1}{U}",
+            oracle_text: "Front face text",
+            colors: ["U"],
+            image_uris: {
+              normal: "https://cards.scryfall.io/normal/front/jace.jpg",
+            },
+          },
+          {
+            name: "Jace, Telepath Unbound",
+            mana_cost: "",
+            oracle_text: "Back face text",
+            colors: ["U"],
+            image_uris: {
+              normal: "https://cards.scryfall.io/normal/back/jace.jpg",
+            },
+          },
+        ],
+      };
+
+      const result = transformApiResponse(apiResponse);
+
+      expect(result.colors).toEqual(["U"]);
+    });
+
+    it("should combine colors from multiple faces (deduplicated)", () => {
+      const apiResponse: ScryfallApiResponse = {
+        name: "Multi-Color DFC",
+        cmc: 3,
+        color_identity: ["R", "G"],
+        card_faces: [
+          {
+            oracle_text: "Front",
+            colors: ["R"],
+            image_uris: { normal: "https://example.com/front.jpg" },
+          },
+          {
+            oracle_text: "Back",
+            colors: ["G"],
+            image_uris: { normal: "https://example.com/back.jpg" },
+          },
+        ],
+      };
+
+      const result = transformApiResponse(apiResponse);
+
+      expect(result.colors).toEqual(["R", "G"]);
     });
 
     it("should return empty imageUri when neither top-level nor card_faces have it", () => {

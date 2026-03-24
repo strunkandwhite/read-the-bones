@@ -34,6 +34,7 @@ export interface ScryfallApiResponse {
     mana_cost?: string;
     type_line?: string;
     oracle_text?: string;
+    colors?: string[];
     image_uris?: {
       normal?: string;
     };
@@ -65,13 +66,20 @@ export function transformApiResponse(data: ScryfallApiResponse): ScryCard {
     manaCost = data.card_faces[0].mana_cost;
   }
 
+  // Handle colors - for DFCs, colors is per-face, not top-level
+  let colors = data.colors;
+  if (!colors && data.card_faces) {
+    const faceColors = data.card_faces.flatMap((face) => face.colors ?? []);
+    colors = [...new Set(faceColors)];
+  }
+
   return {
     name: data.name,
     imageUri,
     manaCost,
     manaValue: data.cmc ?? 0,
     typeLine: data.type_line ?? "",
-    colors: data.colors ?? [],
+    colors: colors ?? [],
     colorIdentity: data.color_identity ?? [],
     oracleText,
   };
