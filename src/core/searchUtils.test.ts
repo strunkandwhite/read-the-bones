@@ -82,6 +82,42 @@ describe("hasScryfallOperators", () => {
     });
   });
 
+  describe("new operators", () => {
+    it("should detect id: operator", () => {
+      expect(hasScryfallOperators("id:wu")).toBe(true);
+    });
+
+    it("should detect identity: operator", () => {
+      expect(hasScryfallOperators("identity:ubr")).toBe(true);
+    });
+
+    it("should detect m: operator", () => {
+      expect(hasScryfallOperators("m:GG")).toBe(true);
+    });
+
+    it("should detect mana: operator", () => {
+      expect(hasScryfallOperators("mana:{U}{U}")).toBe(true);
+    });
+  });
+
+  describe("syntax features", () => {
+    it("should detect negation mid-query", () => {
+      expect(hasScryfallOperators("bolt -t:creature")).toBe(true);
+    });
+
+    it("should detect exact name with !", () => {
+      expect(hasScryfallOperators("!Lightning Bolt")).toBe(true);
+    });
+
+    it("should detect OR keyword", () => {
+      expect(hasScryfallOperators("t:creature or t:artifact")).toBe(true);
+    });
+
+    it("should detect parentheses", () => {
+      expect(hasScryfallOperators("(t:instant) c:r")).toBe(true);
+    });
+  });
+
   describe("mixed queries", () => {
     it("should detect operators in complex queries", () => {
       expect(hasScryfallOperators("dragon type:creature")).toBe(true);

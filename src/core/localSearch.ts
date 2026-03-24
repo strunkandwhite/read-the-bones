@@ -1,23 +1,50 @@
 /**
  * Local search implementation for Scryfall-style card queries.
  * Supports a subset of Scryfall operators for fast client-side filtering.
+ *
+ * Supports: negation (-), OR logic, parentheses grouping, and these operators:
+ * - name (plain text), !exact name
+ * - t:/type:, o:/oracle:, c:/color:, id:/identity:, m:/mana:
+ * - mv/cmc with =, <, >, <=, >=, !=
  */
 
 import type { ScryCard } from "./types";
 
-/**
- * Parsed search term with operator and value.
- */
+// ─── Term Types ──────────────────────────────────────────────────────────────
+
 type SearchTerm =
   | { type: "name"; value: string }
+  | { type: "exact_name"; value: string }
   | { type: "type"; value: string }
   | { type: "oracle"; value: string }
-  | { type: "color"; value: string }
-  | { type: "mv"; operator: "=" | "<" | ">" | "<=" | ">="; value: number };
+  | { type: "color"; operator: ColorOperator; value: string }
+  | { type: "identity"; operator: ColorOperator; value: string }
+  | { type: "mana"; value: string }
+  | {
+      type: "mv";
+      operator: "=" | "<" | ">" | "<=" | ">=" | "!=";
+      value: number;
+    };
 
-/**
- * Color letter to Scryfall color code mapping.
- */
+type ColorOperator = ":" | "=" | ">=" | "<=" | ">" | "<";
+
+// ─── AST Types ───────────────────────────────────────────────────────────────
+
+type SearchExpr =
+  | { kind: "term"; negated: boolean; term: SearchTerm }
+  | { kind: "and"; children: SearchExpr[] }
+  | { kind: "or"; children: SearchExpr[] };
+
+// ─── Token Types ─────────────────────────────────────────────────────────────
+
+type Token =
+  | { kind: "word"; value: string }
+  | { kind: "or" }
+  | { kind: "lparen" }
+  | { kind: "rparen" };
+
+// ─── Color Constants ─────────────────────────────────────────────────────────
+
 const COLOR_MAP: Record<string, string> = {
   w: "W",
   u: "U",
@@ -26,58 +53,143 @@ const COLOR_MAP: Record<string, string> = {
   g: "G",
 };
 
+// ─── Tokenizer ───────────────────────────────────────────────────────────────
+
 /**
- * Tokenizes a query string, respecting quoted strings.
- * Handles operators with quoted values like o:"draw a card"
- *
- * @param query - The search query string
- * @returns Array of tokens
+ * Tokenizes a query string into structured tokens.
+ * Handles quoted strings, parentheses, and the `or` keyword.
  */
-function tokenize(query: string): string[] {
-  const tokens: string[] = [];
+function tokenize(query: string): Token[] {
+  const tokens: Token[] = [];
   const trimmed = query.trim();
+  if (!trimmed) return tokens;
 
-  if (!trimmed) {
-    return tokens;
-  }
-
-  // Match either:
-  // 1. operator:"quoted value" or operator:'quoted value'
-  // 2. operator:unquoted_value
-  // 3. plain words
-  const regex = /(\w+:(?:"[^"]*"|'[^']*'|\S+))|(\S+)/g;
+  // Match: parens, operator:"quoted", operator:'quoted', operator:value, or plain words
+  // Use [^\s()]+ instead of \S+ so parens aren't consumed as part of values
+  const regex =
+    /([()])|(\w+:(?:(?:<=|>=|!=|[=<>]))?(?:"[^"]*"|'[^']*'|[^\s()]+))|(!(?:"[^"]*"|'[^']*'|[^\s()]+))|([^\s()]+)/g;
   let match;
 
   while ((match = regex.exec(trimmed)) !== null) {
-    tokens.push(match[0]);
+    const [full, paren, operatorTerm, exactName, plain] = match;
+
+    if (paren) {
+      tokens.push({ kind: paren === "(" ? "lparen" : "rparen" });
+    } else if (operatorTerm) {
+      tokens.push({ kind: "word", value: operatorTerm });
+    } else if (exactName) {
+      tokens.push({ kind: "word", value: exactName });
+    } else if (plain) {
+      if (plain.toLowerCase() === "or") {
+        tokens.push({ kind: "or" });
+      } else {
+        tokens.push({ kind: "word", value: plain });
+      }
+    } else {
+      tokens.push({ kind: "word", value: full });
+    }
   }
 
   return tokens;
 }
 
-/**
- * Parses a query string into individual search terms.
- *
- * @param query - The search query string
- * @returns Array of parsed search terms
- */
-function parseQuery(query: string): SearchTerm[] {
-  const terms: SearchTerm[] = [];
-  const tokens = tokenize(query);
+// ─── Parser ──────────────────────────────────────────────────────────────────
 
-  for (const token of tokens) {
-    const term = parseTerm(token);
-    if (term) {
-      terms.push(term);
+/**
+ * Parses tokens into an AST. Grammar:
+ *   expr     = or_expr
+ *   or_expr  = and_expr ("or" and_expr)*
+ *   and_expr = atom+
+ *   atom     = "(" or_expr ")" | "-"? term
+ */
+function parseExpr(tokens: Token[]): SearchExpr {
+  let pos = 0;
+
+  function parseOrExpr(): SearchExpr {
+    const children: SearchExpr[] = [parseAndExpr()];
+    while (pos < tokens.length && tokens[pos].kind === "or") {
+      pos++; // consume "or"
+      children.push(parseAndExpr());
     }
+    return children.length === 1 ? children[0] : { kind: "or", children };
   }
 
-  return terms;
+  function parseAndExpr(): SearchExpr {
+    const children: SearchExpr[] = [];
+    while (pos < tokens.length && tokens[pos].kind !== "or" && tokens[pos].kind !== "rparen") {
+      children.push(parseAtom());
+    }
+    if (children.length === 0) {
+      // Empty group — return a no-op that matches everything
+      return { kind: "and", children: [] };
+    }
+    return children.length === 1 ? children[0] : { kind: "and", children };
+  }
+
+  function parseAtom(): SearchExpr {
+    const tok = tokens[pos];
+
+    // Parenthesized group (with optional leading negation)
+    if (tok.kind === "lparen") {
+      pos++; // consume "("
+      const inner = parseOrExpr();
+      if (pos < tokens.length && tokens[pos].kind === "rparen") {
+        pos++; // consume ")"
+      }
+      return inner;
+    }
+
+    // Negated group: -(...)
+    if (tok.kind === "word" && tok.value === "-" && pos + 1 < tokens.length && tokens[pos + 1].kind === "lparen") {
+      pos++; // consume "-"
+      pos++; // consume "("
+      const inner = parseOrExpr();
+      if (pos < tokens.length && tokens[pos].kind === "rparen") {
+        pos++; // consume ")"
+      }
+      return negate(inner);
+    }
+
+    // Word token — parse as term
+    if (tok.kind === "word") {
+      pos++;
+      const negated = tok.value.startsWith("-");
+      const raw = negated ? tok.value.slice(1) : tok.value;
+      const term = parseTerm(raw);
+      if (!term) {
+        // Unknown term, return no-op
+        return { kind: "and", children: [] };
+      }
+      return { kind: "term", negated, term };
+    }
+
+    // Unexpected token — skip
+    pos++;
+    return { kind: "and", children: [] };
+  }
+
+  const result = parseOrExpr();
+  return result;
 }
 
 /**
- * Strips surrounding quotes from a value if present.
+ * Negates an expression by wrapping each leaf term.
  */
+function negate(expr: SearchExpr): SearchExpr {
+  switch (expr.kind) {
+    case "term":
+      return { ...expr, negated: !expr.negated };
+    case "and":
+      // -(A AND B) = (-A OR -B) by De Morgan's
+      return { kind: "or", children: expr.children.map(negate) };
+    case "or":
+      // -(A OR B) = (-A AND -B) by De Morgan's
+      return { kind: "and", children: expr.children.map(negate) };
+  }
+}
+
+// ─── Term Parser ─────────────────────────────────────────────────────────────
+
 function stripQuotes(value: string): string {
   if (
     (value.startsWith('"') && value.endsWith('"')) ||
@@ -89,47 +201,66 @@ function stripQuotes(value: string): string {
 }
 
 /**
- * Parses a single term into a SearchTerm.
- *
- * @param term - A single search term (e.g., "t:creature", 'o:"draw a card"', "mv=3")
- * @returns Parsed SearchTerm or null if empty
+ * Parses a single raw string into a SearchTerm.
  */
-function parseTerm(term: string): SearchTerm | null {
-  const trimmed = term.trim();
-  if (!trimmed) {
-    return null;
+function parseTerm(raw: string): SearchTerm | null {
+  if (!raw) return null;
+
+  // Exact name: !Lightning Bolt or !"Lightning Bolt"
+  if (raw.startsWith("!")) {
+    return { type: "exact_name", value: stripQuotes(raw.slice(1)) };
   }
 
   // Type operator: type: or t:
-  const typeMatch = trimmed.match(/^(?:type|t):(.+)$/i);
+  const typeMatch = raw.match(/^(?:type|t):(.+)$/i);
   if (typeMatch) {
     return { type: "type", value: stripQuotes(typeMatch[1]) };
   }
 
   // Oracle operator: oracle: or o:
-  const oracleMatch = trimmed.match(/^(?:oracle|o):(.+)$/i);
+  const oracleMatch = raw.match(/^(?:oracle|o):(.+)$/i);
   if (oracleMatch) {
     return { type: "oracle", value: stripQuotes(oracleMatch[1]) };
   }
 
-  // Color operator: color: or c:
-  const colorMatch = trimmed.match(/^(?:color|c):(.+)$/i);
+  // Color operator: color: or c: (with optional comparison operator)
+  const colorMatch = raw.match(/^(?:color|c)(<=|>=|=|<|>|:)(.+)$/i);
   if (colorMatch) {
-    return { type: "color", value: stripQuotes(colorMatch[1]).toLowerCase() };
+    return {
+      type: "color",
+      operator: colorMatch[1] as ColorOperator,
+      value: stripQuotes(colorMatch[2]).toLowerCase(),
+    };
   }
 
-  // Mana value operator: mv=3, mv<3, mv>3, mv<=3, mv>=3 (also cmc as alias)
-  const mvMatch = trimmed.match(/^(?:mv|cmc)(<=|>=|=|<|>)(\d+)$/i);
+  // Color identity operator: id: or identity:
+  const identityMatch = raw.match(/^(?:id|identity)(<=|>=|=|<|>|:)(.+)$/i);
+  if (identityMatch) {
+    return {
+      type: "identity",
+      operator: identityMatch[1] as ColorOperator,
+      value: stripQuotes(identityMatch[2]).toLowerCase(),
+    };
+  }
+
+  // Mana cost operator: m: or mana:
+  const manaMatch = raw.match(/^(?:m|mana):(.+)$/i);
+  if (manaMatch) {
+    return { type: "mana", value: stripQuotes(manaMatch[1]) };
+  }
+
+  // Mana value operator: mv=3, mv<3, mv>3, mv<=3, mv>=3, mv!=3 (also cmc)
+  const mvMatch = raw.match(/^(?:mv|cmc)(<=|>=|!=|=|<|>)(\d+)$/i);
   if (mvMatch) {
     return {
       type: "mv",
-      operator: mvMatch[1] as "=" | "<" | ">" | "<=" | ">=",
+      operator: mvMatch[1] as "=" | "<" | ">" | "<=" | ">=" | "!=",
       value: parseInt(mvMatch[2], 10),
     };
   }
 
-  // MV colon shorthand: mv:3 (equivalent to mv=3)
-  const mvColonMatch = trimmed.match(/^mv:(\d+)$/i);
+  // MV colon shorthand: mv:3
+  const mvColonMatch = raw.match(/^(?:mv|cmc):(\d+)$/i);
   if (mvColonMatch) {
     return {
       type: "mv",
@@ -139,20 +270,35 @@ function parseTerm(term: string): SearchTerm | null {
   }
 
   // Default: treat as name search
-  return { type: "name", value: trimmed };
+  return { type: "name", value: raw };
 }
 
+// ─── Matching ────────────────────────────────────────────────────────────────
+
 /**
- * Checks if a card matches a single search term.
- *
- * @param card - The card to check
- * @param term - The search term to match against
- * @returns True if the card matches the term
+ * Evaluates a search expression against a card.
  */
+function evaluate(card: ScryCard, expr: SearchExpr): boolean {
+  switch (expr.kind) {
+    case "term": {
+      const result = matchesTerm(card, expr.term);
+      return expr.negated ? !result : result;
+    }
+    case "and":
+      // Empty AND matches everything (no-op)
+      return expr.children.every((child) => evaluate(card, child));
+    case "or":
+      return expr.children.some((child) => evaluate(card, child));
+  }
+}
+
 function matchesTerm(card: ScryCard, term: SearchTerm): boolean {
   switch (term.type) {
     case "name":
       return card.name.toLowerCase().includes(term.value.toLowerCase());
+
+    case "exact_name":
+      return card.name.toLowerCase() === term.value.toLowerCase();
 
     case "type":
       return card.typeLine.toLowerCase().includes(term.value.toLowerCase());
@@ -161,7 +307,13 @@ function matchesTerm(card: ScryCard, term: SearchTerm): boolean {
       return card.oracleText.toLowerCase().includes(term.value.toLowerCase());
 
     case "color":
-      return matchesColor(card, term.value);
+      return matchesColorExpr(card.colors, term.operator, term.value);
+
+    case "identity":
+      return matchesColorExpr(card.colorIdentity, term.operator, term.value);
+
+    case "mana":
+      return matchesMana(card, term.value);
 
     case "mv":
       return matchesMv(card, term.operator, term.value);
@@ -172,44 +324,119 @@ function matchesTerm(card: ScryCard, term: SearchTerm): boolean {
 }
 
 /**
- * Checks if a card matches a color query.
+ * Matches a color expression with comparison operators.
  *
- * @param card - The card to check
- * @param colorQuery - The color query string (e.g., "r", "ub", "c")
- * @returns True if the card matches all specified colors
+ * Scryfall color semantics:
+ * - `c:r` (colon) = card colors include all specified (superset or equal)
+ * - `c=r` = card colors are exactly the specified set
+ * - `c>=ub` = card colors are a superset of (or equal to) ub
+ * - `c<=ub` = card colors are a subset of (or equal to) ub
+ * - `c>ub` = strict superset
+ * - `c<ub` = strict subset
+ * - `c:m` = multicolor (2+ colors)
+ * - `c:c` = colorless (0 colors)
  */
-function matchesColor(card: ScryCard, colorQuery: string): boolean {
-  // Handle colorless: "c" means empty colors array
-  if (colorQuery === "c") {
-    return card.colors.length === 0;
+function matchesColorExpr(
+  cardColors: string[],
+  operator: ColorOperator,
+  query: string
+): boolean {
+  // Special: multicolor — comparison operators don't have meaningful
+  // semantics here, so all operators behave the same as `c:m`
+  if (query === "m") {
+    return cardColors.length >= 2;
   }
 
-  // Each character must be a color the card has
-  for (const char of colorQuery) {
+  // Special: colorless — same rationale as multicolor
+  if (query === "c") {
+    return cardColors.length === 0;
+  }
+
+  // Parse query colors
+  const queryColors = parseColorQuery(query);
+  if (!queryColors) return false;
+
+  const cardSet = new Set(cardColors);
+  const querySet = new Set(queryColors);
+
+  // Check subset/superset relationships
+  const cardHasAll = queryColors.every((c) => cardSet.has(c));
+  const queryHasAll = cardColors.every((c) => querySet.has(c));
+  const sameSize = cardSet.size === querySet.size;
+
+  switch (operator) {
+    case ":":
+      // Colon = "includes all specified colors" (Scryfall default)
+      return cardHasAll;
+    case "=":
+      // Exact match
+      return cardHasAll && queryHasAll && sameSize;
+    case ">=":
+      // Card colors are superset or equal
+      return cardHasAll;
+    case ">":
+      // Card colors are strict superset
+      return cardHasAll && cardSet.size > querySet.size;
+    case "<=":
+      // Card colors are subset or equal
+      return queryHasAll;
+    case "<":
+      // Card colors are strict subset
+      return queryHasAll && cardSet.size < querySet.size;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Parses a color query string into an array of uppercase color codes.
+ * Returns null if any character is unknown.
+ */
+function parseColorQuery(query: string): string[] | null {
+  const colors: string[] = [];
+  for (const char of query) {
     const color = COLOR_MAP[char];
-    if (!color) {
-      // Unknown color letter - treat as no match
-      return false;
-    }
-    if (!card.colors.includes(color)) {
-      return false;
-    }
+    if (!color) return null;
+    colors.push(color);
+  }
+  return colors;
+}
+
+/**
+ * Matches a mana cost query against a card's manaCost string.
+ * Normalizes both to compare mana symbols.
+ */
+function matchesMana(card: ScryCard, query: string): boolean {
+  const cardMana = card.manaCost.toLowerCase();
+  const queryLower = query.toLowerCase();
+
+  // If query uses {X} notation, match directly
+  if (queryLower.includes("{")) {
+    return cardMana.includes(queryLower);
+  }
+
+  // Otherwise treat each character as a mana symbol shorthand
+  // e.g., "gg" means the card must contain {G}{G} (two green symbols)
+  // Count occurrences of each symbol in the query
+  const queryCounts = new Map<string, number>();
+  for (const char of queryLower) {
+    const symbol = `{${char}}`;
+    queryCounts.set(symbol, (queryCounts.get(symbol) ?? 0) + 1);
+  }
+
+  // Count occurrences in card mana cost
+  for (const [symbol, needed] of queryCounts) {
+    const regex = new RegExp(symbol.replace(/[{}]/g, "\\$&"), "gi");
+    const found = (cardMana.match(regex) ?? []).length;
+    if (found < needed) return false;
   }
 
   return true;
 }
 
-/**
- * Checks if a card matches a mana value comparison.
- *
- * @param card - The card to check
- * @param operator - The comparison operator
- * @param value - The mana value to compare against
- * @returns True if the card's mana value satisfies the comparison
- */
 function matchesMv(
   card: ScryCard,
-  operator: "=" | "<" | ">" | "<=" | ">=",
+  operator: "=" | "<" | ">" | "<=" | ">=" | "!=",
   value: number
 ): boolean {
   const mv = card.manaValue;
@@ -217,6 +444,8 @@ function matchesMv(
   switch (operator) {
     case "=":
       return mv === value;
+    case "!=":
+      return mv !== value;
     case "<":
       return mv < value;
     case ">":
@@ -230,36 +459,34 @@ function matchesMv(
   }
 }
 
+// ─── Public API ──────────────────────────────────────────────────────────────
+
 /**
  * Searches cards locally using Scryfall-style query syntax.
  *
  * Supported operators:
  * - `type:` / `t:` - Match type line (case-insensitive substring)
  * - `oracle:` / `o:` - Match oracle text (case-insensitive substring)
- * - `color:` / `c:` - Match colors (w/u/b/r/g, c=colorless)
- * - `mv` / `cmc` - Match mana value (=, <, >, <=, >=)
+ * - `color:` / `c:` - Match colors (w/u/b/r/g, c=colorless, m=multicolor)
+ * - `id:` / `identity:` - Match color identity
+ * - `m:` / `mana:` - Match mana cost symbols
+ * - `mv` / `cmc` - Match mana value (=, <, >, <=, >=, !=)
+ * - `!name` - Exact card name match
+ * - `-term` - Negate any term
+ * - `or` - OR logic between terms
+ * - `(...)` - Group sub-expressions
  * - Plain text - Match card name (case-insensitive substring)
  *
- * All terms are ANDed together.
- *
- * @example
- * searchLocalCards("t:creature", cards)  // all creatures
- * searchLocalCards("o:flying", cards)    // cards with "flying" in oracle text
- * searchLocalCards("c:r mv=1", cards)    // red cards with mana value 1
- * searchLocalCards("bolt", cards)        // cards with "bolt" in name
+ * All terms are ANDed together unless separated by `or`.
  *
  * @param query - The search query string
  * @param cards - Array of cards to search
- * @returns Cards matching all search terms
+ * @returns Cards matching the search expression
  */
 export function searchLocalCards(query: string, cards: ScryCard[]): ScryCard[] {
-  const terms = parseQuery(query);
+  const tokens = tokenize(query);
+  if (tokens.length === 0) return cards;
 
-  // Empty query returns all cards
-  if (terms.length === 0) {
-    return cards;
-  }
-
-  // Filter cards that match ALL terms (AND logic)
-  return cards.filter((card) => terms.every((term) => matchesTerm(card, term)));
+  const expr = parseExpr(tokens);
+  return cards.filter((card) => evaluate(card, expr));
 }

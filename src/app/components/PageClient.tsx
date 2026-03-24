@@ -412,13 +412,16 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
                       <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">t:creature</code> type</li>
                       <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">o:flying</code> oracle text</li>
                       <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">o:&quot;draw a card&quot;</code> phrase</li>
-                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">c:r</code> color (w/u/b/r/g)</li>
-                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">c:ub</code> multicolor</li>
-                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">mv=3</code> mana value</li>
-                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">mv&lt;=2</code> comparison</li>
+                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">c:r</code> color (w/u/b/r/g/c/m)</li>
+                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">c=ub</code> exact colors</li>
+                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">id:ubr</code> color identity</li>
+                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">m:GG</code> mana cost</li>
+                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">mv=3</code> <code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">mv&lt;=2</code> mana value</li>
+                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">-t:land</code> negation</li>
+                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">or</code> <code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">( )</code> logic</li>
                     </ul>
                     <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                      Combine terms: <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-700">t:instant c:u</code>
+                      <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-700">t:instant c:u</code> = AND, <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-700">(t:instant or t:sorcery) c:u</code> = grouped OR
                     </div>
                   </div>
                 </div>
