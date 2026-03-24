@@ -213,8 +213,8 @@
     "Scalding Tarn": 1
   },
   "draftMetadata": {
-    "alpha": { "name": "Alpha Draft", "date": "2026-01-01" },
-    "beta": { "name": "Beta Draft", "date": "2026-02-01" }
+    "alpha": { "name": "Alpha Draft", "date": "2026-01-01", "numDrafters": 10 },
+    "beta": { "name": "Beta Draft", "date": "2026-02-01", "numDrafters": 10 }
   },
   "draftIds": ["alpha", "beta"],
   "completedDraftIds": ["alpha", "beta"],

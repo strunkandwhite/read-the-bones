@@ -12,7 +12,7 @@ test("deck builder opens when seat selected on active draft", async ({
 
   // Open settings, select active draft
   await page.getByLabel("Settings").click();
-  await expect(page.getByText("Active draft")).toBeVisible();
+  await expect(page.getByText("Draft view")).toBeVisible();
 
   // Select the active draft from dropdown
   await page.locator("select").first().selectOption("gamma");
@@ -82,4 +82,32 @@ test("deck builder closes on Escape", async ({ page }) => {
   await page.getByText("Close").first().click();
 
   await expect(page.getByText("Share Deck")).not.toBeVisible();
+});
+
+test("deck builder opens on completed draft with no active drafts", async ({
+  page,
+}) => {
+  // Default mockApiRoutes has activeDrafts: [] (no active drafts)
+  await mockApiRoutes(page);
+  await page.goto("/");
+  await expect(page.locator("table")).toBeVisible();
+
+  // Open settings — draft view section should be visible even with no active drafts
+  await page.getByLabel("Settings").click();
+  await expect(page.getByText("Draft view")).toBeVisible();
+
+  // Select a completed draft from dropdown
+  await page.locator("select").first().selectOption("alpha");
+
+  // Select seat 1
+  await page.locator("select").nth(1).selectOption("1");
+
+  // Close settings
+  await page.keyboard.press("Escape");
+
+  // Deck builder toggle should now be visible
+  await page.getByLabel("Deck Builder").click();
+
+  // Deck builder panel should open
+  await expect(page.getByText("Share Deck")).toBeVisible({ timeout: 5000 });
 });

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { track } from "@vercel/analytics/react";
 import { DraftSelector } from "./DraftSelector";
 import { PoolSelector } from "./PoolSelector";
 import type { ActiveDraftInfo } from "../hooks/useSyncStatus";
 
 export interface SettingsProps {
-  drafts: Array<{ id: string; name: string; date: string }>;
+  drafts: Array<{ id: string; name: string; date: string; numDrafters: number }>;
   selectedDrafts: Set<string>;
   onDraftsChange: (selected: Set<string>) => void;
   isLoading?: boolean;
@@ -46,6 +46,8 @@ export function Settings({
 }: SettingsProps) {
   const [isOpen, setIsOpen] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
+  const activeDraftIds = useMemo(() => new Set(activeDrafts.map((d) => d.id)), [activeDrafts]);
+  const completedDrafts = useMemo(() => drafts.filter((d) => !activeDraftIds.has(d.id)), [drafts, activeDraftIds]);
 
   // Close modal when clicking outside
   useEffect(() => {
@@ -136,64 +138,79 @@ export function Settings({
 
             {/* Scrollable content */}
             <div className="flex-1 overflow-y-auto px-6 py-4">
-              {/* Active Draft section */}
-              {activeDrafts.length > 0 && (
-                <div className="mb-6">
-                  <h3 className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    Active draft
-                  </h3>
-                  <div className="flex gap-3">
+              {/* Draft view section */}
+              <div className="mb-6">
+                <h3 className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                  Draft view
+                </h3>
+                <div className="flex gap-3">
+                  <div className="relative flex-1">
+                    <select
+                      value={activeDraft ?? ""}
+                      onChange={(e) => onActiveDraftChange(e.target.value || null)}
+                      className="block w-full appearance-none rounded-lg border border-zinc-300 bg-white py-1.5 pl-3 pr-9 text-sm text-zinc-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                    >
+                      <option value="">None</option>
+                      {activeDrafts.length > 0 ? (
+                        <>
+                          <optgroup label="Active">
+                            {activeDrafts.map((d) => (
+                              <option key={d.id} value={d.id}>{d.id}</option>
+                            ))}
+                          </optgroup>
+                          {completedDrafts.length > 0 && (
+                            <optgroup label="Completed">
+                              {completedDrafts.map((d) => (
+                                <option key={d.id} value={d.id}>{d.id}</option>
+                              ))}
+                            </optgroup>
+                          )}
+                        </>
+                      ) : (
+                        drafts.map((d) => (
+                          <option key={d.id} value={d.id}>{d.id}</option>
+                        ))
+                      )}
+                    </select>
+                    <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+
+                  {activeDraft && (
                     <div className="relative flex-1">
                       <select
-                        value={activeDraft ?? ""}
-                        onChange={(e) => onActiveDraftChange(e.target.value || null)}
+                        value={selectedSeat ?? ""}
+                        onChange={(e) => onSelectedSeatChange(e.target.value ? Number(e.target.value) : null)}
                         className="block w-full appearance-none rounded-lg border border-zinc-300 bg-white py-1.5 pl-3 pr-9 text-sm text-zinc-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
                       >
-                        <option value="">None</option>
-                        {activeDrafts.map((d) => (
-                          <option key={d.id} value={d.id}>{d.id}</option>
+                        <option value="">No seat</option>
+                        {Array.from({ length: activeDraftNumSeats }, (_, i) => i + 1).map((n) => (
+                          <option key={n} value={n}>Seat {n}</option>
                         ))}
                       </select>
                       <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
                       </svg>
                     </div>
-
-                    {activeDraft && (
-                      <div className="relative flex-1">
-                        <select
-                          value={selectedSeat ?? ""}
-                          onChange={(e) => onSelectedSeatChange(e.target.value ? Number(e.target.value) : null)}
-                          className="block w-full appearance-none rounded-lg border border-zinc-300 bg-white py-1.5 pl-3 pr-9 text-sm text-zinc-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
-                        >
-                          <option value="">No seat</option>
-                          {Array.from({ length: activeDraftNumSeats }, (_, i) => i + 1).map((n) => (
-                            <option key={n} value={n}>Seat {n}</option>
-                          ))}
-                        </select>
-                        <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                          <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
-                        </svg>
-                      </div>
-                    )}
-                  </div>
-
-                  {activeDraft && (
-                    <label className="mt-2 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
-                      <input
-                        type="checkbox"
-                        checked={hideTaken}
-                        onChange={(e) => {
-                          onHideTakenChange(e.target.checked);
-                          track("hide_taken_toggled", { enabled: e.target.checked });
-                        }}
-                        className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      Hide taken cards
-                    </label>
                   )}
                 </div>
-              )}
+
+                {activeDraft && (
+                  <label className="mt-2 flex items-center gap-2 text-sm text-zinc-600 dark:text-zinc-400">
+                    <input
+                      type="checkbox"
+                      checked={hideTaken}
+                      onChange={(e) => {
+                        onHideTakenChange(e.target.checked);
+                        track("hide_taken_toggled", { enabled: e.target.checked });
+                      }}
+                      className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    Hide taken cards
+                  </label>
+                )}
+              </div>
 
               {/* Pool as-of section */}
               <div className="mb-6 border-t border-zinc-200 pt-6 dark:border-zinc-700">

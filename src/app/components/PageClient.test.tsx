@@ -73,9 +73,9 @@ function makeTestProps(overrides?: Partial<CardStatsResponse>): PageClientProps 
       draftIds: ["draft-a", "draft-b", "draft-c"],
       completedDraftIds: ["draft-a", "draft-b"],
       draftMetadata: {
-        "draft-a": { name: "Draft A", date: "2026-01-01" },
-        "draft-b": { name: "Draft B", date: "2026-02-01" },
-        "draft-c": { name: "Draft C", date: "2026-03-01" },
+        "draft-a": { name: "Draft A", date: "2026-01-01", numDrafters: 10 },
+        "draft-b": { name: "Draft B", date: "2026-02-01", numDrafters: 10 },
+        "draft-c": { name: "Draft C", date: "2026-03-01", numDrafters: 10 },
       },
       ingestionHash: "abc12345",
       ...overrides,

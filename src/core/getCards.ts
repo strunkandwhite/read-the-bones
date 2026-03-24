@@ -34,7 +34,7 @@ export type CardStatsResponse = {
   cards: EnrichedCardStats[];
   draftCount: number;
   cubeCopies: Record<string, number>;
-  draftMetadata: Record<string, { name: string; date: string }>;
+  draftMetadata: Record<string, { name: string; date: string; numDrafters: number }>;
   draftIds: string[];
   completedDraftIds: string[];
   ingestionHash: string;
@@ -424,9 +424,9 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
   const allCards = [...filteredCards, ...newCardEntries];
 
   // Convert draftMetadata Map to plain object
-  const draftMetadataObj: Record<string, { name: string; date: string }> = {};
+  const draftMetadataObj: Record<string, { name: string; date: string; numDrafters: number }> = {};
   for (const [id, meta] of draftMetadataMap) {
-    draftMetadataObj[id] = { name: meta.name, date: meta.date };
+    draftMetadataObj[id] = { name: meta.name, date: meta.date, numDrafters: meta.numDrafters ?? 10 };
   }
 
   // Query taken cards with seat info for active draft filtering

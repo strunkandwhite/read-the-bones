@@ -45,22 +45,7 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
 
   const syncStatus = useSyncStatus(draftSelection.activeDraft !== null, draftSelection.activeDraft);
 
-  // Clear active draft selection if it completed (skip until sync data has loaded)
-  const syncHasLoaded = syncStatus.lastSyncedAt !== "0";
-  useEffect(() => {
-    if (!syncHasLoaded) return;
-    if (draftSelection.activeDraft && !syncStatus.activeDrafts.some(d => d.id === draftSelection.activeDraft)) {
-      draftSelection.setActiveDraft(null);
-    }
-  }, [draftSelection.activeDraft, syncStatus.activeDrafts, syncHasLoaded]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const activeDraftNumSeats = useMemo(() => {
-    if (!draftSelection.activeDraft) return 0;
-    const info = syncStatus.activeDrafts.find(
-      (d) => d.id === draftSelection.activeDraft
-    );
-    return info?.numSeats ?? 10;
-  }, [draftSelection.activeDraft, syncStatus.activeDrafts]);
 
   const { cardData, draftStats, isLoading, handleDraftsChange } = useCardData({
     initialCardData,
@@ -343,9 +328,16 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
         name: cardData.draftMetadata[id]?.name || id,
         date: cardData.draftMetadata[id]?.date || "1970-01-01",
         isComplete: completedSet.has(id),
+        numDrafters: cardData.draftMetadata[id]?.numDrafters || 10,
       })),
     [cardData.draftIds, cardData.draftMetadata, completedSet]
   );
+
+  const activeDraftNumSeats = useMemo(() => {
+    if (!draftSelection.activeDraft) return 0;
+    const draft = drafts.find((d) => d.id === draftSelection.activeDraft);
+    return draft?.numDrafters ?? 10;
+  }, [draftSelection.activeDraft, drafts]);
 
   const displayedCubeCopies = cardData.cubeCopies;
 
