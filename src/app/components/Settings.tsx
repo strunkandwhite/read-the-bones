@@ -183,7 +183,10 @@ export function Settings({
                       <input
                         type="checkbox"
                         checked={hideTaken}
-                        onChange={(e) => onHideTakenChange(e.target.checked)}
+                        onChange={(e) => {
+                          onHideTakenChange(e.target.checked);
+                          track("hide_taken_toggled", { enabled: e.target.checked });
+                        }}
                         className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
                       />
                       Hide taken cards

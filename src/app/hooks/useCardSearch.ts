@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { track } from "@vercel/analytics/react";
 import type { ColorFilterMode } from "@/core/colorFilter";
 import type { ScryCard, EnrichedCardStats } from "@/core/types";
@@ -56,7 +56,10 @@ export function useCardSearch({ cards }: UseCardSearchProps): UseCardSearchRetur
 
     if (!hasScryfallOperators(query)) {
       setScryfallSearchResults(null);
-      return;
+      const timeoutId = setTimeout(() => {
+        track("search", { query_type: "name", result_count: -1 });
+      }, 500);
+      return () => clearTimeout(timeoutId);
     }
 
     const timeoutId = setTimeout(() => {
@@ -72,7 +75,13 @@ export function useCardSearch({ cards }: UseCardSearchProps): UseCardSearchRetur
   }, [searchQuery, scryfallCards]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  const scryfallSearchResultsRef = useRef(scryfallSearchResults);
+  useEffect(() => {
+    scryfallSearchResultsRef.current = scryfallSearchResults;
+  }, [scryfallSearchResults]);
+
   const clearSearch = useCallback(() => {
+    track("search_cleared", { had_results: scryfallSearchResultsRef.current !== null && scryfallSearchResultsRef.current.length > 0 });
     setSearchQuery("");
     setScryfallSearchResults(null);
   }, []);

@@ -1,5 +1,7 @@
 "use client";
 
+import { track } from "@vercel/analytics/react";
+
 export interface DraftSelectorProps {
   drafts: Array<{ id: string; name: string; date: string; isComplete?: boolean }>;
   selectedDrafts: Set<string>;
@@ -28,10 +30,18 @@ export function DraftSelector({
       newSelection.add(draftId);
     }
     onChange(newSelection);
+    track("draft_filter_changed", { selected_count: newSelection.size, action: "toggle" });
   };
 
-  const selectAll = () => onChange(new Set(drafts.map((d) => d.id)));
-  const selectNone = () => onChange(new Set());
+  const selectAll = () => {
+    const all = new Set(drafts.map((d) => d.id));
+    onChange(all);
+    track("draft_filter_changed", { selected_count: all.size, action: "select_all" });
+  };
+  const selectNone = () => {
+    onChange(new Set());
+    track("draft_filter_changed", { selected_count: 0, action: "select_none" });
+  };
 
   return (
     <div className={disabled ? "opacity-50" : ""}>

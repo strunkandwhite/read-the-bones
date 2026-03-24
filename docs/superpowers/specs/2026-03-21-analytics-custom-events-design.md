@@ -89,8 +89,8 @@ This fires on every render but only tracks when the threshold is exceeded and at
 
 ## What We're Not Tracking
 
-- **Draft checkbox selection**: Users aggregate drafts frequently; not actionable.
-- **Card hover/image preview**: Too noisy, low signal.
+- **Draft checkbox selection**: Now tracked as `draft_filter_changed` with `selected_count` and `action` (toggle/select_all/select_none) to understand how users curate their view.
+- **Card hover/image preview**: Now tracked as `card_hover` with `card_name`, throttled to 1 event per 5 seconds, to understand which cards draw user interest.
 - **Drag-and-drop reordering within deck builder**: Internal arrangement isn't meaningful.
 - **Settings close / deck builder close**: Opens tell us about interest; closes don't add much.
 - **Server-side events**: No server-side actions warrant tracking at this scale.

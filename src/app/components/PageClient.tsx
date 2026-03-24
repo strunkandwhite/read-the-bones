@@ -71,6 +71,8 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
     syncDataChanged: syncStatus.dataChanged,
   });
 
+  const searchHelpTrackedRef = useRef(false);
+
   // Track page load performance
   const pageLoadTracked = useRef(false);
   useEffect(() => {
@@ -401,6 +403,12 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
                     type="button"
                     className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[10px] font-medium text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-600 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300"
                     aria-label="Search syntax help"
+                    onMouseEnter={() => {
+                      if (!searchHelpTrackedRef.current) {
+                        searchHelpTrackedRef.current = true;
+                        track("search_help_viewed");
+                      }
+                    }}
                   >
                     ?
                   </button>

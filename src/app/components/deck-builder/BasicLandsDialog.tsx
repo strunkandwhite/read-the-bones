@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { track } from "@vercel/analytics/react";
 import type { BasicLandCounts } from "@/core/types";
 
 const BASIC_LAND_NAMES: (keyof BasicLandCounts)[] = [
@@ -98,6 +99,10 @@ export function BasicLandsDialog({
           </button>
           <button
             onClick={() => {
+              const totalLands = Object.values(counts).reduce((sum, n) => sum + n, 0);
+              if (totalLands > 0) {
+                track("deck_lands_added", { total_lands: totalLands });
+              }
               onSave(counts);
               onClose();
             }}

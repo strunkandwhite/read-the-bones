@@ -139,11 +139,11 @@ export function DeckBuilderPanel({
         throw new Error(data.error ?? "Server error");
       }
       const { deckId } = await response.json();
-      const url = `${window.location.origin}/?deck=${deckId}`;
-      await navigator.clipboard.writeText(url);
       const totalCards = Object.values(state.zones.deck).flat().length
         + Object.values(state.zones.sideboard).flat().length;
       track("deck_shared", { draft: draftName, card_count: totalCards });
+      const url = `${window.location.origin}/?deck=${deckId}`;
+      await navigator.clipboard.writeText(url);
       setShareStatus("shared");
       setTimeout(() => setShareStatus("idle"), 2000);
     } catch (error) {
@@ -165,8 +165,8 @@ export function DeckBuilderPanel({
   const handleExportText = useCallback(async () => {
     try {
       const text = formatDecklistText(state);
-      await navigator.clipboard.writeText(text);
       track("deck_exported", { draft: draftName, format: "text" });
+      await navigator.clipboard.writeText(text);
       setExportStatus("copied");
       setTimeout(() => setExportStatus("idle"), 2000);
     } catch {
@@ -175,12 +175,18 @@ export function DeckBuilderPanel({
   }, [state, draftName]);
 
   const handleClearDeck = useCallback(() => {
+    const cardCount = Object.values(state.zones.deck).flat().length
+      + Object.values(state.zones.sideboard).flat().length;
+    if (cardCount > 0) {
+      track("deck_cleared", { card_count: cardCount });
+    }
     dispatch({ type: "CLEAR_DECK", scryfallData });
-  }, [dispatch, scryfallData]);
+  }, [dispatch, scryfallData, state.zones]);
 
   const handleRemoveSpeculative = useCallback(
     (cardName: string) => {
       dispatch({ type: "REMOVE_SPECULATIVE", cardName });
+      track("deck_card_removed", { zone: "deck" });
     },
     [dispatch],
   );

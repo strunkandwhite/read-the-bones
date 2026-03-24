@@ -82,6 +82,7 @@ export function CardTable({
   onRemoveSpeculativeRef.current = onRemoveSpeculative;
 
   const [sorting, setSorting] = useState<SortingState>([{ id: "pickScore", desc: false }]);
+  const lastHoverTrackRef = useRef(0);
 
   // Track responsive breakpoint based on actual container width (handles browser zoom)
   const [breakpoint, setBreakpoint] = useState<"mobile" | "tablet" | "desktop" | "wide">("wide");
@@ -417,6 +418,13 @@ export function CardTable({
                               !seatCardNames?.has(row.original.cardName)
                                 ? 0.35
                                 : 1,
+                          }}
+                          onMouseEnter={() => {
+                            const now = Date.now();
+                            if (now - lastHoverTrackRef.current > 5000) {
+                              lastHoverTrackRef.current = now;
+                              track("card_hover", { card_name: row.original.cardName });
+                            }
                           }}
                         >
                           {row.getVisibleCells().map((cell) => (
