@@ -264,6 +264,137 @@ describe("deckReducer", () => {
       });
       expect(result).toBe(state);
     });
+
+    it("decrements basicLands when moving a basic land deck → sideboard", () => {
+      let state = createEmptyDeckState("tarkir", 1);
+      state = deckReducer(state, {
+        type: "SET_BASICS",
+        basics: { Plains: 0, Island: 0, Swamp: 0, Mountain: 3, Forest: 0 },
+        scryfallData,
+      });
+      const result = deckReducer(state, {
+        type: "MOVE_CARD",
+        cardName: "Mountain",
+        fromZone: "deck",
+        toZone: "sideboard",
+        fromColumn: "lands",
+        toColumn: "lands",
+        toIndex: 0,
+      });
+      expect(result.basicLands.Mountain).toBe(2);
+      expect(result.zones.deck["lands"].filter((c: string) => c === "Mountain")).toHaveLength(2);
+      expect(result.zones.sideboard["lands"]).toEqual(["Mountain"]);
+    });
+
+    it("increments basicLands when moving a basic land sideboard → deck", () => {
+      let state = createEmptyDeckState("tarkir", 1);
+      state = deckReducer(state, {
+        type: "SET_BASICS",
+        basics: { Plains: 0, Island: 0, Swamp: 0, Mountain: 3, Forest: 0 },
+        scryfallData,
+      });
+      // Move one to sideboard
+      state = deckReducer(state, {
+        type: "MOVE_CARD",
+        cardName: "Mountain",
+        fromZone: "deck",
+        toZone: "sideboard",
+        fromColumn: "lands",
+        toColumn: "lands",
+        toIndex: 0,
+      });
+      // Move it back
+      const result = deckReducer(state, {
+        type: "MOVE_CARD",
+        cardName: "Mountain",
+        fromZone: "sideboard",
+        toZone: "deck",
+        fromColumn: "lands",
+        toColumn: "lands",
+        toIndex: 0,
+      });
+      expect(result.basicLands.Mountain).toBe(3);
+      expect(result.zones.sideboard["lands"]).toEqual([]);
+      expect(result.zones.deck["lands"].filter((c: string) => c === "Mountain")).toHaveLength(3);
+    });
+
+    it("zeroes basicLands count when moving all basics to sideboard", () => {
+      let state = createEmptyDeckState("tarkir", 1);
+      state = deckReducer(state, {
+        type: "SET_BASICS",
+        basics: { Plains: 0, Island: 1, Swamp: 0, Mountain: 0, Forest: 0 },
+        scryfallData,
+      });
+      const result = deckReducer(state, {
+        type: "MOVE_CARD",
+        cardName: "Island",
+        fromZone: "deck",
+        toZone: "sideboard",
+        fromColumn: "lands",
+        toColumn: "lands",
+        toIndex: 0,
+      });
+      expect(result.basicLands.Island).toBe(0);
+    });
+
+    it("floors basicLands count at zero", () => {
+      // Manually create inconsistent state: count is 0 but instance exists
+      const state = createEmptyDeckState("tarkir", 1);
+      state.zones.deck["lands"] = ["Forest"];
+      state.basicLands.Forest = 0;
+      const result = deckReducer(structuredClone(state), {
+        type: "MOVE_CARD",
+        cardName: "Forest",
+        fromZone: "deck",
+        toZone: "sideboard",
+        fromColumn: "lands",
+        toColumn: "lands",
+        toIndex: 0,
+      });
+      expect(result.basicLands.Forest).toBe(0);
+    });
+
+    it("does not affect basicLands when moving non-basic lands", () => {
+      let state = createEmptyDeckState("tarkir", 1);
+      state = deckReducer(state, {
+        type: "INIT_FROM_PICKS",
+        picks: ["Tundra"],
+        scryfallData,
+        draftId: "tarkir",
+        seat: 1,
+      });
+      const result = deckReducer(state, {
+        type: "MOVE_CARD",
+        cardName: "Tundra",
+        fromZone: "deck",
+        toZone: "sideboard",
+        fromColumn: "lands",
+        toColumn: "lands",
+        toIndex: 0,
+      });
+      expect(result.basicLands).toEqual({
+        Plains: 0, Island: 0, Swamp: 0, Mountain: 0, Forest: 0,
+      });
+    });
+
+    it("does not affect basicLands on same-zone column moves", () => {
+      let state = createEmptyDeckState("tarkir", 1);
+      state = deckReducer(state, {
+        type: "SET_BASICS",
+        basics: { Plains: 0, Island: 0, Swamp: 0, Mountain: 2, Forest: 0 },
+        scryfallData,
+      });
+      const result = deckReducer(state, {
+        type: "MOVE_CARD",
+        cardName: "Mountain",
+        fromZone: "deck",
+        toZone: "deck",
+        fromColumn: "lands",
+        toColumn: "mv-0-1",
+        toIndex: 0,
+      });
+      expect(result.basicLands.Mountain).toBe(2);
+    });
   });
 
   describe("ADD_SPECULATIVE", () => {

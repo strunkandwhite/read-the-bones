@@ -194,6 +194,20 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
       fromCol.splice(idx, 1);
       const toCol = next.zones[action.toZone][action.toColumn];
       toCol.splice(action.toIndex, 0, action.cardName);
+
+      // Keep basicLands count in sync when basics move between zones
+      if (
+        action.fromZone !== action.toZone &&
+        BASIC_LAND_NAMES.includes(action.cardName as (typeof BASIC_LAND_NAMES)[number])
+      ) {
+        const landName = action.cardName as keyof BasicLandCounts;
+        if (action.fromZone === "deck") {
+          next.basicLands[landName] = Math.max(0, next.basicLands[landName] - 1);
+        } else {
+          next.basicLands[landName] += 1;
+        }
+      }
+
       return next;
     }
 
