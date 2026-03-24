@@ -1,7 +1,7 @@
 /**
  * Fetch sealeddeck.tech decklists and write deck cards directly to Turso.
  *
- * Reads decklists.txt from the project root, fetches each sealeddeck URL,
+ * Reads data/decklists.txt, fetches each sealeddeck URL,
  * matches to seats by card overlap with pick data from Turso, and writes
  * deck_cards + deck_hashes rows via batch operations.
  *
@@ -20,7 +20,7 @@ import { normalizeCardName } from "../src/core/parseSheetRows";
 import { resolveCardNameToId } from "../src/core/sync";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const DECKLISTS_FILE = join(__dirname, "..", "decklists.txt");
+const DECKLISTS_FILE = join(__dirname, "..", "data", "decklists.txt");
 
 const BASIC_LANDS = new Set([
   "plains",
@@ -239,10 +239,7 @@ async function fetchAllDecklists(urls: string[]): Promise<DecklistEntry[]> {
         sealeddeckId: id,
         url: `https://sealeddeck.tech/${id}`,
         deck: extractZoneCards(response.deck),
-        sideboard: extractZoneCards([
-          ...response.sideboard,
-          ...(response.hidden || []),
-        ]),
+        sideboard: extractZoneCards(response.sideboard),
         pool,
       });
 
@@ -293,7 +290,7 @@ async function main() {
   });
 
   if (!existsSync(DECKLISTS_FILE)) {
-    console.error("decklists.txt not found in project root");
+    console.error("data/decklists.txt not found");
     process.exit(1);
   }
 
@@ -360,14 +357,20 @@ async function main() {
         args: [draftId, seat],
       });
 
-      // Resolve card names and build insert batch
-      const deckCards: DeckCardInsert[] = [];
+      // Resolve card names and build insert batch, aggregating duplicates
+      const qtyMap = new Map<string, { cardId: number; zone: "deck" | "sideboard"; qty: number }>();
       let warnings = 0;
 
       for (const cardName of entry.deck) {
         const cardId = await resolveCard(client, cardCache, cardName);
         if (cardId !== null) {
-          deckCards.push({ draftId, seat, cardId, zone: "deck", qty: 1 });
+          const key = `${cardId}:deck`;
+          const existing = qtyMap.get(key);
+          if (existing) {
+            existing.qty++;
+          } else {
+            qtyMap.set(key, { cardId, zone: "deck", qty: 1 });
+          }
         } else {
           warnings++;
           console.warn(`  Warning: Card not found: "${cardName}" (seat ${seat} deck)`);
@@ -377,9 +380,40 @@ async function main() {
       for (const cardName of entry.sideboard) {
         const cardId = await resolveCard(client, cardCache, cardName);
         if (cardId !== null) {
-          deckCards.push({ draftId, seat, cardId, zone: "sideboard", qty: 1 });
+          const key = `${cardId}:sideboard`;
+          const existing = qtyMap.get(key);
+          if (existing) {
+            existing.qty++;
+          } else {
+            qtyMap.set(key, { cardId, zone: "sideboard", qty: 1 });
+          }
         }
         // Sideboard misses are silent (may include basic lands already filtered)
+      }
+
+      const deckCards: DeckCardInsert[] = [...qtyMap.values()].map((e) => ({
+        draftId,
+        seat,
+        cardId: e.cardId,
+        zone: e.zone,
+        qty: e.qty,
+      }));
+
+      // Skip malformed decks (unsorted pools, barely-sorted submissions)
+      const maindeckQty = deckCards
+        .filter((c) => c.zone === "deck")
+        .reduce((sum, c) => sum + c.qty, 0);
+
+      if (maindeckQty < 20) {
+        logIndent(
+          `Seat ${seat}: skipped — only ${maindeckQty} maindeck cards (minimum 20)`,
+        );
+        // Clean up any previously-stored data for this seat
+        await client.execute({
+          sql: "DELETE FROM deck_hashes WHERE draft_id = ? AND seat = ?",
+          args: [draftId, seat],
+        });
+        continue;
       }
 
       await batchInsertDeckCards(client, deckCards);
