@@ -373,7 +373,7 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
                 Search cards
               </label>
               <div className="flex items-center gap-2">
-                <div className="relative w-full max-w-md">
+                <div className="relative w-full xl:max-w-md">
                   <input
                     id="search"
                     type="text"
@@ -425,8 +425,8 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
               </div>
             </div>
 
-            {/* Color Filter — hidden below xl, search syntax (c:r) covers the same ground */}
-            <div className="hidden xl:block">
+            {/* Color Filter — hidden below lg, search syntax (c:r) covers the same ground */}
+            <div className="hidden lg:block">
               <ColorFilter
                 selected={search.colorFilter}
                 onChange={search.setColorFilter}
