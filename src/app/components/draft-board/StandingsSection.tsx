@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { BoardData, LiveDraftStatus } from "@/app/hooks/useLiveDraftStatus";
-import { getNextPick } from "@/core/snakeDraft";
 import { MatchReporting } from "./MatchReporting";
 
 interface StandingsSectionProps {
@@ -23,6 +22,32 @@ interface StandingsRow {
   gameLosses: number;
 }
 
+function DraftProgress({
+  board,
+  status,
+}: {
+  board: BoardData;
+  status: LiveDraftStatus | null;
+}) {
+  if (!status || board.phase !== "drafting") return null;
+
+  const nextPickNumber = (status.latestPickN ?? 0) + 1;
+  const nextSeatName =
+    status.nextSeat !== null
+      ? board.seatNames[status.nextSeat - 1] ?? `Seat ${status.nextSeat}`
+      : null;
+
+  return (
+    <div style={{ padding: "8px 0", fontSize: "12px", color: "#888" }}>
+      {nextSeatName && (
+        <span>
+          Next pick: <span style={{ color: "#e0e0e0" }}>{nextSeatName}</span> (Pick #{nextPickNumber})
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function StandingsSection({
   board,
   status,
@@ -36,11 +61,6 @@ export function StandingsSection({
 
   // During drafting: show pick count and whose turn
   if (isDrafting) {
-    const next = getNextPick(board.picks.length, board.numSeats, board.picksPerPlayer);
-    const nextSeatName = next
-      ? board.seatNames[String(next.seat)] || `Seat ${next.seat}`
-      : null;
-
     return (
       <div style={{ padding: "12px 0" }}>
         <h3
@@ -53,14 +73,7 @@ export function StandingsSection({
         >
           Draft Progress
         </h3>
-        {next && (
-          <p style={{ fontSize: "12px", color: "#888" }}>
-            Next pick: <strong style={{ color: "#e0e0e0" }}>{nextSeatName}</strong> (Pick #{next.pickNumber})
-          </p>
-        )}
-        {!next && (
-          <p style={{ fontSize: "12px", color: "#888" }}>All picks complete.</p>
-        )}
+        <DraftProgress board={board} status={status} />
       </div>
     );
   }
