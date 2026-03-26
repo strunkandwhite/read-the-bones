@@ -35,6 +35,11 @@ export interface CardTableProps {
   onRemoveSpeculative?: (cardName: string) => void;
   deckBuilderCardCounts?: Map<string, number>;
   speculativeCardNames?: Set<string>;
+  isMyTurn?: boolean;
+  onPick?: (cardName: string) => Promise<void>;
+  queuedCards?: Map<string, number>;
+  onQueueAdd?: (cardName: string) => void;
+  onQueueRemove?: (cardName: string) => void;
 }
 
 const columnHelper = createColumnHelper<EnrichedCardStats>();
@@ -66,6 +71,11 @@ export function CardTable({
   onRemoveSpeculative,
   deckBuilderCardCounts,
   speculativeCardNames,
+  isMyTurn,
+  onPick,
+  queuedCards,
+  onQueueAdd,
+  onQueueRemove,
 }: CardTableProps) {
   useSlowRenderTracking("card_table");
   const deckBuilderCardCountsRef = useRef(deckBuilderCardCounts);
@@ -80,6 +90,16 @@ export function CardTable({
   onAddSpeculativeRef.current = onAddSpeculative;
   const onRemoveSpeculativeRef = useRef(onRemoveSpeculative);
   onRemoveSpeculativeRef.current = onRemoveSpeculative;
+  const isMyTurnRef = useRef(isMyTurn);
+  isMyTurnRef.current = isMyTurn;
+  const onPickRef = useRef(onPick);
+  onPickRef.current = onPick;
+  const queuedCardsRef = useRef(queuedCards);
+  queuedCardsRef.current = queuedCards;
+  const onQueueAddRef = useRef(onQueueAdd);
+  onQueueAddRef.current = onQueueAdd;
+  const onQueueRemoveRef = useRef(onQueueRemove);
+  onQueueRemoveRef.current = onQueueRemove;
 
   const [sorting, setSorting] = useState<SortingState>([{ id: "pickScore", desc: false }]);
   const lastHoverTrackRef = useRef(0);
@@ -145,9 +165,59 @@ export function CardTable({
   }, [cards]);
 
   const hasAnyDecklistWinRate = cards.some((c) => c.decklistWinRate);
+  const hasLiveDraftActions = onPick !== undefined || queuedCards !== undefined;
 
   const columns = useMemo(
     () => [
+      ...(hasLiveDraftActions
+        ? [
+            columnHelper.display({
+              id: "liveDraftActions",
+              header: "",
+              size: 60,
+              cell: ({ row }) => {
+                const cardName = row.original.cardName;
+                const isTaken = takenCardNamesRef.current?.has(cardName);
+                if (isTaken) return null;
+
+                const queuePos = queuedCardsRef.current?.get(cardName);
+
+                return (
+                  <div className="flex items-center gap-1">
+                    {onPickRef.current && isMyTurnRef.current && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); onPickRef.current!(cardName); }}
+                        className="rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white hover:bg-emerald-500"
+                        title="Pick this card"
+                      >
+                        Pick
+                      </button>
+                    )}
+                    {onQueueAddRef.current && onQueueRemoveRef.current && (
+                      queuePos !== undefined ? (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onQueueRemoveRef.current!(cardName); }}
+                          className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white hover:bg-blue-500"
+                          title={`Queue position ${queuePos} — click to remove`}
+                        >
+                          {queuePos}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); onQueueAddRef.current!(cardName); }}
+                          className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[10px] text-zinc-400 hover:border-blue-400 hover:text-blue-400 dark:border-zinc-600 dark:hover:border-blue-400"
+                          title="Add to pick queue"
+                        >
+                          +
+                        </button>
+                      )
+                    )}
+                  </div>
+                );
+              },
+            }),
+          ]
+        : []),
       columnHelper.display({
         id: "card",
         header: "Card",
@@ -288,7 +358,7 @@ export function CardTable({
         },
       }),
     ],
-    [currentCubeCopies, hasAnyDecklistWinRate, draftTimeline]
+    [currentCubeCopies, hasAnyDecklistWinRate, hasLiveDraftActions, draftTimeline]
   );
 
   const filteredData = useMemo(() => {

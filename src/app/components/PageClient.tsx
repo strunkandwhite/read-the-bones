@@ -18,6 +18,10 @@ import type { DraftStatsResponse } from "@/core/getDraftStats";
 import type { ScryCard, CardStats } from "@/core/types";
 import { DeckBuilderPanel } from "./deck-builder/DeckBuilderPanel";
 import { useDeckBuilder } from "../hooks/useDeckBuilder";
+import { useLiveDraftStatus, useDraftBoard } from "../hooks/useLiveDraftStatus";
+import { useSeatToken } from "../hooks/useSeatToken";
+import { usePickQueue } from "../hooks/usePickQueue";
+import { DraftBoardModal } from "./draft-board/DraftBoardModal";
 
 
 export interface PageClientProps {
@@ -97,6 +101,7 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
 
   const [deckBuilderActive, setDeckBuilderActive] = useState(false);
   const [deckBuilderModalOpen, setDeckBuilderModalOpen] = useState(false);
+  const [draftBoardOpen, setDraftBoardOpen] = useState(false);
 
   // Restore modal open state from localStorage on mount
   /* eslint-disable react-hooks/set-state-in-effect -- syncing from external storage (localStorage) */
@@ -133,6 +138,9 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
     }
 
     function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && draftBoardOpen) {
+        setDraftBoardOpen(false);
+      }
       if (e.key === "Escape" && deckBuilderModalOpen) {
         setDeckBuilderModalOpen(false);
       }
@@ -142,7 +150,7 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
       document.removeEventListener("keydown", handleKeyDown);
       document.body.style.overflow = "";
     };
-  }, [deckBuilderModalOpen]);
+  }, [deckBuilderModalOpen, draftBoardOpen]);
 
   // Build Scryfall data map for the deck builder
   const scryfallDataMap = useMemo(() => {
@@ -169,6 +177,47 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
     draftId: draftSelection.activeDraft ?? "",
     seat: draftSelection.selectedSeat ?? 0,
   });
+
+  // Live draft hooks
+  const seatToken = useSeatToken(draftSelection.activeDraft);
+  const liveDraftStatus = useLiveDraftStatus(
+    draftSelection.activeDraft,
+    draftSelection.activeDraft !== null,
+  );
+  const draftBoard = useDraftBoard(
+    draftSelection.activeDraft,
+    liveDraftStatus.dataChanged,
+  );
+  const pickQueue = usePickQueue(
+    draftSelection.activeDraft,
+    seatToken.token,
+    liveDraftStatus.dataChanged,
+  );
+
+  // Derive mySeat from status + token
+  const mySeat = liveDraftStatus.status?.recentPicks !== undefined && seatToken.hasSeatToken
+    ? null // Will be resolved from status/token - for now use null for spectators
+    : null;
+  const isMyTurn = liveDraftStatus.status?.nextSeat !== null &&
+    seatToken.hasSeatToken &&
+    mySeat === liveDraftStatus.status?.nextSeat;
+
+  // Pick handler
+  const handlePick = useCallback(async (cardName: string) => {
+    if (!draftSelection.activeDraft || !seatToken.token) return;
+    const res = await fetch(`/api/drafts/${draftSelection.activeDraft}/pick`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Seat-Token": seatToken.token,
+      },
+      body: JSON.stringify({ card_name: cardName }),
+    });
+    if (!res.ok) {
+      const data = await res.json();
+      throw new Error(data.error || "Pick failed");
+    }
+  }, [draftSelection.activeDraft, seatToken.token]);
 
   const searchParams = useSearchParams();
   const sharedDeckId = searchParams.get("deck");
@@ -488,6 +537,14 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
 
             {/* Action Buttons */}
             <div className="flex items-center gap-1">
+              {draftSelection.activeDraft && (
+                <button
+                  onClick={() => setDraftBoardOpen(!draftBoardOpen)}
+                  className="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                >
+                  Draft Board
+                </button>
+              )}
               <StatsModal data={draftStats} />
               <Settings
                 drafts={drafts}
@@ -523,6 +580,11 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
             onRemoveSpeculative={deckBuilderActive ? handleRemoveSpeculative : undefined}
             deckBuilderCardCounts={deckBuilderActive ? deckBuilderCardCounts : undefined}
             speculativeCardNames={deckBuilderActive ? speculativeCardNames : undefined}
+            isMyTurn={isMyTurn}
+            onPick={seatToken.hasSeatToken ? handlePick : undefined}
+            queuedCards={seatToken.hasSeatToken ? pickQueue.queuedCards : undefined}
+            onQueueAdd={seatToken.hasSeatToken ? pickQueue.addToQueue : undefined}
+            onQueueRemove={seatToken.hasSeatToken ? pickQueue.removeFromQueue : undefined}
           />
         ) : (
           <div className="rounded-lg border border-zinc-200 bg-white p-12 text-center dark:border-zinc-700 dark:bg-zinc-900">
@@ -566,6 +628,20 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
         )}
 
       </div>
+
+      {/* Draft Board Modal */}
+      {draftBoardOpen && draftSelection.activeDraft && (
+        <DraftBoardModal
+          board={draftBoard.board}
+          status={liveDraftStatus.status}
+          mySeat={mySeat}
+          token={seatToken.token}
+          draftId={draftSelection.activeDraft}
+          isOpen={draftBoardOpen}
+          onClose={() => setDraftBoardOpen(false)}
+          onMatchReported={() => draftBoard.refresh()}
+        />
+      )}
 
       {/* Deck Builder Modal */}
       {deckBuilderModalOpen && draftSelection.activeDraft && draftSelection.selectedSeat !== null && (
