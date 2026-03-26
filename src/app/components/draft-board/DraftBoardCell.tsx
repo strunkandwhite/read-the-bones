@@ -78,7 +78,7 @@ export function DraftBoardCell({
     <td
       style={{
         padding: 0,
-        maxWidth: "140px",
+        maxWidth: "160px",
         backgroundColor: isMyColumn ? "rgba(59,130,246,0.06)" : "transparent",
         border: isActive ? "2px dashed #3b82f6" : "1px solid #333",
         animation: isActive ? "pulse-border 1.5s ease-in-out infinite" : undefined,

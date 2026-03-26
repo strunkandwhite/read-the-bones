@@ -119,7 +119,7 @@ export function DraftBoardMatrix({
                   color: SEAT_COLORS[(seat - 1) % SEAT_COLORS.length],
                   fontWeight: 600,
                   fontSize: "11px",
-                  minWidth: "110px",
+                  minWidth: "130px",
                   backgroundColor: mySeat === seat ? "rgba(59,130,246,0.1)" : undefined,
                 }}
               >
