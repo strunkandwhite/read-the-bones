@@ -36,11 +36,6 @@ export function StandingsSection({
 
   // During drafting: show pick count and whose turn
   if (isDrafting) {
-    const pickCounts = new Map<number, number>();
-    for (const pick of board.picks) {
-      pickCounts.set(pick.seat, (pickCounts.get(pick.seat) ?? 0) + 1);
-    }
-
     const next = getNextPick(board.picks.length, board.numSeats, board.picksPerPlayer);
     const nextSeatName = next
       ? board.seatNames[String(next.seat)] || `Seat ${next.seat}`
@@ -58,26 +53,6 @@ export function StandingsSection({
         >
           Draft Progress
         </h3>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", marginBottom: "8px" }}>
-          {Array.from({ length: board.numSeats }, (_, i) => i + 1).map((seat) => {
-            const count = pickCounts.get(seat) ?? 0;
-            const name = board.seatNames[String(seat)] || `Seat ${seat}`;
-            return (
-              <span
-                key={seat}
-                style={{
-                  fontSize: "11px",
-                  padding: "2px 8px",
-                  borderRadius: "4px",
-                  backgroundColor: "#27272a",
-                  color: "#bbb",
-                }}
-              >
-                {name}: {count} picks
-              </span>
-            );
-          })}
-        </div>
         {next && (
           <p style={{ fontSize: "12px", color: "#888" }}>
             Next pick: <strong style={{ color: "#e0e0e0" }}>{nextSeatName}</strong> (Pick #{next.pickNumber})
