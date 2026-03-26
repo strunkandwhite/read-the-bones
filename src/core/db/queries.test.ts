@@ -1024,10 +1024,10 @@ describe("getStandings", () => {
     // Seat 2: 0 match wins, 2 losses, 2 game wins, 4 game losses
     expect(result.standings).toHaveLength(3);
     expect(result.standings[0].seat).toBe(1);
-    expect(result.standings[0].match_wins).toBe(2);
-    expect(result.standings[0].match_losses).toBe(0);
-    expect(result.standings[0].game_wins).toBe(4);
-    expect(result.standings[0].game_losses).toBe(1);
+    expect(result.standings[0].matchWins).toBe(2);
+    expect(result.standings[0].matchLosses).toBe(0);
+    expect(result.standings[0].gameWins).toBe(4);
+    expect(result.standings[0].gameLosses).toBe(1);
   });
 
   it("should handle draws (equal game wins)", async () => {
@@ -1047,10 +1047,10 @@ describe("getStandings", () => {
     const seat1 = result.standings.find((s) => s.seat === 1);
     const seat2 = result.standings.find((s) => s.seat === 2);
 
-    expect(seat1?.match_wins).toBe(0);
-    expect(seat1?.match_losses).toBe(0);
-    expect(seat2?.match_wins).toBe(0);
-    expect(seat2?.match_losses).toBe(0);
+    expect(seat1?.matchWins).toBe(0);
+    expect(seat1?.matchLosses).toBe(0);
+    expect(seat2?.matchWins).toBe(0);
+    expect(seat2?.matchLosses).toBe(0);
   });
 
   it("should return empty array when no matches", async () => {

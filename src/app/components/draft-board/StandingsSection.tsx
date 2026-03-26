@@ -105,10 +105,10 @@ function StandingsTable({
         setStandings(data.standings.map((row: Record<string, unknown>) => ({
           seat: row.seat as number,
           displayName: board.seatNames[String(row.seat)] || `Seat ${row.seat}`,
-          matchWins: (row.match_wins ?? 0) as number,
-          matchLosses: (row.match_losses ?? 0) as number,
-          gameWins: (row.game_wins ?? 0) as number,
-          gameLosses: (row.game_losses ?? 0) as number,
+          matchWins: (row.matchWins ?? 0) as number,
+          matchLosses: (row.matchLosses ?? 0) as number,
+          gameWins: (row.gameWins ?? 0) as number,
+          gameLosses: (row.gameLosses ?? 0) as number,
         })));
       }
     } catch { /* ignore */ }

@@ -247,10 +247,10 @@ export async function getAvailableCards(
 
 export interface StandingsEntry {
   seat: number | "[REDACTED]";
-  match_wins: number;
-  match_losses: number;
-  game_wins: number;
-  game_losses: number;
+  matchWins: number;
+  matchLosses: number;
+  gameWins: number;
+  gameLosses: number;
 }
 
 export interface MatchRecord {
@@ -342,18 +342,18 @@ export async function getStandings(draftId: string): Promise<StandingsResult> {
     }
     standings.push({
       seat: isRedacted ? "[REDACTED]" : seat,
-      match_wins: s.matchWins,
-      match_losses: s.matchLosses,
-      game_wins: s.gameWins,
-      game_losses: s.gameLosses,
+      matchWins: s.matchWins,
+      matchLosses: s.matchLosses,
+      gameWins: s.gameWins,
+      gameLosses: s.gameLosses,
     });
   }
 
   standings.sort((a, b) => {
     // Sort by match wins descending, then by game win rate
-    if (b.match_wins !== a.match_wins) return b.match_wins - a.match_wins;
-    const aRate = a.game_wins / Math.max(1, a.game_wins + a.game_losses);
-    const bRate = b.game_wins / Math.max(1, b.game_wins + b.game_losses);
+    if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
+    const aRate = a.gameWins / Math.max(1, a.gameWins + a.gameLosses);
+    const bRate = b.gameWins / Math.max(1, b.gameWins + b.gameLosses);
     return bRate - aRate;
   });
 
