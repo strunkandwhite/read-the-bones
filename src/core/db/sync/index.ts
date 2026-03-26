@@ -384,7 +384,7 @@ export async function syncAll(
   } else {
     // Sync all incomplete drafts with a sheet_id
     const result = await client.execute({
-      sql: "SELECT draft_id, sheet_id FROM drafts WHERE sheet_id IS NOT NULL AND phase IN ('setup', 'drafting')",
+      sql: "SELECT draft_id, sheet_id FROM drafts WHERE sheet_id IS NOT NULL AND phase IN ('setup', 'drafting', 'playing')",
       args: [],
     });
     drafts = result.rows.map((r) => ({
