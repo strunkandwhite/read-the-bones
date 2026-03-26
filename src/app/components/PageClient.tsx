@@ -22,6 +22,7 @@ import { useLiveDraftStatus, useDraftBoard } from "../hooks/useLiveDraftStatus";
 import { useSeatToken } from "../hooks/useSeatToken";
 import { usePickQueue } from "../hooks/usePickQueue";
 import { DraftBoardModal } from "./draft-board/DraftBoardModal";
+import { useMySeat } from "../hooks/useMySeat";
 
 
 export interface PageClientProps {
@@ -194,13 +195,8 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
     liveDraftStatus.dataChanged,
   );
 
-  // Derive mySeat from status + token
-  const mySeat = liveDraftStatus.status?.recentPicks !== undefined && seatToken.hasSeatToken
-    ? null // Will be resolved from status/token - for now use null for spectators
-    : null;
-  const isMyTurn = liveDraftStatus.status?.nextSeat !== null &&
-    seatToken.hasSeatToken &&
-    mySeat === liveDraftStatus.status?.nextSeat;
+  const { mySeat } = useMySeat(draftSelection.activeDraft, seatToken.token);
+  const isMyTurn = mySeat !== null && liveDraftStatus.status?.nextSeat === mySeat;
 
   // Pick handler
   const handlePick = useCallback(async (cardName: string) => {
