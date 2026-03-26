@@ -1,0 +1,238 @@
+"use client";
+
+import { useMemo, useRef, useEffect } from "react";
+import { buildPickMatrix } from "@/core/snakeDraft";
+import type { BoardData } from "@/app/hooks/useLiveDraftStatus";
+import { DraftBoardCell } from "./DraftBoardCell";
+
+const SEAT_COLORS = [
+  "#e8c050", "#ff6050", "#60c0ff", "#70dd70", "#e080d0",
+  "#ff9050", "#50e0c0", "#c0a0ff", "#f0e070", "#ff7090",
+];
+
+interface DraftBoardMatrixProps {
+  board: BoardData;
+  mySeat: number | null;
+  nextPickN: number | null;
+  nextSeat: number | null;
+}
+
+export function DraftBoardMatrix({
+  board,
+  mySeat,
+  nextPickN,
+  nextSeat: _nextSeat,
+}: DraftBoardMatrixProps) {
+  const matrix = useMemo(
+    () => buildPickMatrix(board.numSeats, board.picksPerPlayer),
+    [board.numSeats, board.picksPerPlayer],
+  );
+
+  // Build a lookup: pickN -> pick data
+  const { picks } = board;
+  const picksByN = useMemo(() => {
+    const map = new Map<number, BoardData["picks"][number]>();
+    for (const pick of picks) {
+      map.set(pick.pickN, pick);
+    }
+    return map;
+  }, [picks]);
+
+  // Track current round for auto-scroll
+  const currentRoundRef = useRef<HTMLTableRowElement>(null);
+
+  useEffect(() => {
+    if (currentRoundRef.current) {
+      currentRoundRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [nextPickN]);
+
+  // Compute which pickN each (round, seatIndex) cell corresponds to
+  // We need to track the global pick number per cell
+  const cellPickNumbers = useMemo(() => {
+    const result: Map<string, number> = new Map();
+    let pickN = 1;
+    for (const row of matrix) {
+      for (let i = 0; i < row.seats.length; i++) {
+        const seat = row.seats[i];
+        result.set(`${row.round}-${i}-${seat}`, pickN);
+        pickN++;
+      }
+    }
+    return result;
+  }, [matrix]);
+
+  // Determine current round (the round containing the next pick)
+  const currentRound = useMemo(() => {
+    if (nextPickN === null) return null;
+    for (const row of matrix) {
+      for (let i = 0; i < row.seats.length; i++) {
+        const seat = row.seats[i];
+        const pn = cellPickNumbers.get(`${row.round}-${i}-${seat}`);
+        if (pn === nextPickN) return row.round;
+      }
+    }
+    return null;
+  }, [nextPickN, matrix, cellPickNumbers]);
+
+  // Build unique seat order from column headers (seats 1..numSeats)
+  const seatOrder = useMemo(() => {
+    const seats: number[] = [];
+    for (let s = 1; s <= board.numSeats; s++) seats.push(s);
+    return seats;
+  }, [board.numSeats]);
+
+  return (
+    <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "60vh" }}>
+      <style>{`
+        @keyframes pulse-border {
+          0%, 100% { border-color: #3b82f6; }
+          50% { border-color: transparent; }
+        }
+      `}</style>
+      <table
+        style={{
+          borderCollapse: "collapse",
+          fontSize: "12px",
+          width: "100%",
+          color: "#e0e0e0",
+        }}
+      >
+        <thead>
+          <tr
+            style={{
+              position: "sticky",
+              top: 0,
+              zIndex: 10,
+              backgroundColor: "#18181b",
+            }}
+          >
+            <th style={{ padding: "4px 8px", textAlign: "center", color: "#888", fontSize: "10px" }}>
+              Rd
+            </th>
+            {seatOrder.map((seat) => (
+              <th
+                key={seat}
+                style={{
+                  padding: "4px 6px",
+                  textAlign: "center",
+                  color: SEAT_COLORS[(seat - 1) % SEAT_COLORS.length],
+                  fontWeight: 600,
+                  fontSize: "11px",
+                  backgroundColor: mySeat === seat ? "rgba(59,130,246,0.1)" : undefined,
+                }}
+              >
+                {board.seatNames[String(seat)] || `Seat ${seat}`}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {matrix.map((row) => {
+            const isCurrentRound = row.round === currentRound;
+
+            // For each seat column, find the pick(s) in this round
+            // In double-pick rounds, a seat picks twice
+            const seatPicks: Map<number, (typeof board.picks)[number][]> = new Map();
+            for (let i = 0; i < row.seats.length; i++) {
+              const seat = row.seats[i];
+              const pickN = cellPickNumbers.get(`${row.round}-${i}-${seat}`);
+              if (pickN !== undefined) {
+                const pick = picksByN.get(pickN);
+                if (!seatPicks.has(seat)) seatPicks.set(seat, []);
+                seatPicks.get(seat)!.push(
+                  pick ?? { pickN, seat, cardName: "", oracleId: "", colorIdentity: [], manaCost: "" },
+                );
+              }
+            }
+
+            return (
+              <tr
+                key={row.round}
+                ref={isCurrentRound ? currentRoundRef : undefined}
+                style={{
+                  backgroundColor: isCurrentRound ? "rgba(59,130,246,0.05)" : undefined,
+                }}
+              >
+                <td
+                  style={{
+                    padding: "3px 8px",
+                    textAlign: "center",
+                    color: "#888",
+                    fontSize: "10px",
+                    whiteSpace: "nowrap",
+                    borderRight: "1px solid #333",
+                  }}
+                >
+                  <span>{row.round}</span>
+                  <span style={{ marginLeft: "2px", fontSize: "9px" }}>
+                    {row.isDoublePick ? " 2x" : ""}
+                  </span>
+                  <span style={{ marginLeft: "3px", fontSize: "9px", color: "#666" }}>
+                    {row.isForward ? "\u2192" : "\u2190"}
+                  </span>
+                </td>
+                {seatOrder.map((seat) => {
+                  const picks = seatPicks.get(seat) ?? [];
+                  if (row.isDoublePick && picks.length === 2) {
+                    // Render two picks stacked in one cell
+                    return (
+                      <td
+                        key={seat}
+                        style={{
+                          padding: 0,
+                          backgroundColor: mySeat === seat ? "rgba(59,130,246,0.05)" : undefined,
+                          border: "1px solid #333",
+                        }}
+                      >
+                        {picks.map((pick, idx) => {
+                          const isActive = nextPickN !== null && pick.pickN === nextPickN;
+                          return (
+                            <div
+                              key={idx}
+                              style={{
+                                borderBottom: idx === 0 ? "1px dotted #444" : undefined,
+                              }}
+                            >
+                              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                                <tbody>
+                                  <tr>
+                                    <DraftBoardCell
+                                      cardName={pick.cardName || null}
+                                      colorIdentity={pick.colorIdentity ?? []}
+                                      manaCost={pick.manaCost ?? ""}
+                                      isActive={isActive}
+                                      isMyColumn={mySeat === seat}
+                                    />
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </div>
+                          );
+                        })}
+                      </td>
+                    );
+                  }
+
+                  // Single pick (or no pick yet)
+                  const pick = picks[0];
+                  const isActive = pick && nextPickN !== null && pick.pickN === nextPickN;
+                  return (
+                    <DraftBoardCell
+                      key={seat}
+                      cardName={pick?.cardName || null}
+                      colorIdentity={pick?.colorIdentity ?? []}
+                      manaCost={pick?.manaCost ?? ""}
+                      isActive={isActive ?? false}
+                      isMyColumn={mySeat === seat}
+                    />
+                  );
+                })}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
