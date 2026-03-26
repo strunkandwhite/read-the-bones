@@ -44,9 +44,15 @@ export interface Draft {
   draft_name: string;
   draft_date: string;
   cube_snapshot_id: number;
-  import_hash: string;
   num_seats: number;
-  is_complete: number;
+  sheet_id: string | null;
+  banned_cards: string | null;
+  pool_hash: string | null;
+  picks_hash: string | null;
+  matches_hash: string | null;
+  phase: 'setup' | 'drafting' | 'playing' | 'complete';
+  in_app: number;
+  picks_per_player: number | null;
 }
 
 /**
@@ -71,6 +77,22 @@ export interface MatchEvent {
   seat2: number;
   seat1_wins: number;
   seat2_wins: number;
+  reported_by_seat: number | null;
+}
+
+export interface SeatToken {
+  draft_id: string;
+  seat: number;
+  token: string;
+  display_name: string | null;
+  auto_pick: number;
+}
+
+export interface PickQueueEntry {
+  draft_id: string;
+  seat: number;
+  priority: number;
+  card_id: number;
 }
 
 /**
