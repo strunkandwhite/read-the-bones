@@ -6,7 +6,7 @@
     "src/core/db/migrate.ts"
   ],
   "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
-  "ignore": ["src/core/db/schema.ts", "src/core/snakeDraft.ts", "src/core/cubecobra.ts"],
+  "ignore": ["src/core/db/schema.ts"],
   "ignoreDependencies": [
     "tailwindcss",
     "@tailwindcss/typography"

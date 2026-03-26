@@ -49,6 +49,11 @@ pnpm draft:reset <draft-name>  # Reset a draft (clear all data, re-sync from scr
 # Decklists
 pnpm decklists                 # Fetch decklists from sealeddeck.tech and write to Turso
 pnpm decklists tarkir          # Fetch decklists for a specific draft
+
+# Live draft commands
+pnpm draft:create-live --name "Name" --date 2026-04-01 --seats 10 --picks-per-player 45 --pool cubecobra:<id>
+pnpm draft:start <name>              # Start drafting (setup → drafting)
+pnpm draft:admin <subcommand>        # Admin tools (undo-pick, edit-pick, regen-token, set-phase, add-ban, remove-ban, enter-match)
 ```
 
 **Decklists:** Add sealeddeck.tech URLs to `decklists.txt` (grouped by draft name), then run `pnpm decklists`. The script fetches each deck, matches it to a seat by card overlap with pick data from Turso, and writes deck cards directly to the database.
@@ -77,6 +82,17 @@ The app exposes REST API routes under `/api/` for querying draft data. All route
 | `/api/cards/stats` | Card statistics | `card_name` (required), `draft_id`, `date_from`, `date_to`, `deck_colors` |
 | `/api/stats` | Overall draft statistics | `draft_ids` (comma-separated) |
 | `/api/decks/winning` | Top 4 winning decks for a color archetype | `color_pair` (required), `draft_ids` (comma-separated) |
+
+**Live draft routes** (used for in-app rotisserie drafts):
+
+| Route | Method | Auth | Description |
+|-------|--------|------|-------------|
+| `/api/drafts/[id]/status` | GET | None | Draft state, next seat, recent picks |
+| `/api/drafts/[id]/pick` | POST | Token | Submit a pick |
+| `/api/drafts/[id]/queue` | GET/PUT | Token | Manage player's pick queue |
+| `/api/drafts/[id]/board` | GET | None | Full pick matrix data |
+| `/api/drafts/[id]/match` | POST | Token | Report a match result |
+| `/api/drafts/[id]/seat-settings` | PUT | Token | Update auto-pick toggle, display name |
 
 **Internal routes** (used by the web app, not part of the public API):
 - `/api/cards` — Card data for client-side rendering
@@ -133,6 +149,7 @@ Search is debounced (500ms) and runs locally against cached card data.
 - **Shared decks:** Immutable deck snapshots stored in the `shared_decks` table, accessible via short URLs.
 - **Seat selection:** View picks and deck data for individual seats within a draft.
 - **Decklist win rate:** Localhost-only column showing actual win rates of players who maindecked each card.
+- **Live drafts:** Run rotisserie drafts in-app with snake order, pick queues, and auto-pick cascades. Created via `pnpm draft:create-live`, managed via seat tokens for player identity. Draft board modal shows pick matrix, standings, and match reporting.
 
 ## Terminology: Picks vs Rounds
 
@@ -163,6 +180,7 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/specs/2026-03-21-deck-builder-modal-and-sharing-design.md` - Deck builder modal and sharing
 - `docs/superpowers/specs/2026-03-21-analytics-custom-events-design.md` - Analytics custom events
 - `docs/superpowers/specs/2026-03-22-unified-sync-pipeline-design.md` - Unified sync pipeline (Sheets → Turso)
+- `docs/superpowers/specs/2026-03-23-live-draft-design.md` - Live draft system (pool, drafting, matches, standings)
 
 ### Superpowers Plans
 
@@ -177,3 +195,4 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/plans/2026-03-21-analytics-custom-events.md` - Analytics custom events implementation
 - `docs/superpowers/plans/2026-03-20-codebase-cleanup.md` - Codebase cleanup (dead code, file splits, test quality)
 - `docs/superpowers/plans/2026-03-22-unified-sync-pipeline.md` - Unified sync pipeline implementation
+- `docs/superpowers/plans/2026-03-23-live-draft.md` - Live draft implementation
