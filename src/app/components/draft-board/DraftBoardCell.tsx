@@ -2,49 +2,57 @@
 
 interface DraftBoardCellProps {
   cardName: string | null;
-  colorIdentity: string[];
+  manaCost: string | null;
   isActive: boolean;
   isMyColumn: boolean;
 }
 
-const VALID_COLORS = new Set(["W", "U", "B", "R", "G"]);
+function parseManaSymbols(manaCost: string): string[] {
+  // For double-faced cards, only show the front face cost (before " // ")
+  const frontFaceCost = manaCost.split(" // ")[0];
+  const matches = frontFaceCost.match(/\{[^}]+\}/g);
+  return matches ?? [];
+}
 
-function CellContent({ cardName, colorIdentity }: { cardName: string | null; colorIdentity: string[] }) {
+function CellContent({ cardName, manaCost }: { cardName: string | null; manaCost: string | null }) {
+  const manaSymbols = manaCost ? parseManaSymbols(manaCost) : [];
+
   return (
     <div
       style={{
         padding: "4px 6px",
-        fontSize: "11px",
-        lineHeight: "1.3",
         height: "24px",
-        whiteSpace: "nowrap",
-        overflow: "hidden",
-        textOverflow: "ellipsis",
+        display: "flex",
+        alignItems: "center",
         color: cardName ? "#e0e0e0" : "#555",
+        overflow: "hidden",
       }}
     >
       {cardName && (
-        <div style={{ display: "flex", alignItems: "center", gap: "3px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "3px", width: "100%", overflow: "hidden" }}>
           <span
             style={{
               overflow: "hidden",
               textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
               flex: 1,
               minWidth: 0,
+              fontSize: "11px",
+              lineHeight: "1.2",
             }}
             title={cardName}
           >
             {cardName}
           </span>
-          {colorIdentity.length > 0 && (
+          {manaSymbols.length > 0 && (
             <span style={{ display: "flex", gap: "1px", flexShrink: 0 }}>
-              {colorIdentity.map((c) => {
-                if (!VALID_COLORS.has(c)) return null;
+              {manaSymbols.map((sym, i) => {
+                const svgName = sym.replace(/[{}\/]/g, "");
                 return (
                   <img
-                    key={c}
-                    src={`/mana/${c}.svg`}
-                    alt={c}
+                    key={i}
+                    src={`/mana/${svgName}.svg`}
+                    alt={sym}
                     width={12}
                     height={12}
                     style={{ display: "block" }}
@@ -62,7 +70,7 @@ function CellContent({ cardName, colorIdentity }: { cardName: string | null; col
 /** Full table cell (td) for a draft board pick. */
 export function DraftBoardCell({
   cardName,
-  colorIdentity,
+  manaCost,
   isActive,
   isMyColumn,
 }: DraftBoardCellProps) {
@@ -76,7 +84,7 @@ export function DraftBoardCell({
         animation: isActive ? "pulse-border 1.5s ease-in-out infinite" : undefined,
       }}
     >
-      <CellContent cardName={cardName} colorIdentity={colorIdentity} />
+      <CellContent cardName={cardName} manaCost={manaCost} />
     </td>
   );
 }

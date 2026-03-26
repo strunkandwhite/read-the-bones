@@ -182,7 +182,7 @@ export function DraftBoardMatrix({
                       <DraftBoardCell
                         key={seat}
                         cardName={pick?.cardName || null}
-                        colorIdentity={pick?.colorIdentity ?? []}
+                        manaCost={pick?.manaCost ?? null}
                         isActive={isActive ?? false}
                         isMyColumn={mySeat === seat}
                       />
@@ -215,7 +215,7 @@ export function DraftBoardMatrix({
                     <DraftBoardCell
                       key={seat}
                       cardName={pick?.cardName || null}
-                      colorIdentity={pick?.colorIdentity ?? []}
+                      manaCost={pick?.manaCost ?? null}
                       isActive={isActive ?? false}
                       isMyColumn={mySeat === seat}
                     />
