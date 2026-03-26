@@ -244,6 +244,52 @@ async function enterMatch(client: Client, draftId: string, args: string[]) {
   console.log(`Recorded match in draft "${draftId}": seat ${seat1} (${seat1Wins}W) vs seat ${seat2} (${seat2Wins}W)`);
 }
 
+async function reorderSeats(client: Client, draftId: string, args: string[]) {
+  const orderArg = requireArg(args, "--order");
+  const order = orderArg.split(",").map((s) => parseInt(s.trim(), 10));
+
+  // Validate
+  const draft = await client.execute({
+    sql: "SELECT phase, num_seats FROM drafts WHERE draft_id = ?",
+    args: [draftId],
+  });
+  if (draft.rows.length === 0) throw new Error(`Draft not found: ${draftId}`);
+  if (draft.rows[0].phase !== "setup") throw new Error("Can only reorder seats during setup phase");
+
+  const numSeats = draft.rows[0].num_seats as number;
+  if (order.length !== numSeats) throw new Error(`Expected ${numSeats} seats, got ${order.length}`);
+
+  const sorted = [...order].sort((a, b) => a - b);
+  const expected = Array.from({ length: numSeats }, (_, i) => i + 1);
+  if (JSON.stringify(sorted) !== JSON.stringify(expected)) {
+    throw new Error(`Order must be a permutation of 1-${numSeats}`);
+  }
+
+  // Reorder by updating seat numbers on seat_tokens
+  // Use temporary negative seats to avoid unique constraint conflicts
+  const statements = [];
+
+  // Phase 1: move all to negative temporaries
+  for (let i = 0; i < order.length; i++) {
+    statements.push({
+      sql: "UPDATE seat_tokens SET seat = ? WHERE draft_id = ? AND seat = ?",
+      args: [-(i + 1), draftId, order[i]],
+    });
+  }
+
+  // Phase 2: move from negative to final positions
+  for (let i = 0; i < order.length; i++) {
+    statements.push({
+      sql: "UPDATE seat_tokens SET seat = ? WHERE draft_id = ? AND seat = ?",
+      args: [i + 1, draftId, -(i + 1)],
+    });
+  }
+
+  await client.batch(statements);
+
+  console.log(`Reordered seats for "${draftId}": ${order.join(", ")}`);
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -257,7 +303,8 @@ Subcommands:
   set-phase <name> --phase <phase>           Update draft phase
   add-ban <name> --card <name>               Add a card to banned list
   remove-ban <name> --card <name>            Remove a card from banned list
-  enter-match <name> --seats 1,5 --wins 2,1  Record a match result`;
+  enter-match <name> --seats 1,5 --wins 2,1  Record a match result
+  reorder-seats <name> --order 3,1,4,2,...   Reorder seat pick positions (setup phase only)`;
 
 async function main() {
   loadEnv();
@@ -295,6 +342,9 @@ async function main() {
       break;
     case "enter-match":
       await enterMatch(client, draftId, remainingArgs);
+      break;
+    case "reorder-seats":
+      await reorderSeats(client, draftId, remainingArgs);
       break;
     default:
       console.error(`Unknown subcommand: ${subcommand}\n`);
