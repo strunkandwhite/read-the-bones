@@ -135,14 +135,44 @@ function MatchRow({
         {input.saving && (
           <span style={{ color: "#888", fontSize: "11px" }}>...</span>
         )}
+        {!input.saving && input.saved && (
+          <button
+            disabled
+            style={{
+              cursor: "default",
+              background: "#27272a",
+              border: "1px solid #374151",
+              borderRadius: "4px",
+              padding: "1px 2px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#6ee7b7",
+            }}
+            title="Match result saved"
+            aria-label="Match result saved"
+          >
+            <CheckIcon className="h-4 w-4" />
+          </button>
+        )}
         {!input.saving && canSave && focused && (
           <button
             onClick={() => onSave(opponent)}
-            style={{ cursor: "pointer", background: "none", border: "none", padding: 0 }}
+            style={{
+              cursor: "pointer",
+              background: "#3f3f46",
+              border: "1px solid #52525b",
+              borderRadius: "4px",
+              padding: "1px 2px",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#e0e0e0",
+            }}
             title="Save match result"
             aria-label="Save match result"
           >
-            <CheckIcon className="h-4 w-4 text-emerald-500" />
+            <CheckIcon className="h-4 w-4" />
           </button>
         )}
       </div>
