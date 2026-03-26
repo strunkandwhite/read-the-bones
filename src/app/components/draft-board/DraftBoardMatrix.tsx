@@ -83,7 +83,7 @@ export function DraftBoardMatrix({
   }, [board.numSeats]);
 
   return (
-    <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "60vh" }}>
+    <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "75vh" }}>
       <style>{`
         @keyframes pulse-border {
           0%, 100% { border-color: #3b82f6; }
@@ -119,6 +119,7 @@ export function DraftBoardMatrix({
                   color: SEAT_COLORS[(seat - 1) % SEAT_COLORS.length],
                   fontWeight: 600,
                   fontSize: "11px",
+                  minWidth: "130px",
                   backgroundColor: mySeat === seat ? "rgba(59,130,246,0.1)" : undefined,
                 }}
               >

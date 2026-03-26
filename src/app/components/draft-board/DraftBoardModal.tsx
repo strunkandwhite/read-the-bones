@@ -82,7 +82,7 @@ export function DraftBoardModal({
           flexDirection: "column",
           maxHeight: "95vh",
           width: "100%",
-          maxWidth: "1400px",
+          maxWidth: "95vw",
           margin: "0 12px",
           borderRadius: "12px",
           border: "1px solid rgba(63,63,70,0.4)",
