@@ -105,6 +105,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   const [deckBuilderActive, setDeckBuilderActive] = useState(false);
   const [deckBuilderModalOpen, setDeckBuilderModalOpen] = useState(false);
   const [draftBoardOpen, setDraftBoardOpen] = useState(false);
+  const [pickError, setPickError] = useState<string | null>(null);
 
   // Restore modal open state from localStorage on mount
   /* eslint-disable react-hooks/set-state-in-effect -- syncing from external storage (localStorage) */
@@ -203,17 +204,22 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   // Pick handler
   const handlePick = useCallback(async (cardName: string) => {
     if (!draftSelection.activeDraft || !seatToken.token) return;
-    const res = await fetch(`/api/drafts/${draftSelection.activeDraft}/pick`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Seat-Token": seatToken.token,
-      },
-      body: JSON.stringify({ card_name: cardName }),
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || "Pick failed");
+    setPickError(null);
+    try {
+      const res = await fetch(`/api/drafts/${draftSelection.activeDraft}/pick`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Seat-Token": seatToken.token,
+        },
+        body: JSON.stringify({ card_name: cardName }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setPickError(data.error || "Pick failed");
+      }
+    } catch {
+      setPickError("Network error — pick may not have been submitted");
     }
   }, [draftSelection.activeDraft, seatToken.token]);
 
@@ -564,6 +570,18 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
             </div>
           </div>
         </div>
+
+        {pickError && (
+          <div className="mb-2 flex items-center justify-between rounded-md border border-red-800/50 bg-red-950/50 px-3 py-2 text-xs text-red-300">
+            <span>{pickError}</span>
+            <button
+              onClick={() => setPickError(null)}
+              className="ml-2 text-red-400 hover:text-red-200"
+            >
+              &times;
+            </button>
+          </div>
+        )}
 
         {/* Card Table */}
         {searchFilteredCards.length > 0 ? (
