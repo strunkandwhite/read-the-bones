@@ -1,39 +1,41 @@
-# Live Draft E2E Test Feedback
+# Live Draft E2E Test Feedback — Round 2
 
-Feedback from manual E2E testing of the live draft feature (2026-03-26). This should be addressed alongside or after the gap closure plan (`docs/superpowers/plans/2026-03-26-live-draft-gap-closure.md`).
+Feedback from second round of manual E2E testing (2026-03-26) after gap closure agent made its first pass. Items from round 1 that were fixed are removed. New items and persistent issues are listed below.
 
-## Pick Controls UX
+## Pick Controls UX (NOT FIXED from round 1)
 
-1. **The big green "Pick" button to the left of each card is ugly.** The `+` queue button is also ugly. Both buttons are needed, but the current presentation is wrong.
-2. **Use the existing deck icons as controls.** We already have small icons on the right side of card cells for deck builder actions — the pick and queue controls should follow that same pattern rather than introducing a separate visual language.
-3. **The deck builder button and card-selected icon on the right of the card cell are missing** when logged into a live draft. Likely because seat isn't being set properly (token login sets the active draft but not the seat).
+1. **Pick/queue icons are still wrong.** The agent replaced the old icons with a checkmark (✓) for pick and (+) for queue, rendered as tiny outlined boxes to the left of the card. The feedback asked for these controls to use the same visual language as the existing deck builder icons (the stacked-layers `DeckIcon` in `CardNameCell.tsx`) and to live on the right side of the card cell alongside those icons — not as separate iconography on the left.
+2. **Deck builder button and card-selected icon still missing** when logged into a live draft with a token.
 
-## Pick Feedback & State
+## Pick Feedback & State (NOT FIXED from round 1)
 
-4. **No visual feedback after making a pick.** After picking a card, the button reverts to "Pick" but the card isn't removed or visually marked as taken. The card appears still pickable but returns an error if you try to pick it again. The UI should immediately reflect that the card was picked (remove from available list, show as taken, etc.).
-5. **Double picks are not communicated.** The snake draft has double-pick rounds (seat picks twice consecutively at the turn). Nothing in the UI indicates you have a double pick. After making one pick, it should be clear that you still owe another pick before passing to the next seat.
-6. **Auto-pick with a queued pick should fire immediately.** When you toggle auto-pick ON and already have a card queued, it should consume the next queued card right away if it's your turn — not wait for the next polling cycle.
+3. **No visual feedback after making a pick.** The card is not removed or dimmed after picking. The pick button disappears but the card looks the same as unpicked cards.
+4. **Double picks still not communicated.** No UI indication that you have two consecutive picks in a double-pick round.
+5. **Polling not updating taken cards.** After AI seats make their picks, the card table still shows pick buttons on cards that have already been taken. The polling is either not running or not refreshing the taken cards set in the UI.
+6. **Queued cards not auto-dequeued when taken.** If a card in your queue is picked by another seat, it stays in the queue. It should be silently removed.
 
 ## Draft Board
 
-7. **The draft board is illegible.** Card names are truncated, colored dots are meaningless noise, background colors on every cell make it impossible to scan. The whole thing is too cramped.
-8. **Use mana symbols instead of colored dots.** We already have mana symbol rendering elsewhere in the app. The dots convey no useful information — actual mana pips would be meaningful.
-9. **Drop the background color-coding on cells.** If we're showing mana symbols, the background colors are redundant and just add visual noise.
-10. **The board needs to be both wider and taller.** Cells are too small, card names are truncated. Give it more space.
-11. **Remove the "Seat N: X picks" badges.** The pick count per seat is self-evident from looking at the board itself. The badges below the board are redundant clutter.
+7. **Much improved from round 1** — mana symbols are showing, background colors removed, board is wider. Good progress.
+8. **Show only front-face mana cost for double-faced cards.** Cards like Fable of the Mirror-Breaker are showing mana costs for both faces. Only the front face cost should appear.
 
 ## Match Reporting
 
-12. **Remove spinners from the win/loss inputs.** The up/down spinner arrows on the number inputs are annoying and unnecessary.
-13. **Constrain valid values to 0, 1, and 2.** Currently accepts any number (e.g., 20 wins was accepted and saved). The inputs should enforce `min=0 max=2` or use a segmented control / radio buttons.
-14. **Save buttons need better styling.** The bright green/blue "Save"/"Saved" buttons don't match the app's color palette. They should be more subdued and consistent with the rest of the dark theme.
-15. **Standings table is not working.** After saving match results, the standings table shows only dashes for every row. The data is being saved (results persist) but the standings query or rendering is broken.
+9. **Spinners removed — good.**
+10. **Save button styling improved — good.** More subdued, fits the dark theme better.
+11. **Standings table STILL not working.** After saving match results (e.g., 2-0 vs Seat 6, 0-2 vs Seat 8), the standings table shows only dashes for every row. The Player column doesn't even show seat numbers/names. Data is being saved (results persist across page loads) but the standings query or rendering is completely broken. This was the #1 bug from round 1 and is still present.
+12. **Win/loss validation still missing.** Values are no longer unrestricted (the 20-win bug from round 1), but inputs should be constrained to exactly 0, 1, or 2.
 
-## API / Protocol Issues
+## Stale State on Draft Reset
 
-16. **The pick API body field is `card_name`, not `cardName`.** The E2E test plan and simulation scripts had this wrong. The API returns `{"error":"card_name required"}` if you use `cardName`. Ensure documentation and client code are consistent.
-17. **The `/available` endpoint returns `{ cards: [...] }` with objects shaped `{ card_name, remaining_qty }`.** Not a flat array of objects with a `name` field. Documentation and client code should match.
+13. **Deck builder loads stale cards from previous draft.** When a draft is reset and recreated with the same draft ID, the deck builder shows cards from the previous draft (loaded from localStorage keyed by draft_id + seat). Cards from the old draft appear as "in deck builder" with blue deck icons.
+14. **Card table shows stale taken state.** Same root cause — cards picked in the previous draft appear as taken in the new draft. The localStorage state for a draft should be invalidated when the draft resets to `drafting` phase with 0 picks, or the deck builder should check that its stored cards are actually in the current pick set.
 
-## Vercel Preview + MCP DevTools
+## Auto-Pick Behavior
 
-18. **Chrome DevTools MCP cannot interact with Vercel-protected deployments.** The initial page loads but all subsequent JS/API requests get 401'd because the `x-vercel-protection-bypass` query param isn't forwarded on subresource requests. This means MCP-based visual testing requires either localhost or an unprotected deployment.
+15. **Auto-pick with queued card should fire immediately.** When toggling auto-pick ON with a card already queued and it's your turn, the pick should happen immediately rather than waiting for the next poll cycle.
+
+## API / Protocol Notes (from round 1, still relevant for documentation)
+
+16. **Pick API body field is `card_name`** (not `cardName`).
+17. **`/available` endpoint returns `{ cards: [...] }` with `{ card_name, remaining_qty }` objects** (not a flat array with `name` field).
