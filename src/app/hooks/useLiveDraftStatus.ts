@@ -19,6 +19,7 @@ interface UseLiveDraftStatusReturn {
   status: LiveDraftStatus | null;
   dataChanged: number;
   isLoading: boolean;
+  refresh: () => Promise<void>;
 }
 
 export function useLiveDraftStatus(
@@ -56,7 +57,7 @@ export function useLiveDraftStatus(
   }, [enabled, draftId, fetchStatus, status?.phase]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  return { status, dataChanged, isLoading };
+  return { status, dataChanged, isLoading, refresh: fetchStatus };
 }
 
 export interface BoardData {

@@ -199,6 +199,14 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   );
 
   const { mySeat, autoPick, toggleAutoPick } = useMySeat(draftSelection.activeDraft, seatToken.token);
+
+  // When mySeat resolves from token auth, auto-select that seat
+  useEffect(() => {
+    if (mySeat !== null && draftSelection.selectedSeat === null) {
+      draftSelection.setSelectedSeat(mySeat);
+    }
+  }, [mySeat, draftSelection.selectedSeat]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const isMyTurn = mySeat !== null && liveDraftStatus.status?.nextSeat === mySeat;
 
   // Pick handler
@@ -217,11 +225,13 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
       if (!res.ok) {
         const data = await res.json();
         setPickError(data.error || "Pick failed");
+      } else {
+        liveDraftStatus.refresh();
       }
     } catch {
       setPickError("Network error — pick may not have been submitted");
     }
-  }, [draftSelection.activeDraft, seatToken.token]);
+  }, [draftSelection.activeDraft, seatToken.token, liveDraftStatus]);
 
   const searchParams = useSearchParams();
   const sharedDeckId = searchParams.get("deck");
