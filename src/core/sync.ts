@@ -194,7 +194,7 @@ export async function markDraftComplete(
   draftId: string,
 ): Promise<void> {
   await client.execute({
-    sql: "UPDATE drafts SET is_complete = 1 WHERE draft_id = ?",
+    sql: "UPDATE drafts SET phase = 'complete' WHERE draft_id = ?",
     args: [draftId],
   });
 }
@@ -336,13 +336,13 @@ export async function isRateLimited(client: Client): Promise<boolean> {
 }
 
 /**
- * Get active draft IDs (is_complete = 0) with their sheet_ids.
+ * Get active draft IDs (phase != 'complete') with their sheet_ids.
  */
 export async function getActiveDrafts(
   client: Client,
 ): Promise<Array<{ draftId: string; sheetId: string }>> {
   const result = await client.execute({
-    sql: `SELECT draft_id, sheet_id FROM drafts WHERE is_complete = 0 AND sheet_id IS NOT NULL`,
+    sql: `SELECT draft_id, sheet_id FROM drafts WHERE phase IN ('setup', 'drafting') AND sheet_id IS NOT NULL`,
     args: [],
   });
   return result.rows.map((row) => ({
@@ -358,7 +358,7 @@ export async function getActiveDraftInfo(
   client: Client
 ): Promise<Array<{ id: string; numSeats: number }>> {
   const result = await client.execute({
-    sql: `SELECT draft_id, num_seats FROM drafts WHERE is_complete = 0`,
+    sql: `SELECT draft_id, num_seats FROM drafts WHERE phase IN ('setup', 'drafting')`,
     args: [],
   });
   return result.rows.map((row) => ({

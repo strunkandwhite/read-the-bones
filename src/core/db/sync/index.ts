@@ -221,8 +221,8 @@ export async function syncDraft(
     // Detect and update completion
     result.markedComplete = parsedPicks.isComplete;
     await client.execute({
-      sql: "UPDATE drafts SET is_complete = ? WHERE draft_id = ?",
-      args: [parsedPicks.isComplete ? 1 : 0, draftId],
+      sql: "UPDATE drafts SET phase = ? WHERE draft_id = ?",
+      args: [parsedPicks.isComplete ? 'complete' : 'drafting', draftId],
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
@@ -384,7 +384,7 @@ export async function syncAll(
   } else {
     // Sync all incomplete drafts with a sheet_id
     const result = await client.execute({
-      sql: "SELECT draft_id, sheet_id FROM drafts WHERE sheet_id IS NOT NULL AND is_complete = 0",
+      sql: "SELECT draft_id, sheet_id FROM drafts WHERE sheet_id IS NOT NULL AND phase IN ('setup', 'drafting')",
       args: [],
     });
     drafts = result.rows.map((r) => ({

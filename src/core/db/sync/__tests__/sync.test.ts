@@ -403,13 +403,13 @@ describe("syncDraft", () => {
 
       expect(result.markedComplete).toBe(true);
 
-      // Verify is_complete was set to 1
+      // Verify phase was set to 'complete'
       const executeCalls = client.execute.mock.calls;
       const completionUpdate = executeCalls.find(
-        (c: any[]) => (c[0].sql as string).includes("UPDATE drafts SET is_complete"),
+        (c: any[]) => (c[0].sql as string).includes("UPDATE drafts SET phase"),
       );
       expect(completionUpdate).toBeDefined();
-      expect(completionUpdate![0].args[0]).toBe(1);
+      expect(completionUpdate![0].args[0]).toBe('complete');
     });
   });
 

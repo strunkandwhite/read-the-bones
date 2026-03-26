@@ -14,7 +14,7 @@ export async function resetDraft(client: Client, draftId: string): Promise<void>
     { sql: "DELETE FROM pick_events WHERE draft_id = ?", args: [draftId] },
     { sql: "DELETE FROM privacy_opt_outs WHERE draft_id = ?", args: [draftId] },
     {
-      sql: "UPDATE drafts SET pool_hash = NULL, picks_hash = NULL, matches_hash = NULL, num_seats = 0, is_complete = 0 WHERE draft_id = ?",
+      sql: "UPDATE drafts SET pool_hash = NULL, picks_hash = NULL, matches_hash = NULL, num_seats = 0, phase = 'drafting' WHERE draft_id = ?",
       args: [draftId],
     },
   ]);
