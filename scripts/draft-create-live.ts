@@ -131,7 +131,8 @@ async function main() {
   });
 
   let cubeSnapshotId: number;
-  if (snapshotResult.rowsAffected > 0) {
+  const isNewSnapshot = snapshotResult.rowsAffected > 0;
+  if (isNewSnapshot) {
     cubeSnapshotId = Number(snapshotResult.lastInsertRowid);
   } else {
     const existing = await client.execute({
@@ -139,22 +140,25 @@ async function main() {
       args: [cubeHash],
     });
     cubeSnapshotId = existing.rows[0].cube_snapshot_id as number;
+    console.log(`  Reusing existing cube snapshot ${cubeSnapshotId}`);
   }
 
-  // Insert cube snapshot cards
-  const cardEntries: Array<{ cardId: number; qty: number }> = [];
-  for (const cardName of uniqueNames) {
-    const cardId = cardCache.get(cardName);
-    if (cardId !== undefined) {
-      cardEntries.push({ cardId, qty: nameCounts.get(cardName) || 1 });
+  // Insert cube snapshot cards (skip if snapshot already exists with its cards)
+  if (isNewSnapshot) {
+    const cardEntries: Array<{ cardId: number; qty: number }> = [];
+    for (const cardName of uniqueNames) {
+      const cardId = cardCache.get(cardName);
+      if (cardId !== undefined) {
+        cardEntries.push({ cardId, qty: nameCounts.get(cardName) || 1 });
+      }
     }
+    await batchInsertCubeSnapshotCards(client, cubeSnapshotId, cardEntries);
   }
-  await batchInsertCubeSnapshotCards(client, cubeSnapshotId, cardEntries);
 
   // 4. Insert draft record
   await client.execute({
-    sql: `INSERT INTO drafts (draft_id, draft_name, draft_date, cube_snapshot_id, num_seats, phase, in_app, picks_per_player, banned_cards)
-          VALUES (?, ?, ?, ?, ?, 'setup', 1, ?, ?)`,
+    sql: `INSERT INTO drafts (draft_id, draft_name, draft_date, cube_snapshot_id, num_seats, phase, in_app, picks_per_player, banned_cards, import_hash)
+          VALUES (?, ?, ?, ?, ?, 'setup', 1, ?, ?, '')`,
     args: [
       draftId,
       name,
