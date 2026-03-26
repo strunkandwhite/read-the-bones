@@ -44,6 +44,41 @@ export interface CardTableProps {
 
 const columnHelper = createColumnHelper<EnrichedCardStats>();
 
+function PickButton({ cardName, onPick }: { cardName: string; onPick: (name: string) => Promise<void> }) {
+  const [confirming, setConfirming] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // Reset confirmation after 3 seconds
+  useEffect(() => {
+    if (confirming) {
+      timeoutRef.current = setTimeout(() => setConfirming(false), 3000);
+      return () => clearTimeout(timeoutRef.current);
+    }
+  }, [confirming]);
+
+  if (confirming) {
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); setConfirming(false); onPick(cardName); }}
+        className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white hover:bg-red-500 animate-pulse"
+        title="Click again to confirm pick"
+      >
+        Confirm
+      </button>
+    );
+  }
+
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
+      className="rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white hover:bg-emerald-500"
+      title="Pick this card"
+    >
+      Pick
+    </button>
+  );
+}
+
 
 const PICK_EXPLANATION = `Weighted geometric mean of pick positions across all drafts.
 
@@ -185,13 +220,7 @@ export function CardTable({
                 return (
                   <div className="flex items-center gap-1">
                     {onPickRef.current && isMyTurnRef.current && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onPickRef.current!(cardName); }}
-                        className="rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white hover:bg-emerald-500"
-                        title="Pick this card"
-                      >
-                        Pick
-                      </button>
+                      <PickButton cardName={cardName} onPick={onPickRef.current} />
                     )}
                     {onQueueAddRef.current && onQueueRemoveRef.current && (
                       queuePos !== undefined ? (
