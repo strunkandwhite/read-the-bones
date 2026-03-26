@@ -73,7 +73,7 @@ The app exposes REST API routes under `/api/` for querying draft data. All route
 | `/api/drafts` | List all drafts | `date_from`, `date_to`, `draft_name` |
 | `/api/drafts/[id]` | Get draft details (includes banned cards) | — |
 | `/api/drafts/[id]/picks` | Get pick events | `seat`, `pick_n_min`, `pick_n_max`, `card_name` |
-| `/api/drafts/[id]/available` | Cards available at a pick | `before_pick_n` (required), `color`, `type_contains` |
+| `/api/drafts/[id]/available` | Cards available at a pick. Response: `{ cards: [{ card_name, remaining_qty }] }` | `before_pick_n` (required), `color`, `type_contains` |
 | `/api/drafts/[id]/available/ranked` | Ranked available cards | `before_pick_n` (required), `color`, `type_contains`, `deck_colors`, `limit`, `sort_by` |
 | `/api/drafts/[id]/standings` | Match standings | — |
 | `/api/drafts/[id]/pool` | Full draft pool | `include_draft_results`, `include_card_details`, `group_by`, `color`, `type_contains` |
@@ -88,7 +88,8 @@ The app exposes REST API routes under `/api/` for querying draft data. All route
 | Route | Method | Auth | Description |
 |-------|--------|------|-------------|
 | `/api/drafts/[id]/status` | GET | None | Draft state, next seat, recent picks |
-| `/api/drafts/[id]/pick` | POST | Token | Submit a pick |
+| `/api/drafts/[id]/me` | GET | Token | Resolve seat from token: `{ seat, autoPick, displayName }` |
+| `/api/drafts/[id]/pick` | POST | Token | Submit a pick. Body: `{ card_name: string }` (snake_case, not camelCase) |
 | `/api/drafts/[id]/queue` | GET/PUT | Token | Manage player's pick queue |
 | `/api/drafts/[id]/board` | GET | None | Full pick matrix data |
 | `/api/drafts/[id]/match` | POST | Token | Report a match result |
