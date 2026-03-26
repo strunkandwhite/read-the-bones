@@ -271,6 +271,16 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     }
   }, [draftSelection.activeDraft, seatToken.token, refreshDraftStatus]);
 
+  // Fire queued pick immediately when auto-pick is on and it becomes the player's turn
+  /* eslint-disable react-hooks/set-state-in-effect -- submitting pick to external API; setState (setPickError) is a side effect of the API call, not the goal */
+  useEffect(() => {
+    if (!isMyTurn || !autoPick) return;
+    if (!pickQueue.queuedCards || pickQueue.queuedCards.size === 0) return;
+    const sorted = [...pickQueue.queuedCards.entries()].sort((a, b) => a[1] - b[1]);
+    const [nextCard] = sorted[0];
+    handlePick(nextCard);
+  }, [isMyTurn, autoPick, pickQueue.queuedCards, handlePick]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const searchParams = useSearchParams();
   const sharedDeckId = searchParams.get("deck");
