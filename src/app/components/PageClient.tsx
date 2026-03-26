@@ -28,6 +28,7 @@ import { useMySeat } from "../hooks/useMySeat";
 export interface PageClientProps {
   initialCardData: CardStatsResponse;
   initialDraftStats: DraftStatsResponse;
+  initialDraftId?: string;
 }
 
 /**
@@ -38,9 +39,10 @@ export interface PageClientProps {
  * - Color filter selection
  * - Draft selection (fetches recalculated stats from API)
  */
-export function PageClient({ initialCardData, initialDraftStats }: PageClientProps) {
+export function PageClient({ initialCardData, initialDraftStats, initialDraftId }: PageClientProps) {
   const draftSelection = useDraftSelection({
     completedDraftIds: initialCardData.completedDraftIds,
+    initialDraftId,
   });
 
   const [poolAsOfDraft, setPoolAsOfDraft] = useState<string | null>(null);
