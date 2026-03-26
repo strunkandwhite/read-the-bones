@@ -44,6 +44,7 @@ describe('authenticateSeat', () => {
       draftId: 'draft-1',
       seat: 3,
       autoPick: true,
+      displayName: null,
     });
 
     const req = new Request('http://localhost/test', {
@@ -80,6 +81,7 @@ describe('authenticateSeat', () => {
       draftId: 'draft-2',
       seat: 1,
       autoPick: false,
+      displayName: null,
     });
 
     const req = new Request('http://localhost/test', {

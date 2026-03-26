@@ -50,15 +50,15 @@ describe("resolveToken", () => {
   it("returns { draftId, seat, autoPick } for a valid token", async () => {
     const mockClient = createMockClient();
     mockClient.execute.mockResolvedValue({
-      rows: [{ draft_id: "draft-1", seat: 3, auto_pick: 1 }],
+      rows: [{ draft_id: "draft-1", seat: 3, auto_pick: 1, display_name: null }],
     });
 
     const result = await resolveToken(mockClient as never, "some-token");
 
-    expect(result).toEqual({ draftId: "draft-1", seat: 3, autoPick: true });
+    expect(result).toEqual({ draftId: "draft-1", seat: 3, autoPick: true, displayName: null });
     expect(mockClient.execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        sql: expect.stringContaining("SELECT draft_id, seat, auto_pick"),
+        sql: expect.stringContaining("SELECT draft_id, seat, auto_pick, display_name"),
         args: ["some-token"],
       })
     );

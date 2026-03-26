@@ -26,9 +26,9 @@ export async function generateSeatTokens(
 export async function resolveToken(
   client: Client,
   token: string,
-): Promise<{ draftId: string; seat: number; autoPick: boolean } | null> {
+): Promise<{ draftId: string; seat: number; autoPick: boolean; displayName: string | null } | null> {
   const result = await client.execute({
-    sql: `SELECT draft_id, seat, auto_pick FROM seat_tokens WHERE token = ?`,
+    sql: `SELECT draft_id, seat, auto_pick, display_name FROM seat_tokens WHERE token = ?`,
     args: [token],
   });
   if (result.rows.length === 0) return null;
@@ -37,6 +37,7 @@ export async function resolveToken(
     draftId: row.draft_id as string,
     seat: row.seat as number,
     autoPick: row.auto_pick === 1,
+    displayName: (row.display_name as string) ?? null,
   };
 }
 
