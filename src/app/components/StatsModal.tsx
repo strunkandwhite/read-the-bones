@@ -50,7 +50,8 @@ export function StatsModal({ data }: StatsModalProps) {
           track("stats_open");
         }}
         className="cursor-pointer rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-        aria-label="Draft statistics"
+        title="Overall Roto Stats"
+        aria-label="Overall Roto Stats"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"

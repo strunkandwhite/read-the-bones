@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import type { EnrichedCardStats } from "@/core/types";
@@ -24,6 +24,43 @@ function RemoveIcon({ className }: { className?: string }) {
   );
 }
 
+/** Two-step pick button with confirmation timeout. */
+function PickButton({ cardName, onPick }: { cardName: string; onPick: (name: string) => Promise<void> }) {
+  const [confirming, setConfirming] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    if (confirming) {
+      timeoutRef.current = setTimeout(() => setConfirming(false), 3000);
+      return () => clearTimeout(timeoutRef.current);
+    }
+  }, [confirming]);
+
+  if (confirming) {
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); setConfirming(false); onPick(cardName); }}
+        className="flex h-4 w-4 cursor-pointer items-center justify-center animate-pulse"
+        title="Confirm"
+        aria-label="Confirm pick"
+      >
+        <DeckIcon className="h-3.5 w-3.5 text-emerald-500" />
+      </button>
+    );
+  }
+
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
+      className="flex h-4 w-4 cursor-pointer items-center justify-center opacity-0 transition-opacity group-hover/row:opacity-100 active:opacity-100"
+      title="Click, then confirm to draft this card"
+      aria-label="Draft this card"
+    >
+      <DeckIcon className="h-3.5 w-3.5 text-emerald-500" />
+    </button>
+  );
+}
+
 interface CardNameCellProps {
   card: EnrichedCardStats;
   cubeCopies?: number;
@@ -34,9 +71,19 @@ interface CardNameCellProps {
   isSpeculative?: boolean;
   isTaken?: boolean;
   isSeatCard?: boolean;
+  // Live draft props
+  onPick?: (cardName: string) => Promise<void>;
+  isMyTurn?: boolean;
+  queuePos?: number;
+  onQueueAdd?: (cardName: string) => void;
+  onQueueRemove?: (cardName: string) => void;
 }
 
-export function CardNameCell({ card, cubeCopies, onAddSpeculative, onRemoveSpeculative, canAddMore, isInDeckBuilder, isSpeculative, isTaken, isSeatCard }: CardNameCellProps) {
+export function CardNameCell({
+  card, cubeCopies, onAddSpeculative, onRemoveSpeculative, canAddMore,
+  isInDeckBuilder, isSpeculative, isTaken, isSeatCard,
+  onPick, isMyTurn, queuePos, onQueueAdd, onQueueRemove,
+}: CardNameCellProps) {
   const [showImage, setShowImage] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
   const cellRef = useRef<HTMLDivElement>(null);
@@ -86,20 +133,56 @@ export function CardNameCell({ card, cubeCopies, onAddSpeculative, onRemoveSpecu
             ×{cubeCopies}
           </span>
         )}
-        {/* Deck icon states — mutually exclusive */}
+        {/* Right-side icons: pick, queue, and deck builder */}
         {(() => {
-          // Our seat's pick (not in deck builder)
+          const icons: ReactNode[] = [];
+
+          // Live draft: pick icon (emerald DeckIcon, visible on hover when it's my turn)
+          if (onPick && isMyTurn && !isTaken && !isSeatCard) {
+            icons.push(
+              <PickButton key="pick" cardName={card.cardName} onPick={onPick} />
+            );
+          }
+
+          // Live draft: queue icon (hide for cards already picked by this seat)
+          if (onQueueAdd && onQueueRemove && !isTaken && !isSeatCard) {
+            if (queuePos !== undefined) {
+              icons.push(
+                <button
+                  key="queue"
+                  onClick={(e) => { e.stopPropagation(); onQueueRemove(card.cardName); }}
+                  className="relative flex h-4 w-4 cursor-pointer items-center justify-center hover:opacity-75"
+                  title={`Queued #${queuePos} for auto-pick — click to remove`}
+                  aria-label={`Queued at position ${queuePos}, click to remove`}
+                >
+                  <DeckIcon className="h-3.5 w-3.5 text-blue-400" />
+                  <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-blue-500 text-[7px] font-bold leading-none text-white">{queuePos}</span>
+                </button>
+              );
+            } else {
+              icons.push(
+                <button
+                  key="queue-add"
+                  onClick={(e) => { e.stopPropagation(); onQueueAdd(card.cardName); }}
+                  className="flex h-4 w-4 cursor-pointer items-center justify-center opacity-0 transition-opacity group-hover/row:opacity-50 active:opacity-100"
+                  title="Add to auto-pick queue"
+                  aria-label="Add to auto-pick queue"
+                >
+                  <DeckIcon className="h-3.5 w-3.5 text-blue-400" />
+                </button>
+              );
+            }
+          }
+
+          // Deck builder: seat card or in deck builder (solid blue)
           if (isSeatCard && !isInDeckBuilder) {
-            return <DeckIcon className="ml-1 h-3.5 w-3.5 shrink-0 text-blue-400" />;
-          }
-          // In deck builder as a real pick
-          if (isInDeckBuilder && !isSpeculative) {
-            return <DeckIcon className="ml-1 h-3.5 w-3.5 shrink-0 text-blue-400" />;
-          }
-          // Speculative — show remove + optionally add if more copies available
-          if (isSpeculative && onRemoveSpeculative) {
-            return (
-              <span className="ml-1 flex shrink-0 items-center">
+            icons.push(<DeckIcon key="deck" className="h-3.5 w-3.5 shrink-0 text-blue-400" />);
+          } else if (isInDeckBuilder && !isSpeculative) {
+            icons.push(<DeckIcon key="deck" className="h-3.5 w-3.5 shrink-0 text-blue-400" />);
+          } else if (isSpeculative && onRemoveSpeculative) {
+            // Speculative — show remove + optionally add if more copies available
+            icons.push(
+              <span key="deck-spec" className="flex shrink-0 items-center">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -127,16 +210,16 @@ export function CardNameCell({ card, cubeCopies, onAddSpeculative, onRemoveSpecu
                 )}
               </span>
             );
-          }
-          // Can add speculative — show deck icon on row hover, flash on click
-          if (onAddSpeculative && canAddMore && !isTaken) {
-            return (
+          } else if (onAddSpeculative && canAddMore && !isTaken) {
+            // Can add speculative — show deck icon on row hover
+            icons.push(
               <button
+                key="deck-add"
                 onClick={(e) => {
                   e.stopPropagation();
                   onAddSpeculative(card.cardName);
                 }}
-                className="ml-1 flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center opacity-0 transition-opacity group-hover/row:opacity-35 active:opacity-100"
+                className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center opacity-0 transition-opacity group-hover/row:opacity-35 active:opacity-100"
                 title="Add to deck builder"
                 aria-label="Add to deck builder"
               >
@@ -144,7 +227,9 @@ export function CardNameCell({ card, cubeCopies, onAddSpeculative, onRemoveSpecu
               </button>
             );
           }
-          return null;
+
+          if (icons.length === 0) return null;
+          return <span className="ml-1 flex shrink-0 items-center gap-0.5">{icons}</span>;
         })()}
       </div>
 

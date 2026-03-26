@@ -52,7 +52,11 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
 
   const syncStatus = useSyncStatus(draftSelection.activeDraft !== null, draftSelection.activeDraft);
 
-
+  // Live draft polling (must be before useCardData so dataChanged can flow to it)
+  const liveDraftStatus = useLiveDraftStatus(
+    draftSelection.activeDraft,
+    draftSelection.activeDraft !== null,
+  );
 
   const { cardData, draftStats, isLoading, handleDraftsChange } = useCardData({
     initialCardData,
@@ -61,6 +65,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     activeDraft: draftSelection.activeDraft,
     poolAsOfDraft: effectivePoolAsOfDraft,
     syncDataChanged: syncStatus.dataChanged,
+    liveDraftDataChanged: liveDraftStatus.dataChanged,
   });
 
   const searchHelpTrackedRef = useRef(false);
@@ -184,10 +189,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
 
   // Live draft hooks
   const seatToken = useSeatToken(draftSelection.activeDraft);
-  const liveDraftStatus = useLiveDraftStatus(
-    draftSelection.activeDraft,
-    draftSelection.activeDraft !== null,
-  );
   const draftBoard = useDraftBoard(
     draftSelection.activeDraft,
     liveDraftStatus.dataChanged,
@@ -199,6 +200,22 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   );
 
   const { mySeat, autoPick, toggleAutoPick } = useMySeat(draftSelection.activeDraft, seatToken.token);
+
+  // Clear stale deck builder state when a draft has been reset
+  // (same draft_id but back to "drafting" phase with 0 picks)
+  // One-time guard per draft+seat to avoid repeated clears or race conditions
+  const draftResetClearedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!liveDraftStatus.status || !draftSelection.activeDraft) return;
+    const { phase, latestPickN } = liveDraftStatus.status;
+    const seat = draftSelection.selectedSeat;
+    if (seat === null) return;
+    const guardKey = `${draftSelection.activeDraft}:${seat}`;
+    if (phase === "drafting" && latestPickN === 0 && draftResetClearedRef.current !== guardKey) {
+      draftResetClearedRef.current = guardKey;
+      localStorage.removeItem(`deckState:${draftSelection.activeDraft}:${seat}`);
+    }
+  }, [liveDraftStatus.status, draftSelection.activeDraft, draftSelection.selectedSeat]);
 
   // When mySeat resolves from token auth, auto-select that seat
   useEffect(() => {
@@ -229,6 +246,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   })();
 
   // Pick handler
+  const refreshDraftStatus = liveDraftStatus.refresh;
   const handlePick = useCallback(async (cardName: string) => {
     if (!draftSelection.activeDraft || !seatToken.token) return;
     setPickError(null);
@@ -245,30 +263,14 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
         const data = await res.json();
         setPickError(data.error || "Pick failed");
       } else {
-        liveDraftStatus.refresh();
+        setPickError(null);
+        refreshDraftStatus();
       }
     } catch {
       setPickError("Network error — pick may not have been submitted");
     }
-  }, [draftSelection.activeDraft, seatToken.token, liveDraftStatus]);
+  }, [draftSelection.activeDraft, seatToken.token, refreshDraftStatus]);
 
-  // Fire queued pick immediately when auto-pick is on and it's our turn
-  const autoPickFiredRef = useRef(false);
-  /* eslint-disable react-hooks/set-state-in-effect -- triggering a pick submits to the external draft API (not cascading local state) */
-  useEffect(() => {
-    if (!isMyTurn || !autoPick) {
-      autoPickFiredRef.current = false;
-      return;
-    }
-    if (autoPickFiredRef.current) return;
-    if (!pickQueue.queuedCards || pickQueue.queuedCards.size === 0) return;
-    // Get the first queued card (lowest priority = next pick)
-    const sorted = [...pickQueue.queuedCards.entries()].sort((a, b) => a[1] - b[1]);
-    const [nextCard] = sorted[0];
-    autoPickFiredRef.current = true;
-    handlePick(nextCard);
-  }, [isMyTurn, autoPick, pickQueue.queuedCards, handlePick]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const searchParams = useSearchParams();
   const sharedDeckId = searchParams.get("deck");
@@ -538,35 +540,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
               />
             </div>
 
-            {/* Deck Builder Toggle */}
-            {draftSelection.activeDraft && draftSelection.selectedSeat !== null && (
-              <button
-                onClick={() => {
-                  const wasOpen = deckBuilderModalOpen;
-                  if (!deckBuilderActive) setDeckBuilderActive(true);
-                  setDeckBuilderModalOpen((prev) => !prev);
-                  if (!wasOpen && draftSelection.activeDraft && draftSelection.selectedSeat !== null) {
-                    track("deck_builder_open", {
-                      draft: draftSelection.activeDraft,
-                      seat: draftSelection.selectedSeat,
-                    });
-                  }
-                }}
-                aria-label="Deck Builder"
-                className={`cursor-pointer rounded-lg p-2 transition-colors ${
-                  deckBuilderModalOpen
-                    ? "bg-blue-600 text-white shadow-sm shadow-blue-900/40 hover:bg-blue-500"
-                    : deckBuilderActive
-                      ? "text-blue-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                      : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                }`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-6 w-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 6.878V6a2.25 2.25 0 0 1 2.25-2.25h7.5A2.25 2.25 0 0 1 18 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 0 0 4.5 9v.878m13.5-3A2.25 2.25 0 0 1 19.5 9v.878m-15 0A2.247 2.247 0 0 0 3 12v6.75A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V12c0-.796-.413-1.496-1.035-1.896" />
-                </svg>
-              </button>
-            )}
-
             {/* Active Draft Indicator — hidden below md to preserve search bar width */}
             {draftSelection.activeDraft && (
               <div className="hidden md:block">
@@ -591,12 +564,19 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
               {draftSelection.activeDraft && (
                 <button
                   onClick={() => setDraftBoardOpen(!draftBoardOpen)}
-                  className="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  className="cursor-pointer rounded-md p-2 text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  title={`Pod View — ${draftSelection.activeDraft}`}
+                  aria-label={`Pod View — ${draftSelection.activeDraft}`}
                 >
-                  Draft Board
+                  <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <rect x="1" y="1" width="6" height="6" rx="1" />
+                    <rect x="9" y="1" width="6" height="6" rx="1" />
+                    <rect x="1" y="9" width="6" height="6" rx="1" />
+                    <rect x="9" y="9" width="6" height="6" rx="1" />
+                  </svg>
                 </button>
               )}
-              {draftSelection.activeDraft && mySeat !== null && (
+              {draftSelection.activeDraft && mySeat !== null && liveDraftStatus.status?.phase === "drafting" && (
                 <button
                   onClick={toggleAutoPick}
                   className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
@@ -613,6 +593,34 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                 <span className="rounded-md bg-amber-900/50 px-2 py-1 text-xs font-medium text-amber-300">
                   {consecutivePicks}&times; pick
                 </span>
+              )}
+              {draftSelection.activeDraft && draftSelection.selectedSeat !== null && (
+                <button
+                  onClick={() => {
+                    const wasOpen = deckBuilderModalOpen;
+                    if (!deckBuilderActive) setDeckBuilderActive(true);
+                    setDeckBuilderModalOpen((prev) => !prev);
+                    if (!wasOpen && draftSelection.activeDraft && draftSelection.selectedSeat !== null) {
+                      track("deck_builder_open", {
+                        draft: draftSelection.activeDraft,
+                        seat: draftSelection.selectedSeat,
+                      });
+                    }
+                  }}
+                  title="Deck Builder"
+                  aria-label="Deck Builder"
+                  className={`cursor-pointer rounded-lg p-2 transition-colors ${
+                    deckBuilderModalOpen
+                      ? "bg-blue-600 text-white shadow-sm shadow-blue-900/40 hover:bg-blue-500"
+                      : deckBuilderActive
+                        ? "text-blue-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                  }`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-6 w-6">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 6.878V6a2.25 2.25 0 0 1 2.25-2.25h7.5A2.25 2.25 0 0 1 18 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 0 0 4.5 9v.878m13.5-3A2.25 2.25 0 0 1 19.5 9v.878m-15 0A2.247 2.247 0 0 0 3 12v6.75A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V12c0-.796-.413-1.496-1.035-1.896" />
+                  </svg>
+                </button>
               )}
               <StatsModal data={draftStats} />
               <Settings
@@ -657,10 +665,10 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
             currentCubeCopies={displayedCubeCopies}
             takenCardNames={takenCardNamesSet}
             seatCardNames={seatCardNames}
-            onAddSpeculative={deckBuilderActive ? handleAddSpeculative : undefined}
-            onRemoveSpeculative={deckBuilderActive ? handleRemoveSpeculative : undefined}
-            deckBuilderCardCounts={deckBuilderActive ? deckBuilderCardCounts : undefined}
-            speculativeCardNames={deckBuilderActive ? speculativeCardNames : undefined}
+            onAddSpeculative={(deckBuilderActive || seatToken.hasSeatToken) ? handleAddSpeculative : undefined}
+            onRemoveSpeculative={(deckBuilderActive || seatToken.hasSeatToken) ? handleRemoveSpeculative : undefined}
+            deckBuilderCardCounts={(deckBuilderActive || seatToken.hasSeatToken) ? deckBuilderCardCounts : undefined}
+            speculativeCardNames={(deckBuilderActive || seatToken.hasSeatToken) ? speculativeCardNames : undefined}
             isMyTurn={isMyTurn}
             onPick={seatToken.hasSeatToken ? handlePick : undefined}
             queuedCards={seatToken.hasSeatToken ? pickQueue.queuedCards : undefined}
@@ -718,6 +726,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
           mySeat={mySeat}
           token={seatToken.token}
           draftId={draftSelection.activeDraft}
+          draftName={cardData.draftMetadata[draftSelection.activeDraft]?.name}
           isOpen={draftBoardOpen}
           onClose={() => setDraftBoardOpen(false)}
           onMatchReported={() => draftBoard.refresh()}

@@ -33,6 +33,10 @@ export async function GET(
         const sf = JSON.parse(r.scryfall_json as string);
         colorIdentity = sf.color_identity ?? [];
         manaCost = sf.mana_cost ?? "";
+        // DFCs: use front-face mana cost only
+        if (!manaCost && sf.card_faces?.[0]?.mana_cost) {
+          manaCost = sf.card_faces[0].mana_cost;
+        }
       } catch { /* ignore parse errors */ }
       return {
         pickN: r.pick_n as number,

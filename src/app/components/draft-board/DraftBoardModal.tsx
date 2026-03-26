@@ -12,6 +12,7 @@ interface DraftBoardModalProps {
   mySeat: number | null;
   token: string | null;
   draftId: string;
+  draftName?: string;
   isOpen: boolean;
   onClose: () => void;
   onMatchReported: () => void;
@@ -29,6 +30,7 @@ export function DraftBoardModal({
   mySeat,
   token,
   draftId,
+  draftName,
   isOpen,
   onClose,
   onMatchReported,
@@ -111,7 +113,7 @@ export function DraftBoardModal({
                 letterSpacing: "-0.01em",
               }}
             >
-              Draft Board
+              {draftName || draftId}
             </span>
             <span
               style={{

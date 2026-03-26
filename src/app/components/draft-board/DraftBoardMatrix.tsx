@@ -119,7 +119,7 @@ export function DraftBoardMatrix({
                   color: SEAT_COLORS[(seat - 1) % SEAT_COLORS.length],
                   fontWeight: 600,
                   fontSize: "11px",
-                  minWidth: "130px",
+                  minWidth: "110px",
                   backgroundColor: mySeat === seat ? "rgba(59,130,246,0.1)" : undefined,
                 }}
               >
@@ -133,7 +133,6 @@ export function DraftBoardMatrix({
             const isCurrentRound = row.round === currentRound;
 
             // For each seat column, find the pick(s) in this round
-            // In double-pick rounds, a seat picks twice
             const seatPicks: Map<number, (typeof board.picks)[number][]> = new Map();
             for (let i = 0; i < row.seats.length; i++) {
               const seat = row.seats[i];
@@ -147,6 +146,53 @@ export function DraftBoardMatrix({
               }
             }
 
+            const roundLabelStyle = {
+              padding: "3px 6px",
+              textAlign: "center" as const,
+              color: "#888",
+              fontSize: "10px",
+              whiteSpace: "nowrap" as const,
+              borderRight: "1px solid #333",
+            };
+
+            // Double-pick rounds: render as two separate <tr> rows
+            if (row.isDoublePick) {
+              return [0, 1].map((subRow) => (
+                <tr
+                  key={`${row.round}-${subRow}`}
+                  ref={isCurrentRound && subRow === 0 ? currentRoundRef : undefined}
+                  style={{
+                    backgroundColor: isCurrentRound ? "rgba(59,130,246,0.05)" : undefined,
+                  }}
+                >
+                  {subRow === 0 && (
+                    <td rowSpan={2} style={roundLabelStyle}>
+                      <span>{row.round}</span>
+                      <span style={{ marginLeft: "2px", fontSize: "9px" }}> 2x</span>
+                      <span style={{ marginLeft: "3px", fontSize: "9px", color: "#666" }}>
+                        {row.isForward ? "\u2192" : "\u2190"}
+                      </span>
+                    </td>
+                  )}
+                  {seatOrder.map((seat) => {
+                    const picks = seatPicks.get(seat) ?? [];
+                    const pick = picks[subRow];
+                    const isActive = pick && nextPickN !== null && pick.pickN === nextPickN;
+                    return (
+                      <DraftBoardCell
+                        key={seat}
+                        cardName={pick?.cardName || null}
+                        colorIdentity={pick?.colorIdentity ?? []}
+                        isActive={isActive ?? false}
+                        isMyColumn={mySeat === seat}
+                      />
+                    );
+                  })}
+                </tr>
+              ));
+            }
+
+            // Single-pick round: one <tr>
             return (
               <tr
                 key={row.round}
@@ -155,67 +201,14 @@ export function DraftBoardMatrix({
                   backgroundColor: isCurrentRound ? "rgba(59,130,246,0.05)" : undefined,
                 }}
               >
-                <td
-                  style={{
-                    padding: "3px 8px",
-                    textAlign: "center",
-                    color: "#888",
-                    fontSize: "10px",
-                    whiteSpace: "nowrap",
-                    borderRight: "1px solid #333",
-                  }}
-                >
+                <td style={roundLabelStyle}>
                   <span>{row.round}</span>
-                  <span style={{ marginLeft: "2px", fontSize: "9px" }}>
-                    {row.isDoublePick ? " 2x" : ""}
-                  </span>
                   <span style={{ marginLeft: "3px", fontSize: "9px", color: "#666" }}>
                     {row.isForward ? "\u2192" : "\u2190"}
                   </span>
                 </td>
                 {seatOrder.map((seat) => {
                   const picks = seatPicks.get(seat) ?? [];
-                  if (row.isDoublePick && picks.length === 2) {
-                    // Render two picks stacked in one cell
-                    return (
-                      <td
-                        key={seat}
-                        style={{
-                          padding: 0,
-                          backgroundColor: mySeat === seat ? "rgba(59,130,246,0.05)" : undefined,
-                          border: "1px solid #333",
-                        }}
-                      >
-                        {picks.map((pick, idx) => {
-                          const isActive = nextPickN !== null && pick.pickN === nextPickN;
-                          return (
-                            <div
-                              key={idx}
-                              style={{
-                                borderBottom: idx === 0 ? "1px dotted #444" : undefined,
-                              }}
-                            >
-                              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                                <tbody>
-                                  <tr>
-                                    <DraftBoardCell
-                                      cardName={pick.cardName || null}
-                                      colorIdentity={pick.colorIdentity ?? []}
-                                      manaCost={pick.manaCost ?? ""}
-                                      isActive={isActive}
-                                      isMyColumn={mySeat === seat}
-                                    />
-                                  </tr>
-                                </tbody>
-                              </table>
-                            </div>
-                          );
-                        })}
-                      </td>
-                    );
-                  }
-
-                  // Single pick (or no pick yet)
                   const pick = picks[0];
                   const isActive = pick && nextPickN !== null && pick.pickN === nextPickN;
                   return (
@@ -223,7 +216,6 @@ export function DraftBoardMatrix({
                       key={seat}
                       cardName={pick?.cardName || null}
                       colorIdentity={pick?.colorIdentity ?? []}
-                      manaCost={pick?.manaCost ?? ""}
                       isActive={isActive ?? false}
                       isMyColumn={mySeat === seat}
                     />

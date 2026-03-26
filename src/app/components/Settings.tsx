@@ -86,6 +86,7 @@ export function Settings({
           track("settings_open");
         }}
         className="cursor-pointer rounded-lg p-2 text-zinc-500 transition-colors hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+        title="Settings"
         aria-label="Settings"
       >
         <svg

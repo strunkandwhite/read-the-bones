@@ -3,52 +3,23 @@
 interface DraftBoardCellProps {
   cardName: string | null;
   colorIdentity: string[];
-  manaCost: string;
   isActive: boolean;
   isMyColumn: boolean;
 }
 
+const VALID_COLORS = new Set(["W", "U", "B", "R", "G"]);
 
-function parseManaSymbols(manaCost: string): string[] {
-  const symbols: string[] = [];
-  const regex = /\{([^}]+)\}/g;
-  let match;
-  while ((match = regex.exec(manaCost)) !== null) {
-    symbols.push(match[1]);
-  }
-  return symbols;
-}
-
-function getBackgroundColor(
-  _colorIdentity: string | undefined,
-  isMySeat: boolean,
-): string {
-  return isMySeat ? "rgba(59,130,246,0.06)" : "transparent";
-}
-
-export function DraftBoardCell({
-  cardName,
-  colorIdentity: _colorIdentity,
-  manaCost,
-  isActive,
-  isMyColumn,
-}: DraftBoardCellProps) {
-  const bgColor = getBackgroundColor(undefined, isMyColumn);
-  const symbols = cardName ? parseManaSymbols(manaCost) : [];
-
+function CellContent({ cardName, colorIdentity }: { cardName: string | null; colorIdentity: string[] }) {
   return (
-    <td
+    <div
       style={{
-        padding: "3px 6px",
+        padding: "4px 6px",
         fontSize: "11px",
         lineHeight: "1.3",
+        height: "24px",
         whiteSpace: "nowrap",
         overflow: "hidden",
         textOverflow: "ellipsis",
-        maxWidth: "140px",
-        backgroundColor: bgColor,
-        border: isActive ? "2px dashed #3b82f6" : "1px solid #333",
-        animation: isActive ? "pulse-border 1.5s ease-in-out infinite" : undefined,
         color: cardName ? "#e0e0e0" : "#555",
       }}
     >
@@ -65,15 +36,15 @@ export function DraftBoardCell({
           >
             {cardName}
           </span>
-          {manaCost && symbols.length > 0 && (
+          {colorIdentity.length > 0 && (
             <span style={{ display: "flex", gap: "1px", flexShrink: 0 }}>
-              {symbols.map((sym, i) => {
-                const svgName = sym.replace(/[{}\/]/g, "");
+              {colorIdentity.map((c) => {
+                if (!VALID_COLORS.has(c)) return null;
                 return (
                   <img
-                    key={i}
-                    src={`/mana/${svgName}.svg`}
-                    alt={sym}
+                    key={c}
+                    src={`/mana/${c}.svg`}
+                    alt={c}
                     width={12}
                     height={12}
                     style={{ display: "block" }}
@@ -84,6 +55,28 @@ export function DraftBoardCell({
           )}
         </div>
       )}
+    </div>
+  );
+}
+
+/** Full table cell (td) for a draft board pick. */
+export function DraftBoardCell({
+  cardName,
+  colorIdentity,
+  isActive,
+  isMyColumn,
+}: DraftBoardCellProps) {
+  return (
+    <td
+      style={{
+        padding: 0,
+        maxWidth: "140px",
+        backgroundColor: isMyColumn ? "rgba(59,130,246,0.06)" : "transparent",
+        border: isActive ? "2px dashed #3b82f6" : "1px solid #333",
+        animation: isActive ? "pulse-border 1.5s ease-in-out infinite" : undefined,
+      }}
+    >
+      <CellContent cardName={cardName} colorIdentity={colorIdentity} />
     </td>
   );
 }

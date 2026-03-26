@@ -9,6 +9,7 @@ interface UseCardDataProps {
   activeDraft: string | null;
   poolAsOfDraft: string | null;
   syncDataChanged: boolean;
+  liveDraftDataChanged?: number;
 }
 
 interface UseCardDataReturn {
@@ -25,6 +26,7 @@ export function useCardData({
   activeDraft,
   poolAsOfDraft,
   syncDataChanged,
+  liveDraftDataChanged,
 }: UseCardDataProps): UseCardDataReturn {
   const [cardData, setCardData] = useState<CardStatsResponse>(initialCardData);
   const [draftStats, setDraftStats] = useState<DraftStatsResponse>(initialDraftStats);
@@ -106,6 +108,13 @@ export function useCardData({
   activeDraftRef.current = activeDraft;
   const poolAsOfDraftRef = useRef(poolAsOfDraft);
   poolAsOfDraftRef.current = poolAsOfDraft;
+
+  // Refetch when live draft picks change (updates taken cards)
+  useEffect(() => {
+    if (liveDraftDataChanged && activeDraft) {
+      fetchCardData(selectedDraftsRef.current, activeDraftRef.current, poolAsOfDraftRef.current);
+    }
+  }, [liveDraftDataChanged, activeDraft, fetchCardData]);
 
   // Refetch when activeDraft or poolAsOfDraft changes (skip initial mount)
   const initializedRef = useRef(false);

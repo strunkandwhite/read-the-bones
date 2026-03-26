@@ -102,11 +102,18 @@ function StandingsTable({
       if (!res.ok) return;
       const data = await res.json();
       if (Array.isArray(data.standings)) {
-        setStandings(data.standings);
+        setStandings(data.standings.map((row: Record<string, unknown>) => ({
+          seat: row.seat as number,
+          displayName: board.seatNames[String(row.seat)] || `Seat ${row.seat}`,
+          matchWins: (row.match_wins ?? 0) as number,
+          matchLosses: (row.match_losses ?? 0) as number,
+          gameWins: (row.game_wins ?? 0) as number,
+          gameLosses: (row.game_losses ?? 0) as number,
+        })));
       }
     } catch { /* ignore */ }
     setLoading(false);
-  }, [draftId]);
+  }, [draftId, board.seatNames]);
 
   /* eslint-disable react-hooks/set-state-in-effect -- syncing from external system (API fetch) */
   useEffect(() => {
