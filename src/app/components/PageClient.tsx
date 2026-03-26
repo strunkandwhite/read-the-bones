@@ -209,6 +209,25 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
 
   const isMyTurn = mySeat !== null && liveDraftStatus.status?.nextSeat === mySeat;
 
+  // Check if player has multiple consecutive picks (snake draft turn)
+  const consecutivePicks = (() => {
+    if (!isMyTurn || !liveDraftStatus.status || mySeat === null) return 0;
+    const { latestPickN, numSeats, picksPerPlayer } = liveDraftStatus.status;
+    let count = 0;
+    let pickN = latestPickN + 1;
+    const totalPicks = numSeats * picksPerPlayer;
+    while (pickN <= totalPicks) {
+      const round = Math.ceil(pickN / numSeats);
+      const posInRound = ((pickN - 1) % numSeats);
+      const isForward = round % 2 === 1;
+      const seat = isForward ? posInRound + 1 : numSeats - posInRound;
+      if (seat !== mySeat) break;
+      count++;
+      pickN++;
+    }
+    return count;
+  })();
+
   // Pick handler
   const handlePick = useCallback(async (cardName: string) => {
     if (!draftSelection.activeDraft || !seatToken.token) return;
@@ -571,6 +590,11 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                 >
                   Auto-pick: {autoPick ? "ON" : "OFF"}
                 </button>
+              )}
+              {isMyTurn && consecutivePicks > 1 && (
+                <span className="rounded-md bg-amber-900/50 px-2 py-1 text-xs font-medium text-amber-300">
+                  {consecutivePicks}&times; pick
+                </span>
               )}
               <StatsModal data={draftStats} />
               <Settings
