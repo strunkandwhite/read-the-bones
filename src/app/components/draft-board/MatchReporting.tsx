@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 interface MatchReportingProps {
   draftId: string;
@@ -39,6 +39,43 @@ export function MatchReporting({
     }
     return initial;
   });
+
+  // Pre-fill inputs from existing match results
+  useEffect(() => {
+    async function fetchExisting() {
+      try {
+        const res = await fetch(`/api/drafts/${draftId}/standings`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!Array.isArray(data.matches)) return;
+
+        setInputs((prev) => {
+          const updated = { ...prev };
+          for (const match of data.matches) {
+            const isSeat1 = match.seat1 === mySeat;
+            const isSeat2 = match.seat2 === mySeat;
+            if (!isSeat1 && !isSeat2) continue;
+
+            const opponent = isSeat1 ? match.seat2 : match.seat1;
+            const myWins = isSeat1 ? match.seat1Wins : match.seat2Wins;
+            const myLosses = isSeat1 ? match.seat2Wins : match.seat1Wins;
+
+            if (opponent in updated) {
+              updated[opponent] = {
+                ...updated[opponent],
+                wins: String(myWins),
+                losses: String(myLosses),
+                saved: true,
+              };
+            }
+          }
+          return updated;
+        });
+      } catch { /* ignore */ }
+    }
+
+    fetchExisting();
+  }, [draftId, mySeat]);
 
   const updateInput = useCallback((opponent: number, field: "wins" | "losses", value: string) => {
     setInputs((prev) => ({
