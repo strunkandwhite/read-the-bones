@@ -124,6 +124,48 @@ CREATE TABLE IF NOT EXISTS card_aliases (
   PRIMARY KEY (alias)
 );
 
+-- Live draft: phase replaces is_complete
+ALTER TABLE drafts ADD COLUMN phase TEXT NOT NULL DEFAULT 'complete';
+ALTER TABLE drafts ADD COLUMN in_app INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE drafts ADD COLUMN picks_per_player INTEGER;
+
+-- Backfill phase from is_complete
+UPDATE drafts SET phase = CASE WHEN is_complete = 1 THEN 'complete' ELSE 'drafting' END;
+
+-- Drop is_complete after migration (SQLite 3.35.0+)
+ALTER TABLE drafts DROP COLUMN is_complete;
+
+-- Match reporting attribution
+ALTER TABLE match_events ADD COLUMN reported_by_seat INTEGER;
+
+-- Seat tokens for live draft identity
+CREATE TABLE IF NOT EXISTS seat_tokens (
+  draft_id TEXT NOT NULL REFERENCES drafts(draft_id),
+  seat INTEGER NOT NULL,
+  token TEXT NOT NULL UNIQUE,
+  display_name TEXT,
+  auto_pick INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY (draft_id, seat)
+);
+
+-- Backfill picks_per_player for historical drafts
+UPDATE drafts SET picks_per_player = (
+  SELECT MAX(pe.pick_n) / d2.num_seats
+  FROM pick_events pe
+  JOIN drafts d2 ON d2.draft_id = pe.draft_id
+  WHERE pe.draft_id = drafts.draft_id
+) WHERE picks_per_player IS NULL AND phase = 'complete';
+
+-- Pick queue for banking picks
+-- Uses card_id (integer FK) to match pick_events and cube_snapshot_cards
+CREATE TABLE IF NOT EXISTS pick_queue (
+  draft_id TEXT NOT NULL REFERENCES drafts(draft_id),
+  seat INTEGER NOT NULL,
+  priority INTEGER NOT NULL,
+  card_id INTEGER NOT NULL REFERENCES cards(card_id),
+  PRIMARY KEY (draft_id, seat, priority)
+);
+
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_cards_name ON cards(name);
 CREATE INDEX IF NOT EXISTS idx_pick_events_card ON pick_events(card_id);

@@ -1,0 +1,42 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getClient } from "@/core/db/client";
+import { authenticateSeat } from "@/core/tokenAuth";
+import { updateAutoPick, updateDisplayName } from "@/core/db/queries/seatTokens";
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id: draftId } = await params;
+    const client = await getClient();
+    const { seat } = await authenticateSeat(client, request, draftId);
+
+    const body = await request.json();
+
+    if (body.auto_pick !== undefined) {
+      await updateAutoPick(client, draftId, seat, body.auto_pick);
+    }
+    if (body.display_name !== undefined) {
+      await updateDisplayName(client, draftId, seat, body.display_name || null);
+    }
+
+    const result = await client.execute({
+      sql: "SELECT auto_pick, display_name FROM seat_tokens WHERE draft_id = ? AND seat = ?",
+      args: [draftId, seat],
+    });
+    const row = result.rows[0];
+
+    return NextResponse.json({
+      seat,
+      autoPick: row.auto_pick === 1,
+      displayName: row.display_name as string | null,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("token")) {
+      return NextResponse.json({ error: error.message }, { status: 401 });
+    }
+    console.error("[/api/drafts/[id]/seat-settings] Error:", error);
+    return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });
+  }
+}

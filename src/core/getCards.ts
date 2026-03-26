@@ -63,7 +63,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
 
   // 1. Load all drafts with metadata (including domain hashes for cache fingerprint)
   const draftsResult = await client.execute({
-    sql: `SELECT d.draft_id, d.draft_name, d.draft_date, d.cube_snapshot_id, d.num_seats, d.is_complete, d.banned_cards,
+    sql: `SELECT d.draft_id, d.draft_name, d.draft_date, d.cube_snapshot_id, d.num_seats, d.phase, d.banned_cards,
                  d.pool_hash, d.picks_hash, d.matches_hash
           FROM drafts d
           ORDER BY d.draft_date DESC`,
@@ -122,7 +122,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
       }
     }
 
-    if (Number(row.is_complete) === 1) {
+    if (row.phase === 'complete') {
       completedDraftSet.add(draftId);
     }
 

@@ -21,7 +21,10 @@
     "draft:create": "tsx scripts/draft-create.ts",
     "draft:reset": "tsx scripts/draft-reset.ts",
     "decklists": "tsx scripts/decklists.ts",
-    "db:migrate": "tsx src/core/db/migrate.ts"
+    "db:migrate": "tsx src/core/db/migrate.ts",
+    "draft:create-live": "tsx scripts/draft-create-live.ts",
+    "draft:start": "tsx scripts/draft-start.ts",
+    "draft:admin": "tsx scripts/draft-admin.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
