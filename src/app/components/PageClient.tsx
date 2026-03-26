@@ -252,6 +252,24 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     }
   }, [draftSelection.activeDraft, seatToken.token, liveDraftStatus]);
 
+  // Fire queued pick immediately when auto-pick is on and it's our turn
+  const autoPickFiredRef = useRef(false);
+  /* eslint-disable react-hooks/set-state-in-effect -- triggering a pick submits to the external draft API (not cascading local state) */
+  useEffect(() => {
+    if (!isMyTurn || !autoPick) {
+      autoPickFiredRef.current = false;
+      return;
+    }
+    if (autoPickFiredRef.current) return;
+    if (!pickQueue.queuedCards || pickQueue.queuedCards.size === 0) return;
+    // Get the first queued card (lowest priority = next pick)
+    const sorted = [...pickQueue.queuedCards.entries()].sort((a, b) => a[1] - b[1]);
+    const [nextCard] = sorted[0];
+    autoPickFiredRef.current = true;
+    handlePick(nextCard);
+  }, [isMyTurn, autoPick, pickQueue.queuedCards, handlePick]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const searchParams = useSearchParams();
   const sharedDeckId = searchParams.get("deck");
 
