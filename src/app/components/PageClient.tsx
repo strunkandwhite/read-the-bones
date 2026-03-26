@@ -614,6 +614,8 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
             </svg>
           </a>
           <span>made by <a href="https://github.com/strunkandwhite" target="_blank" rel="noopener noreferrer" className="transition-colors hover:text-zinc-700 dark:hover:text-zinc-400">jack</a></span>
+          <span className="text-zinc-400">·</span>
+          <span data-testid="sandbox-marker">sandbox deploy test</span>
         </div>
 
         {/* Loading overlay */}
