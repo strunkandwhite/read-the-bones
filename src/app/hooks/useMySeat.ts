@@ -1,9 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 interface UseMySeatReturn {
   mySeat: number | null;
   autoPick: boolean;
   displayName: string | null;
+  toggleAutoPick: () => Promise<void>;
 }
 
 export function useMySeat(
@@ -45,5 +46,21 @@ export function useMySeat(
   }, [draftId, token]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  return { mySeat, autoPick, displayName };
+  const toggleAutoPick = useCallback(async () => {
+    if (!draftId || !token) return;
+    const newValue = !autoPick;
+    try {
+      const res = await fetch(`/api/drafts/${draftId}/seat-settings`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Seat-Token": token,
+        },
+        body: JSON.stringify({ auto_pick: newValue }),
+      });
+      if (res.ok) setAutoPick(newValue);
+    } catch { /* ignore */ }
+  }, [draftId, token, autoPick]);
+
+  return { mySeat, autoPick, displayName, toggleAutoPick };
 }

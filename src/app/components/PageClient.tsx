@@ -198,7 +198,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     liveDraftStatus.dataChanged,
   );
 
-  const { mySeat } = useMySeat(draftSelection.activeDraft, seatToken.token);
+  const { mySeat, autoPick, toggleAutoPick } = useMySeat(draftSelection.activeDraft, seatToken.token);
   const isMyTurn = mySeat !== null && liveDraftStatus.status?.nextSeat === mySeat;
 
   // Pick handler
@@ -547,6 +547,19 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                   className="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
                 >
                   Draft Board
+                </button>
+              )}
+              {draftSelection.activeDraft && mySeat !== null && (
+                <button
+                  onClick={toggleAutoPick}
+                  className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    autoPick
+                      ? "text-emerald-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      : "text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  }`}
+                  title={autoPick ? "Auto-pick is ON — queued cards will be picked automatically" : "Auto-pick is OFF — you must confirm each pick"}
+                >
+                  Auto-pick: {autoPick ? "ON" : "OFF"}
                 </button>
               )}
               <StatsModal data={draftStats} />
