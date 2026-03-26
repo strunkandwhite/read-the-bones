@@ -60,10 +60,10 @@ function PickButton({ cardName, onPick }: { cardName: string; onPick: (name: str
     return (
       <button
         onClick={(e) => { e.stopPropagation(); setConfirming(false); onPick(cardName); }}
-        className="rounded bg-red-600 px-1.5 py-0.5 text-[10px] font-bold text-white hover:bg-red-500 animate-pulse"
+        className="inline-flex h-4 w-4 items-center justify-center rounded text-[9px] font-bold text-red-400 ring-1 ring-red-500/50 animate-pulse hover:text-red-300"
         title="Click again to confirm pick"
       >
-        Confirm
+        ✓
       </button>
     );
   }
@@ -71,10 +71,10 @@ function PickButton({ cardName, onPick }: { cardName: string; onPick: (name: str
   return (
     <button
       onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
-      className="rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white hover:bg-emerald-500"
+      className="inline-flex h-4 w-4 items-center justify-center rounded text-[9px] text-emerald-500/70 ring-1 ring-emerald-500/30 hover:text-emerald-400 hover:ring-emerald-400/50"
       title="Pick this card"
     >
-      Pick
+      ✓
     </button>
   );
 }
@@ -209,7 +209,7 @@ export function CardTable({
             columnHelper.display({
               id: "liveDraftActions",
               header: "",
-              size: 60,
+              size: 40,
               cell: ({ row }) => {
                 const cardName = row.original.cardName;
                 const isTaken = takenCardNamesRef.current?.has(cardName);
@@ -218,7 +218,7 @@ export function CardTable({
                 const queuePos = queuedCardsRef.current?.get(cardName);
 
                 return (
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1.5">
                     {onPickRef.current && isMyTurnRef.current && (
                       <PickButton cardName={cardName} onPick={onPickRef.current} />
                     )}
@@ -226,7 +226,7 @@ export function CardTable({
                       queuePos !== undefined ? (
                         <button
                           onClick={(e) => { e.stopPropagation(); onQueueRemoveRef.current!(cardName); }}
-                          className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white hover:bg-blue-500"
+                          className="inline-flex h-4 w-4 items-center justify-center rounded bg-blue-500/20 text-[9px] font-medium text-blue-400 ring-1 ring-blue-500/40 hover:bg-blue-500/30"
                           title={`Queue position ${queuePos} — click to remove`}
                         >
                           {queuePos}
@@ -234,7 +234,7 @@ export function CardTable({
                       ) : (
                         <button
                           onClick={(e) => { e.stopPropagation(); onQueueAddRef.current!(cardName); }}
-                          className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[10px] text-zinc-400 hover:border-blue-400 hover:text-blue-400 dark:border-zinc-600 dark:hover:border-blue-400"
+                          className="inline-flex h-4 w-4 items-center justify-center rounded text-[9px] text-blue-500/50 ring-1 ring-blue-500/30 hover:text-blue-400 hover:ring-blue-400/50"
                           title="Add to pick queue"
                         >
                           +
