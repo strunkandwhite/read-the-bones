@@ -228,11 +228,16 @@ async function enterMatch(client: Client, draftId: string, args: string[]) {
   if (seatParts.some(isNaN)) throw new Error("--seats values must be numbers");
   if (winParts.some(isNaN)) throw new Error("--wins values must be numbers");
 
-  const [seat1, seat2] = seatParts;
-  const [seat1Wins, seat2Wins] = winParts;
+  // Normalize seat order: seat1 < seat2, rearranging wins accordingly
+  let [seat1, seat2] = seatParts;
+  let [seat1Wins, seat2Wins] = winParts;
+  if (seat1 > seat2) {
+    [seat1, seat2] = [seat2, seat1];
+    [seat1Wins, seat2Wins] = [seat2Wins, seat1Wins];
+  }
 
   await client.execute({
-    sql: "INSERT INTO match_events (draft_id, seat1, seat2, seat1_wins, seat2_wins) VALUES (?, ?, ?, ?, ?)",
+    sql: "INSERT OR REPLACE INTO match_events (draft_id, seat1, seat2, seat1_wins, seat2_wins) VALUES (?, ?, ?, ?, ?)",
     args: [draftId, seat1, seat2, seat1Wins, seat2Wins],
   });
 
