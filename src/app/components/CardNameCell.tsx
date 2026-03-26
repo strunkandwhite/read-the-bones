@@ -40,11 +40,10 @@ function PickButton({ cardName, onPick }: { cardName: string; onPick: (name: str
     return (
       <button
         onClick={(e) => { e.stopPropagation(); setConfirming(false); onPick(cardName); }}
-        className="flex h-4 w-4 cursor-pointer items-center justify-center animate-pulse"
-        title="Confirm"
-        aria-label="Confirm pick"
+        className="inline-flex h-4 w-4 items-center justify-center rounded text-[9px] font-bold text-red-400 ring-1 ring-red-500/50 animate-pulse hover:text-red-300"
+        title="Click again to confirm pick"
       >
-        <DeckIcon className="h-3.5 w-3.5 text-emerald-500" />
+        ✓
       </button>
     );
   }
@@ -52,11 +51,10 @@ function PickButton({ cardName, onPick }: { cardName: string; onPick: (name: str
   return (
     <button
       onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
-      className="flex h-4 w-4 cursor-pointer items-center justify-center opacity-0 transition-opacity group-hover/row:opacity-100 active:opacity-100"
-      title="Click, then confirm to draft this card"
-      aria-label="Draft this card"
+      className="inline-flex h-4 w-4 items-center justify-center rounded text-[9px] text-emerald-500/70 ring-1 ring-emerald-500/30 hover:text-emerald-400 hover:ring-emerald-400/50"
+      title="Pick this card"
     >
-      <DeckIcon className="h-3.5 w-3.5 text-emerald-500" />
+      ✓
     </button>
   );
 }
@@ -151,12 +149,10 @@ export function CardNameCell({
                 <button
                   key="queue"
                   onClick={(e) => { e.stopPropagation(); onQueueRemove(card.cardName); }}
-                  className="relative flex h-4 w-4 cursor-pointer items-center justify-center hover:opacity-75"
-                  title={`Queued #${queuePos} for auto-pick — click to remove`}
-                  aria-label={`Queued at position ${queuePos}, click to remove`}
+                  className="inline-flex h-4 w-4 items-center justify-center rounded bg-blue-500/20 text-[9px] font-medium text-blue-400 ring-1 ring-blue-500/40 hover:bg-blue-500/30"
+                  title={`Queued #${queuePos} — click to remove`}
                 >
-                  <DeckIcon className="h-3.5 w-3.5 text-blue-400" />
-                  <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5 items-center justify-center rounded-full bg-blue-500 text-[7px] font-bold leading-none text-white">{queuePos}</span>
+                  {queuePos}
                 </button>
               );
             } else {
@@ -164,11 +160,10 @@ export function CardNameCell({
                 <button
                   key="queue-add"
                   onClick={(e) => { e.stopPropagation(); onQueueAdd(card.cardName); }}
-                  className="flex h-4 w-4 cursor-pointer items-center justify-center opacity-0 transition-opacity group-hover/row:opacity-50 active:opacity-100"
-                  title="Add to auto-pick queue"
-                  aria-label="Add to auto-pick queue"
+                  className="inline-flex h-4 w-4 items-center justify-center rounded text-[9px] text-blue-500/50 ring-1 ring-blue-500/30 hover:text-blue-400 hover:ring-blue-400/50"
+                  title="Add to pick queue"
                 >
-                  <DeckIcon className="h-3.5 w-3.5 text-blue-400" />
+                  +
                 </button>
               );
             }
