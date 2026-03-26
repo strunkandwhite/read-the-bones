@@ -179,9 +179,14 @@ export function MatchReporting({
               <input
                 type="number"
                 min={0}
+                max={2}
                 placeholder="W"
                 value={input.wins}
-                onChange={(e) => updateInput(opp, "wins", e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "" || (Number(v) >= 0 && Number(v) <= 2)) updateInput(opp, "wins", v);
+                }}
+                className="[&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 style={{
                   width: "40px",
                   padding: "2px 4px",
@@ -191,15 +196,21 @@ export function MatchReporting({
                   borderRadius: "4px",
                   color: "#e0e0e0",
                   textAlign: "center",
+                  MozAppearance: "textfield",
                 }}
               />
               <span style={{ color: "#666" }}>-</span>
               <input
                 type="number"
                 min={0}
+                max={2}
                 placeholder="L"
                 value={input.losses}
-                onChange={(e) => updateInput(opp, "losses", e.target.value)}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "" || (Number(v) >= 0 && Number(v) <= 2)) updateInput(opp, "losses", v);
+                }}
+                className="[&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
                 style={{
                   width: "40px",
                   padding: "2px 4px",
@@ -209,6 +220,7 @@ export function MatchReporting({
                   borderRadius: "4px",
                   color: "#e0e0e0",
                   textAlign: "center",
+                  MozAppearance: "textfield",
                 }}
               />
               <button
@@ -217,9 +229,9 @@ export function MatchReporting({
                 style={{
                   padding: "2px 10px",
                   fontSize: "11px",
-                  backgroundColor: input.saved ? "#166534" : "#2563eb",
-                  color: "white",
-                  border: "none",
+                  backgroundColor: input.saved ? "#27272a" : "#3f3f46",
+                  color: input.saved ? "#6ee7b7" : "#e0e0e0",
+                  border: input.saved ? "1px solid #374151" : "1px solid #52525b",
                   borderRadius: "4px",
                   cursor: input.saving ? "not-allowed" : "pointer",
                   opacity: input.saving ? 0.6 : 1,
