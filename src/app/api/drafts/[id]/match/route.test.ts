@@ -1,0 +1,118 @@
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { POST } from "./route";
+import { NextRequest } from "next/server";
+
+const mockExecute = vi.fn();
+vi.mock("@/core/db/client", () => ({
+  getClient: vi.fn(() => Promise.resolve({ execute: mockExecute })),
+}));
+
+const mockAuthenticateSeat = vi.fn();
+vi.mock("@/core/tokenAuth", () => ({
+  authenticateSeat: (...args: unknown[]) => mockAuthenticateSeat(...args),
+}));
+
+function makeRequest(body: Record<string, unknown>, token = "test-token") {
+  return new NextRequest(
+    new URL("http://localhost:3000/api/drafts/test/match"),
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "X-Seat-Token": token } : {}),
+      },
+      body: JSON.stringify(body),
+    },
+  );
+}
+
+describe("POST /api/drafts/[id]/match", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("saves match result and returns normalized seats", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 3, autoPick: false });
+    mockExecute.mockResolvedValueOnce({
+      rows: [{ phase: "playing" }],
+    });
+    mockExecute.mockResolvedValueOnce({ rows: [] }); // INSERT
+
+    const res = await POST(
+      makeRequest({ opponent_seat: 1, wins: 2, losses: 1 }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(body.seat1).toBe(1);
+    expect(body.seat2).toBe(3);
+    expect(body.seat1Wins).toBe(1); // losses from reporter's perspective
+    expect(body.seat2Wins).toBe(2); // wins from reporter's perspective
+  });
+
+  it("returns 401 without token", async () => {
+    mockAuthenticateSeat.mockRejectedValueOnce(new Error("Missing seat token"));
+
+    const res = await POST(
+      makeRequest({ opponent_seat: 1, wins: 2, losses: 0 }, ""),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    expect(res.status).toBe(401);
+  });
+
+  it("returns 400 for missing fields", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+
+    const res = await POST(
+      makeRequest({ opponent_seat: 2 }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when reporting match against yourself", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+
+    const res = await POST(
+      makeRequest({ opponent_seat: 1, wins: 2, losses: 0 }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("yourself");
+  });
+
+  it("returns 400 when draft is in wrong phase", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockExecute.mockResolvedValueOnce({
+      rows: [{ phase: "drafting" }],
+    });
+
+    const res = await POST(
+      makeRequest({ opponent_seat: 2, wins: 2, losses: 1 }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toContain("drafting");
+  });
+
+  it("allows match reporting in complete phase", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockExecute.mockResolvedValueOnce({
+      rows: [{ phase: "complete" }],
+    });
+    mockExecute.mockResolvedValueOnce({ rows: [] }); // INSERT
+
+    const res = await POST(
+      makeRequest({ opponent_seat: 2, wins: 2, losses: 0 }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    expect(res.status).toBe(200);
+  });
+});

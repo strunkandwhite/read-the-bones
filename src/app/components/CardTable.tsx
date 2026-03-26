@@ -165,59 +165,9 @@ export function CardTable({
   }, [cards]);
 
   const hasAnyDecklistWinRate = cards.some((c) => c.decklistWinRate);
-  const hasLiveDraftActions = onPick !== undefined || queuedCards !== undefined;
 
   const columns = useMemo(
     () => [
-      ...(hasLiveDraftActions
-        ? [
-            columnHelper.display({
-              id: "liveDraftActions",
-              header: "",
-              size: 60,
-              cell: ({ row }) => {
-                const cardName = row.original.cardName;
-                const isTaken = takenCardNamesRef.current?.has(cardName);
-                if (isTaken) return null;
-
-                const queuePos = queuedCardsRef.current?.get(cardName);
-
-                return (
-                  <div className="flex items-center gap-1">
-                    {onPickRef.current && isMyTurnRef.current && (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); onPickRef.current!(cardName); }}
-                        className="rounded bg-emerald-600 px-1.5 py-0.5 text-[10px] font-bold text-white hover:bg-emerald-500"
-                        title="Pick this card"
-                      >
-                        Pick
-                      </button>
-                    )}
-                    {onQueueAddRef.current && onQueueRemoveRef.current && (
-                      queuePos !== undefined ? (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onQueueRemoveRef.current!(cardName); }}
-                          className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white hover:bg-blue-500"
-                          title={`Queue position ${queuePos} — click to remove`}
-                        >
-                          {queuePos}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={(e) => { e.stopPropagation(); onQueueAddRef.current!(cardName); }}
-                          className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[10px] text-zinc-400 hover:border-blue-400 hover:text-blue-400 dark:border-zinc-600 dark:hover:border-blue-400"
-                          title="Add to pick queue"
-                        >
-                          +
-                        </button>
-                      )
-                    )}
-                  </div>
-                );
-              },
-            }),
-          ]
-        : []),
       columnHelper.display({
         id: "card",
         header: "Card",
@@ -236,6 +186,11 @@ export function CardTable({
             isSpeculative={speculativeCardNamesRef.current?.has(row.original.cardName)}
             isTaken={takenCardNamesRef.current?.has(row.original.cardName) && !seatCardNamesRef.current?.has(row.original.cardName)}
             isSeatCard={seatCardNamesRef.current?.has(row.original.cardName)}
+            onPick={onPickRef.current}
+            isMyTurn={isMyTurnRef.current}
+            queuePos={queuedCardsRef.current?.get(row.original.cardName)}
+            onQueueAdd={onQueueAddRef.current}
+            onQueueRemove={onQueueRemoveRef.current}
           />
         ),
       }),
@@ -358,7 +313,7 @@ export function CardTable({
         },
       }),
     ],
-    [currentCubeCopies, hasAnyDecklistWinRate, hasLiveDraftActions, draftTimeline]
+    [currentCubeCopies, hasAnyDecklistWinRate, draftTimeline]
   );
 
   const filteredData = useMemo(() => {

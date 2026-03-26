@@ -253,8 +253,16 @@ export interface StandingsEntry {
   game_losses: number;
 }
 
+export interface MatchRecord {
+  seat1: number;
+  seat2: number;
+  seat1Wins: number;
+  seat2Wins: number;
+}
+
 export interface StandingsResult {
   standings: StandingsEntry[];
+  matches: MatchRecord[];
   redacted_seats?: number[];
 }
 
@@ -274,6 +282,13 @@ export async function getStandings(draftId: string): Promise<StandingsResult> {
           WHERE draft_id = ?`,
     args: [draftId],
   });
+
+  const matches: MatchRecord[] = result.rows.map((row) => ({
+    seat1: row.seat1 as number,
+    seat2: row.seat2 as number,
+    seat1Wins: row.seat1_wins as number,
+    seat2Wins: row.seat2_wins as number,
+  }));
 
   // Aggregate stats per seat
   const stats = new Map<
@@ -344,6 +359,7 @@ export async function getStandings(draftId: string): Promise<StandingsResult> {
 
   return {
     standings,
+    matches,
     ...(redactedSeatsInResult.size > 0 && {
       redacted_seats: Array.from(redactedSeatsInResult).sort((a, b) => a - b),
     }),

@@ -20,6 +20,7 @@
     "sync": "tsx scripts/sync.ts",
     "draft:create": "tsx scripts/draft-create.ts",
     "draft:reset": "tsx scripts/draft-reset.ts",
+    "draft:delete": "tsx scripts/draft-delete.ts",
     "decklists": "tsx scripts/decklists.ts",
     "db:migrate": "tsx src/core/db/migrate.ts",
     "draft:create-live": "tsx scripts/draft-create-live.ts",

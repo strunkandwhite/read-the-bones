@@ -12,6 +12,7 @@ interface DraftBoardModalProps {
   mySeat: number | null;
   token: string | null;
   draftId: string;
+  draftName?: string;
   isOpen: boolean;
   onClose: () => void;
   onMatchReported: () => void;
@@ -29,6 +30,7 @@ export function DraftBoardModal({
   mySeat,
   token,
   draftId,
+  draftName,
   isOpen,
   onClose,
   onMatchReported,
@@ -82,7 +84,7 @@ export function DraftBoardModal({
           flexDirection: "column",
           maxHeight: "95vh",
           width: "100%",
-          maxWidth: "1400px",
+          maxWidth: "95vw",
           margin: "0 12px",
           borderRadius: "12px",
           border: "1px solid rgba(63,63,70,0.4)",
@@ -111,7 +113,7 @@ export function DraftBoardModal({
                 letterSpacing: "-0.01em",
               }}
             >
-              Draft Board
+              {draftName || draftId}
             </span>
             <span
               style={{

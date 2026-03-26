@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 
 interface UseDraftSelectionProps {
   completedDraftIds: string[];
+  initialDraftId?: string;
 }
 
 interface UseDraftSelectionReturn {
@@ -18,6 +19,7 @@ interface UseDraftSelectionReturn {
 
 export function useDraftSelection({
   completedDraftIds,
+  initialDraftId,
 }: UseDraftSelectionProps): UseDraftSelectionReturn {
   const [selectedDrafts, setSelectedDrafts] = useState<Set<string>>(
     () => new Set(completedDraftIds)
@@ -31,19 +33,20 @@ export function useDraftSelection({
   const [hydrated, setHydrated] = useState(false);
 
   // Hydrate from localStorage after mount (avoids hydration mismatch)
+  // initialDraftId (from URL route) takes priority over localStorage
   /* eslint-disable react-hooks/set-state-in-effect -- syncing from external storage */
   useEffect(() => {
-    const stored = localStorage.getItem("activeDraft");
-    if (stored) setActiveDraftState(stored);
+    const draftId = initialDraftId ?? localStorage.getItem("activeDraft");
+    if (draftId) setActiveDraftState(draftId);
     const storedHideTaken = localStorage.getItem("hideTaken");
     if (storedHideTaken !== null) setHideTaken(storedHideTaken !== "false");
     const storedSeats = localStorage.getItem("selectedSeats");
-    if (stored && storedSeats) {
+    if (draftId && storedSeats) {
       const seatsMap = JSON.parse(storedSeats) as Record<string, number>;
-      if (stored in seatsMap) setSelectedSeatState(seatsMap[stored]);
+      if (draftId in seatsMap) setSelectedSeatState(seatsMap[draftId]);
     }
     setHydrated(true);
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Persist to localStorage on change (skip until hydrated)

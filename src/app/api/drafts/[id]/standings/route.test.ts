@@ -9,7 +9,7 @@ describe("GET /api/drafts/[id]/standings", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns standings for a draft", async () => {
-    vi.mocked(queries.getStandings).mockResolvedValue({ standings: [] });
+    vi.mocked(queries.getStandings).mockResolvedValue({ standings: [], matches: [] });
     const res = await GET(
       new NextRequest(new URL("http://localhost:3000/api/drafts/tarkir/standings")),
       { params: Promise.resolve({ id: "tarkir" }) },

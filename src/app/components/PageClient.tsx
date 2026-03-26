@@ -22,11 +22,13 @@ import { useLiveDraftStatus, useDraftBoard } from "../hooks/useLiveDraftStatus";
 import { useSeatToken } from "../hooks/useSeatToken";
 import { usePickQueue } from "../hooks/usePickQueue";
 import { DraftBoardModal } from "./draft-board/DraftBoardModal";
+import { useMySeat } from "../hooks/useMySeat";
 
 
 export interface PageClientProps {
   initialCardData: CardStatsResponse;
   initialDraftStats: DraftStatsResponse;
+  initialDraftId?: string;
 }
 
 /**
@@ -37,9 +39,10 @@ export interface PageClientProps {
  * - Color filter selection
  * - Draft selection (fetches recalculated stats from API)
  */
-export function PageClient({ initialCardData, initialDraftStats }: PageClientProps) {
+export function PageClient({ initialCardData, initialDraftStats, initialDraftId }: PageClientProps) {
   const draftSelection = useDraftSelection({
     completedDraftIds: initialCardData.completedDraftIds,
+    initialDraftId,
   });
 
   const [poolAsOfDraft, setPoolAsOfDraft] = useState<string | null>(null);
@@ -49,7 +52,11 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
 
   const syncStatus = useSyncStatus(draftSelection.activeDraft !== null, draftSelection.activeDraft);
 
-
+  // Live draft polling (must be before useCardData so dataChanged can flow to it)
+  const liveDraftStatus = useLiveDraftStatus(
+    draftSelection.activeDraft,
+    draftSelection.activeDraft !== null,
+  );
 
   const { cardData, draftStats, isLoading, handleDraftsChange } = useCardData({
     initialCardData,
@@ -58,6 +65,7 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
     activeDraft: draftSelection.activeDraft,
     poolAsOfDraft: effectivePoolAsOfDraft,
     syncDataChanged: syncStatus.dataChanged,
+    liveDraftDataChanged: liveDraftStatus.dataChanged,
   });
 
   const searchHelpTrackedRef = useRef(false);
@@ -102,6 +110,7 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
   const [deckBuilderActive, setDeckBuilderActive] = useState(false);
   const [deckBuilderModalOpen, setDeckBuilderModalOpen] = useState(false);
   const [draftBoardOpen, setDraftBoardOpen] = useState(false);
+  const [pickError, setPickError] = useState<string | null>(null);
 
   // Restore modal open state from localStorage on mount
   /* eslint-disable react-hooks/set-state-in-effect -- syncing from external storage (localStorage) */
@@ -180,10 +189,6 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
 
   // Live draft hooks
   const seatToken = useSeatToken(draftSelection.activeDraft);
-  const liveDraftStatus = useLiveDraftStatus(
-    draftSelection.activeDraft,
-    draftSelection.activeDraft !== null,
-  );
   const draftBoard = useDraftBoard(
     draftSelection.activeDraft,
     liveDraftStatus.dataChanged,
@@ -194,30 +199,78 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
     liveDraftStatus.dataChanged,
   );
 
-  // Derive mySeat from status + token
-  const mySeat = liveDraftStatus.status?.recentPicks !== undefined && seatToken.hasSeatToken
-    ? null // Will be resolved from status/token - for now use null for spectators
-    : null;
-  const isMyTurn = liveDraftStatus.status?.nextSeat !== null &&
-    seatToken.hasSeatToken &&
-    mySeat === liveDraftStatus.status?.nextSeat;
+  const { mySeat, autoPick, toggleAutoPick } = useMySeat(draftSelection.activeDraft, seatToken.token);
+
+  // Clear stale deck builder state when a draft has been reset
+  // (same draft_id but back to "drafting" phase with 0 picks)
+  // One-time guard per draft+seat to avoid repeated clears or race conditions
+  const draftResetClearedRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!liveDraftStatus.status || !draftSelection.activeDraft) return;
+    const { phase, latestPickN } = liveDraftStatus.status;
+    const seat = draftSelection.selectedSeat;
+    if (seat === null) return;
+    const guardKey = `${draftSelection.activeDraft}:${seat}`;
+    if (phase === "drafting" && latestPickN === 0 && draftResetClearedRef.current !== guardKey) {
+      draftResetClearedRef.current = guardKey;
+      localStorage.removeItem(`deckState:${draftSelection.activeDraft}:${seat}`);
+    }
+  }, [liveDraftStatus.status, draftSelection.activeDraft, draftSelection.selectedSeat]);
+
+  // When mySeat resolves from token auth, auto-select that seat
+  useEffect(() => {
+    if (mySeat !== null && draftSelection.selectedSeat === null) {
+      draftSelection.setSelectedSeat(mySeat);
+    }
+  }, [mySeat, draftSelection.selectedSeat]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isMyTurn = mySeat !== null && liveDraftStatus.status?.nextSeat === mySeat;
+
+  // Check if player has multiple consecutive picks (snake draft turn)
+  const consecutivePicks = (() => {
+    if (!isMyTurn || !liveDraftStatus.status || mySeat === null) return 0;
+    const { latestPickN, numSeats, picksPerPlayer } = liveDraftStatus.status;
+    let count = 0;
+    let pickN = latestPickN + 1;
+    const totalPicks = numSeats * picksPerPlayer;
+    while (pickN <= totalPicks) {
+      const round = Math.ceil(pickN / numSeats);
+      const posInRound = ((pickN - 1) % numSeats);
+      const isForward = round % 2 === 1;
+      const seat = isForward ? posInRound + 1 : numSeats - posInRound;
+      if (seat !== mySeat) break;
+      count++;
+      pickN++;
+    }
+    return count;
+  })();
 
   // Pick handler
+  const refreshDraftStatus = liveDraftStatus.refresh;
   const handlePick = useCallback(async (cardName: string) => {
     if (!draftSelection.activeDraft || !seatToken.token) return;
-    const res = await fetch(`/api/drafts/${draftSelection.activeDraft}/pick`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Seat-Token": seatToken.token,
-      },
-      body: JSON.stringify({ card_name: cardName }),
-    });
-    if (!res.ok) {
-      const data = await res.json();
-      throw new Error(data.error || "Pick failed");
+    setPickError(null);
+    try {
+      const res = await fetch(`/api/drafts/${draftSelection.activeDraft}/pick`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Seat-Token": seatToken.token,
+        },
+        body: JSON.stringify({ card_name: cardName }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        setPickError(data.error || "Pick failed");
+      } else {
+        setPickError(null);
+        refreshDraftStatus();
+      }
+    } catch {
+      setPickError("Network error — pick may not have been submitted");
     }
-  }, [draftSelection.activeDraft, seatToken.token]);
+  }, [draftSelection.activeDraft, seatToken.token, refreshDraftStatus]);
+
 
   const searchParams = useSearchParams();
   const sharedDeckId = searchParams.get("deck");
@@ -487,35 +540,6 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
               />
             </div>
 
-            {/* Deck Builder Toggle */}
-            {draftSelection.activeDraft && draftSelection.selectedSeat !== null && (
-              <button
-                onClick={() => {
-                  const wasOpen = deckBuilderModalOpen;
-                  if (!deckBuilderActive) setDeckBuilderActive(true);
-                  setDeckBuilderModalOpen((prev) => !prev);
-                  if (!wasOpen && draftSelection.activeDraft && draftSelection.selectedSeat !== null) {
-                    track("deck_builder_open", {
-                      draft: draftSelection.activeDraft,
-                      seat: draftSelection.selectedSeat,
-                    });
-                  }
-                }}
-                aria-label="Deck Builder"
-                className={`cursor-pointer rounded-lg p-2 transition-colors ${
-                  deckBuilderModalOpen
-                    ? "bg-blue-600 text-white shadow-sm shadow-blue-900/40 hover:bg-blue-500"
-                    : deckBuilderActive
-                      ? "text-blue-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                      : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                }`}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-6 w-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 6.878V6a2.25 2.25 0 0 1 2.25-2.25h7.5A2.25 2.25 0 0 1 18 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 0 0 4.5 9v.878m13.5-3A2.25 2.25 0 0 1 19.5 9v.878m-15 0A2.247 2.247 0 0 0 3 12v6.75A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V12c0-.796-.413-1.496-1.035-1.896" />
-                </svg>
-              </button>
-            )}
-
             {/* Active Draft Indicator — hidden below md to preserve search bar width */}
             {draftSelection.activeDraft && (
               <div className="hidden md:block">
@@ -540,9 +564,62 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
               {draftSelection.activeDraft && (
                 <button
                   onClick={() => setDraftBoardOpen(!draftBoardOpen)}
-                  className="rounded-md px-2.5 py-1.5 text-xs font-medium text-zinc-600 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  className="cursor-pointer rounded-md p-2 text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  title={`Pod View — ${draftSelection.activeDraft}`}
+                  aria-label={`Pod View — ${draftSelection.activeDraft}`}
                 >
-                  Draft Board
+                  <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <rect x="1" y="1" width="6" height="6" rx="1" />
+                    <rect x="9" y="1" width="6" height="6" rx="1" />
+                    <rect x="1" y="9" width="6" height="6" rx="1" />
+                    <rect x="9" y="9" width="6" height="6" rx="1" />
+                  </svg>
+                </button>
+              )}
+              {draftSelection.activeDraft && mySeat !== null && liveDraftStatus.status?.phase === "drafting" && (
+                <button
+                  onClick={toggleAutoPick}
+                  className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    autoPick
+                      ? "text-emerald-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      : "text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  }`}
+                  title={autoPick ? "Auto-pick is ON — queued cards will be picked automatically" : "Auto-pick is OFF — you must confirm each pick"}
+                >
+                  Auto-pick: {autoPick ? "ON" : "OFF"}
+                </button>
+              )}
+              {isMyTurn && consecutivePicks > 1 && (
+                <span className="rounded-md bg-amber-900/50 px-2 py-1 text-xs font-medium text-amber-300">
+                  {consecutivePicks}&times; pick
+                </span>
+              )}
+              {draftSelection.activeDraft && draftSelection.selectedSeat !== null && (
+                <button
+                  onClick={() => {
+                    const wasOpen = deckBuilderModalOpen;
+                    if (!deckBuilderActive) setDeckBuilderActive(true);
+                    setDeckBuilderModalOpen((prev) => !prev);
+                    if (!wasOpen && draftSelection.activeDraft && draftSelection.selectedSeat !== null) {
+                      track("deck_builder_open", {
+                        draft: draftSelection.activeDraft,
+                        seat: draftSelection.selectedSeat,
+                      });
+                    }
+                  }}
+                  title="Deck Builder"
+                  aria-label="Deck Builder"
+                  className={`cursor-pointer rounded-lg p-2 transition-colors ${
+                    deckBuilderModalOpen
+                      ? "bg-blue-600 text-white shadow-sm shadow-blue-900/40 hover:bg-blue-500"
+                      : deckBuilderActive
+                        ? "text-blue-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                        : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                  }`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-6 w-6">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 6.878V6a2.25 2.25 0 0 1 2.25-2.25h7.5A2.25 2.25 0 0 1 18 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 0 0 4.5 9v.878m13.5-3A2.25 2.25 0 0 1 19.5 9v.878m-15 0A2.247 2.247 0 0 0 3 12v6.75A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V12c0-.796-.413-1.496-1.035-1.896" />
+                  </svg>
                 </button>
               )}
               <StatsModal data={draftStats} />
@@ -567,6 +644,18 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
           </div>
         </div>
 
+        {pickError && (
+          <div className="mb-2 flex items-center justify-between rounded-md border border-red-800/50 bg-red-950/50 px-3 py-2 text-xs text-red-300">
+            <span>{pickError}</span>
+            <button
+              onClick={() => setPickError(null)}
+              className="ml-2 text-red-400 hover:text-red-200"
+            >
+              &times;
+            </button>
+          </div>
+        )}
+
         {/* Card Table */}
         {searchFilteredCards.length > 0 ? (
           <CardTable
@@ -576,10 +665,10 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
             currentCubeCopies={displayedCubeCopies}
             takenCardNames={takenCardNamesSet}
             seatCardNames={seatCardNames}
-            onAddSpeculative={deckBuilderActive ? handleAddSpeculative : undefined}
-            onRemoveSpeculative={deckBuilderActive ? handleRemoveSpeculative : undefined}
-            deckBuilderCardCounts={deckBuilderActive ? deckBuilderCardCounts : undefined}
-            speculativeCardNames={deckBuilderActive ? speculativeCardNames : undefined}
+            onAddSpeculative={(deckBuilderActive || seatToken.hasSeatToken) ? handleAddSpeculative : undefined}
+            onRemoveSpeculative={(deckBuilderActive || seatToken.hasSeatToken) ? handleRemoveSpeculative : undefined}
+            deckBuilderCardCounts={(deckBuilderActive || seatToken.hasSeatToken) ? deckBuilderCardCounts : undefined}
+            speculativeCardNames={(deckBuilderActive || seatToken.hasSeatToken) ? speculativeCardNames : undefined}
             isMyTurn={isMyTurn}
             onPick={seatToken.hasSeatToken ? handlePick : undefined}
             queuedCards={seatToken.hasSeatToken ? pickQueue.queuedCards : undefined}
@@ -637,6 +726,7 @@ export function PageClient({ initialCardData, initialDraftStats }: PageClientPro
           mySeat={mySeat}
           token={seatToken.token}
           draftId={draftSelection.activeDraft}
+          draftName={cardData.draftMetadata[draftSelection.activeDraft]?.name}
           isOpen={draftBoardOpen}
           onClose={() => setDraftBoardOpen(false)}
           onMatchReported={() => draftBoard.refresh()}
