@@ -175,6 +175,89 @@ describe("useMySeat", () => {
     expect(result.current.displayName).toBe("Bob");
   });
 
+  it("autoPickMode initialized from /me response", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ seat: 2, autoPick: true, displayName: "Eve", autoPickMode: "cautious" }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const { result } = renderHook(() => useMySeat("test-draft", "my-token"));
+
+    await waitFor(() => expect(result.current.mySeat).toBe(2));
+    expect(result.current.autoPickMode).toBe("cautious");
+  });
+
+  it("autoPickMode defaults to resilient when not in response", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ seat: 2, autoPick: true, displayName: "Eve" }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    const { result } = renderHook(() => useMySeat("test-draft", "my-token"));
+
+    await waitFor(() => expect(result.current.mySeat).toBe(2));
+    expect(result.current.autoPickMode).toBe("resilient");
+  });
+
+  it("updateAutoPickMode sends PUT and updates state", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ seat: 1, autoPick: true, displayName: "Bob", autoPickMode: "resilient" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ ok: true }), { status: 200 }),
+      );
+
+    const { result } = renderHook(() => useMySeat("test-draft", "my-token"));
+
+    await waitFor(() => expect(result.current.mySeat).toBe(1));
+    expect(result.current.autoPickMode).toBe("resilient");
+
+    await act(async () => {
+      await result.current.updateAutoPickMode("cautious");
+    });
+
+    expect(result.current.autoPickMode).toBe("cautious");
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "/api/drafts/test-draft/seat-settings",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ auto_pick_mode: "cautious" }),
+      }),
+    );
+  });
+
+  it("updateAutoPickMode reverts state on failed PUT", async () => {
+    vi.spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ seat: 1, autoPick: true, displayName: "Bob", autoPickMode: "resilient" }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ error: "fail" }), { status: 500 }),
+      );
+
+    const { result } = renderHook(() => useMySeat("test-draft", "my-token"));
+
+    await waitFor(() => expect(result.current.mySeat).toBe(1));
+
+    await act(async () => {
+      await result.current.updateAutoPickMode("cautious");
+    });
+
+    expect(result.current.autoPickMode).toBe("resilient");
+  });
+
   it("updateDisplayName clears name when given empty string", async () => {
     vi.spyOn(globalThis, "fetch")
       .mockResolvedValueOnce(
