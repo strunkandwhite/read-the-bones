@@ -13,6 +13,7 @@ interface UsePickQueueReturn {
   removeFromQueue: (cardName: string) => void;
   reorderQueue: (cardNames: string[]) => void;
   isLoading: boolean;
+  error: string | null;
 }
 
 export function usePickQueue(
@@ -22,6 +23,7 @@ export function usePickQueue(
 ): UsePickQueueReturn {
   const [queue, setQueue] = useState<QueueEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchQueue = useCallback(async () => {
     if (!draftId || !token) return;
@@ -32,8 +34,11 @@ export function usePickQueue(
       if (res.ok) {
         const data = await res.json();
         setQueue(data.queue);
+        setError(null);
       }
-    } catch { /* ignore */ }
+    } catch {
+      setError("Failed to load queue");
+    }
   }, [draftId, token]);
 
   /* eslint-disable react-hooks/set-state-in-effect -- syncing from external system (API fetch) */
@@ -43,6 +48,7 @@ export function usePickQueue(
 
   const syncQueue = useCallback(async (cardNames: string[]) => {
     if (!draftId || !token) return;
+    const previousQueue = queue;
     setIsLoading(true);
     try {
       const body = cardNames.map((card_name) => ({ card_name }));
@@ -54,10 +60,17 @@ export function usePickQueue(
       if (res.ok) {
         const data = await res.json();
         setQueue(data.queue);
+        setError(null);
+      } else {
+        setQueue(previousQueue);
+        setError("Failed to sync queue");
       }
-    } catch { /* ignore */ }
+    } catch {
+      setQueue(previousQueue);
+      setError("Failed to sync queue");
+    }
     setIsLoading(false);
-  }, [draftId, token]);
+  }, [draftId, token, queue]);
 
   const addToQueue = useCallback((cardName: string) => {
     const newNames = [...queue.map((e) => e.cardName), cardName];
@@ -74,5 +87,5 @@ export function usePickQueue(
     [queue],
   );
 
-  return { queue, queuedCards, addToQueue, removeFromQueue, reorderQueue: syncQueue, isLoading };
+  return { queue, queuedCards, addToQueue, removeFromQueue, reorderQueue: syncQueue, isLoading, error };
 }
