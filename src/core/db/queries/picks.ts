@@ -2,8 +2,9 @@
  * Pick queries (getPicks, getAvailableCards, getStandings).
  */
 
+import type { Client } from "@libsql/client";
 import { getClient } from "../client";
-import { getOptedOutSeats, parseScryfallJson, matchesColorFilter, parseBannedCards } from "./helpers";
+import { getOptedOutSeats, parseScryfallJson, matchesColorFilter, parseBannedCards, transformScryfallJson } from "./helpers";
 import { getFrontFace } from "../../cardNames";
 
 export interface GetPicksParams {
@@ -355,4 +356,84 @@ export async function getStandings(draftId: string): Promise<StandingsResult> {
       redacted_seats: Array.from(redactedSeatsInResult).sort((a, b) => a - b),
     }),
   };
+}
+
+// ============================================================================
+// Live Draft Pick Queries
+// ============================================================================
+
+/**
+ * Get the latest pick number for a draft.
+ * Returns 0 if no picks have been made.
+ */
+export async function getLatestPickNumber(
+  client: Client,
+  draftId: string,
+): Promise<number> {
+  const result = await client.execute({
+    sql: "SELECT COALESCE(MAX(pick_n), 0) as latest FROM pick_events WHERE draft_id = ?",
+    args: [draftId],
+  });
+  return result.rows[0].latest as number;
+}
+
+/**
+ * Get the N most recent picks for a draft, newest first.
+ */
+export async function getRecentPicks(
+  client: Client,
+  draftId: string,
+  limit: number,
+): Promise<Array<{ pickN: number; seat: number; cardName: string }>> {
+  const result = await client.execute({
+    sql: `SELECT pe.pick_n, pe.seat, c.name as card_name
+          FROM pick_events pe
+          JOIN cards c ON c.card_id = pe.card_id
+          WHERE pe.draft_id = ?
+          ORDER BY pe.pick_n DESC LIMIT ?`,
+    args: [draftId, limit],
+  });
+  return result.rows.map((r) => ({
+    pickN: r.pick_n as number,
+    seat: r.seat as number,
+    cardName: r.card_name as string,
+  }));
+}
+
+export interface PickWithCardDetails {
+  pickN: number;
+  seat: number;
+  cardName: string;
+  oracleId: string;
+  colorIdentity: string[];
+  manaCost: string;
+}
+
+/**
+ * Get all picks for a draft with Scryfall card details (color identity, mana cost).
+ * Used by the draft board to render the pick matrix.
+ */
+export async function getPicksWithCardDetails(
+  client: Client,
+  draftId: string,
+): Promise<PickWithCardDetails[]> {
+  const result = await client.execute({
+    sql: `SELECT pe.pick_n, pe.seat, c.name, c.oracle_id, c.scryfall_json
+          FROM pick_events pe
+          JOIN cards c ON c.card_id = pe.card_id
+          WHERE pe.draft_id = ?
+          ORDER BY pe.pick_n`,
+    args: [draftId],
+  });
+  return result.rows.map((r) => {
+    const sf = transformScryfallJson(r.scryfall_json as string | null, r.name as string);
+    return {
+      pickN: r.pick_n as number,
+      seat: r.seat as number,
+      cardName: r.name as string,
+      oracleId: r.oracle_id as string,
+      colorIdentity: sf?.colorIdentity ?? [],
+      manaCost: sf?.manaCost ?? "",
+    };
+  });
 }
