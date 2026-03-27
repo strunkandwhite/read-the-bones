@@ -19,10 +19,16 @@ Analytics tool for Magic: the Gathering rotisserie drafts. Aggregates pick data 
 - **Draft selection:** Compare stats across different draft subsets
 - **Active draft sync:** Live pick updates from Google Sheets during an in-progress draft
 - **Banned cards:** Per-draft card bans with visual indicators and filtered rankings
-- **Deck builder:** Drag-and-drop deck building with maindeck/sideboard zones and shareable deck snapshots
+- **Deck builder:** Drag-and-drop deck building with maindeck/sideboard zones, server-side persistence, and shareable deck snapshots
 - **Seat selection:** View individual drafter picks, available cards, and decklists by seat
 - **Win rate analysis:** Multiple win metrics including game-percent win rate, win equity, and decklist-based win rates
+- **Card stats modal:** Detailed per-card statistics across drafts with pick history and win rate data
 - **Live drafts:** Run rotisserie drafts in-app with snake order, pick queues, auto-pick cascades, and match reporting
+- **Hold-to-pick confirmation:** Prevents accidental picks with a hold-to-confirm interaction
+- **Inline pick autocomplete:** Type-ahead card name search when submitting picks
+- **Queue management panel:** Reorderable pick queue with drag-and-drop priority management
+- **Float state:** Speculative card selections visible only to the player, persisted server-side
+- **Server-side deck persistence:** WIP deck state saved to the server with save status indicator
 
 ## Setup
 
@@ -79,6 +85,8 @@ These routes support in-app rotisserie drafting. Most require a seat token via `
 | `/api/drafts/[id]/board` | GET | Full pick matrix data |
 | `/api/drafts/[id]/match` | POST | Report a match result |
 | `/api/drafts/[id]/seat-settings` | PUT | Update auto-pick, display name |
+| `/api/drafts/[id]/float` | GET/PUT/DELETE | Manage floated (speculative) cards |
+| `/api/drafts/[id]/deck-state` | GET/PUT | WIP deck state persistence |
 
 ## Player Privacy
 
