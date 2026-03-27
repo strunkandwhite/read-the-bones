@@ -179,7 +179,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
 
   const isLocal = useMemo(() => isLocalClient(), []);
 
-  const { handlePick: _handlePick, pickError, setPickError, isMyTurn, consecutivePicks } = useLiveDraftPicking({
+  const { handlePick: submitPick, pickError, setPickError, isMyTurn, consecutivePicks } = useLiveDraftPicking({
     activeDraft: draftSelection.activeDraft,
     token: seatToken.token,
     mySeat,
@@ -224,13 +224,13 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     [cardData.cards],
   );
 
-  // Wrap handlePick to close the modal after a successful pick
+  // Wrap submitPick to also close the card stats modal after a successful pick
   const handlePick = useCallback(
     async (cardName: string) => {
-      await _handlePick(cardName);
+      await submitPick(cardName);
       setSelectedCard(null);
     },
-    [_handlePick],
+    [submitPick],
   );
 
   // Clear stale deck builder state when a draft has been reset
@@ -621,6 +621,9 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
           onQueueRemove={pickQueue.removeFromQueue}
           onToggleAutoPick={toggleAutoPick}
           onChangeAutoPickMode={updateAutoPickMode}
+          handlePick={submitPick}
+          isMyTurn={isMyTurn}
+          pickError={pickError}
         />
       )}
 

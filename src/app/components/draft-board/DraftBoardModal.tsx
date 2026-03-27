@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef, type KeyboardEvent } from "react";
 import type { BoardData, LiveDraftStatus } from "@/app/hooks/useLiveDraftStatus";
 import { useScrollLock } from "@/app/hooks/useScrollLock";
 import { getNextPick } from "@/core/snakeDraft";
@@ -27,6 +27,9 @@ interface DraftBoardModalProps {
   onQueueRemove?: (cardName: string) => void;
   onToggleAutoPick?: () => void;
   onChangeAutoPickMode?: (mode: "resilient" | "cautious") => void;
+  handlePick?: (cardName: string) => Promise<void>;
+  isMyTurn?: boolean;
+  pickError?: string | null;
 }
 
 const PHASE_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
@@ -53,22 +56,18 @@ export function DraftBoardModal({
   onQueueRemove,
   onToggleAutoPick,
   onChangeAutoPickMode,
+  handlePick,
+  isMyTurn = false,
+  pickError = null,
 }: DraftBoardModalProps) {
   useScrollLock(isOpen);
 
-  // Handle Escape key
+  const backdropRef = useRef<HTMLDivElement>(null);
+
+  // Auto-focus backdrop so it can receive keyboard events
   useEffect(() => {
-    if (!isOpen) return;
-
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen, onClose]);
+    if (isOpen) backdropRef.current?.focus();
+  }, [isOpen]);
 
   const phase = board?.phase ?? status?.phase ?? "unknown";
   const badgeColors = PHASE_BADGE_COLORS[phase] ?? { bg: "#333", text: "#aaa" };
@@ -80,6 +79,8 @@ export function DraftBoardModal({
 
   return (
     <div
+      ref={backdropRef}
+      tabIndex={-1}
       style={{
         position: "fixed",
         inset: 0,
@@ -89,9 +90,13 @@ export function DraftBoardModal({
         justifyContent: "center",
         backgroundColor: "rgba(0,0,0,0.7)",
         backdropFilter: "blur(2px)",
+        outline: "none",
       }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
+      }}
+      onKeyDown={(e: KeyboardEvent<HTMLDivElement>) => {
+        if (e.key === "Escape") onClose();
       }}
     >
       <div
@@ -171,6 +176,10 @@ export function DraftBoardModal({
                 nextPickN={nextPick?.pickNumber ?? null}
                 nextSeat={nextPick?.seat ?? null}
                 onUpdateDisplayName={onUpdateDisplayName}
+                handlePick={handlePick}
+                isMyTurn={isMyTurn}
+                draftId={draftId}
+                pickError={pickError}
               />
               <StandingsSection
                 board={board}
