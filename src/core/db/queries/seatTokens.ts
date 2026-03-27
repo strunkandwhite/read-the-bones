@@ -94,3 +94,43 @@ export async function updateAutoPick(
     args: [enabled ? 1 : 0, draftId, seat],
   });
 }
+
+/**
+ * Get seat-to-display-name mapping for a draft.
+ * Only includes seats that have a non-null display name.
+ */
+export async function getSeatDisplayNames(
+  client: Client,
+  draftId: string,
+): Promise<Record<string, string>> {
+  const result = await client.execute({
+    sql: "SELECT seat, display_name FROM seat_tokens WHERE draft_id = ? ORDER BY seat",
+    args: [draftId],
+  });
+  const names: Record<string, string> = {};
+  for (const r of result.rows) {
+    if (r.display_name) names[String(r.seat)] = r.display_name as string;
+  }
+  return names;
+}
+
+/**
+ * Get settings for a specific seat in a draft.
+ * Returns null if the seat doesn't exist.
+ */
+export async function getSeatSettings(
+  client: Client,
+  draftId: string,
+  seat: number,
+): Promise<{ autoPick: boolean; displayName: string | null } | null> {
+  const result = await client.execute({
+    sql: "SELECT auto_pick, display_name FROM seat_tokens WHERE draft_id = ? AND seat = ?",
+    args: [draftId, seat],
+  });
+  if (result.rows.length === 0) return null;
+  const row = result.rows[0];
+  return {
+    autoPick: row.auto_pick === 1,
+    displayName: row.display_name as string | null,
+  };
+}

@@ -6,6 +6,8 @@ import {
   regenerateToken,
   updateDisplayName,
   updateAutoPick,
+  getSeatDisplayNames,
+  getSeatSettings,
 } from "./seatTokens";
 
 function createMockClient() {
@@ -168,5 +170,85 @@ describe("updateAutoPick", () => {
         args: [0, "draft-1", 2],
       })
     );
+  });
+});
+
+describe("getSeatDisplayNames", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns mapping of seat to display name, skipping nulls", async () => {
+    const mockClient = createMockClient();
+    mockClient.execute.mockResolvedValue({
+      rows: [
+        { seat: 1, display_name: "Alice" },
+        { seat: 2, display_name: null },
+        { seat: 3, display_name: "Charlie" },
+      ],
+    });
+
+    const result = await getSeatDisplayNames(mockClient as never, "draft-1");
+
+    expect(result).toEqual({ "1": "Alice", "3": "Charlie" });
+    expect(mockClient.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining("SELECT seat, display_name FROM seat_tokens"),
+        args: ["draft-1"],
+      })
+    );
+  });
+
+  it("returns empty object when no display names set", async () => {
+    const mockClient = createMockClient();
+    mockClient.execute.mockResolvedValue({
+      rows: [
+        { seat: 1, display_name: null },
+        { seat: 2, display_name: null },
+      ],
+    });
+
+    const result = await getSeatDisplayNames(mockClient as never, "draft-1");
+
+    expect(result).toEqual({});
+  });
+});
+
+describe("getSeatSettings", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns settings for an existing seat", async () => {
+    const mockClient = createMockClient();
+    mockClient.execute.mockResolvedValue({
+      rows: [{ auto_pick: 1, display_name: "Bob" }],
+    });
+
+    const result = await getSeatSettings(mockClient as never, "draft-1", 2);
+
+    expect(result).toEqual({ autoPick: true, displayName: "Bob" });
+    expect(mockClient.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining("SELECT auto_pick, display_name"),
+        args: ["draft-1", 2],
+      })
+    );
+  });
+
+  it("returns null when seat not found", async () => {
+    const mockClient = createMockClient();
+    mockClient.execute.mockResolvedValue({ rows: [] });
+
+    const result = await getSeatSettings(mockClient as never, "draft-1", 99);
+
+    expect(result).toBeNull();
+  });
+
+  it("returns autoPick false when auto_pick is 0", async () => {
+    const mockClient = createMockClient();
+    mockClient.execute.mockResolvedValue({
+      rows: [{ auto_pick: 0, display_name: null }],
+    });
+
+    const result = await getSeatSettings(mockClient as never, "draft-1", 1);
+
+    expect(result).toEqual({ autoPick: false, displayName: null });
   });
 });
