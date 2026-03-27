@@ -9,3 +9,4 @@ export * from "./sharedDecks";
 export * from "./search";
 export * from "./seatTokens";
 export * from "./pickQueue";
+export * from "./matches";
