@@ -420,6 +420,40 @@ async function loadDecklistWinRates(
 }
 
 /**
+ * Step 7: Build cubeCopies and currentCubeSet from the display cube snapshot.
+ * Mutates scryfallDataMap to add Scryfall data for current cube cards not seen elsewhere.
+ */
+function buildCubeDisplayData(
+  displayCubeSnapshotId: number | null,
+  cubeCardsBySnapshot: Map<number, Map<number, CubeCardInfo>>,
+  scryfallDataMap: Map<string, ScryCard>,
+): CubeDisplayData {
+  const cubeCopies: Record<string, number> = {};
+
+  if (displayCubeSnapshotId !== null) {
+    const currentCube = cubeCardsBySnapshot.get(displayCubeSnapshotId);
+    if (currentCube) {
+      for (const cardInfo of currentCube.values()) {
+        cubeCopies[cardInfo.cardName] = cardInfo.qty;
+
+        const key = cardNameKey(cardInfo.cardName);
+        if (!scryfallDataMap.has(key)) {
+          const scryData = transformScryfallJson(cardInfo.scryfallJson, cardInfo.cardName);
+          if (scryData) {
+            scryfallDataMap.set(key, scryData);
+          }
+        }
+      }
+    }
+  }
+
+  const currentCubeSet = new Set(Object.keys(cubeCopies));
+  const currentCubeKeySet = new Set(Object.keys(cubeCopies).map((n) => cardNameKey(n)));
+
+  return { cubeCopies, currentCubeSet, currentCubeKeySet };
+}
+
+/**
  * Compute card statistics from the Turso database.
  *
  * When no draftIds are specified, stats are computed across all completed drafts.
@@ -476,33 +510,13 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
   const decklistWinRates = await loadDecklistWinRates(client, params.includeMatchData);
 
   // 7. Load cube cards for the selected pool snapshot
-  // Use poolAsOfDraft's snapshot if specified, otherwise most recent
   const displayCubeSnapshotId = params.poolAsOfDraft
     ? draftCubeSnapshots.get(params.poolAsOfDraft) ?? mostRecentCubeSnapshotId
     : mostRecentCubeSnapshotId;
 
-  const cubeCopies: Record<string, number> = {};
-
-  if (displayCubeSnapshotId !== null) {
-    const currentCube = cubeCardsBySnapshot.get(displayCubeSnapshotId);
-    if (currentCube) {
-      for (const cardInfo of currentCube.values()) {
-        cubeCopies[cardInfo.cardName] = cardInfo.qty;
-
-        // Add Scryfall data for current cube cards
-        const key = cardNameKey(cardInfo.cardName);
-        if (!scryfallDataMap.has(key)) {
-          const scryData = transformScryfallJson(cardInfo.scryfallJson, cardInfo.cardName);
-          if (scryData) {
-            scryfallDataMap.set(key, scryData);
-          }
-        }
-      }
-    }
-  }
-
-  const currentCubeSet = new Set(Object.keys(cubeCopies));
-  const currentCubeKeySet = new Set(Object.keys(cubeCopies).map((n) => cardNameKey(n)));
+  const { cubeCopies, currentCubeSet, currentCubeKeySet } = buildCubeDisplayData(
+    displayCubeSnapshotId, cubeCardsBySnapshot, scryfallDataMap,
+  );
 
   // 8. Calculate card stats
   const stats = calculateCardStats(allPicks, draftMetadataMap);
