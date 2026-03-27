@@ -6,18 +6,24 @@ type HoldToPickButtonProps = {
 };
 
 export function HoldToPickButton({ onPick, disabled }: HoldToPickButtonProps) {
-  const { isHolding, progress, handlers } = useHoldToConfirm({
+  const { isHolding, progress, confirmed, handlers } = useHoldToConfirm({
     onConfirm: onPick,
     duration: 1500,
   });
 
+  const label = confirmed ? "Picked!" : isHolding ? "Picking..." : "Hold to Pick";
+
   return (
     <button
       className={`relative overflow-hidden w-full rounded-lg py-3.5 text-center font-bold text-base text-white
-        ${disabled ? "bg-gray-600 cursor-not-allowed" : "bg-emerald-700 hover:bg-emerald-600 cursor-pointer"}
+        ${confirmed
+          ? "bg-emerald-500"
+          : disabled
+            ? "bg-gray-600 cursor-not-allowed"
+            : "bg-emerald-700 hover:bg-emerald-600 cursor-pointer"}
         transition-colors select-none touch-none`}
-      disabled={disabled}
-      {...(disabled ? {} : handlers)}
+      disabled={disabled || confirmed}
+      {...(disabled || confirmed ? {} : handlers)}
       role="button"
       aria-label="Hold to pick this card"
     >
@@ -25,13 +31,11 @@ export function HoldToPickButton({ onPick, disabled }: HoldToPickButtonProps) {
       <div
         className="absolute inset-0 bg-emerald-500 transition-none"
         style={{
-          width: `${progress * 100}%`,
-          opacity: isHolding ? 0.4 : 0,
+          width: confirmed ? "100%" : `${progress * 100}%`,
+          opacity: confirmed ? 0.6 : isHolding ? 0.4 : 0,
         }}
       />
-      <span className="relative z-10">
-        {isHolding ? "Picking..." : "Hold to Pick"}
-      </span>
+      <span className="relative z-10">{label}</span>
     </button>
   );
 }

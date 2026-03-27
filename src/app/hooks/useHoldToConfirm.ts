@@ -13,6 +13,7 @@ export function useHoldToConfirm({
 }: UseHoldToConfirmOptions) {
   const [isHolding, setIsHolding] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [confirmed, setConfirmed] = useState(false);
   const startTimeRef = useRef<number | null>(null);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -35,11 +36,15 @@ export function useHoldToConfirm({
     }
     startTimeRef.current = null;
     setIsHolding(false);
-    setProgress(0);
+    // Only reset progress if not confirmed — preserve the "Picked!" state
+    if (!confirmedRef.current) {
+      setProgress(0);
+    }
   }, []);
 
   const start = useCallback(() => {
     confirmedRef.current = false;
+    setConfirmed(false);
     startTimeRef.current = Date.now();
     setIsHolding(true);
     setProgress(0);
@@ -49,6 +54,7 @@ export function useHoldToConfirm({
       if (confirmedRef.current) return;
       confirmedRef.current = true;
       setProgress(1);
+      setConfirmed(true);
       // Haptic feedback (progressive enhancement)
       if (typeof navigator !== "undefined" && "vibrate" in navigator) {
         navigator.vibrate(50);
@@ -101,5 +107,5 @@ export function useHoldToConfirm({
     },
   };
 
-  return { isHolding, progress, handlers };
+  return { isHolding, progress, confirmed, handlers };
 }
