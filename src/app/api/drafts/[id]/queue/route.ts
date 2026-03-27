@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
 import { getQueue, setQueue } from "@/core/db/queries/pickQueue";
+import { addFloatedCard } from "@/core/db/queries/floatedCards";
 import { AppError } from "@/core/errors";
 
 export async function GET(
@@ -58,7 +59,20 @@ export async function PUT(
       cardIds.push(id);
     }
 
+    // Get old queue before replacing, to detect removed cards
+    const oldQueue = await getQueue(client, draftId, seat);
+    const oldCardNames = oldQueue.map((q) => q.cardName);
+
     await setQueue(client, draftId, seat, cardIds);
+
+    // Auto-float any cards that were removed from the queue
+    const newCardNameSet = new Set(cardNames);
+    for (const oldName of oldCardNames) {
+      if (!newCardNameSet.has(oldName)) {
+        await addFloatedCard(client, draftId, seat, oldName);
+      }
+    }
+
     const queue = await getQueue(client, draftId, seat);
     return NextResponse.json({ queue });
   } catch (error) {

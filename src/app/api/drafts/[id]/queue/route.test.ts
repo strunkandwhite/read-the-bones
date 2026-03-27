@@ -20,6 +20,11 @@ vi.mock("@/core/db/queries/pickQueue", () => ({
   setQueue: (...args: unknown[]) => mockSetQueue(...args),
 }));
 
+const mockAddFloatedCard = vi.fn();
+vi.mock("@/core/db/queries/floatedCards", () => ({
+  addFloatedCard: (...args: unknown[]) => mockAddFloatedCard(...args),
+}));
+
 function makeGetRequest(token = "test-token") {
   return new NextRequest(
     new URL("http://localhost:3000/api/drafts/test/queue"),
@@ -85,7 +90,10 @@ describe("PUT /api/drafts/[id]/queue", () => {
         { card_id: 20, name: "Counterspell" },
       ],
     });
+    // First getQueue call: old queue (before set)
+    mockGetQueue.mockResolvedValueOnce([]);
     mockSetQueue.mockResolvedValueOnce(undefined);
+    // Second getQueue call: new queue (after set)
     mockGetQueue.mockResolvedValueOnce([
       { priority: 1, cardId: 10, cardName: "Lightning Bolt" },
       { priority: 2, cardId: 20, cardName: "Counterspell" },
@@ -125,5 +133,38 @@ describe("PUT /api/drafts/[id]/queue", () => {
     );
 
     expect(res.status).toBe(401);
+  });
+
+  it("auto-floats cards removed from queue", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockExecute.mockResolvedValueOnce({
+      rows: [{ card_id: 20, name: "Counterspell" }],
+    });
+    // Old queue had Lightning Bolt and Counterspell
+    mockGetQueue.mockResolvedValueOnce([
+      { priority: 1, cardId: 10, cardName: "Lightning Bolt" },
+      { priority: 2, cardId: 20, cardName: "Counterspell" },
+    ]);
+    mockSetQueue.mockResolvedValueOnce(undefined);
+    mockAddFloatedCard.mockResolvedValue(undefined);
+    // New queue only has Counterspell
+    mockGetQueue.mockResolvedValueOnce([
+      { priority: 1, cardId: 20, cardName: "Counterspell" },
+    ]);
+
+    const res = await PUT(
+      makePutRequest([{ card_name: "Counterspell" }]),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    expect(res.status).toBe(200);
+    // Lightning Bolt was removed, so it should be auto-floated
+    expect(mockAddFloatedCard).toHaveBeenCalledTimes(1);
+    expect(mockAddFloatedCard).toHaveBeenCalledWith(
+      expect.anything(), // client
+      "test", // draftId
+      1, // seat
+      "Lightning Bolt", // cardName
+    );
   });
 });
