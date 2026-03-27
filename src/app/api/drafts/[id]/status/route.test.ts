@@ -7,6 +7,23 @@ vi.mock("@/core/db/client", () => ({
   getClient: vi.fn(() => Promise.resolve({ execute: mockExecute })),
 }));
 
+const mockGetLatestPickNumber = vi.fn();
+const mockGetRecentPicks = vi.fn();
+vi.mock("@/core/db/queries/picks", () => ({
+  getLatestPickNumber: (...args: unknown[]) => mockGetLatestPickNumber(...args),
+  getRecentPicks: (...args: unknown[]) => mockGetRecentPicks(...args),
+}));
+
+const mockGetSeatDisplayNames = vi.fn();
+vi.mock("@/core/db/queries/seatTokens", () => ({
+  getSeatDisplayNames: (...args: unknown[]) => mockGetSeatDisplayNames(...args),
+}));
+
+const mockGetMatchCount = vi.fn();
+vi.mock("@/core/db/queries/matches", () => ({
+  getMatchCount: (...args: unknown[]) => mockGetMatchCount(...args),
+}));
+
 function makeRequest(url: string) {
   return new NextRequest(new URL(url, "http://localhost:3000"));
 }
@@ -18,10 +35,10 @@ describe("GET /api/drafts/[id]/status", () => {
     mockExecute.mockResolvedValueOnce({
       rows: [{ phase: "drafting", num_seats: 10, picks_per_player: 5 }],
     });
-    mockExecute.mockResolvedValueOnce({ rows: [{ latest: 3 }] });
-    mockExecute.mockResolvedValueOnce({ rows: [] });
-    mockExecute.mockResolvedValueOnce({ rows: [] });
-    mockExecute.mockResolvedValueOnce({ rows: [{ cnt: 0 }] });
+    mockGetLatestPickNumber.mockResolvedValueOnce(3);
+    mockGetRecentPicks.mockResolvedValueOnce([]);
+    mockGetSeatDisplayNames.mockResolvedValueOnce({});
+    mockGetMatchCount.mockResolvedValueOnce(0);
 
     const res = await GET(
       makeRequest("http://localhost:3000/api/drafts/test/status"),
@@ -56,20 +73,13 @@ describe("GET /api/drafts/[id]/status", () => {
     mockExecute.mockResolvedValueOnce({
       rows: [{ phase: "drafting", num_seats: 4, picks_per_player: 10 }],
     });
-    mockExecute.mockResolvedValueOnce({ rows: [{ latest: 2 }] });
-    mockExecute.mockResolvedValueOnce({
-      rows: [
-        { pick_n: 2, seat: 2, card_name: "Counterspell" },
-        { pick_n: 1, seat: 1, card_name: "Lightning Bolt" },
-      ],
-    });
-    mockExecute.mockResolvedValueOnce({
-      rows: [
-        { seat: 1, display_name: "Alice" },
-        { seat: 2, display_name: null },
-      ],
-    });
-    mockExecute.mockResolvedValueOnce({ rows: [{ cnt: 1 }] });
+    mockGetLatestPickNumber.mockResolvedValueOnce(2);
+    mockGetRecentPicks.mockResolvedValueOnce([
+      { pickN: 2, seat: 2, cardName: "Counterspell" },
+      { pickN: 1, seat: 1, cardName: "Lightning Bolt" },
+    ]);
+    mockGetSeatDisplayNames.mockResolvedValueOnce({ "1": "Alice" });
+    mockGetMatchCount.mockResolvedValueOnce(1);
 
     const res = await GET(
       makeRequest("http://localhost:3000/api/drafts/test/status"),
@@ -88,10 +98,10 @@ describe("GET /api/drafts/[id]/status", () => {
     mockExecute.mockResolvedValueOnce({
       rows: [{ phase: "setup", num_seats: 4, picks_per_player: null }],
     });
-    mockExecute.mockResolvedValueOnce({ rows: [{ latest: 0 }] });
-    mockExecute.mockResolvedValueOnce({ rows: [] });
-    mockExecute.mockResolvedValueOnce({ rows: [] });
-    mockExecute.mockResolvedValueOnce({ rows: [{ cnt: 0 }] });
+    mockGetLatestPickNumber.mockResolvedValueOnce(0);
+    mockGetRecentPicks.mockResolvedValueOnce([]);
+    mockGetSeatDisplayNames.mockResolvedValueOnce({});
+    mockGetMatchCount.mockResolvedValueOnce(0);
 
     const res = await GET(
       makeRequest("http://localhost:3000/api/drafts/test/status"),

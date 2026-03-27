@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { getNextPick } from "@/core/snakeDraft";
+import { getLatestPickNumber, getRecentPicks } from "@/core/db/queries/picks";
+import { getSeatDisplayNames } from "@/core/db/queries/seatTokens";
+import { getMatchCount } from "@/core/db/queries/matches";
 
 export async function GET(
   _request: NextRequest,
@@ -10,6 +13,8 @@ export async function GET(
     const { id: draftId } = await params;
     const client = await getClient();
 
+    // Draft metadata still fetched inline — it returns multiple columns
+    // specific to this route's response shape
     const draft = await client.execute({
       sql: "SELECT phase, num_seats, picks_per_player FROM drafts WHERE draft_id = ?",
       args: [draftId],
@@ -19,44 +24,16 @@ export async function GET(
     }
     const { phase, num_seats: numSeats, picks_per_player: picksPerPlayer } = draft.rows[0];
 
-    const pickResult = await client.execute({
-      sql: "SELECT COALESCE(MAX(pick_n), 0) as latest FROM pick_events WHERE draft_id = ?",
-      args: [draftId],
-    });
-    const latestPickN = pickResult.rows[0].latest as number;
+    const latestPickN = await getLatestPickNumber(client, draftId);
 
     const next = picksPerPlayer
       ? getNextPick(latestPickN, numSeats as number, picksPerPlayer as number)
       : null;
 
-    const recentResult = await client.execute({
-      sql: `SELECT pe.pick_n, pe.seat, c.name as card_name
-            FROM pick_events pe
-            JOIN cards c ON c.card_id = pe.card_id
-            WHERE pe.draft_id = ?
-            ORDER BY pe.pick_n DESC LIMIT 10`,
-      args: [draftId],
-    });
-    const recentPicks = recentResult.rows.map((r) => ({
-      pickN: r.pick_n as number,
-      seat: r.seat as number,
-      cardName: r.card_name as string,
-    }));
+    const recentPicks = await getRecentPicks(client, draftId, 10);
+    const seatNames = await getSeatDisplayNames(client, draftId);
+    const matchCount = await getMatchCount(client, draftId);
 
-    const seatResult = await client.execute({
-      sql: "SELECT seat, display_name FROM seat_tokens WHERE draft_id = ? ORDER BY seat",
-      args: [draftId],
-    });
-    const seatNames: Record<string, string> = {};
-    for (const r of seatResult.rows) {
-      if (r.display_name) seatNames[String(r.seat)] = r.display_name as string;
-    }
-
-    const matchResult = await client.execute({
-      sql: "SELECT COUNT(*) as cnt FROM match_events WHERE draft_id = ?",
-      args: [draftId],
-    });
-    const matchCount = matchResult.rows[0].cnt as number;
     const ns = numSeats as number;
     const totalMatches = (ns * (ns - 1)) / 2;
 
