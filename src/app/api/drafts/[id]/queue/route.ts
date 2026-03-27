@@ -37,16 +37,25 @@ export async function PUT(
     }
     const cardNames: string[] = body.map((entry: { card_name: string }) => entry.card_name);
 
+    // Batch resolve card names to IDs
+    const placeholders = cardNames.map(() => "?").join(", ");
+    const result = await client.execute({
+      sql: `SELECT card_id, name FROM cards WHERE name IN (${placeholders})`,
+      args: cardNames,
+    });
+
+    const nameToId = new Map<string, number>();
+    for (const row of result.rows) {
+      nameToId.set(row.name as string, row.card_id as number);
+    }
+
     const cardIds: number[] = [];
     for (const name of cardNames) {
-      const result = await client.execute({
-        sql: "SELECT card_id FROM cards WHERE name = ?",
-        args: [name],
-      });
-      if (result.rows.length === 0) {
+      const id = nameToId.get(name);
+      if (id === undefined) {
         return NextResponse.json({ error: `Card not found: ${name}` }, { status: 400 });
       }
-      cardIds.push(result.rows[0].card_id as number);
+      cardIds.push(id);
     }
 
     await setQueue(client, draftId, seat, cardIds);

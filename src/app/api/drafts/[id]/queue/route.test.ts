@@ -79,8 +79,12 @@ describe("PUT /api/drafts/[id]/queue", () => {
 
   it("replaces queue and returns updated queue", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
-    mockExecute.mockResolvedValueOnce({ rows: [{ card_id: 10 }] });
-    mockExecute.mockResolvedValueOnce({ rows: [{ card_id: 20 }] });
+    mockExecute.mockResolvedValueOnce({
+      rows: [
+        { card_id: 10, name: "Lightning Bolt" },
+        { card_id: 20, name: "Counterspell" },
+      ],
+    });
     mockSetQueue.mockResolvedValueOnce(undefined);
     mockGetQueue.mockResolvedValueOnce([
       { priority: 1, cardId: 10, cardName: "Lightning Bolt" },
