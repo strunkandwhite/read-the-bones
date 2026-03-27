@@ -27,6 +27,7 @@ const baseProps = {
   refreshDraftStatus: vi.fn(),
   autoPick: false,
   queuedCards: new Map<string, number>(),
+  refreshSettings: vi.fn().mockResolvedValue({ autoPick: false }),
 };
 
 describe("useLiveDraftPicking", () => {
@@ -127,6 +128,7 @@ describe("useLiveDraftPicking", () => {
 
   it("auto-pick fires when isMyTurn and autoPick enabled with queued cards", async () => {
     const refreshDraftStatus = vi.fn();
+    const refreshSettings = vi.fn().mockResolvedValue({ autoPick: true });
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ ok: true }), { status: 200 }),
     );
@@ -139,6 +141,7 @@ describe("useLiveDraftPicking", () => {
         autoPick: true,
         queuedCards,
         refreshDraftStatus,
+        refreshSettings,
       }),
     );
 

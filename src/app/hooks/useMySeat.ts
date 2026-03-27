@@ -8,6 +8,7 @@ interface UseMySeatReturn {
   toggleAutoPick: () => Promise<void>;
   updateDisplayName: (name: string) => Promise<void>;
   updateAutoPickMode: (mode: "resilient" | "cautious") => Promise<void>;
+  refreshSettings: () => Promise<{ autoPick: boolean; autoPickMode: string } | null>;
 }
 
 export function useMySeat(
@@ -87,6 +88,22 @@ export function useMySeat(
     }
   }, [draftId, token, displayName]);
 
+  const refreshSettings = useCallback(async () => {
+    if (!draftId || !token) return null;
+    try {
+      const res = await fetch(`/api/drafts/${draftId}/me`, {
+        headers: { "X-Seat-Token": token },
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      setAutoPick(data.autoPick);
+      setAutoPickMode(data.autoPickMode || "resilient");
+      return data;
+    } catch {
+      return null;
+    }
+  }, [draftId, token]);
+
   const updateAutoPickMode = useCallback(async (mode: "resilient" | "cautious") => {
     if (!draftId || !token) return;
     const previous = autoPickMode;
@@ -106,5 +123,5 @@ export function useMySeat(
     }
   }, [draftId, token, autoPickMode]);
 
-  return { mySeat, autoPick, displayName, autoPickMode, toggleAutoPick, updateDisplayName, updateAutoPickMode };
+  return { mySeat, autoPick, displayName, autoPickMode, toggleAutoPick, updateDisplayName, updateAutoPickMode, refreshSettings };
 }

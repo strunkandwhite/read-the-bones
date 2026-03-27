@@ -166,7 +166,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     liveDraftStatus.dataChanged,
   );
 
-  const { mySeat, autoPick, autoPickMode, toggleAutoPick, updateDisplayName, updateAutoPickMode } = useMySeat(draftSelection.activeDraft, seatToken.token);
+  const { mySeat, autoPick, autoPickMode, toggleAutoPick, updateDisplayName, updateAutoPickMode, refreshSettings } = useMySeat(draftSelection.activeDraft, seatToken.token);
 
   // Float state (server-side speculative cards)
   const { floatedCards, addFloat, removeFloat } = useFloatedCards(
@@ -187,6 +187,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     refreshDraftStatus: liveDraftStatus.refresh,
     autoPick,
     queuedCards: pickQueue.queuedCards,
+    refreshSettings,
   });
 
   // Card status helper: determines whether a card is picked, queued, floated, taken, or none

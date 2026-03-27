@@ -10,6 +10,7 @@ interface UseLiveDraftPickingProps {
   refreshDraftStatus: () => Promise<void>;
   autoPick: boolean;
   queuedCards: Map<string, number> | undefined;
+  refreshSettings: () => Promise<{ autoPick: boolean } | null>;
 }
 
 interface UseLiveDraftPickingReturn {
@@ -28,6 +29,7 @@ export function useLiveDraftPicking({
   refreshDraftStatus,
   autoPick,
   queuedCards,
+  refreshSettings,
 }: UseLiveDraftPickingProps): UseLiveDraftPickingReturn {
   const [pickError, setPickError] = useState<string | null>(null);
 
@@ -79,16 +81,27 @@ export function useLiveDraftPicking({
     }
   }, [activeDraft, token, refreshDraftStatus, autoPick]);
 
-  // Fire queued pick immediately when auto-pick is on and it becomes the player's turn
-  /* eslint-disable react-hooks/set-state-in-effect -- submitting pick to external API; setState (setPickError) is a side effect of the API call, not the goal */
+  // Fire queued pick immediately when auto-pick is on and it becomes the player's turn.
+  // Re-checks server-side auto_pick first — cautious mode may have disabled it since last render.
   useEffect(() => {
     if (!isMyTurn || !autoPick) return;
     if (!queuedCards || queuedCards.size === 0) return;
-    const sorted = [...queuedCards.entries()].sort((a, b) => a[1] - b[1]);
-    const [nextCard] = sorted[0];
-    handlePick(nextCard);
-  }, [isMyTurn, autoPick, queuedCards, handlePick]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+
+    let cancelled = false;
+
+    async function checkAndPick() {
+      // Re-check server-side auto_pick (cautious mode may have disabled it)
+      const fresh = await refreshSettings();
+      if (cancelled || !fresh?.autoPick) return;
+
+      const sorted = [...queuedCards!.entries()].sort((a, b) => a[1] - b[1]);
+      const [nextCard] = sorted[0];
+      handlePick(nextCard);
+    }
+
+    checkAndPick();
+    return () => { cancelled = true; };
+  }, [isMyTurn, autoPick, queuedCards, handlePick, refreshSettings]);
 
   return { handlePick, pickError, setPickError, isMyTurn, consecutivePicks };
 }
