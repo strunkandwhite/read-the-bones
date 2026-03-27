@@ -2,6 +2,7 @@
  * Draft metadata queries.
  */
 
+import type { Client } from "@libsql/client";
 import { getClient } from "../client";
 import { parseBannedCardNames } from "./helpers";
 
@@ -99,4 +100,24 @@ export async function getDraft(draftId: string): Promise<DraftDetails | null> {
     num_seats: draft.num_seats as number,
     banned_cards: bannedCards.length > 0 ? bannedCards : null,
   };
+}
+
+// ============================================================================
+// Live Draft Queries
+// ============================================================================
+
+/**
+ * Get the current phase of a draft.
+ * Returns null if the draft doesn't exist.
+ */
+export async function getDraftPhase(
+  client: Client,
+  draftId: string,
+): Promise<string | null> {
+  const result = await client.execute({
+    sql: "SELECT phase FROM drafts WHERE draft_id = ?",
+    args: [draftId],
+  });
+  if (result.rows.length === 0) return null;
+  return result.rows[0].phase as string;
 }
