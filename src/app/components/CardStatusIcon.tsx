@@ -9,26 +9,31 @@ export function CardStatusIcon({ status, queuePosition }: CardStatusIconProps) {
   switch (status) {
     case "picked":
       return (
-        <span className="inline-flex items-center justify-center w-4 h-4 text-green-500" title="Picked">
-          <svg viewBox="0 0 16 16" fill="currentColor" className="w-3 h-3">
-            <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z" />
+        <span className="inline-flex items-center justify-center w-5 h-5 text-emerald-500" title="Picked">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4">
+            <circle cx="8" cy="8" r="6" />
+            <path d="M5.5 8l2 2 3.5-3.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         </span>
       );
     case "queued":
       return (
-        <span
-          className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-600 text-white text-[9px] font-bold"
-          title={`Queue position ${queuePosition}`}
-        >
-          {queuePosition}
+        <span className="relative inline-flex items-center justify-center w-5 h-5 text-amber-500" title={`Queue position ${queuePosition}`}>
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4">
+            <rect x="3" y="5" width="10" height="7" rx="1" />
+            <path d="M4.5 5V4a1 1 0 011-1h5a1 1 0 011 1v1" />
+          </svg>
+          <span className="absolute -top-1 -right-1.5 text-[9px] font-bold text-amber-400">
+            {queuePosition}
+          </span>
         </span>
       );
     case "floated":
       return (
-        <span className="inline-flex items-center justify-center w-4 h-4 text-gray-400" title="Floated">
-          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-3 h-3">
-            <path d="M3 2.5h10l-1.5 5H4.5L3 2.5zM4.5 7.5v5.5M11.5 7.5v5.5" />
+        <span className="inline-flex items-center justify-center w-5 h-5 text-zinc-500" title="Floated">
+          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" className="w-4 h-4" strokeDasharray="2 1.5">
+            <rect x="3" y="5" width="10" height="7" rx="1" />
+            <path d="M4.5 5V4a1 1 0 011-1h5a1 1 0 011 1v1" />
           </svg>
         </span>
       );
