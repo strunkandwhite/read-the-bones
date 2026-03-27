@@ -189,3 +189,16 @@ CREATE TABLE IF NOT EXISTS ingestion_meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- floated_cards: server-side storage for speculatively added cards
+CREATE TABLE IF NOT EXISTS floated_cards (
+  draft_id TEXT NOT NULL,
+  seat INTEGER NOT NULL,
+  card_name TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (draft_id, seat, card_name),
+  FOREIGN KEY (draft_id) REFERENCES drafts(draft_id)
+);
+
+-- auto_pick_mode on seat_tokens: 'resilient' (default) or 'cautious'
+ALTER TABLE seat_tokens ADD COLUMN auto_pick_mode TEXT NOT NULL DEFAULT 'resilient';
