@@ -200,6 +200,66 @@ async function getCubePoolSizes(
 }
 
 /**
+ * Step 3: Load all pick events with Scryfall data.
+ * Builds scryfallDataMap (card key -> ScryCard) and picksByDraftAndCard (draftId -> cardKey -> CardPick[]).
+ */
+async function loadPickEvents(client: Client): Promise<PickEventsResult> {
+  const picksResult = await client.execute({
+    sql: `SELECT pe.draft_id, pe.pick_n, pe.seat,
+                 c.name as card_name, c.scryfall_json
+          FROM pick_events pe
+          JOIN cards c ON pe.card_id = c.card_id
+          ORDER BY pe.draft_id, pe.pick_n`,
+    args: [],
+  });
+
+  const scryfallDataMap = new Map<string, ScryCard>();
+  const picksByDraftAndCard = new Map<string, Map<string, CardPick[]>>();
+
+  for (const row of picksResult.rows) {
+    const draftId = row.draft_id as string;
+    const cardName = row.card_name as string;
+    const scryfallJson = row.scryfall_json as string | null;
+    const seat = row.seat as number;
+    const key = cardNameKey(cardName);
+
+    if (!scryfallDataMap.has(key)) {
+      const scryData = transformScryfallJson(scryfallJson, cardName);
+      if (scryData) {
+        scryfallDataMap.set(key, scryData);
+      }
+    }
+
+    const scryData = scryfallDataMap.get(key);
+    const color = scryData ? getColorFromIdentity(scryData.colorIdentity) : "";
+
+    if (!picksByDraftAndCard.has(draftId)) {
+      picksByDraftAndCard.set(draftId, new Map());
+    }
+    const draftPicks = picksByDraftAndCard.get(draftId)!;
+    if (!draftPicks.has(key)) {
+      draftPicks.set(key, []);
+    }
+
+    const copyNumber = draftPicks.get(key)!.length + 1;
+
+    const pick: CardPick = {
+      cardName,
+      pickPosition: row.pick_n as number,
+      copyNumber,
+      wasPicked: true,
+      draftId,
+      seat,
+      color,
+    };
+
+    draftPicks.get(key)!.push(pick);
+  }
+
+  return { scryfallDataMap, picksByDraftAndCard };
+}
+
+/**
  * Compute card statistics from the Turso database.
  *
  * When no draftIds are specified, stats are computed across all completed drafts.
@@ -240,61 +300,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
   const poolSizes = await getCubePoolSizes(client, uniqueCubeSnapshots);
 
   // 3. Load all picks with card names and Scryfall data
-  const picksResult = await client.execute({
-    sql: `SELECT pe.draft_id, pe.pick_n, pe.seat,
-                 c.name as card_name, c.scryfall_json
-          FROM pick_events pe
-          JOIN cards c ON pe.card_id = c.card_id
-          ORDER BY pe.draft_id, pe.pick_n`,
-    args: [],
-  });
-
-  // Build Scryfall data map and card picks
-  const scryfallDataMap = new Map<string, ScryCard>();
-  const picksByDraftAndCard = new Map<string, Map<string, CardPick[]>>();
-
-  for (const row of picksResult.rows) {
-    const draftId = row.draft_id as string;
-    const cardName = row.card_name as string;
-    const scryfallJson = row.scryfall_json as string | null;
-    const seat = row.seat as number;
-    const key = cardNameKey(cardName);
-
-    // Build Scryfall data
-    if (!scryfallDataMap.has(key)) {
-      const scryData = transformScryfallJson(scryfallJson, cardName);
-      if (scryData) {
-        scryfallDataMap.set(key, scryData);
-      }
-    }
-
-    // Get color from Scryfall data
-    const scryData = scryfallDataMap.get(key);
-    const color = scryData ? getColorFromIdentity(scryData.colorIdentity) : "";
-
-    // Track picks by draft and card for copy number calculation
-    if (!picksByDraftAndCard.has(draftId)) {
-      picksByDraftAndCard.set(draftId, new Map());
-    }
-    const draftPicks = picksByDraftAndCard.get(draftId)!;
-    if (!draftPicks.has(key)) {
-      draftPicks.set(key, []);
-    }
-
-    const copyNumber = draftPicks.get(key)!.length + 1;
-
-    const pick: CardPick = {
-      cardName,
-      pickPosition: row.pick_n as number,
-      copyNumber,
-      wasPicked: true,
-      draftId,
-      seat,
-      color,
-    };
-
-    draftPicks.get(key)!.push(pick);
-  }
+  const { scryfallDataMap, picksByDraftAndCard } = await loadPickEvents(client);
 
   // 4. Load cube snapshot cards to find unpicked cards
   const cubeSnapshotPlaceholders = uniqueCubeSnapshots.map(() => "?").join(", ");
