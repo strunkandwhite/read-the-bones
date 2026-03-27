@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
 import { getQueue, setQueue } from "@/core/db/queries/pickQueue";
+import { resolveCardIds } from "@/core/db/queries/cards";
 import { addFloatedCard } from "@/core/db/queries/floatedCards";
 import { AppError } from "@/core/errors";
 
@@ -39,16 +40,7 @@ export async function PUT(
     const cardNames: string[] = body.map((entry: { card_name: string }) => entry.card_name);
 
     // Batch resolve card names to IDs
-    const placeholders = cardNames.map(() => "?").join(", ");
-    const result = await client.execute({
-      sql: `SELECT card_id, name FROM cards WHERE name IN (${placeholders})`,
-      args: cardNames,
-    });
-
-    const nameToId = new Map<string, number>();
-    for (const row of result.rows) {
-      nameToId.set(row.name as string, row.card_id as number);
-    }
+    const nameToId = await resolveCardIds(client, cardNames);
 
     const cardIds: number[] = [];
     for (const name of cardNames) {

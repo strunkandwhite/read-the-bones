@@ -144,3 +144,24 @@ export async function resolveCardId(
   if (result.rows.length === 0) return null;
   return result.rows[0].card_id as number;
 }
+
+/**
+ * Batch resolve card names to card_ids.
+ * Returns a Map<string, number> of name → card_id for all found cards.
+ */
+export async function resolveCardIds(
+  client: Client,
+  cardNames: string[],
+): Promise<Map<string, number>> {
+  if (cardNames.length === 0) return new Map();
+  const placeholders = cardNames.map(() => "?").join(", ");
+  const result = await client.execute({
+    sql: `SELECT card_id, name FROM cards WHERE name IN (${placeholders})`,
+    args: cardNames,
+  });
+  const map = new Map<string, number>();
+  for (const row of result.rows) {
+    map.set(row.name as string, row.card_id as number);
+  }
+  return map;
+}
