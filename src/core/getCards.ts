@@ -297,6 +297,80 @@ async function loadCubeCards(
 }
 
 /**
+ * Step 5: Combine picked + unpicked cards from selected drafts.
+ * Pure computation (no DB queries). Mutates scryfallDataMap to add Scryfall data
+ * for cube cards not seen in pick events.
+ */
+function buildAllPicks(
+  selectedDraftIds: string[],
+  selectedDraftSet: Set<string>,
+  picksByDraftAndCard: Map<string, Map<string, CardPick[]>>,
+  cubeCardsBySnapshot: Map<number, Map<number, CubeCardInfo>>,
+  draftCubeSnapshots: Map<string, number>,
+  poolSizes: Map<number, number>,
+  bannedCardsByDraft: Map<string, Set<string>>,
+  scryfallDataMap: Map<string, ScryCard>,
+): CardPick[] {
+  const allPicks: CardPick[] = [];
+
+  // Add all picked cards from selected drafts
+  for (const [draftId, cardPicks] of picksByDraftAndCard) {
+    if (!selectedDraftSet.has(draftId)) continue;
+    for (const picks of cardPicks.values()) {
+      allPicks.push(...picks);
+    }
+  }
+
+  // Add unpicked cards for each selected draft
+  for (const draftId of selectedDraftIds) {
+    const cubeSnapshotId = draftCubeSnapshots.get(draftId);
+    if (!cubeSnapshotId) continue;
+
+    const cubeCards = cubeCardsBySnapshot.get(cubeSnapshotId);
+    if (!cubeCards) continue;
+
+    const poolSize = poolSizes.get(cubeSnapshotId) || DEFAULT_POOL_SIZE;
+    const draftPicks = picksByDraftAndCard.get(draftId) || new Map<string, CardPick[]>();
+
+    for (const [, cardInfo] of cubeCards) {
+      const key = cardNameKey(cardInfo.cardName);
+
+      const draftBans = bannedCardsByDraft.get(draftId);
+      if (draftBans?.has(key)) continue;
+
+      const pickedCount = draftPicks.get(key)?.length || 0;
+      const unpickedQty = cardInfo.qty - pickedCount;
+
+      if (unpickedQty > 0) {
+        if (!scryfallDataMap.has(key)) {
+          const scryData = transformScryfallJson(cardInfo.scryfallJson, cardInfo.cardName);
+          if (scryData) {
+            scryfallDataMap.set(key, scryData);
+          }
+        }
+
+        const scryData = scryfallDataMap.get(key);
+        const color = scryData ? getColorFromIdentity(scryData.colorIdentity) : "";
+
+        for (let i = 0; i < unpickedQty; i++) {
+          allPicks.push({
+            cardName: cardInfo.cardName,
+            pickPosition: poolSize,
+            copyNumber: pickedCount + i + 1,
+            wasPicked: false,
+            draftId,
+            seat: -1,
+            color,
+          });
+        }
+      }
+    }
+  }
+
+  return allPicks;
+}
+
+/**
  * Compute card statistics from the Turso database.
  *
  * When no draftIds are specified, stats are computed across all completed drafts.
@@ -343,62 +417,11 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
   const cubeCardsBySnapshot = await loadCubeCards(client, uniqueCubeSnapshots);
 
   // 5. Build picks array from selected drafts, including unpicked entries
-  const allPicks: CardPick[] = [];
-
-  for (const [draftId, cardPicks] of picksByDraftAndCard) {
-    if (!selectedDraftSet.has(draftId)) continue;
-    for (const picks of cardPicks.values()) {
-      allPicks.push(...picks);
-    }
-  }
-
-  // Add unpicked cards for each selected draft
-  for (const draftId of selectedDraftIds) {
-    const cubeSnapshotId = draftCubeSnapshots.get(draftId);
-    if (!cubeSnapshotId) continue;
-
-    const cubeCards = cubeCardsBySnapshot.get(cubeSnapshotId);
-    if (!cubeCards) continue;
-
-    const poolSize = poolSizes.get(cubeSnapshotId) || DEFAULT_POOL_SIZE;
-    const draftPicks = picksByDraftAndCard.get(draftId) || new Map<string, CardPick[]>();
-
-    for (const [, cardInfo] of cubeCards) {
-      const key = cardNameKey(cardInfo.cardName);
-
-      // Skip banned cards — they get no entry (picked or unpicked) for this draft
-      const draftBans = bannedCardsByDraft.get(draftId);
-      if (draftBans?.has(key)) continue;
-
-      const pickedCount = draftPicks.get(key)?.length || 0;
-      const unpickedQty = cardInfo.qty - pickedCount;
-
-      if (unpickedQty > 0) {
-        // Add Scryfall data if not already present
-        if (!scryfallDataMap.has(key)) {
-          const scryData = transformScryfallJson(cardInfo.scryfallJson, cardInfo.cardName);
-          if (scryData) {
-            scryfallDataMap.set(key, scryData);
-          }
-        }
-
-        const scryData = scryfallDataMap.get(key);
-        const color = scryData ? getColorFromIdentity(scryData.colorIdentity) : "";
-
-        for (let i = 0; i < unpickedQty; i++) {
-          allPicks.push({
-            cardName: cardInfo.cardName,
-            pickPosition: poolSize,
-            copyNumber: pickedCount + i + 1,
-            wasPicked: false,
-            draftId,
-            seat: -1,
-            color,
-          });
-        }
-      }
-    }
-  }
+  const allPicks = buildAllPicks(
+    selectedDraftIds, selectedDraftSet, picksByDraftAndCard,
+    cubeCardsBySnapshot, draftCubeSnapshots, poolSizes,
+    bannedCardsByDraft, scryfallDataMap,
+  );
 
   // 6. Conditionally load decklist win rate data
   const decklistWinRates = new Map<string, {
