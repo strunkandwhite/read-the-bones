@@ -28,6 +28,7 @@ describe("useDeckBuilderSync", () => {
     scryfallDataMap,
     activeDraft: "test-draft",
     selectedSeat: 1,
+    ready: true,
   };
 
   beforeEach(() => {
@@ -100,6 +101,22 @@ describe("useDeckBuilderSync", () => {
     // Reactivate — should dispatch INIT_FROM_PICKS again
     rerender({ ...baseProps, deckBuilderActive: true });
 
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "INIT_FROM_PICKS" }),
+    );
+  });
+
+  it("does not initialize from picks when ready is false", () => {
+    renderHook(() =>
+      useDeckBuilderSync({ ...baseProps, ready: false }),
+    );
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("initializes from picks when ready is true and zones are empty", () => {
+    renderHook(() =>
+      useDeckBuilderSync({ ...baseProps, ready: true }),
+    );
     expect(dispatch).toHaveBeenCalledWith(
       expect.objectContaining({ type: "INIT_FROM_PICKS" }),
     );
