@@ -62,7 +62,14 @@ export function useLiveDraftPicking({
       });
       if (!res.ok) {
         const data = await res.json();
-        setPickError(data.error || "Pick failed");
+        const errorMsg = data.error || "Pick failed";
+        // Suppress "already been picked" errors when auto-pick is on —
+        // this is expected when the server cascade already handled the pick
+        if (autoPick && errorMsg.includes("already been picked")) {
+          refreshDraftStatus();
+          return;
+        }
+        setPickError(errorMsg);
       } else {
         setPickError(null);
         refreshDraftStatus();
@@ -70,7 +77,7 @@ export function useLiveDraftPicking({
     } catch {
       setPickError("Network error — pick may not have been submitted");
     }
-  }, [activeDraft, token, refreshDraftStatus]);
+  }, [activeDraft, token, refreshDraftStatus, autoPick]);
 
   // Fire queued pick immediately when auto-pick is on and it becomes the player's turn
   /* eslint-disable react-hooks/set-state-in-effect -- submitting pick to external API; setState (setPickError) is a side effect of the API call, not the goal */
