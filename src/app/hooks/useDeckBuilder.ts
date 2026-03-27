@@ -45,6 +45,8 @@ export function useDeckBuilder({ draftId, seat, token }: UseDeckBuilderProps) {
     if (!currentToken || !dirtyRef.current || inFlightRef.current) return;
     inFlightRef.current = true;
     setSaveStatus("saving");
+    // URL and body both derive from stateRef.current, so draftId is always consistent.
+    // The body includes draftId/seat for the server's validateDeckState check.
     const snapshot = stateRef.current;
     try {
       const res = await fetch(`/api/drafts/${snapshot.draftId}/deck-state`, {
