@@ -12,9 +12,6 @@ vi.mock("./CardTable", () => ({
 vi.mock("./ColorFilter", () => ({
   ColorFilter: () => <div data-testid="color-filter" />,
 }));
-vi.mock("./ActiveDraftIndicator", () => ({
-  ActiveDraftIndicator: () => <div data-testid="active-draft-indicator" />,
-}));
 vi.mock("./Settings", () => ({
   Settings: (props: { onDraftsChange: (s: Set<string>) => void }) => {
     // Expose onDraftsChange so tests can trigger draft selection changes

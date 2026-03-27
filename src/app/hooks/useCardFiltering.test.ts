@@ -118,27 +118,6 @@ describe("useCardFiltering", () => {
     expect(names).toContain("Lightning Bolt");
   });
 
-  it("availableCount excludes taken and banned cards", () => {
-    const cardData = makeCardData({
-      takenCards: [{ name: "Lightning Bolt", seat: 1 }],
-      bannedCardNames: ["Counterspell"],
-    });
-
-    const { result } = renderHook(() =>
-      useCardFiltering({
-        cardData,
-        activeDraft: "draft-1",
-        hideTaken: true,
-        selectedSeat: null,
-        searchQuery: "",
-        scryfallMatchNames: null,
-      })
-    );
-
-    // 3 total - 1 taken - 1 banned = 1 available
-    expect(result.current.availableCount).toBe(1);
-  });
-
   it("filters searchFilteredCards by scryfallMatchNames", () => {
     const cardData = makeCardData();
     const matchNames = new Set(["Lightning Bolt"]);

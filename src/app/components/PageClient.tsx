@@ -6,7 +6,6 @@ import { useSharedDeckLoader } from "../hooks/useSharedDeckLoader";
 import { useDeckBuilderSync } from "../hooks/useDeckBuilderSync";
 import { useModalManagement } from "../hooks/useModalManagement";
 import { track } from "@vercel/analytics/react";
-import { ActiveDraftIndicator } from "./ActiveDraftIndicator";
 import { CardTable } from "./CardTable";
 import { CardStatsModal } from "./CardStatsModal";
 import { ColorFilter } from "./ColorFilter";
@@ -30,6 +29,7 @@ import { useSeatToken } from "../hooks/useSeatToken";
 import { usePickQueue } from "../hooks/usePickQueue";
 import { DraftBoardModal } from "./draft-board/DraftBoardModal";
 import { useMySeat } from "../hooks/useMySeat";
+import { getFrontFace } from "@/core/cardNames";
 
 
 export interface PageClientProps {
@@ -96,7 +96,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   const clearColorFilter = search.setColorFilter;
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
-    const mq = window.matchMedia("(min-width: 640px)");
+    const mq = window.matchMedia("(min-width: 1024px)");
     const handler = (e: MediaQueryListEvent) => {
       if (!e.matches) clearColorFilter([]);
     };
@@ -104,7 +104,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     return () => mq.removeEventListener("change", handler);
   }, [clearColorFilter]);
 
-  const { displayCards, searchFilteredCards, availableCount, takenCardNamesSet, seatCardNames, seatCardList } =
+  const { displayCards, searchFilteredCards, takenCardNamesSet, seatCardNames, seatCardList } =
     useCardFiltering({
       cardData,
       activeDraft: draftSelection.activeDraft,
@@ -179,7 +179,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
 
   const isLocal = useMemo(() => isLocalClient(), []);
 
-  const { handlePick: submitPick, pickError, setPickError, isMyTurn, consecutivePicks } = useLiveDraftPicking({
+  const { handlePick: submitPick, pickError, setPickError, isMyTurn } = useLiveDraftPicking({
     activeDraft: draftSelection.activeDraft,
     token: seatToken.token,
     mySeat,
@@ -338,14 +338,25 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     return draft?.numDrafters ?? 10;
   }, [draftSelection.activeDraft, drafts]);
 
+  const availableCount = useMemo(() => {
+    if (!draftSelection.activeDraft || !takenCardNamesSet) return 0;
+    const bannedSet = new Set(cardData.bannedCardNames ?? []);
+    return cardData.cards.filter((c) => {
+      if (takenCardNamesSet.has(c.cardName)) return false;
+      if (bannedSet.has(c.cardName)) return false;
+      const frontFace = getFrontFace(c.cardName);
+      return frontFace ? !bannedSet.has(frontFace) : true;
+    }).length;
+  }, [draftSelection.activeDraft, cardData.cards, cardData.bannedCardNames, takenCardNamesSet]);
+
   const displayedCubeCopies = cardData.cubeCopies;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
       <div className="mx-auto max-w-7xl px-4 pb-0 pt-4 sm:px-6 lg:px-8">
-        {/* Toolbar */}
-        <div className="mb-3 flex flex-wrap items-center gap-3">
-          {/* Left: Logo + Title */}
+        {/* Toolbar — single row: Logo | Search | Color Filters | Actions */}
+        <div className="mb-3 flex items-center gap-3">
+          {/* Logo + Title */}
           <div className="flex shrink-0 items-center gap-3">
             <img
               src="/read-the-bones-art.jpg"
@@ -353,177 +364,155 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
               title="The dead know lessons the living haven't learned."
               className="h-8 w-10 rounded object-cover shadow-sm"
             />
-            <h1 className="text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+            <h1 className="hidden text-xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100 sm:block">
               Read the Bones
             </h1>
           </div>
 
-          {/* Right: Search + Filters + Actions */}
-          <div className="flex flex-1 items-center justify-end gap-3">
-            {/* Search Input */}
-            <div className="min-w-0 flex-1">
-              <label htmlFor="search" className="sr-only">
-                Search cards
-              </label>
-              <div className="flex items-center gap-2">
-                <div className="relative w-full xl:max-w-md">
-                  <input
-                    id="search"
-                    type="text"
-                    placeholder="Search cards..."
-                    value={search.searchQuery}
-                    onChange={(e) => search.setSearchQuery(e.target.value)}
-                    className="w-full rounded-lg border border-zinc-300 bg-white py-1.5 pl-3 pr-8 text-sm text-zinc-900 placeholder-zinc-500 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-400"
-                  />
-                  {search.searchQuery && (
-                    <button
-                      type="button"
-                      onClick={search.clearSearch}
-                      className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-zinc-400 hover:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-zinc-500 dark:hover:text-zinc-300"
-                      aria-label="Clear search"
-                    >
-                      <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-                {/* Syntax help tooltip */}
-                <div className="group relative hidden sm:block">
-                  <button
-                    type="button"
-                    className="flex h-5 w-5 items-center justify-center rounded-full border border-zinc-300 text-[10px] font-medium text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-600 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300"
-                    aria-label="Search syntax help"
-                    onMouseEnter={() => {
-                      if (!searchHelpTrackedRef.current) {
-                        searchHelpTrackedRef.current = true;
-                        track("search_help_viewed");
-                      }
-                    }}
-                  >
-                    ?
-                  </button>
-                  <div className="absolute left-1/2 top-full z-50 mt-2 hidden w-64 -translate-x-1/2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-lg group-hover:block dark:border-zinc-700 dark:bg-zinc-800">
-                    <div className="mb-2 font-medium text-zinc-900 dark:text-zinc-100">
-                      Search Syntax
-                    </div>
-                    <ul className="space-y-1 text-zinc-600 dark:text-zinc-300">
-                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">t:creature</code> type</li>
-                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">o:flying</code> oracle text</li>
-                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">o:&quot;draw a card&quot;</code> phrase</li>
-                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">c:r</code> color (w/u/b/r/g/c/m)</li>
-                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">c=ub</code> exact colors</li>
-                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">id:ubr</code> color identity</li>
-                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">m:GG</code> mana cost</li>
-                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">mv=3</code> <code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">mv&lt;=2</code> mana value</li>
-                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">-t:land</code> negation</li>
-                      <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">or</code> <code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">( )</code> logic</li>
-                    </ul>
-                    <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
-                      <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-700">t:instant c:u</code> = AND, <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-700">(t:instant or t:sorcery) c:u</code> = grouped OR
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Color Filter — hidden below sm */}
-            <div className="hidden sm:block">
-              <ColorFilter
-                selected={search.colorFilter}
-                onChange={search.setColorFilter}
-                mode={search.colorFilterMode}
-                onModeChange={search.setColorFilterMode}
-              />
-            </div>
-
-            {/* Active Draft Indicator — hidden below md to preserve search bar width */}
-            {draftSelection.activeDraft && (
-              <div className="hidden md:block">
-                <ActiveDraftIndicator
-                  draftName={draftSelection.activeDraft}
-                  availableCount={availableCount}
-                  bannedCardNames={cardData.bannedCardNames}
-                  lastSyncedAt={syncStatus.lastSyncedAt}
-                  syncInProgress={syncStatus.syncInProgress || syncStatus.manualSyncInFlight}
-                  draftComplete={!syncStatus.activeDrafts.some(d => d.id === draftSelection.activeDraft)}
-                  onSyncNow={syncStatus.triggerSync}
-                  syncDisabled={syncStatus.manualSyncInFlight}
-                />
-              </div>
+          {/* Search — fills available space */}
+          <div className="relative min-w-0 flex-1">
+            <label htmlFor="search" className="sr-only">
+              Search cards
+            </label>
+            <input
+              id="search"
+              type="text"
+              placeholder="Search cards..."
+              value={search.searchQuery}
+              onChange={(e) => search.setSearchQuery(e.target.value)}
+              className="w-full rounded-lg border border-zinc-300 bg-white py-1.5 pl-3 pr-8 text-sm text-zinc-900 placeholder-zinc-500 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-400"
+            />
+            {search.searchQuery && (
+              <button
+                type="button"
+                onClick={search.clearSearch}
+                className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-zinc-400 hover:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-zinc-500 dark:hover:text-zinc-300"
+                aria-label="Clear search"
+              >
+                <svg className="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             )}
+          </div>
 
-            {/* Divider */}
-            <div className="hidden h-5 w-px bg-zinc-300 dark:bg-zinc-600 lg:block" />
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-1">
-              {draftSelection.activeDraft && (
-                <button
-                  onClick={() => setDraftBoardOpen(!draftBoardOpen)}
-                  className={`cursor-pointer rounded-md p-2 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
-                    draftSelection.activeDraft && mySeat !== null && isMyTurn
-                      ? "text-emerald-400 animate-pulse"
-                      : "text-zinc-500 dark:text-zinc-400"
-                  }`}
-                  title={`Pod View — ${draftSelection.activeDraft}`}
-                  aria-label={`Pod View — ${draftSelection.activeDraft}`}
-                >
-                  <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                    <rect x="1" y="1" width="6" height="6" rx="1" />
-                    <rect x="9" y="1" width="6" height="6" rx="1" />
-                    <rect x="1" y="9" width="6" height="6" rx="1" />
-                    <rect x="9" y="9" width="6" height="6" rx="1" />
-                  </svg>
-                </button>
-              )}
-              {draftSelection.activeDraft && draftSelection.selectedSeat !== null && (
-                <button
-                  onClick={() => {
-                    const wasOpen = deckBuilderModalOpen;
-                    if (!deckBuilderActive) setDeckBuilderActive(true);
-                    setDeckBuilderModalOpen(!wasOpen);
-                    if (!wasOpen && draftSelection.activeDraft && draftSelection.selectedSeat !== null) {
-                      track("deck_builder_open", {
-                        draft: draftSelection.activeDraft,
-                        seat: draftSelection.selectedSeat,
-                      });
-                    }
-                  }}
-                  title="Deck Builder"
-                  aria-label="Deck Builder"
-                  className={`cursor-pointer rounded-lg p-2 transition-colors ${
-                    deckBuilderModalOpen
-                      ? "bg-blue-600 text-white shadow-sm shadow-blue-900/40 hover:bg-blue-500"
-                      : deckBuilderActive
-                        ? "text-blue-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                        : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
-                  }`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-6 w-6">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 6.878V6a2.25 2.25 0 0 1 2.25-2.25h7.5A2.25 2.25 0 0 1 18 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 0 0 4.5 9v.878m13.5-3A2.25 2.25 0 0 1 19.5 9v.878m-15 0A2.247 2.247 0 0 0 3 12v6.75A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V12c0-.796-.413-1.496-1.035-1.896" />
-                  </svg>
-                </button>
-              )}
-              <StatsModal data={draftStats} />
-              <Settings
-                drafts={drafts}
-                selectedDrafts={draftSelection.selectedDrafts}
-                onDraftsChange={onDraftsChange}
-                isLoading={isLoading}
-                activeDrafts={syncStatus.activeDrafts}
-                activeDraft={draftSelection.activeDraft}
-                onActiveDraftChange={handleActiveDraftChange}
-                hideTaken={draftSelection.hideTaken}
-                onHideTakenChange={draftSelection.setHideTaken}
-                poolAsOfDraft={effectivePoolAsOfDraft}
-                onPoolAsOfDraftChange={handlePoolAsOfChange}
-                poolLockedByActiveDraft={draftSelection.activeDraft !== null}
-                selectedSeat={draftSelection.selectedSeat}
-                onSelectedSeatChange={handleSeatChange}
-                activeDraftNumSeats={activeDraftNumSeats}
-              />
+          {/* Syntax help tooltip */}
+          <div className="group relative hidden sm:block">
+            <button
+              type="button"
+              className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-zinc-300 text-[10px] font-medium text-zinc-500 hover:border-zinc-400 hover:text-zinc-700 dark:border-zinc-600 dark:text-zinc-400 dark:hover:border-zinc-500 dark:hover:text-zinc-300"
+              aria-label="Search syntax help"
+              onMouseEnter={() => {
+                if (!searchHelpTrackedRef.current) {
+                  searchHelpTrackedRef.current = true;
+                  track("search_help_viewed");
+                }
+              }}
+            >
+              ?
+            </button>
+            <div className="absolute left-1/2 top-full z-50 mt-2 hidden w-64 -translate-x-1/2 rounded-lg border border-zinc-200 bg-white p-3 text-sm shadow-lg group-hover:block dark:border-zinc-700 dark:bg-zinc-800">
+              <div className="mb-2 font-medium text-zinc-900 dark:text-zinc-100">
+                Search Syntax
+              </div>
+              <ul className="space-y-1 text-zinc-600 dark:text-zinc-300">
+                <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">t:creature</code> type</li>
+                <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">o:flying</code> oracle text</li>
+                <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">o:&quot;draw a card&quot;</code> phrase</li>
+                <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">c:r</code> color (w/u/b/r/g/c/m)</li>
+                <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">c=ub</code> exact colors</li>
+                <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">id:ubr</code> color identity</li>
+                <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">m:GG</code> mana cost</li>
+                <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">mv=3</code> <code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">mv&lt;=2</code> mana value</li>
+                <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">-t:land</code> negation</li>
+                <li><code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">or</code> <code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-700">( )</code> logic</li>
+              </ul>
+              <div className="mt-2 text-xs text-zinc-500 dark:text-zinc-400">
+                <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-700">t:instant c:u</code> = AND, <code className="rounded bg-zinc-100 px-1 dark:bg-zinc-700">(t:instant or t:sorcery) c:u</code> = grouped OR
+              </div>
             </div>
+          </div>
+
+          {/* Color Filter — hidden below lg */}
+          <div className="hidden shrink-0 lg:block">
+            <ColorFilter
+              selected={search.colorFilter}
+              onChange={search.setColorFilter}
+              mode={search.colorFilterMode}
+              onModeChange={search.setColorFilterMode}
+            />
+          </div>
+
+          {/* Divider — visible when color filters are */}
+          <div className="hidden h-5 w-px bg-zinc-300 dark:bg-zinc-600 lg:block" />
+
+          {/* Action Buttons */}
+          <div className="flex shrink-0 items-center gap-1">
+            {draftSelection.activeDraft && draftSelection.selectedSeat !== null && (
+              <button
+                onClick={() => setDraftBoardOpen(!draftBoardOpen)}
+                className={`cursor-pointer rounded-md p-2 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+                  mySeat !== null && isMyTurn
+                    ? "text-emerald-400 animate-pulse"
+                    : "text-zinc-500 dark:text-zinc-400"
+                }`}
+                title={isMyTurn ? "Your Pick!" : `${draftSelection.activeDraft}, Seat ${draftSelection.selectedSeat}`}
+                aria-label={isMyTurn ? "Your Pick!" : `Pod View — ${draftSelection.activeDraft}, Seat ${draftSelection.selectedSeat}`}
+              >
+                <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                  <rect x="1" y="1" width="6" height="6" rx="1" />
+                  <rect x="9" y="1" width="6" height="6" rx="1" />
+                  <rect x="1" y="9" width="6" height="6" rx="1" />
+                  <rect x="9" y="9" width="6" height="6" rx="1" />
+                </svg>
+              </button>
+            )}
+            {draftSelection.activeDraft && draftSelection.selectedSeat !== null && (
+              <button
+                onClick={() => {
+                  const wasOpen = deckBuilderModalOpen;
+                  if (!deckBuilderActive) setDeckBuilderActive(true);
+                  setDeckBuilderModalOpen(!wasOpen);
+                  if (!wasOpen && draftSelection.activeDraft && draftSelection.selectedSeat !== null) {
+                    track("deck_builder_open", {
+                      draft: draftSelection.activeDraft,
+                      seat: draftSelection.selectedSeat,
+                    });
+                  }
+                }}
+                title="Deck Builder"
+                aria-label="Deck Builder"
+                className={`cursor-pointer rounded-lg p-2 transition-colors ${
+                  deckBuilderModalOpen
+                    ? "bg-blue-600 text-white shadow-sm shadow-blue-900/40 hover:bg-blue-500"
+                    : deckBuilderActive
+                      ? "text-blue-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                }`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-6 w-6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 6.878V6a2.25 2.25 0 0 1 2.25-2.25h7.5A2.25 2.25 0 0 1 18 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 0 0 4.5 9v.878m13.5-3A2.25 2.25 0 0 1 19.5 9v.878m-15 0A2.247 2.247 0 0 0 3 12v6.75A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V12c0-.796-.413-1.496-1.035-1.896" />
+                </svg>
+              </button>
+            )}
+            <StatsModal data={draftStats} />
+            <Settings
+              drafts={drafts}
+              selectedDrafts={draftSelection.selectedDrafts}
+              onDraftsChange={onDraftsChange}
+              isLoading={isLoading}
+              activeDrafts={syncStatus.activeDrafts}
+              activeDraft={draftSelection.activeDraft}
+              onActiveDraftChange={handleActiveDraftChange}
+              hideTaken={draftSelection.hideTaken}
+              onHideTakenChange={draftSelection.setHideTaken}
+              poolAsOfDraft={effectivePoolAsOfDraft}
+              onPoolAsOfDraftChange={handlePoolAsOfChange}
+              poolLockedByActiveDraft={draftSelection.activeDraft !== null}
+              selectedSeat={draftSelection.selectedSeat}
+              onSelectedSeatChange={handleSeatChange}
+              activeDraftNumSeats={activeDraftNumSeats}
+            />
           </div>
         </div>
 
@@ -603,6 +592,8 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
           token={seatToken.token}
           draftId={draftSelection.activeDraft}
           draftName={cardData.draftMetadata[draftSelection.activeDraft]?.name}
+          availableCount={availableCount}
+          bannedCardNames={cardData.bannedCardNames}
           isOpen={draftBoardOpen}
           onClose={() => setDraftBoardOpen(false)}
           onMatchReported={() => draftBoard.refresh()}
@@ -655,7 +646,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
         cardStatus={selectedCard ? getCardStatus(selectedCard).status : "none"}
         queuePosition={selectedCard ? getCardStatus(selectedCard).queuePosition : undefined}
         onPick={selectedCard ? () => handlePick(selectedCard) : undefined}
-        onQueue={selectedCard ? () => pickQueue.addToQueue(selectedCard) : undefined}
+        onQueue={selectedCard && !(isMyTurn && pickQueue.queue.length === 0 && autoPick) ? () => pickQueue.addToQueue(selectedCard) : undefined}
         onUnqueue={selectedCard ? () => pickQueue.removeFromQueue(selectedCard) : undefined}
         onFloat={selectedCard ? () => addFloat(selectedCard) : undefined}
         onUnfloat={selectedCard ? () => removeFloat(selectedCard) : undefined}

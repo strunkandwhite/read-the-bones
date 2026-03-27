@@ -39,11 +39,13 @@ export function QueuePanel({
 
   return (
     <div className="mt-4 rounded-lg border border-zinc-800/60 bg-zinc-900/50 p-4">
-      {/* Header with auto-pick toggle */}
-      <div className="mb-3 flex items-center justify-between">
-        <span className="text-[13px] font-semibold tracking-tight text-zinc-200">
-          Pick Queue
-        </span>
+      {/* Header */}
+      <div className="mb-2 text-[13px] font-semibold tracking-tight text-zinc-200">
+        Pick Queue
+      </div>
+
+      {/* Auto-pick controls */}
+      <div className="mb-3 flex items-center gap-3">
         <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-400">
           <span>Auto-pick</span>
           <input
@@ -53,39 +55,31 @@ export function QueuePanel({
             className="cursor-pointer"
           />
         </label>
+        {autoPick && (
+          <div className="flex items-center gap-2 text-[11px] text-zinc-400">
+            <label className="flex cursor-pointer items-center gap-1" title="Skips taken cards and picks the next available card in your queue">
+              <input
+                type="radio"
+                name="autoPickMode"
+                checked={autoPickMode === "resilient"}
+                onChange={() => onChangeAutoPickMode("resilient")}
+                className="cursor-pointer accent-amber-500"
+              />
+              <span className={autoPickMode === "resilient" ? "text-amber-200" : ""}>Resilient</span>
+            </label>
+            <label className="flex cursor-pointer items-center gap-1" title="Pauses and waits for you if your top queued card was already taken">
+              <input
+                type="radio"
+                name="autoPickMode"
+                checked={autoPickMode === "cautious"}
+                onChange={() => onChangeAutoPickMode("cautious")}
+                className="cursor-pointer accent-blue-500"
+              />
+              <span className={autoPickMode === "cautious" ? "text-blue-300" : ""}>Cautious</span>
+            </label>
+          </div>
+        )}
       </div>
-
-      {/* Mode selector — only visible when auto-pick is on */}
-      {autoPick && (
-        <div className="mb-3 flex gap-2">
-          <button
-            onClick={() => onChangeAutoPickMode("resilient")}
-            className={`flex-1 cursor-pointer rounded-md border px-2.5 py-1.5 text-left text-[11px] ${
-              autoPickMode === "resilient"
-                ? "border-yellow-800 bg-yellow-800/20 text-amber-200"
-                : "border-zinc-800/60 bg-transparent text-zinc-500"
-            }`}
-          >
-            <div className="font-semibold">Resilient</div>
-            <div className="mt-0.5 opacity-80">
-              Skips taken cards, picks next available
-            </div>
-          </button>
-          <button
-            onClick={() => onChangeAutoPickMode("cautious")}
-            className={`flex-1 cursor-pointer rounded-md border px-2.5 py-1.5 text-left text-[11px] ${
-              autoPickMode === "cautious"
-                ? "border-blue-900 bg-blue-900/20 text-blue-300"
-                : "border-zinc-800/60 bg-transparent text-zinc-500"
-            }`}
-          >
-            <div className="font-semibold">Cautious</div>
-            <div className="mt-0.5 opacity-80">
-              Pauses if top pick was taken
-            </div>
-          </button>
-        </div>
-      )}
 
       {/* Queue list */}
       {queue.length === 0 ? (

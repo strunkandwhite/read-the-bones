@@ -16,6 +16,8 @@ interface DraftBoardModalProps {
   token: string | null;
   draftId: string;
   draftName?: string;
+  availableCount?: number;
+  bannedCardNames?: string[];
   isOpen: boolean;
   onClose: () => void;
   onMatchReported: () => void;
@@ -45,6 +47,8 @@ export function DraftBoardModal({
   token,
   draftId,
   draftName,
+  availableCount,
+  bannedCardNames,
   isOpen,
   onClose,
   onMatchReported,
@@ -148,6 +152,14 @@ export function DraftBoardModal({
             >
               {phase}
             </span>
+            {availableCount !== undefined && (
+              <span style={{ fontSize: "11px", color: "#a1a1aa" }}>
+                {availableCount} available
+                {bannedCardNames && bannedCardNames.length > 0 && (
+                  <span style={{ color: "#71717a" }}>{" · "}{bannedCardNames.length} banned</span>
+                )}
+              </span>
+            )}
           </div>
           <button
             onClick={onClose}

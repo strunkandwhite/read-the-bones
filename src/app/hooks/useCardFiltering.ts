@@ -15,7 +15,6 @@ interface UseCardFilteringProps {
 interface UseCardFilteringReturn {
   displayCards: EnrichedCardStats[];
   searchFilteredCards: EnrichedCardStats[];
-  availableCount: number;
   takenCardNamesSet: Set<string> | undefined;
   seatCardNames: Set<string> | undefined;
   seatCardList: string[] | undefined;
@@ -90,13 +89,6 @@ export function useCardFiltering({
     isBanned,
   ]);
 
-  const availableCount = useMemo(() => {
-    if (!activeDraft || !takenCardNamesSet) return 0;
-    return cardData.cards.filter(
-      (c) => !takenCardNamesSet.has(c.cardName) && !isBanned(c.cardName)
-    ).length;
-  }, [activeDraft, cardData, takenCardNamesSet, isBanned]);
-
   // Filter displayed cards by Scryfall results when available
   const filteredDisplayedCards = useMemo(() => {
     if (!scryfallMatchNames) return displayCards;
@@ -116,7 +108,6 @@ export function useCardFiltering({
   return {
     displayCards,
     searchFilteredCards,
-    availableCount,
     takenCardNamesSet,
     seatCardNames,
     seatCardList,

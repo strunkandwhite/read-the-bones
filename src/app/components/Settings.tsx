@@ -247,6 +247,23 @@ export function Settings({
                 />
               </div>
 
+              {/* Clear local state */}
+              <div className="border-t border-zinc-200 pt-6 dark:border-zinc-700">
+                <button
+                  onClick={() => {
+                    localStorage.clear();
+                    track("clear_local_state");
+                    window.location.reload();
+                  }}
+                  className="w-full cursor-pointer rounded-lg border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700 transition-colors hover:bg-red-100 dark:border-red-800 dark:bg-red-950/50 dark:text-red-400 dark:hover:bg-red-950"
+                >
+                  Clear local state
+                </button>
+                <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                  Resets draft selection, seat tokens, and deck builder data.
+                </p>
+              </div>
+
             </div>
           </div>
         </div>

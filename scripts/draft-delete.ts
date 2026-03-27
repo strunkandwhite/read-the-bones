@@ -28,6 +28,7 @@ async function main() {
   // Delete in dependency order
   const tables = [
     "pick_queue",
+    "floated_cards",
     "match_events",
     "pick_events",
     "deck_cards",

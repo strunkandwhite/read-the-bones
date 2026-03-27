@@ -55,6 +55,7 @@ pnpm decklists tarkir          # Fetch decklists for a specific draft
 
 # Live draft commands
 pnpm draft:create-live --name "Name" --date 2026-04-01 --seats 10 --picks-per-player 45 --pool cubecobra:<id>
+# Default cube ID for new drafts: cubecobra:samp
 pnpm draft:start <name>              # Start drafting (setup → drafting)
 pnpm draft:admin <subcommand>        # Admin tools (undo-pick, edit-pick, regen-token, set-phase, add-ban, remove-ban, enter-match)
 ```

@@ -9,6 +9,8 @@ import { log } from "./utils";
  */
 export async function resetDraft(client: Client, draftId: string): Promise<void> {
   await client.batch([
+    { sql: "DELETE FROM pick_queue WHERE draft_id = ?", args: [draftId] },
+    { sql: "DELETE FROM floated_cards WHERE draft_id = ?", args: [draftId] },
     { sql: "DELETE FROM match_events WHERE draft_id = ?", args: [draftId] },
     { sql: "DELETE FROM deck_cards WHERE draft_id = ?", args: [draftId] },
     { sql: "DELETE FROM deck_hashes WHERE draft_id = ?", args: [draftId] },
