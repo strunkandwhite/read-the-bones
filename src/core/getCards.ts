@@ -175,6 +175,31 @@ async function loadDraftMetadata(client: Client): Promise<DraftMetadataResult | 
 }
 
 /**
+ * Step 2: Query pool sizes for each cube snapshot.
+ */
+async function getCubePoolSizes(
+  client: Client,
+  uniqueCubeSnapshots: number[],
+): Promise<Map<number, number>> {
+  if (uniqueCubeSnapshots.length === 0) return new Map();
+
+  const placeholders = uniqueCubeSnapshots.map(() => "?").join(", ");
+  const cubeSizesResult = await client.execute({
+    sql: `SELECT cube_snapshot_id, SUM(qty) as pool_size
+          FROM cube_snapshot_cards
+          WHERE cube_snapshot_id IN (${placeholders})
+          GROUP BY cube_snapshot_id`,
+    args: [...uniqueCubeSnapshots],
+  });
+
+  const poolSizes = new Map<number, number>();
+  for (const row of cubeSizesResult.rows) {
+    poolSizes.set(row.cube_snapshot_id as number, row.pool_size as number);
+  }
+  return poolSizes;
+}
+
+/**
  * Compute card statistics from the Turso database.
  *
  * When no draftIds are specified, stats are computed across all completed drafts.
@@ -212,20 +237,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
 
   // 2. Get pool sizes for each cube snapshot
   const uniqueCubeSnapshots = [...new Set(draftCubeSnapshots.values())];
-  const cubeSnapshotPlaceholders = uniqueCubeSnapshots.map(() => "?").join(", ");
-
-  const cubeSizesResult = await client.execute({
-    sql: `SELECT cube_snapshot_id, SUM(qty) as pool_size
-          FROM cube_snapshot_cards
-          WHERE cube_snapshot_id IN (${cubeSnapshotPlaceholders})
-          GROUP BY cube_snapshot_id`,
-    args: [...uniqueCubeSnapshots],
-  });
-
-  const poolSizes = new Map<number, number>();
-  for (const row of cubeSizesResult.rows) {
-    poolSizes.set(row.cube_snapshot_id as number, row.pool_size as number);
-  }
+  const poolSizes = await getCubePoolSizes(client, uniqueCubeSnapshots);
 
   // 3. Load all picks with card names and Scryfall data
   const picksResult = await client.execute({
@@ -285,6 +297,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
   }
 
   // 4. Load cube snapshot cards to find unpicked cards
+  const cubeSnapshotPlaceholders = uniqueCubeSnapshots.map(() => "?").join(", ");
   const cubeCardsResult = await client.execute({
     sql: `SELECT csc.cube_snapshot_id, csc.card_id, csc.qty,
                  c.name as card_name, c.scryfall_json
