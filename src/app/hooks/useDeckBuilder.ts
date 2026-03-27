@@ -36,7 +36,6 @@ export function useDeckBuilder({ draftId, seat, token }: UseDeckBuilderProps) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlightRef = useRef(false);
   const pendingSaveRef = useRef(false);
-  const prevKeyRef = useRef(`${draftId}:${seat}`);
   // Tracks whether the current state was loaded from the server (not a user edit)
   const justHydratedRef = useRef(false);
 
@@ -104,15 +103,6 @@ export function useDeckBuilder({ draftId, seat, token }: UseDeckBuilderProps) {
     fetchDeckState();
     return () => { cancelled = true; };
   }, [draftId, seat, token]);
-
-  // Reset when draft/seat changes
-  useEffect(() => {
-    const newKey = `${draftId}:${seat}`;
-    if (newKey !== prevKeyRef.current) {
-      prevKeyRef.current = newKey;
-      // The fetch effect above will re-run due to dependency change
-    }
-  }, [draftId, seat]);
 
   // Mark dirty and schedule save on state changes (skip initial hydration)
   useEffect(() => {
