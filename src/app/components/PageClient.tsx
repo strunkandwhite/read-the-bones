@@ -657,6 +657,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
         onFloat={selectedCard ? () => addFloat(selectedCard) : undefined}
         onUnfloat={selectedCard ? () => removeFloat(selectedCard) : undefined}
         isLocal={isLocal}
+        excludeDraftId={liveDraftStatus.status?.phase === "drafting" ? draftSelection.activeDraft ?? undefined : undefined}
       />
     </div>
   );

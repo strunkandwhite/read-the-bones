@@ -27,11 +27,12 @@ type CardStatsModalProps = {
   onFloat?: () => void;
   onUnfloat?: () => void;
   isLocal?: boolean;
+  excludeDraftId?: string;
 };
 
 export function CardStatsModal(props: CardStatsModalProps) {
-  const { cardName, isOpen, onClose, draftId, isLocal } = props;
-  const { data, loading } = useCardStats(isOpen ? cardName : null, draftId);
+  const { cardName, isOpen, onClose, draftId, isLocal, excludeDraftId } = props;
+  const { data, loading } = useCardStats(isOpen ? cardName : null, draftId, excludeDraftId);
 
   // Escape key handler
   useEffect(() => {

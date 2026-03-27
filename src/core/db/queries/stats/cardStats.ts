@@ -18,6 +18,7 @@ const MIN_SAMPLE_SIZE = 5;
 export interface GetCardStatsParams {
   card_name: string;
   draft_id?: string;
+  exclude_draft_id?: string;
   date_from?: string;
   date_to?: string;
   draft_name?: string;
@@ -96,6 +97,7 @@ export async function getCardStats(
     getCardPickStats({
       card_name: card.name,
       card_id: cardId,
+      exclude_draft_id: params.exclude_draft_id,
       date_from: params.date_from,
       date_to: params.date_to,
       draft_name: params.draft_name,
@@ -104,10 +106,11 @@ export async function getCardStats(
       card_name: card.name,
       card_id: cardId,
       draft_id: params.draft_id,
+      exclude_draft_id: params.exclude_draft_id,
       deck_colors: params.deck_colors,
     }),
-    getPickHistory(client, card.name, params.draft_id),
-    getColorPairBreakdown(client, card.name, params.draft_id),
+    getPickHistory(client, card.name, params.draft_id, params.exclude_draft_id),
+    getColorPairBreakdown(client, card.name, params.draft_id, params.exclude_draft_id),
   ]);
 
   // Build play stats
@@ -120,6 +123,7 @@ export async function getCardStats(
       card_name: card.name,
       card_id: cardId,
       draft_id: params.draft_id,
+      exclude_draft_id: params.exclude_draft_id,
       deck_colors: params.deck_colors,
     });
     if (playStats && playStats.times_drafted > 0) {
@@ -169,6 +173,7 @@ export async function getCardStats(
       card_name: card.name,
       card_id: cardId,
       draft_id: params.draft_id,
+      exclude_draft_id: params.exclude_draft_id,
     });
     if (overallWinStats && overallWinStats.times_maindecked > 0) {
       const totalGames = overallWinStats.game_wins + overallWinStats.game_losses;

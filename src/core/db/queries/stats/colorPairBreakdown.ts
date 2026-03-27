@@ -21,10 +21,13 @@ export async function getColorPairBreakdown(
   client: Client,
   cardName: string,
   draftId?: string,
+  excludeDraftId?: string,
 ): Promise<ColorPairEntry[]> {
   const draftFilter = draftId ? "AND dc.draft_id = ?" : "";
+  const excludeFilter = excludeDraftId ? "AND dc.draft_id != ?" : "";
   const args: (string | number)[] = [cardName];
   if (draftId) args.push(draftId);
+  if (excludeDraftId) args.push(excludeDraftId);
 
   // Get all maindecked cards' Scryfall data for decks containing the target card.
   // Self-join: dc finds decks containing the target card, dc2 gets all cards in those decks.
@@ -35,7 +38,7 @@ export async function getColorPairBreakdown(
           JOIN deck_cards dc2 ON dc2.draft_id = dc.draft_id AND dc2.seat = dc.seat
             AND dc2.zone = 'deck'
           JOIN cards c2 ON c2.card_id = dc2.card_id
-          WHERE c.name = ? AND dc.zone = 'deck' ${draftFilter}`,
+          WHERE c.name = ? AND dc.zone = 'deck' ${draftFilter} ${excludeFilter}`,
     args,
   });
 

@@ -39,10 +39,13 @@ export async function getPickHistory(
   client: Client,
   cardName: string,
   draftId?: string,
+  excludeDraftId?: string,
 ): Promise<PickHistoryResult> {
   const draftFilter = draftId ? "AND d.draft_id = ?" : "";
+  const excludeFilter = excludeDraftId ? "AND d.draft_id != ?" : "";
   const args: string[] = [cardName];
   if (draftId) args.push(draftId);
+  if (excludeDraftId) args.push(excludeDraftId);
 
   // Left join pick_events to include drafts where card was in pool but not picked.
   // cube_snapshot_cards uses card_id (FK to cards), so we join through cards for name matching.
@@ -57,7 +60,7 @@ export async function getPickHistory(
           JOIN cube_snapshot_cards cs ON cs.cube_snapshot_id = d.cube_snapshot_id
             AND cs.card_id = c.card_id
           LEFT JOIN pick_events pe ON pe.draft_id = d.draft_id AND pe.card_id = c.card_id
-          WHERE d.phase != 'setup' ${draftFilter}
+          WHERE d.phase != 'setup' ${draftFilter} ${excludeFilter}
           ORDER BY d.draft_date ASC`,
     args,
   });

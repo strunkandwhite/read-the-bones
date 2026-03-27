@@ -10,17 +10,18 @@ type CardStatsData = {
   color_pair_breakdown: Array<{ colorPair: string; percentage: number; deckCount: number }>;
 };
 
-export function useCardStats(cardName: string | null, draftId?: string) {
+export function useCardStats(cardName: string | null, draftId?: string, excludeDraftId?: string) {
   const [data, setData] = useState<CardStatsData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchStats = useCallback(async (name: string, draft?: string) => {
+  const fetchStats = useCallback(async (name: string, draft?: string, exclude?: string) => {
     setLoading(true);
     setError(null);
     try {
       const params = new URLSearchParams({ card_name: name });
       if (draft) params.set("draft_id", draft);
+      if (exclude) params.set("exclude_draft_id", exclude);
       const res = await fetch(`/api/cards/stats?${params}`);
       if (!res.ok) throw new Error(`Stats fetch failed: ${res.status}`);
       setData(await res.json());
@@ -36,8 +37,8 @@ export function useCardStats(cardName: string | null, draftId?: string) {
       setData(null);
       return;
     }
-    fetchStats(cardName, draftId);
-  }, [cardName, draftId, fetchStats]);
+    fetchStats(cardName, draftId, excludeDraftId);
+  }, [cardName, draftId, excludeDraftId, fetchStats]);
 
   return { data, loading, error };
 }

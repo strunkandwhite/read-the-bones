@@ -72,6 +72,7 @@ export interface GetCardPlayStatsParams {
   card_name: string;
   card_id?: number;
   draft_id?: string;
+  exclude_draft_id?: string;
   deck_colors?: string;
 }
 
@@ -105,13 +106,17 @@ export async function getCardPlayStats(
   const draftFilter = params.draft_id
     ? "AND dc.draft_id = ?"
     : "";
+  const excludeFilter = params.exclude_draft_id
+    ? "AND dc.draft_id != ?"
+    : "";
   const args: (string | number)[] = [card_id];
   if (params.draft_id) args.push(params.draft_id);
+  if (params.exclude_draft_id) args.push(params.exclude_draft_id);
 
   const result = await client.execute({
     sql: `SELECT dc.draft_id, dc.seat, dc.zone
           FROM deck_cards dc
-          WHERE dc.card_id = ? ${draftFilter}`,
+          WHERE dc.card_id = ? ${draftFilter} ${excludeFilter}`,
     args,
   });
 
@@ -183,6 +188,7 @@ export interface GetCardWinStatsParams {
   card_name: string;
   card_id?: number;
   draft_id?: string;
+  exclude_draft_id?: string;
   deck_colors?: string;
 }
 
@@ -215,8 +221,10 @@ export async function getCardWinStats(
   const client = await getClient();
 
   const draftFilter = params.draft_id ? "AND dc.draft_id = ?" : "";
+  const excludeFilter = params.exclude_draft_id ? "AND dc.draft_id != ?" : "";
   const args: (string | number)[] = [card_id];
   if (params.draft_id) args.push(params.draft_id);
+  if (params.exclude_draft_id) args.push(params.exclude_draft_id);
 
   // Find seats that maindecked this card and have match data
   const result = await client.execute({
@@ -232,7 +240,7 @@ export async function getCardWinStats(
           FROM deck_cards dc
           JOIN match_events me ON me.draft_id = dc.draft_id
             AND (me.seat1 = dc.seat OR me.seat2 = dc.seat)
-          WHERE dc.card_id = ? AND dc.zone = 'deck' ${draftFilter}
+          WHERE dc.card_id = ? AND dc.zone = 'deck' ${draftFilter} ${excludeFilter}
           GROUP BY dc.draft_id, dc.seat`,
     args,
   });

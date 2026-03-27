@@ -11,6 +11,7 @@ export async function GET(request: NextRequest) {
     const result = await queries.getCardStats({
       card_name: cardName,
       draft_id: searchParams.get("draft_id") ?? undefined,
+      exclude_draft_id: searchParams.get("exclude_draft_id") ?? undefined,
       date_from: searchParams.get("date_from") ?? undefined,
       date_to: searchParams.get("date_to") ?? undefined,
       draft_name: searchParams.get("draft_name") ?? undefined,

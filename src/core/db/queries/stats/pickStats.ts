@@ -10,6 +10,7 @@ import { DEFAULT_POOL_SIZE } from "../../../types";
 export interface GetCardPickStatsParams {
   card_name: string;
   card_id?: number;
+  exclude_draft_id?: string;
   date_from?: string;
   date_to?: string;
   draft_name?: string;
@@ -64,6 +65,11 @@ export async function getCardPickStats(
   if (params.draft_name) {
     draftConditions.push("LOWER(d.draft_name) LIKE LOWER(?)");
     draftArgs.push(`%${params.draft_name}%`);
+  }
+
+  if (params.exclude_draft_id) {
+    draftConditions.push("d.draft_id != ?");
+    draftArgs.push(params.exclude_draft_id);
   }
 
   const draftWhere =
