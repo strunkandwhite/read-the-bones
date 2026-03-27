@@ -87,6 +87,14 @@ export function CardTable({
     };
   }, [breakpoint, isDesktopOrWider]);
 
+  // Store getCardStatus in a ref so the columns memo doesn't rebuild on
+  // every queue/float change. Cell renderers read the ref at render time,
+  // which always reflects the latest value.
+  const getCardStatusRef = useRef(getCardStatus);
+  useEffect(() => {
+    getCardStatusRef.current = getCardStatus;
+  }, [getCardStatus]);
+
   const handleSortingChange = useCallback((updater: SortingState | ((prev: SortingState) => SortingState)) => {
     setSorting((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
@@ -107,7 +115,7 @@ export function CardTable({
         header: "Card",
         size: 260,
         cell: ({ row }) => {
-          const cs = getCardStatus?.(row.original.cardName);
+          const cs = getCardStatusRef.current?.(row.original.cardName);
           return (
             <CardNameCell
               card={row.original}
@@ -166,7 +174,7 @@ export function CardTable({
         },
       }),
     ],
-    [currentCubeCopies, getCardStatus]
+    [currentCubeCopies]
   );
 
   const filteredData = useMemo(() => {
