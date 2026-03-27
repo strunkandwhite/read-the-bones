@@ -18,6 +18,7 @@ export function InlineEditableName({
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState(currentName);
   const inputRef = useRef<HTMLInputElement>(null);
+  const savingRef = useRef(false);
 
   useEffect(() => {
     if (isEditing && inputRef.current) {
@@ -32,17 +33,28 @@ export function InlineEditableName({
   }, [currentName, isEditing]);
 
   const handleSave = useCallback(async () => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+
     const trimmed = editValue.trim();
     setIsEditing(false);
 
     // No change: name is same, or clearing when already at fallback
-    if (trimmed === currentName) return;
-    if (trimmed === "" && currentName === `Seat ${seatNumber}`) return;
+    if (trimmed === currentName) {
+      savingRef.current = false;
+      return;
+    }
+    if (trimmed === "" && currentName === `Seat ${seatNumber}`) {
+      savingRef.current = false;
+      return;
+    }
 
     try {
       await onSave(trimmed);
     } catch {
       setEditValue(currentName);
+    } finally {
+      savingRef.current = false;
     }
   }, [editValue, currentName, seatNumber, onSave]);
 
