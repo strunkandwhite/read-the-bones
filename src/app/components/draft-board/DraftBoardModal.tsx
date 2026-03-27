@@ -189,7 +189,6 @@ export function DraftBoardModal({
                 board={board}
                 mySeat={mySeat}
                 nextPickN={nextPick?.pickNumber ?? null}
-                nextSeat={nextPick?.seat ?? null}
                 onUpdateDisplayName={onUpdateDisplayName}
                 handlePick={handlePick}
                 isMyTurn={isMyTurn}

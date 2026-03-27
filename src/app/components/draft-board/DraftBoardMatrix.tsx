@@ -15,7 +15,6 @@ interface DraftBoardMatrixProps {
   board: BoardData;
   mySeat: number | null;
   nextPickN: number | null;
-  nextSeat: number | null;
   onUpdateDisplayName?: (name: string) => Promise<void>;
   handlePick?: (cardName: string) => Promise<void>;
   isMyTurn?: boolean;
@@ -27,7 +26,6 @@ export function DraftBoardMatrix({
   board,
   mySeat,
   nextPickN,
-  nextSeat: _nextSeat,
   onUpdateDisplayName,
   handlePick,
   isMyTurn = false,
