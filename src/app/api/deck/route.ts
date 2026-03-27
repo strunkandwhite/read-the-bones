@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSharedDeck } from "@/core/db/queries/sharedDecks";
+import { getClient } from "@/core/db/client";
+import { createSnapshot } from "@/core/db/queries/decks";
 import type { DeckState } from "@/core/types";
 import { validateDeckState } from "@/core/validateDeckState";
 
@@ -33,7 +34,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { deckId } = await createSharedDeck(deckState);
+    const client = await getClient();
+    const { deckId } = await createSnapshot(client, deckState);
     return NextResponse.json({ deckId });
   } catch (error) {
     console.error("[/api/deck] Error:", error);
