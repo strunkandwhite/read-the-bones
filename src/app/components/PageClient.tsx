@@ -193,6 +193,8 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     refreshSettings,
   });
 
+  const floatedCardsSet = useMemo(() => new Set(floatedCards), [floatedCards]);
+
   // Card status helper: determines whether a card is picked, queued, floated, taken, or none
   const getCardStatus = useCallback(
     (cardName: string): CardStatusResult => {
@@ -206,7 +208,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
         return { status: "queued", queuePosition: queuePriority };
       }
       // Floated (server-side speculative)
-      if (floatedCards.includes(cardName)) {
+      if (floatedCardsSet.has(cardName)) {
         return { status: "floated" };
       }
       // Taken by someone else
@@ -215,17 +217,21 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
       }
       return { status: "none" };
     },
-    [seatCardNames, pickQueue.queuedCards, floatedCards, takenCardNamesSet],
+    [seatCardNames, pickQueue.queuedCards, floatedCardsSet, takenCardNamesSet],
   );
 
   // Get Scryfall image URL for a card
   const getImageUrl = useCallback(
     (cardName: string | null): string | undefined => {
       if (!cardName) return undefined;
-      const card = cardData.cards.find((c) => c.cardName === cardName);
-      return card?.scryfall?.imageUri;
+      return scryfallDataMap.get(cardName)?.imageUri;
     },
-    [cardData.cards],
+    [scryfallDataMap],
+  );
+
+  const selectedCardStatus = useMemo(
+    () => selectedCard ? getCardStatus(selectedCard) : null,
+    [selectedCard, getCardStatus],
   );
 
   // Wrap submitPick to also close the card stats modal after a successful pick
@@ -632,8 +638,8 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
         draftId={draftSelection.activeDraft && liveDraftStatus.status?.phase !== "drafting" ? draftSelection.activeDraft : undefined}
         isLiveDraft={!!draftSelection.activeDraft && liveDraftStatus.status?.phase === "drafting"}
         isMyTurn={isMyTurn}
-        cardStatus={selectedCard ? getCardStatus(selectedCard).status : "none"}
-        queuePosition={selectedCard ? getCardStatus(selectedCard).queuePosition : undefined}
+        cardStatus={selectedCardStatus?.status ?? "none"}
+        queuePosition={selectedCardStatus?.queuePosition}
         onPick={selectedCard ? () => handlePick(selectedCard) : undefined}
         onQueue={selectedCard && !(isMyTurn && pickQueue.queue.length === 0 && autoPick) ? () => pickQueue.addToQueue(selectedCard) : undefined}
         onUnqueue={selectedCard ? () => pickQueue.removeFromQueue(selectedCard) : undefined}
