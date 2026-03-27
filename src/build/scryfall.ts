@@ -1,78 +1,12 @@
 /**
- * Scryfall API integration for fetching card data.
- * Includes rate limiting and file-based caching.
+ * Scryfall file-based cache operations.
+ * Uses Node.js fs for reading/writing cache files.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname } from "path";
 import type { ScryCard } from "../core/types";
-import {
-  SCRYFALL_API_BASE,
-  transformApiResponse,
-  type ScryfallApiResponse,
-} from "../core/scryfallApi";
 import { cardNameKey } from "../core/parseSheetRows";
-
-/**
- * Fetch a single card from the Scryfall API.
- *
- * @param cardName - The exact card name to look up
- * @returns The card data, or null if not found
- */
-export async function fetchCard(cardName: string): Promise<ScryCard | null> {
-  const encodedName = encodeURIComponent(cardName);
-  const url = `${SCRYFALL_API_BASE}/cards/named?exact=${encodedName}`;
-
-  try {
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        console.warn(`[Scryfall] Card not found: "${cardName}"`);
-        return null;
-      }
-      console.warn(
-        `[Scryfall] API error for "${cardName}": ${response.status} ${response.statusText}`
-      );
-      return null;
-    }
-
-    const data = (await response.json()) as ScryfallApiResponse;
-    return transformApiResponse(data);
-  } catch (error) {
-    console.warn(`[Scryfall] Failed to fetch "${cardName}":`, error);
-    return null;
-  }
-}
-
-/**
- * Fetch a single card using Scryfall's fuzzy name matching.
- * Handles Omen Paths digital names and other alternate names.
- */
-export async function fetchCardFuzzy(cardName: string): Promise<ScryCard | null> {
-  const encodedName = encodeURIComponent(cardName);
-  const url = `${SCRYFALL_API_BASE}/cards/named?fuzzy=${encodedName}`;
-
-  try {
-    const response = await fetch(url);
-
-    if (!response.ok) {
-      if (response.status === 404) {
-        return null;
-      }
-      console.warn(
-        `[Scryfall] Fuzzy API error for "${cardName}": ${response.status} ${response.statusText}`
-      );
-      return null;
-    }
-
-    const data = (await response.json()) as ScryfallApiResponse;
-    return transformApiResponse(data);
-  } catch (error) {
-    console.warn(`[Scryfall] Failed fuzzy fetch "${cardName}":`, error);
-    return null;
-  }
-}
 
 /**
  * Load cached card data from a JSON file.

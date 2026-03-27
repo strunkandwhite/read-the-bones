@@ -9,10 +9,14 @@ import {
 import type { CardPick } from "../types";
 
 // Mock Scryfall fetch to avoid network calls in tests
-vi.mock("../../build/scryfall", () => ({
-  fetchCard: vi.fn().mockResolvedValue(null),
-  fetchCardFuzzy: vi.fn().mockResolvedValue(null),
-}));
+vi.mock("../scryfallApi", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../scryfallApi")>();
+  return {
+    ...actual,
+    fetchCard: vi.fn().mockResolvedValue(null),
+    fetchCardFuzzy: vi.fn().mockResolvedValue(null),
+  };
+});
 
 // Helper to create a CardPick with required fields
 function pick(name: string, position: number, seat: number): CardPick {

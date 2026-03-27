@@ -84,3 +84,64 @@ export function transformApiResponse(data: ScryfallApiResponse): ScryCard {
     oracleText,
   };
 }
+
+/**
+ * Fetch a single card from the Scryfall API.
+ *
+ * @param cardName - The exact card name to look up
+ * @returns The card data, or null if not found
+ */
+export async function fetchCard(cardName: string): Promise<ScryCard | null> {
+  const encodedName = encodeURIComponent(cardName);
+  const url = `${SCRYFALL_API_BASE}/cards/named?exact=${encodedName}`;
+
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        console.warn(`[Scryfall] Card not found: "${cardName}"`);
+        return null;
+      }
+      console.warn(
+        `[Scryfall] API error for "${cardName}": ${response.status} ${response.statusText}`
+      );
+      return null;
+    }
+
+    const data = (await response.json()) as ScryfallApiResponse;
+    return transformApiResponse(data);
+  } catch (error) {
+    console.warn(`[Scryfall] Failed to fetch "${cardName}":`, error);
+    return null;
+  }
+}
+
+/**
+ * Fetch a single card using Scryfall's fuzzy name matching.
+ * Handles Omen Paths digital names and other alternate names.
+ */
+export async function fetchCardFuzzy(cardName: string): Promise<ScryCard | null> {
+  const encodedName = encodeURIComponent(cardName);
+  const url = `${SCRYFALL_API_BASE}/cards/named?fuzzy=${encodedName}`;
+
+  try {
+    const response = await fetch(url);
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return null;
+      }
+      console.warn(
+        `[Scryfall] Fuzzy API error for "${cardName}": ${response.status} ${response.statusText}`
+      );
+      return null;
+    }
+
+    const data = (await response.json()) as ScryfallApiResponse;
+    return transformApiResponse(data);
+  } catch (error) {
+    console.warn(`[Scryfall] Failed fuzzy fetch "${cardName}":`, error);
+    return null;
+  }
+}

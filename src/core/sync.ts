@@ -7,7 +7,7 @@ import type { Client } from "@libsql/client";
 import type { CardPick } from "./types";
 import type { ParsedPicks } from "./parseSheetRows";
 import { normalizeCardName } from "./parseSheetRows";
-import { fetchCard, fetchCardFuzzy } from "../build/scryfall";
+import { fetchCard, fetchCardFuzzy } from "./scryfallApi";
 import { getFrontFace } from "./cardNames";
 import { sleep } from "./utils";
 
