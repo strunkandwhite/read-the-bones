@@ -23,16 +23,17 @@ A new component with two modes:
 
 **Edit mode:** Clicking the name or icon swaps to a text input pre-filled with the current name. The input matches the existing header style (11px, weight 600, seat color, centered). Behavior:
 - Enter or blur: save
-- Escape: cancel
-- Empty submission: clears name, reverts to "Seat N" fallback
+- Escape: cancel edit and revert to previous value. Must call `e.stopPropagation()` to prevent the Escape event from bubbling up to `DraftBoardModal`, which uses Escape to close the modal.
+- Empty submission: calls `onSave("")` to clear the name via the API, then displays "Seat N" fallback
 - Max 50 characters enforced client-side
+- On API failure: revert the input to the previous name (no silent failures for user-visible text edits)
 
 ### Props
 
 | Prop | Type | Purpose |
 |------|------|---------|
 | `currentName` | `string` | Display name or "Seat N" fallback |
-| `seatNumber` | `number` | Seat index for fallback display |
+| `seatNumber` | `number` | Seat number (1-based) for fallback display |
 | `isEditable` | `boolean` | Whether the current player owns this seat |
 | `onSave` | `(name: string) => Promise<void>` | Callback to persist the new name |
 
@@ -53,18 +54,24 @@ Replace the plain text in column headers:
 />
 ```
 
-The `updateDisplayName` callback threads from `PageClient` → `DraftBoardModal` → `DraftBoardMatrix`.
+The `updateDisplayName` callback originates from `useMySeat` in `PageClient`, then threads through new props: `onUpdateDisplayName` added to both `DraftBoardModalProps` and `DraftBoardMatrixProps` interfaces.
 
 ## Hook Change: useMySeat
 
-Expose a new `updateDisplayName` function alongside the existing `toggleAutoPick`. It calls `PUT /api/drafts/{id}/seat-settings` with `{ display_name: newName }` and updates local state optimistically.
+Expose a new `updateDisplayName` function alongside the existing `toggleAutoPick`:
+
+```typescript
+updateDisplayName: (name: string) => Promise<void>
+```
+
+It calls `PUT /api/drafts/{id}/seat-settings` with `{ display_name: name }` using the seat token, and updates the `displayName` field in the hook's local state. The `UseMySeatReturn` interface must be updated to include this function.
 
 ## Data Flow
 
 1. Player edits name → `InlineEditableName` calls `onSave(newName)`
 2. `updateDisplayName` calls `PUT /api/drafts/{id}/seat-settings` with the seat token
-3. Local state updates immediately (optimistic)
-4. Other players receive the updated name on their next board poll — both `/api/drafts/{id}/board` and `/api/drafts/{id}/status` already return `seatNames`
+3. The hook updates its local `displayName` state, but the column header reads from `board.seatNames` (sourced from the `useDraftBoard` polling hook), so the header text updates on the next board poll — typically within seconds
+4. Other players also receive the updated name on their next board poll — both `/api/drafts/{id}/board` and `/api/drafts/{id}/status` already return `seatNames`
 
 No new endpoints, polling mechanisms, or database changes required.
 
