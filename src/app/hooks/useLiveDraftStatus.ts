@@ -30,6 +30,7 @@ export function useLiveDraftStatus(
   const [dataChanged, setDataChanged] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
   const prevPickNRef = useRef<number>(0);
+  const prevSeatNamesRef = useRef<string>("");
 
   const fetchStatus = useCallback(async () => {
     if (!draftId) return;
@@ -42,6 +43,11 @@ export function useLiveDraftStatus(
         prevPickNRef.current = data.latestPickN;
         setDataChanged((prev) => prev + 1);
       }
+      const seatNamesKey = JSON.stringify(data.seatNames ?? {});
+      if (prevSeatNamesRef.current && seatNamesKey !== prevSeatNamesRef.current) {
+        setDataChanged((prev) => prev + 1);
+      }
+      prevSeatNamesRef.current = seatNamesKey;
     } catch { /* ignore transient errors during polling */ }
   }, [draftId]);
 

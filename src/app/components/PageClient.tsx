@@ -304,6 +304,11 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     []
   );
 
+  const handleUpdateDisplayName = useCallback(async (name: string) => {
+    await updateDisplayName(name);
+    draftBoard.refresh();
+  }, [updateDisplayName, draftBoard]);
+
   // Compose draft selection change with data fetching
   const onDraftsChange = async (newSelection: Set<string>) => {
     draftSelection.setSelectedDrafts(newSelection);
@@ -600,7 +605,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
           isOpen={draftBoardOpen}
           onClose={() => setDraftBoardOpen(false)}
           onMatchReported={() => draftBoard.refresh()}
-          onUpdateDisplayName={updateDisplayName}
+          onUpdateDisplayName={handleUpdateDisplayName}
           pickQueue={pickQueue.queue.map((e) => ({ cardName: e.cardName, position: e.priority }))}
           autoPick={autoPick}
           autoPickMode={autoPickMode}
