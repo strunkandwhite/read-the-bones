@@ -371,6 +371,55 @@ function buildAllPicks(
 }
 
 /**
+ * Step 6: Conditionally fetch win rate data from deck_cards + match_events.
+ * Returns an empty map when includeMatchData is false.
+ */
+async function loadDecklistWinRates(
+  client: Client,
+  includeMatchData: boolean,
+): Promise<Map<string, DecklistWinRateData>> {
+  const decklistWinRates = new Map<string, DecklistWinRateData>();
+
+  if (!includeMatchData) return decklistWinRates;
+
+  const decklistWinResult = await client.execute({
+    sql: `SELECT c.name as card_name,
+                 COUNT(DISTINCT dc.draft_id || '-' || dc.seat) as times_maindecked,
+                 COUNT(DISTINCT dc.draft_id) as drafts_with_data,
+                 SUM(CASE WHEN me.seat1 = dc.seat THEN me.seat1_wins
+                          WHEN me.seat2 = dc.seat THEN me.seat2_wins
+                          ELSE 0 END) as game_wins,
+                 SUM(CASE WHEN me.seat1 = dc.seat THEN me.seat2_wins
+                          WHEN me.seat2 = dc.seat THEN me.seat1_wins
+                          ELSE 0 END) as game_losses
+          FROM deck_cards dc
+          JOIN cards c ON dc.card_id = c.card_id
+          JOIN match_events me ON me.draft_id = dc.draft_id
+               AND (me.seat1 = dc.seat OR me.seat2 = dc.seat)
+          WHERE dc.zone = 'deck'
+          GROUP BY c.name`,
+    args: [],
+  });
+
+  for (const row of decklistWinResult.rows) {
+    const cardName = row.card_name as string;
+    const gameWins = row.game_wins as number;
+    const gameLosses = row.game_losses as number;
+    const total = gameWins + gameLosses;
+
+    decklistWinRates.set(cardNameKey(cardName), {
+      winRate: total > 0 ? round3(gameWins / total) : 0,
+      gameWins,
+      gameLosses,
+      timesMaindecked: row.times_maindecked as number,
+      draftsWithData: row.drafts_with_data as number,
+    });
+  }
+
+  return decklistWinRates;
+}
+
+/**
  * Compute card statistics from the Turso database.
  *
  * When no draftIds are specified, stats are computed across all completed drafts.
@@ -424,49 +473,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
   );
 
   // 6. Conditionally load decklist win rate data
-  const decklistWinRates = new Map<string, {
-    winRate: number;
-    gameWins: number;
-    gameLosses: number;
-    timesMaindecked: number;
-    draftsWithData: number;
-  }>();
-
-  if (params.includeMatchData) {
-    const decklistWinResult = await client.execute({
-      sql: `SELECT c.name as card_name,
-                   COUNT(DISTINCT dc.draft_id || '-' || dc.seat) as times_maindecked,
-                   COUNT(DISTINCT dc.draft_id) as drafts_with_data,
-                   SUM(CASE WHEN me.seat1 = dc.seat THEN me.seat1_wins
-                            WHEN me.seat2 = dc.seat THEN me.seat2_wins
-                            ELSE 0 END) as game_wins,
-                   SUM(CASE WHEN me.seat1 = dc.seat THEN me.seat2_wins
-                            WHEN me.seat2 = dc.seat THEN me.seat1_wins
-                            ELSE 0 END) as game_losses
-            FROM deck_cards dc
-            JOIN cards c ON dc.card_id = c.card_id
-            JOIN match_events me ON me.draft_id = dc.draft_id
-                 AND (me.seat1 = dc.seat OR me.seat2 = dc.seat)
-            WHERE dc.zone = 'deck'
-            GROUP BY c.name`,
-      args: [],
-    });
-
-    for (const row of decklistWinResult.rows) {
-      const cardName = row.card_name as string;
-      const gameWins = row.game_wins as number;
-      const gameLosses = row.game_losses as number;
-      const total = gameWins + gameLosses;
-
-      decklistWinRates.set(cardNameKey(cardName), {
-        winRate: total > 0 ? round3(gameWins / total) : 0,
-        gameWins,
-        gameLosses,
-        timesMaindecked: row.times_maindecked as number,
-        draftsWithData: row.drafts_with_data as number,
-      });
-    }
-  }
+  const decklistWinRates = await loadDecklistWinRates(client, params.includeMatchData);
 
   // 7. Load cube cards for the selected pool snapshot
   // Use poolAsOfDraft's snapshot if specified, otherwise most recent
