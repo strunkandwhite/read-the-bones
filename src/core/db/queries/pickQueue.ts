@@ -46,34 +46,33 @@ export async function removeCardFromAllQueues(
     args: [draftId, cardId],
   });
 
-  const seats = await client.execute({
-    sql: `SELECT DISTINCT seat FROM pick_queue WHERE draft_id = ? ORDER BY seat`,
+  const remaining = await client.execute({
+    sql: `SELECT seat, card_id FROM pick_queue WHERE draft_id = ? ORDER BY seat, priority`,
     args: [draftId],
   });
 
-  if (seats.rows.length > 0) {
-    const renumberStatements = [];
-    for (const row of seats.rows) {
-      const seat = row.seat as number;
-      const entries = await client.execute({
-        sql: `SELECT card_id FROM pick_queue WHERE draft_id = ? AND seat = ? ORDER BY priority`,
-        args: [draftId, seat],
-      });
-      renumberStatements.push({
-        sql: `DELETE FROM pick_queue WHERE draft_id = ? AND seat = ?`,
-        args: [draftId, seat],
-      });
-      for (let i = 0; i < entries.rows.length; i++) {
-        renumberStatements.push({
-          sql: `INSERT INTO pick_queue (draft_id, seat, priority, card_id) VALUES (?, ?, ?, ?)`,
-          args: [draftId, seat, i + 1, entries.rows[i].card_id],
-        });
-      }
+  if (remaining.rows.length === 0) return;
+
+  const statements: { sql: string; args: (string | number)[] }[] = [
+    { sql: `DELETE FROM pick_queue WHERE draft_id = ?`, args: [draftId] },
+  ];
+
+  let currentSeat = -1;
+  let priority = 0;
+  for (const row of remaining.rows) {
+    const seat = row.seat as number;
+    if (seat !== currentSeat) {
+      currentSeat = seat;
+      priority = 0;
     }
-    if (renumberStatements.length > 0) {
-      await client.batch(renumberStatements);
-    }
+    priority++;
+    statements.push({
+      sql: `INSERT INTO pick_queue (draft_id, seat, priority, card_id) VALUES (?, ?, ?, ?)`,
+      args: [draftId, seat, priority, row.card_id as number],
+    });
   }
+
+  await client.batch(statements);
 }
 
 /**

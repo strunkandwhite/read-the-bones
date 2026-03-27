@@ -65,21 +65,27 @@ describe("removeCardFromAllQueues", () => {
   beforeEach(() => { client = createMockClient(); });
 
   it("deletes the card and batches renumbered entries", async () => {
+    // First call: delete the card
     client.execute.mockResolvedValueOnce({ rows: [] });
-    client.execute.mockResolvedValueOnce({ rows: [{ seat: 1 }] });
+    // Second call: fetch all remaining rows ordered by seat, priority
     client.execute.mockResolvedValueOnce({
-      rows: [{ card_id: 20 }, { card_id: 30 }],
+      rows: [
+        { seat: 1, card_id: 20 },
+        { seat: 1, card_id: 30 },
+      ],
     });
 
     await removeCardFromAllQueues(client, "draft-1", 10);
 
+    expect(client.execute).toHaveBeenCalledTimes(2);
     expect(client.execute.mock.calls[0][0].args).toEqual(["draft-1", 10]);
-    expect(client.execute.mock.calls[1][0].sql).toContain("DISTINCT seat");
+    expect(client.execute.mock.calls[1][0].sql).toContain("ORDER BY seat, priority");
 
     expect(client.batch).toHaveBeenCalledOnce();
     const statements = client.batch.mock.calls[0][0];
     expect(statements).toHaveLength(3);
     expect(statements[0].sql).toContain("DELETE");
+    expect(statements[0].args).toEqual(["draft-1"]);
     expect(statements[1].args).toEqual(["draft-1", 1, 1, 20]);
     expect(statements[2].args).toEqual(["draft-1", 1, 2, 30]);
   });
