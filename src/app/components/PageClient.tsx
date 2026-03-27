@@ -199,7 +199,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
       // In the pick queue
       const queuePriority = pickQueue.queuedCards.get(cardName);
       if (queuePriority != null) {
-        return { status: "queued", queuePosition: queuePriority + 1 };
+        return { status: "queued", queuePosition: queuePriority };
       }
       // Floated (server-side speculative)
       if (floatedCards.includes(cardName)) {
@@ -466,19 +466,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                   </svg>
                 </button>
               )}
-              {draftSelection.activeDraft && mySeat !== null && liveDraftStatus.status?.phase === "drafting" && (
-                <button
-                  onClick={toggleAutoPick}
-                  className={`rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
-                    autoPick
-                      ? "text-emerald-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                      : "text-zinc-500 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
-                  }`}
-                  title={autoPick ? "Auto-pick is ON — queued cards will be picked automatically" : "Auto-pick is OFF — you must confirm each pick"}
-                >
-                  Auto-pick: {autoPick ? "ON" : "OFF"}
-                </button>
-              )}
               {isMyTurn && consecutivePicks > 1 && (
                 <span className="rounded-md bg-amber-900/50 px-2 py-1 text-xs font-medium text-amber-300">
                   {consecutivePicks}&times; pick
@@ -614,7 +601,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
           onClose={() => setDraftBoardOpen(false)}
           onMatchReported={() => draftBoard.refresh()}
           onUpdateDisplayName={updateDisplayName}
-          pickQueue={pickQueue.queue.map((e) => ({ cardName: e.cardName, position: e.priority + 1 }))}
+          pickQueue={pickQueue.queue.map((e) => ({ cardName: e.cardName, position: e.priority }))}
           autoPick={autoPick}
           autoPickMode={autoPickMode}
           onQueueReorder={pickQueue.reorderQueue}
@@ -653,7 +640,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
         scryfallImageUrl={getImageUrl(selectedCard)}
         isOpen={!!selectedCard}
         onClose={() => setSelectedCard(null)}
-        draftId={draftSelection.activeDraft ?? undefined}
+        draftId={draftSelection.activeDraft && liveDraftStatus.status?.phase !== "drafting" ? draftSelection.activeDraft : undefined}
         isLiveDraft={!!draftSelection.activeDraft && liveDraftStatus.status?.phase === "drafting"}
         isMyTurn={isMyTurn}
         cardStatus={selectedCard ? getCardStatus(selectedCard).status : "none"}
