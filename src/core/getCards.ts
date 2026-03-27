@@ -23,19 +23,6 @@ import { round3 } from "./utils";
 
 // --- Internal types for extracted subfunctions ---
 
-type DraftRow = {
-  draft_id: string;
-  draft_name: string;
-  draft_date: string;
-  cube_snapshot_id: number;
-  num_seats: number;
-  phase: string;
-  banned_cards: string | null;
-  pool_hash: unknown;
-  picks_hash: unknown;
-  matches_hash: unknown;
-};
-
 type DraftMetadataResult = {
   draftIds: string[];
   completedDraftIds: string[];
