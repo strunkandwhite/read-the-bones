@@ -2,6 +2,7 @@
  * Card resolution queries (exact, fuzzy, lookup).
  */
 
+import type { Client } from "@libsql/client";
 import { getClient } from "../client";
 import type { Card } from "../schema";
 import { rowToCard, parseScryfallJson, fetchFromScryfallApi, type LookupCardResult } from "./helpers";
@@ -121,4 +122,25 @@ export async function lookupCard(
 
   // Fallback: query the Scryfall API directly
   return fetchFromScryfallApi(cardName);
+}
+
+// ============================================================================
+// Live Draft Card Queries
+// ============================================================================
+
+/**
+ * Resolve a card name to its card_id.
+ * Uses exact name match (case-sensitive, matching the pick route behavior).
+ * Returns null if the card doesn't exist.
+ */
+export async function resolveCardId(
+  client: Client,
+  cardName: string,
+): Promise<number | null> {
+  const result = await client.execute({
+    sql: "SELECT card_id FROM cards WHERE name = ?",
+    args: [cardName],
+  });
+  if (result.rows.length === 0) return null;
+  return result.rows[0].card_id as number;
 }
