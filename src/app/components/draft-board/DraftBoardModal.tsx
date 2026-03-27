@@ -35,9 +35,9 @@ interface DraftBoardModalProps {
 }
 
 const PHASE_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
-  drafting: { bg: "#854d0e", text: "#fde68a" },
-  playing: { bg: "#1e3a5f", text: "#93c5fd" },
-  complete: { bg: "#14532d", text: "#86efac" },
+  drafting: { bg: "bg-yellow-800", text: "text-amber-200" },
+  playing: { bg: "bg-blue-900", text: "text-blue-300" },
+  complete: { bg: "bg-green-900", text: "text-green-300" },
 };
 
 export function DraftBoardModal({
@@ -74,7 +74,7 @@ export function DraftBoardModal({
   }, [isOpen]);
 
   const phase = board?.phase ?? status?.phase ?? "unknown";
-  const badgeColors = PHASE_BADGE_COLORS[phase] ?? { bg: "#333", text: "#aaa" };
+  const badgeColors = PHASE_BADGE_COLORS[phase] ?? { bg: "bg-zinc-700", text: "text-zinc-400" };
 
   const nextPick =
     board
@@ -85,17 +85,7 @@ export function DraftBoardModal({
     <div
       ref={backdropRef}
       tabIndex={-1}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 50,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: "rgba(0,0,0,0.7)",
-        backdropFilter: "blur(2px)",
-        outline: "none",
-      }}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm outline-none"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
@@ -104,60 +94,27 @@ export function DraftBoardModal({
       }}
     >
       <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          maxHeight: "95vh",
-          width: "100%",
-          maxWidth: "95vw",
-          margin: "0 12px",
-          borderRadius: "12px",
-          border: "1px solid rgba(63,63,70,0.4)",
-          backgroundColor: "#09090b",
-          boxShadow: "0 0 60px -12px rgba(0,0,0,0.8)",
-          overflow: "hidden",
-        }}
+        className="flex flex-col max-h-[95vh] w-full max-w-[95vw] mx-3 rounded-xl border border-zinc-700/40 bg-zinc-950 shadow-2xl overflow-hidden"
       >
         {/* Header */}
         <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "12px 20px",
-            borderBottom: "1px solid rgba(39,39,42,0.6)",
-            backgroundColor: "rgba(24,24,27,0.8)",
-          }}
+          className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/60 bg-zinc-900/80"
         >
-          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-            <span
-              style={{
-                fontSize: "14px",
-                fontWeight: 600,
-                color: "#e4e4e7",
-                letterSpacing: "-0.01em",
-              }}
-            >
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-semibold text-zinc-200 tracking-tight">
               {draftName || draftId}
             </span>
             <span
-              style={{
-                fontSize: "11px",
-                fontWeight: 500,
-                padding: "2px 8px",
-                borderRadius: "4px",
-                backgroundColor: badgeColors.bg,
-                color: badgeColors.text,
-              }}
+              className={`text-[11px] font-medium px-2 py-0.5 rounded ${badgeColors.bg} ${badgeColors.text}`}
             >
               {phase}
             </span>
             {availableCount !== undefined && (
-              <span style={{ fontSize: "11px", color: "#a1a1aa" }}>
+              <span className="text-[11px] text-zinc-400">
                 {availableCount} available
                 {bannedCardNames && bannedCardNames.length > 0 && (
                   <span
-                    style={{ color: "#71717a", cursor: "default" }}
+                    className="text-zinc-500 cursor-default"
                     title={bannedCardNames.join("\n")}
                   >{" · "}{bannedCardNames.length} banned</span>
                 )}
@@ -166,15 +123,7 @@ export function DraftBoardModal({
           </div>
           <button
             onClick={onClose}
-            style={{
-              background: "none",
-              border: "none",
-              color: "#a1a1aa",
-              cursor: "pointer",
-              padding: "4px",
-              fontSize: "18px",
-              lineHeight: 1,
-            }}
+            className="bg-transparent border-none text-zinc-400 cursor-pointer p-1 text-lg leading-none"
             aria-label="Close draft board"
           >
             &times;
@@ -182,7 +131,7 @@ export function DraftBoardModal({
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflowY: "auto", padding: "16px 20px" }}>
+        <div className="flex-1 overflow-y-auto px-5 py-4">
           {board ? (
             <>
               <DraftBoardMatrix
@@ -217,12 +166,7 @@ export function DraftBoardModal({
             </>
           ) : (
             <div
-              style={{
-                padding: "40px 0",
-                textAlign: "center",
-                color: "#71717a",
-                fontSize: "13px",
-              }}
+              className="py-10 text-center text-zinc-500 text-[13px]"
             >
               Loading draft board...
             </div>

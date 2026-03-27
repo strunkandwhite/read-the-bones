@@ -41,15 +41,15 @@ function DraftProgress({
       : null;
 
   return (
-    <div style={{ padding: "8px 0", fontSize: "12px", color: "#888" }}>
+    <div className="py-2 text-xs text-zinc-500">
       {isMyPick ? (
         <span>
-          <span style={{ color: "#34d399" }}>Your pick</span>{" "}
+          <span className="text-emerald-400">Your pick</span>{" "}
           (Pick #{nextPickNumber})
         </span>
       ) : nextSeatName ? (
         <span>
-          Next pick: <span style={{ color: "#e0e0e0" }}>{nextSeatName}</span>{" "}
+          Next pick: <span className="text-zinc-200">{nextSeatName}</span>{" "}
           (Pick #{nextPickNumber})
         </span>
       ) : null}
@@ -71,15 +71,8 @@ export function StandingsSection({
   // During drafting: show pick count and whose turn
   if (isDrafting) {
     return (
-      <div style={{ padding: "12px 0" }}>
-        <h3
-          style={{
-            fontSize: "13px",
-            fontWeight: 600,
-            color: "#e0e0e0",
-            marginBottom: "8px",
-          }}
-        >
+      <div className="py-3">
+        <h3 className="text-[13px] font-semibold text-zinc-200 mb-2">
           Draft Progress
         </h3>
         <DraftProgress board={board} status={status} mySeat={mySeat} />
@@ -155,7 +148,7 @@ function StandingsTable({
 
   if (loading) {
     return (
-      <div style={{ padding: "12px 0", color: "#888", fontSize: "12px" }}>
+      <div className="py-3 text-zinc-500 text-xs">
         Loading standings...
       </div>
     );
@@ -165,48 +158,35 @@ function StandingsTable({
     board.phase === "playing" && mySeat !== null && token !== null;
 
   return (
-    <div style={{ padding: "12px 0" }}>
-      <h3
-        style={{
-          fontSize: "13px",
-          fontWeight: 600,
-          color: "#e0e0e0",
-          marginBottom: "8px",
-        }}
-      >
+    <div className="py-3">
+      <h3 className="text-[13px] font-semibold text-zinc-200 mb-2">
         Standings
       </h3>
       {standings.length > 0 ? (
         <table
-          style={{
-            borderCollapse: "collapse",
-            fontSize: "12px",
-            width: "100%",
-            maxWidth: "500px",
-            color: "#e0e0e0",
-          }}
+          className="border-collapse text-xs w-full max-w-[500px] text-zinc-200"
         >
           <thead>
-            <tr style={{ borderBottom: "1px solid #444" }}>
-              <th style={{ padding: "4px 8px", textAlign: "left", color: "#888" }}>Player</th>
-              <th style={{ padding: "4px 8px", textAlign: "center", color: "#888" }}>Match W-L</th>
-              <th style={{ padding: "4px 8px", textAlign: "center", color: "#888" }}>Game W-L</th>
+            <tr className="border-b border-zinc-600">
+              <th className="px-2 py-1 text-left text-zinc-500">Player</th>
+              <th className="px-2 py-1 text-center text-zinc-500">Match W-L</th>
+              <th className="px-2 py-1 text-center text-zinc-500">Game W-L</th>
             </tr>
           </thead>
           <tbody>
             {standings.map((row) => (
               <tr
                 key={row.seat}
+                className="border-b border-zinc-700"
                 style={{
-                  borderBottom: "1px solid #333",
                   backgroundColor: row.seat === mySeat ? "rgba(59,130,246,0.08)" : undefined,
                 }}
               >
-                <td style={{ padding: "4px 8px" }}>{row.displayName}</td>
-                <td style={{ padding: "4px 8px", textAlign: "center" }}>
+                <td className="px-2 py-1">{row.displayName}</td>
+                <td className="px-2 py-1 text-center">
                   {row.matchWins}-{row.matchLosses}
                 </td>
-                <td style={{ padding: "4px 8px", textAlign: "center" }}>
+                <td className="px-2 py-1 text-center">
                   {row.gameWins}-{row.gameLosses}
                 </td>
               </tr>
@@ -214,7 +194,7 @@ function StandingsTable({
           </tbody>
         </table>
       ) : (
-        <p style={{ fontSize: "12px", color: "#888" }}>No match results yet.</p>
+        <p className="text-xs text-zinc-500">No match results yet.</p>
       )}
       {showMatchReporting && (
         <MatchReporting

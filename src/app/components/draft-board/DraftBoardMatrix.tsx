@@ -92,7 +92,7 @@ export function DraftBoardMatrix({
   }, [board.numSeats]);
 
   return (
-    <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "75vh" }}>
+    <div className="overflow-x-auto overflow-y-auto max-h-[75vh]">
       <style>{`
         @keyframes pulse-border {
           0%, 100% { border-color: #3b82f6; }
@@ -102,35 +102,21 @@ export function DraftBoardMatrix({
         th:hover .pencil-icon { opacity: 0.5; }
       `}</style>
       <table
-        style={{
-          borderCollapse: "collapse",
-          fontSize: "12px",
-          width: "100%",
-          color: "#e0e0e0",
-        }}
+        className="border-collapse text-xs w-full text-zinc-200"
       >
         <thead>
           <tr
-            style={{
-              position: "sticky",
-              top: 0,
-              zIndex: 10,
-              backgroundColor: "#18181b",
-            }}
+            className="sticky top-0 z-10 bg-zinc-900"
           >
-            <th style={{ padding: "4px 8px", textAlign: "center", color: "#888", fontSize: "10px" }}>
+            <th className="px-2 py-1 text-center text-zinc-500 text-[10px]">
               #
             </th>
             {seatOrder.map((seat) => (
               <th
                 key={seat}
+                className="px-1.5 py-1 text-center font-semibold text-[11px] min-w-[130px]"
                 style={{
-                  padding: "4px 6px",
-                  textAlign: "center",
                   color: SEAT_COLORS[(seat - 1) % SEAT_COLORS.length],
-                  fontWeight: 600,
-                  fontSize: "11px",
-                  minWidth: "130px",
                   backgroundColor: mySeat === seat ? "rgba(59,130,246,0.1)" : undefined,
                 }}
               >
@@ -146,14 +132,7 @@ export function DraftBoardMatrix({
         </thead>
         <tbody>
           {(() => {
-            const rowLabelStyle = {
-              padding: "3px 6px",
-              textAlign: "center" as const,
-              color: "#888",
-              fontSize: "10px",
-              whiteSpace: "nowrap" as const,
-              borderRight: "1px solid #333",
-            };
+            const rowLabelClassName = "px-1.5 py-0.5 text-center text-zinc-500 text-[10px] whitespace-nowrap border-r border-zinc-700";
             let displayRow = 0;
             return matrix.map((row) => {
               const isCurrentRound = row.round === currentRound;
@@ -185,9 +164,9 @@ export function DraftBoardMatrix({
                       backgroundColor: isCurrentRound ? "rgba(59,130,246,0.05)" : undefined,
                     }}
                   >
-                    <td style={rowLabelStyle}>
+                    <td className={rowLabelClassName}>
                       <span>{rowNum}</span>
-                      <span style={{ marginLeft: "3px", fontSize: "9px", color: "#666" }}>
+                      <span className="ml-0.5 text-[9px] text-zinc-600">
                         {row.isForward ? "\u2192" : "\u2190"}
                       </span>
                     </td>

@@ -64,38 +64,21 @@ function MatchRow({
     }
   };
 
-  const inputStyle = {
-    width: "40px",
-    padding: "2px 4px",
-    fontSize: "11px",
-    backgroundColor: input.saved ? "#1c1c1e" : "#27272a",
-    border: "1px solid #444",
-    borderRadius: "4px",
-    color: input.saved ? "#888" : "#e0e0e0",
-    textAlign: "center" as const,
-    MozAppearance: "textfield" as const,
-  };
+  const inputClassName = `w-10 px-1 py-0.5 text-[11px] border border-zinc-600 rounded text-center [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none [-moz-appearance:textfield] ${
+    input.saved ? "bg-zinc-900 text-zinc-500" : "bg-zinc-800 text-zinc-200"
+  }`;
 
   return (
     <div
       ref={rowRef}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: "8px",
-        fontSize: "12px",
-      }}
+      className="flex items-center gap-2 text-xs"
       onFocus={() => setFocused(true)}
       onBlur={handleBlur}
     >
       <span
-        style={{
-          color: input.saved ? "#666" : "#bbb",
-          minWidth: "100px",
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-        }}
+        className={`min-w-[100px] overflow-hidden text-ellipsis whitespace-nowrap ${
+          input.saved ? "text-zinc-600" : "text-zinc-400"
+        }`}
         title={oppName}
       >
         vs {oppName}
@@ -112,10 +95,9 @@ function MatchRow({
           if (v === "" || (Number(v) >= 0 && Number(v) <= 2)) onUpdate(opponent, "wins", v);
         }}
         onKeyDown={handleKeyDown}
-        className="[&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-        style={inputStyle}
+        className={inputClassName}
       />
-      <span style={{ color: "#666" }}>-</span>
+      <span className="text-zinc-600">-</span>
       <input
         type="number"
         min={0}
@@ -128,27 +110,16 @@ function MatchRow({
           if (v === "" || (Number(v) >= 0 && Number(v) <= 2)) onUpdate(opponent, "losses", v);
         }}
         onKeyDown={handleKeyDown}
-        className="[&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-        style={inputStyle}
+        className={inputClassName}
       />
-      <div style={{ width: "20px", display: "flex", justifyContent: "center" }}>
+      <div className="w-5 flex justify-center">
         {input.saving && (
-          <span style={{ color: "#888", fontSize: "11px" }}>...</span>
+          <span className="text-zinc-500 text-[11px]">...</span>
         )}
         {!input.saving && input.saved && (
           <button
             disabled
-            style={{
-              cursor: "default",
-              background: "#27272a",
-              border: "1px solid #374151",
-              borderRadius: "4px",
-              padding: "1px 2px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#6ee7b7",
-            }}
+            className="cursor-default bg-zinc-800 border border-gray-700 rounded px-0.5 py-px flex items-center justify-center text-emerald-300"
             title="Match result saved"
             aria-label="Match result saved"
           >
@@ -158,17 +129,7 @@ function MatchRow({
         {!input.saving && canSave && focused && (
           <button
             onClick={() => onSave(opponent)}
-            style={{
-              cursor: "pointer",
-              background: "#3f3f46",
-              border: "1px solid #52525b",
-              borderRadius: "4px",
-              padding: "1px 2px",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              color: "#e0e0e0",
-            }}
+            className="cursor-pointer bg-zinc-700 border border-zinc-600 rounded px-0.5 py-px flex items-center justify-center text-zinc-200"
             title="Save match result"
             aria-label="Save match result"
           >
@@ -177,7 +138,7 @@ function MatchRow({
         )}
       </div>
       {input.error && (
-        <span style={{ color: "#ef4444", fontSize: "11px" }}>{input.error}</span>
+        <span className="text-red-500 text-[11px]">{input.error}</span>
       )}
     </div>
   );
@@ -302,18 +263,11 @@ export function MatchReporting({
   );
 
   return (
-    <div style={{ marginTop: "16px" }}>
-      <h3
-        style={{
-          fontSize: "13px",
-          fontWeight: 600,
-          color: "#e0e0e0",
-          marginBottom: "8px",
-        }}
-      >
+    <div className="mt-4">
+      <h3 className="text-[13px] font-semibold text-zinc-200 mb-2">
         Report Match Results
       </h3>
-      <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+      <div className="flex flex-col gap-1.5">
         {opponents.map((opp) => (
           <MatchRow
             key={opp}
