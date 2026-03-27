@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
-import { parseBannedCardNames, transformScryfallJson } from "@/core/db/queries/helpers";
+import { parseBannedCardNames } from "@/core/db/queries/helpers";
+import { getPicksWithCardDetails } from "@/core/db/queries/picks";
+import { getSeatDisplayNames } from "@/core/db/queries/seatTokens";
 
 export async function GET(
   _request: NextRequest,
@@ -19,35 +21,8 @@ export async function GET(
     }
     const d = draft.rows[0];
 
-    const picksResult = await client.execute({
-      sql: `SELECT pe.pick_n, pe.seat, c.name, c.oracle_id, c.scryfall_json
-            FROM pick_events pe
-            JOIN cards c ON c.card_id = pe.card_id
-            WHERE pe.draft_id = ?
-            ORDER BY pe.pick_n`,
-      args: [draftId],
-    });
-    const picks = picksResult.rows.map((r) => {
-      const sf = transformScryfallJson(r.scryfall_json as string | null, r.name as string);
-      return {
-        pickN: r.pick_n as number,
-        seat: r.seat as number,
-        cardName: r.name as string,
-        oracleId: r.oracle_id as string,
-        colorIdentity: sf?.colorIdentity ?? [],
-        manaCost: sf?.manaCost ?? "",
-      };
-    });
-
-    const seatResult = await client.execute({
-      sql: "SELECT seat, display_name FROM seat_tokens WHERE draft_id = ? ORDER BY seat",
-      args: [draftId],
-    });
-    const seatNames: Record<string, string> = {};
-    for (const r of seatResult.rows) {
-      if (r.display_name) seatNames[String(r.seat)] = r.display_name as string;
-    }
-
+    const picks = await getPicksWithCardDetails(client, draftId);
+    const seatNames = await getSeatDisplayNames(client, draftId);
     const bannedCards = parseBannedCardNames(d.banned_cards as string | null);
 
     return NextResponse.json({
