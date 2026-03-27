@@ -13,7 +13,7 @@ describe("useSharedDeckLoader", () => {
   const defaultProps = {
     setActiveDraft: vi.fn(),
     setSelectedSeat: vi.fn(),
-    loadSnapshot: vi.fn(),
+    dispatch: vi.fn(),
     setDeckBuilderActive: vi.fn(),
     setDeckBuilderModalOpen: vi.fn(),
   };
@@ -24,7 +24,7 @@ describe("useSharedDeckLoader", () => {
     mockSearchParams.delete("deck");
     defaultProps.setActiveDraft = vi.fn();
     defaultProps.setSelectedSeat = vi.fn();
-    defaultProps.loadSnapshot = vi.fn();
+    defaultProps.dispatch = vi.fn();
     defaultProps.setDeckBuilderActive = vi.fn();
     defaultProps.setDeckBuilderModalOpen = vi.fn();
   });
@@ -58,7 +58,7 @@ describe("useSharedDeckLoader", () => {
     });
 
     expect(defaultProps.setSelectedSeat).toHaveBeenCalledWith(3);
-    expect(defaultProps.loadSnapshot).toHaveBeenCalledWith(deckState);
+    expect(defaultProps.dispatch).toHaveBeenCalledWith({ type: "INIT_FROM_SNAPSHOT", snapshot: deckState });
     expect(defaultProps.setDeckBuilderActive).toHaveBeenCalledWith(true);
     expect(defaultProps.setDeckBuilderModalOpen).toHaveBeenCalledWith(true);
 

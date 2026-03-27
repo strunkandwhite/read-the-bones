@@ -30,6 +30,7 @@ interface DeckBuilderPanelProps {
   onClose: () => void;
   floatedCards?: string[];
   onRemoveFloat?: (cardName: string) => void;
+  saveStatus?: "idle" | "saving" | "saved";
 }
 
 function parseDragId(id: string) {
