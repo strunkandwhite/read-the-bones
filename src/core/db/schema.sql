@@ -174,15 +174,26 @@ CREATE INDEX IF NOT EXISTS idx_drafts_date ON drafts(draft_date);
 CREATE INDEX IF NOT EXISTS idx_deck_cards_card ON deck_cards(card_id);
 CREATE INDEX IF NOT EXISTS idx_deck_cards_seat ON deck_cards(draft_id, seat);
 
--- Immutable snapshots of shared decks. Distinct from deck_cards, which stores
--- actual decklists imported from sealeddeck.tech for analytics purposes.
-CREATE TABLE IF NOT EXISTS shared_decks (
-  deck_id TEXT PRIMARY KEY,
+-- Unified deck storage: mutable WIP state and immutable shared snapshots.
+-- Replaces shared_decks. Both kinds store DeckState JSON.
+CREATE TABLE IF NOT EXISTS decks (
+  id TEXT PRIMARY KEY,
   draft_id TEXT NOT NULL,
   seat INTEGER NOT NULL,
   deck_state TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  kind TEXT NOT NULL CHECK (kind IN ('wip', 'snapshot')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_decks_wip ON decks(draft_id, seat) WHERE kind = 'wip';
+
+-- Migrate shared_decks → decks (no-op on fresh install where table doesn't exist)
+INSERT OR IGNORE INTO decks (id, draft_id, seat, deck_state, kind, created_at, updated_at)
+  SELECT deck_id, draft_id, seat, deck_state, 'snapshot', created_at, created_at
+  FROM shared_decks;
+
+DROP TABLE IF EXISTS shared_decks;
 
 -- Ingestion metadata (cache busting hash, etc.)
 CREATE TABLE IF NOT EXISTS ingestion_meta (

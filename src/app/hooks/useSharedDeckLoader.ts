@@ -1,11 +1,11 @@
 import { useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import type { DeckState } from "@/core/types";
+import type { DeckAction } from "@/core/deckBuilder";
 
 interface UseSharedDeckLoaderProps {
   setActiveDraft: (draftId: string) => void;
   setSelectedSeat: (seat: number) => void;
-  loadSnapshot: (snapshot: DeckState) => void;
+  dispatch: (action: DeckAction) => void;
   setDeckBuilderActive: (active: boolean) => void;
   setDeckBuilderModalOpen: (open: boolean) => void;
 }
@@ -13,7 +13,7 @@ interface UseSharedDeckLoaderProps {
 export function useSharedDeckLoader({
   setActiveDraft,
   setSelectedSeat,
-  loadSnapshot,
+  dispatch,
   setDeckBuilderActive,
   setDeckBuilderModalOpen,
 }: UseSharedDeckLoaderProps): void {
@@ -36,9 +36,8 @@ export function useSharedDeckLoader({
         setActiveDraft(deckState.draftId);
         setSelectedSeat(deckState.seat);
 
-        // Load the shared deck into the deck builder, pre-empting
-        // the localStorage hydration that would otherwise overwrite it
-        loadSnapshot(deckState);
+        // Load the shared deck into the deck builder state via reducer
+        dispatch({ type: "INIT_FROM_SNAPSHOT", snapshot: deckState });
 
         // Activate and open the deck builder modal
         setDeckBuilderActive(true);

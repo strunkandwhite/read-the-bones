@@ -30,6 +30,7 @@ interface DeckBuilderPanelProps {
   onClose: () => void;
   floatedCards?: string[];
   onRemoveFloat?: (cardName: string) => void;
+  saveStatus?: "idle" | "saving" | "saved";
 }
 
 function parseDragId(id: string) {
@@ -51,6 +52,7 @@ export function DeckBuilderPanel({
   onClose,
   floatedCards = [],
   onRemoveFloat,
+  saveStatus,
 }: DeckBuilderPanelProps) {
   useSlowRenderTracking("deck_builder");
   const [showBasicLands, setShowBasicLands] = useState(false);
@@ -221,6 +223,20 @@ export function DeckBuilderPanel({
           </span>
         </div>
         <div className="flex items-center gap-2">
+          {saveStatus === "saving" && (
+            <span className="flex items-center gap-1.5 text-xs text-zinc-500">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-zinc-400" />
+              Saving
+            </span>
+          )}
+          {saveStatus === "saved" && (
+            <span className="flex items-center gap-1.5 text-xs text-emerald-400/80">
+              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              Saved
+            </span>
+          )}
           <button
             onClick={() => setShowBasicLands(true)}
             className="cursor-pointer rounded-md bg-zinc-800 px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"

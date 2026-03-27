@@ -5,7 +5,7 @@ export * from "./picks";
 export * from "./pool";
 export * from "./decklists";
 export * from "./stats";
-export * from "./sharedDecks";
+export * from "./decks";
 export * from "./search";
 export * from "./seatTokens";
 export * from "./pickQueue";

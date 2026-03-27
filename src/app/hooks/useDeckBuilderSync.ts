@@ -10,6 +10,7 @@ interface UseDeckBuilderSyncProps {
   scryfallDataMap: Map<string, ScryCard>;
   activeDraft: string | null;
   selectedSeat: number | null;
+  ready: boolean;
 }
 
 /**
@@ -29,11 +30,12 @@ export function useDeckBuilderSync({
   scryfallDataMap,
   activeDraft,
   selectedSeat,
+  ready,
 }: UseDeckBuilderSyncProps): void {
   // Initialize deck builder from seat picks when first opened
   const deckBuilderInitialized = useRef(false);
   useEffect(() => {
-    if (deckBuilderActive && seatCardList && seatCardList.length > 0 && !deckBuilderInitialized.current) {
+    if (deckBuilderActive && ready && seatCardList && seatCardList.length > 0 && !deckBuilderInitialized.current) {
       const isEmpty = Object.values(deckBuilderState.zones.deck).flat().length === 0
         && Object.values(deckBuilderState.zones.sideboard).flat().length === 0;
       if (isEmpty) {
@@ -50,15 +52,15 @@ export function useDeckBuilderSync({
     if (!deckBuilderActive) {
       deckBuilderInitialized.current = false;
     }
-  }, [deckBuilderActive, seatCardList]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [deckBuilderActive, seatCardList, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reconcile picked cards with deck builder state on every data refresh
   useEffect(() => {
-    if (!deckBuilderActive || !seatCardList || seatCardList.length === 0) return;
+    if (!deckBuilderActive || !ready || !seatCardList || seatCardList.length === 0) return;
     dispatch({
       type: "SYNC_PICKS",
       pickedCardNames: seatCardList,
       scryfallData: scryfallDataMap,
     });
-  }, [seatCardList, deckBuilderActive]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [seatCardList, deckBuilderActive, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 }

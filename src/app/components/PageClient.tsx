@@ -148,14 +148,16 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     return map;
   }, [cardData.cards]);
 
+  // Live draft hooks
+  const seatToken = useSeatToken(draftSelection.activeDraft);
+
   // Deck builder hook
   const deckBuilder = useDeckBuilder({
     draftId: draftSelection.activeDraft ?? "",
     seat: draftSelection.selectedSeat ?? 0,
+    token: seatToken.token,
   });
 
-  // Live draft hooks
-  const seatToken = useSeatToken(draftSelection.activeDraft);
   const draftBoard = useDraftBoard(
     draftSelection.activeDraft,
     liveDraftStatus.dataChanged,
@@ -234,22 +236,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     [submitPick],
   );
 
-  // Clear stale deck builder state when a draft has been reset
-  // (same draft_id but back to "drafting" phase with 0 picks)
-  // One-time guard per draft+seat to avoid repeated clears or race conditions
-  const draftResetClearedRef = useRef<string | null>(null);
-  useEffect(() => {
-    if (!liveDraftStatus.status || !draftSelection.activeDraft) return;
-    const { phase, latestPickN } = liveDraftStatus.status;
-    const seat = draftSelection.selectedSeat;
-    if (seat === null) return;
-    const guardKey = `${draftSelection.activeDraft}:${seat}`;
-    if (phase === "drafting" && latestPickN === 0 && draftResetClearedRef.current !== guardKey) {
-      draftResetClearedRef.current = guardKey;
-      localStorage.removeItem(`deckState:${draftSelection.activeDraft}:${seat}`);
-    }
-  }, [liveDraftStatus.status, draftSelection.activeDraft, draftSelection.selectedSeat]);
-
   // When mySeat resolves from token auth, auto-select that seat
   useEffect(() => {
     if (mySeat !== null && draftSelection.selectedSeat === null) {
@@ -260,7 +246,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   useSharedDeckLoader({
     setActiveDraft: draftSelection.setActiveDraft,
     setSelectedSeat: draftSelection.setSelectedSeat,
-    loadSnapshot: deckBuilder.loadSnapshot,
+    dispatch: deckBuilder.dispatch,
     setDeckBuilderActive,
     setDeckBuilderModalOpen,
   });
@@ -273,6 +259,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     scryfallDataMap,
     activeDraft: draftSelection.activeDraft,
     selectedSeat: draftSelection.selectedSeat,
+    ready: deckBuilder.ready,
   });
 
   const handleActiveDraftChange = useCallback(
@@ -629,6 +616,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
               onClose={() => setDeckBuilderModalOpen(false)}
               floatedCards={floatedCards}
               onRemoveFloat={removeFloat}
+              saveStatus={deckBuilder.saveStatus}
             />
           </div>
         </div>

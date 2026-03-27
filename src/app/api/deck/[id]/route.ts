@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSharedDeck } from "@/core/db/queries/sharedDecks";
+import { getClient } from "@/core/db/client";
+import { getSnapshot } from "@/core/db/queries/decks";
 
 export async function GET(
   _request: NextRequest,
@@ -7,7 +8,8 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const result = await getSharedDeck(id);
+    const client = await getClient();
+    const result = await getSnapshot(client, id);
 
     if (!result) {
       return NextResponse.json({ error: "Deck not found" }, { status: 404 });
