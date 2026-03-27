@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useEffect, useState, useCallback, useRef } from "react";
+import { useLiveDraftPicking } from "../hooks/useLiveDraftPicking";
 import { useSearchParams } from "next/navigation";
 import { track } from "@vercel/analytics/react";
 import { ActiveDraftIndicator } from "./ActiveDraftIndicator";
@@ -24,7 +25,6 @@ import { useSeatToken } from "../hooks/useSeatToken";
 import { usePickQueue } from "../hooks/usePickQueue";
 import { DraftBoardModal } from "./draft-board/DraftBoardModal";
 import { useMySeat } from "../hooks/useMySeat";
-import { derivePickSeat, getTotalPicks } from "@/core/snakeDraft";
 
 
 export interface PageClientProps {
@@ -112,8 +112,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   const [deckBuilderActive, setDeckBuilderActive] = useState(false);
   const [deckBuilderModalOpen, setDeckBuilderModalOpen] = useState(false);
   const [draftBoardOpen, setDraftBoardOpen] = useState(false);
-  const [pickError, setPickError] = useState<string | null>(null);
-
   // Restore modal open state from localStorage on mount
   /* eslint-disable react-hooks/set-state-in-effect -- syncing from external storage (localStorage) */
   useEffect(() => {
@@ -198,6 +196,16 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
 
   const { mySeat, autoPick, toggleAutoPick } = useMySeat(draftSelection.activeDraft, seatToken.token);
 
+  const { handlePick, pickError, setPickError, isMyTurn, consecutivePicks } = useLiveDraftPicking({
+    activeDraft: draftSelection.activeDraft,
+    token: seatToken.token,
+    mySeat,
+    liveDraftStatus: liveDraftStatus.status,
+    refreshDraftStatus: liveDraftStatus.refresh,
+    autoPick,
+    queuedCards: pickQueue.queuedCards,
+  });
+
   // Clear stale deck builder state when a draft has been reset
   // (same draft_id but back to "drafting" phase with 0 picks)
   // One-time guard per draft+seat to avoid repeated clears or race conditions
@@ -220,61 +228,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
       draftSelection.setSelectedSeat(mySeat);
     }
   }, [mySeat, draftSelection.selectedSeat]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const isMyTurn = mySeat !== null && liveDraftStatus.status?.nextSeat === mySeat;
-
-  // Check if player has multiple consecutive picks (snake draft turn)
-  const consecutivePicks = (() => {
-    if (!isMyTurn || !liveDraftStatus.status || mySeat === null) return 0;
-    const { latestPickN, numSeats, picksPerPlayer } = liveDraftStatus.status;
-    const totalPicks = getTotalPicks(numSeats, picksPerPlayer);
-    let count = 0;
-    let pickN = latestPickN + 1;
-    while (pickN <= totalPicks) {
-      const { seat } = derivePickSeat(pickN, { numSeats, picksPerPlayer });
-      if (seat !== mySeat) break;
-      count++;
-      pickN++;
-    }
-    return count;
-  })();
-
-  // Pick handler
-  const refreshDraftStatus = liveDraftStatus.refresh;
-  const handlePick = useCallback(async (cardName: string) => {
-    if (!draftSelection.activeDraft || !seatToken.token) return;
-    setPickError(null);
-    try {
-      const res = await fetch(`/api/drafts/${draftSelection.activeDraft}/pick`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Seat-Token": seatToken.token,
-        },
-        body: JSON.stringify({ card_name: cardName }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        setPickError(data.error || "Pick failed");
-      } else {
-        setPickError(null);
-        refreshDraftStatus();
-      }
-    } catch {
-      setPickError("Network error — pick may not have been submitted");
-    }
-  }, [draftSelection.activeDraft, seatToken.token, refreshDraftStatus]);
-
-  // Fire queued pick immediately when auto-pick is on and it becomes the player's turn
-  /* eslint-disable react-hooks/set-state-in-effect -- submitting pick to external API; setState (setPickError) is a side effect of the API call, not the goal */
-  useEffect(() => {
-    if (!isMyTurn || !autoPick) return;
-    if (!pickQueue.queuedCards || pickQueue.queuedCards.size === 0) return;
-    const sorted = [...pickQueue.queuedCards.entries()].sort((a, b) => a[1] - b[1]);
-    const [nextCard] = sorted[0];
-    handlePick(nextCard);
-  }, [isMyTurn, autoPick, pickQueue.queuedCards, handlePick]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   const searchParams = useSearchParams();
   const sharedDeckId = searchParams.get("deck");
