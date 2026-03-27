@@ -3,6 +3,7 @@ import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
 import { processPick } from "@/core/processPick";
 import { AppError } from "@/core/errors";
+import { resolveCardId } from "@/core/db/queries/cards";
 
 export async function POST(
   request: NextRequest,
@@ -19,14 +20,10 @@ export async function POST(
       return NextResponse.json({ error: "card_name required" }, { status: 400 });
     }
 
-    const cardRow = await client.execute({
-      sql: "SELECT card_id FROM cards WHERE name = ?",
-      args: [card_name],
-    });
-    if (cardRow.rows.length === 0) {
+    const cardId = await resolveCardId(client, card_name);
+    if (cardId === null) {
       return NextResponse.json({ error: `Card not found: ${card_name}` }, { status: 400 });
     }
-    const cardId = cardRow.rows[0].card_id as number;
 
     const result = await processPick(client, {
       draftId,

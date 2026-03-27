@@ -3,9 +3,8 @@ import { POST } from "./route";
 import { NextRequest } from "next/server";
 import { AuthError, ConflictError, ValidationError } from "@/core/errors";
 
-const mockExecute = vi.fn();
 vi.mock("@/core/db/client", () => ({
-  getClient: vi.fn(() => Promise.resolve({ execute: mockExecute })),
+  getClient: vi.fn(() => Promise.resolve({ execute: vi.fn() })),
 }));
 
 const mockAuthenticateSeat = vi.fn();
@@ -16,6 +15,11 @@ vi.mock("@/core/tokenAuth", () => ({
 const mockProcessPick = vi.fn();
 vi.mock("@/core/processPick", () => ({
   processPick: (...args: unknown[]) => mockProcessPick(...args),
+}));
+
+const mockResolveCardId = vi.fn();
+vi.mock("@/core/db/queries/cards", () => ({
+  resolveCardId: (...args: unknown[]) => mockResolveCardId(...args),
 }));
 
 function makeRequest(body: Record<string, unknown>, token = "test-token") {
@@ -34,7 +38,7 @@ describe("POST /api/drafts/[id]/pick", () => {
 
   it("returns picks on success", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
-    mockExecute.mockResolvedValueOnce({ rows: [{ card_id: 42 }] });
+    mockResolveCardId.mockResolvedValueOnce(42);
     mockProcessPick.mockResolvedValueOnce({
       picks: [{ pickN: 1, seat: 1, cardName: "Lightning Bolt" }],
     });
@@ -63,7 +67,7 @@ describe("POST /api/drafts/[id]/pick", () => {
 
   it("returns 400 for unknown card", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
-    mockExecute.mockResolvedValueOnce({ rows: [] });
+    mockResolveCardId.mockResolvedValueOnce(null);
 
     const res = await POST(
       makeRequest({ card_name: "Not A Real Card" }),
@@ -86,7 +90,7 @@ describe("POST /api/drafts/[id]/pick", () => {
 
   it("returns 409 on conflict", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
-    mockExecute.mockResolvedValueOnce({ rows: [{ card_id: 42 }] });
+    mockResolveCardId.mockResolvedValueOnce(42);
     mockProcessPick.mockRejectedValueOnce(new ConflictError("Conflict: pick already made"));
 
     const res = await POST(
@@ -99,7 +103,7 @@ describe("POST /api/drafts/[id]/pick", () => {
 
   it("returns 400 when not your turn", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
-    mockExecute.mockResolvedValueOnce({ rows: [{ card_id: 42 }] });
+    mockResolveCardId.mockResolvedValueOnce(42);
     mockProcessPick.mockRejectedValueOnce(new ValidationError("Not your turn"));
 
     const res = await POST(
