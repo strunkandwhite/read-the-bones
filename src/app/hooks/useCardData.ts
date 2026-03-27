@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo } from "react";
 import type { CardStatsResponse } from "@/core/getCards";
 import type { DraftStatsResponse } from "@/core/getDraftStats";
 import { isLocalClient } from "@/core/isLocal";
@@ -33,7 +33,7 @@ export function useCardData({
   const [draftStats, setDraftStats] = useState<DraftStatsResponse>(initialDraftStats);
   const [isLoading, setIsLoading] = useState(false);
 
-  const isLocal = isLocalClient();
+  const isLocal = useMemo(() => isLocalClient(), []);
 
   // Reusable fetch function for card data and draft stats
   const fetchCardData = useCallback(
