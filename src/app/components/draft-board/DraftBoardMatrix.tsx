@@ -121,7 +121,7 @@ export function DraftBoardMatrix({
             }}
           >
             <th style={{ padding: "4px 8px", textAlign: "center", color: "#888", fontSize: "10px" }}>
-              Rd
+              #
             </th>
             {seatOrder.map((seat) => (
               <th
@@ -147,24 +147,8 @@ export function DraftBoardMatrix({
           </tr>
         </thead>
         <tbody>
-          {matrix.map((row) => {
-            const isCurrentRound = row.round === currentRound;
-
-            // For each seat column, find the pick(s) in this round
-            const seatPicks: Map<number, (typeof board.picks)[number][]> = new Map();
-            for (let i = 0; i < row.seats.length; i++) {
-              const seat = row.seats[i];
-              const pickN = cellPickNumbers.get(`${row.round}-${i}-${seat}`);
-              if (pickN !== undefined) {
-                const pick = picksByN.get(pickN);
-                if (!seatPicks.has(seat)) seatPicks.set(seat, []);
-                seatPicks.get(seat)!.push(
-                  pick ?? { pickN, seat, cardName: "", oracleId: "", colorIdentity: [], manaCost: "" },
-                );
-              }
-            }
-
-            const roundLabelStyle = {
+          {(() => {
+            const rowLabelStyle = {
               padding: "3px 6px",
               textAlign: "center" as const,
               color: "#888",
@@ -172,85 +156,67 @@ export function DraftBoardMatrix({
               whiteSpace: "nowrap" as const,
               borderRight: "1px solid #333",
             };
+            let displayRow = 0;
+            return matrix.map((row) => {
+              const isCurrentRound = row.round === currentRound;
 
-            // Double-pick rounds: render as two separate <tr> rows
-            if (row.isDoublePick) {
-              return [0, 1].map((subRow) => (
-                <tr
-                  key={`${row.round}-${subRow}`}
-                  ref={isCurrentRound && subRow === 0 ? currentRoundRef : undefined}
-                  style={{
-                    backgroundColor: isCurrentRound ? "rgba(59,130,246,0.05)" : undefined,
-                  }}
-                >
-                  {subRow === 0 && (
-                    <td rowSpan={2} style={roundLabelStyle}>
-                      <span>{row.round}</span>
+              // For each seat column, find the pick(s) in this round
+              const seatPicks: Map<number, (typeof board.picks)[number][]> = new Map();
+              for (let i = 0; i < row.seats.length; i++) {
+                const seat = row.seats[i];
+                const pickN = cellPickNumbers.get(`${row.round}-${i}-${seat}`);
+                if (pickN !== undefined) {
+                  const pick = picksByN.get(pickN);
+                  if (!seatPicks.has(seat)) seatPicks.set(seat, []);
+                  seatPicks.get(seat)!.push(
+                    pick ?? { pickN, seat, cardName: "", oracleId: "", colorIdentity: [], manaCost: "" /* required by BoardData type */ },
+                  );
+                }
+              }
+
+              const subRows = row.isDoublePick ? [0, 1] : [0];
+
+              return subRows.map((subRow) => {
+                displayRow++;
+                const rowNum = displayRow;
+                return (
+                  <tr
+                    key={`${row.round}-${subRow}`}
+                    ref={isCurrentRound && subRow === 0 ? currentRoundRef : undefined}
+                    style={{
+                      backgroundColor: isCurrentRound ? "rgba(59,130,246,0.05)" : undefined,
+                    }}
+                  >
+                    <td style={rowLabelStyle}>
+                      <span>{rowNum}</span>
                       <span style={{ marginLeft: "3px", fontSize: "9px", color: "#666" }}>
                         {row.isForward ? "\u2192" : "\u2190"}
                       </span>
                     </td>
-                  )}
-                  {seatOrder.map((seat) => {
-                    const picks = seatPicks.get(seat) ?? [];
-                    const pick = picks[subRow];
-                    const isActive = pick && nextPickN !== null && pick.pickN === nextPickN;
-                    return (
-                      <DraftBoardCell
-                        key={seat}
-                        cardName={pick?.cardName || null}
-                        manaCost={pick?.manaCost ?? null}
-                        isActive={isActive ?? false}
-                        isMyColumn={mySeat === seat}
-                        isEditable={!!isActive && isMyTurn && !!handlePick}
-                        draftId={draftId ?? null}
-                        nextPickN={nextPickN}
-                        onPick={handlePick}
-                        pickError={isActive ? pickError : null}
-                      />
-                    );
-                  })}
-                </tr>
-              ));
-            }
-
-            // Single-pick round: one <tr>
-            return (
-              <tr
-                key={row.round}
-                ref={isCurrentRound ? currentRoundRef : undefined}
-                style={{
-                  backgroundColor: isCurrentRound ? "rgba(59,130,246,0.05)" : undefined,
-                }}
-              >
-                <td style={roundLabelStyle}>
-                  <span>{row.round}</span>
-                  <span style={{ marginLeft: "3px", fontSize: "9px", color: "#666" }}>
-                    {row.isForward ? "\u2192" : "\u2190"}
-                  </span>
-                </td>
-                {seatOrder.map((seat) => {
-                  const picks = seatPicks.get(seat) ?? [];
-                  const pick = picks[0];
-                  const isActive = pick && nextPickN !== null && pick.pickN === nextPickN;
-                  return (
-                    <DraftBoardCell
-                      key={seat}
-                      cardName={pick?.cardName || null}
-                      manaCost={pick?.manaCost ?? null}
-                      isActive={isActive ?? false}
-                      isMyColumn={mySeat === seat}
-                      isEditable={!!isActive && isMyTurn && !!handlePick}
-                      draftId={draftId ?? null}
-                      nextPickN={nextPickN}
-                      onPick={handlePick}
-                      pickError={isActive ? pickError : null}
-                    />
-                  );
-                })}
-              </tr>
-            );
-          })}
+                    {seatOrder.map((seat) => {
+                      const picks = seatPicks.get(seat) ?? [];
+                      const pick = picks[subRow];
+                      const isActive = pick && nextPickN !== null && pick.pickN === nextPickN;
+                      return (
+                        <DraftBoardCell
+                          key={seat}
+                          cardName={pick?.cardName || null}
+                          colorIdentity={pick?.colorIdentity ?? []}
+                          isActive={isActive ?? false}
+                          isMyColumn={mySeat === seat}
+                          isEditable={!!isActive && isMyTurn && !!handlePick}
+                          draftId={draftId ?? null}
+                          nextPickN={nextPickN}
+                          onPick={handlePick}
+                          pickError={isActive ? pickError : null}
+                        />
+                      );
+                    })}
+                  </tr>
+                );
+              });
+            });
+          })()}
         </tbody>
       </table>
     </div>

@@ -5,7 +5,7 @@ import { PickAutocomplete } from "./PickAutocomplete";
 
 interface DraftBoardCellProps {
   cardName: string | null;
-  manaCost: string | null;
+  colorIdentity: string[];
   isActive: boolean;
   isMyColumn: boolean;
   isEditable?: boolean;
@@ -15,16 +15,7 @@ interface DraftBoardCellProps {
   pickError?: string | null;
 }
 
-function parseManaSymbols(manaCost: string): string[] {
-  // For double-faced cards, only show the front face cost (before " // ")
-  const frontFaceCost = manaCost.split(" // ")[0];
-  const matches = frontFaceCost.match(/\{[^}]+\}/g);
-  return matches ?? [];
-}
-
-function CellContent({ cardName, manaCost }: { cardName: string | null; manaCost: string | null }) {
-  const manaSymbols = manaCost ? parseManaSymbols(manaCost) : [];
-
+function CellContent({ cardName, colorIdentity }: { cardName: string | null; colorIdentity: string[] }) {
   return (
     <div
       style={{
@@ -52,21 +43,18 @@ function CellContent({ cardName, manaCost }: { cardName: string | null; manaCost
           >
             {cardName}
           </span>
-          {manaSymbols.length > 0 && (
+          {colorIdentity.length > 0 && (
             <span style={{ display: "flex", gap: "1px", flexShrink: 0 }}>
-              {manaSymbols.map((sym, i) => {
-                const svgName = sym.replace(/[{}\/]/g, "");
-                return (
-                  <img
-                    key={i}
-                    src={`/mana/${svgName}.svg`}
-                    alt={sym}
-                    width={12}
-                    height={12}
-                    style={{ display: "block" }}
-                  />
-                );
-              })}
+              {colorIdentity.map((color) => (
+                <img
+                  key={color}
+                  src={`/mana/${color}.svg`}
+                  alt={color}
+                  width={12}
+                  height={12}
+                  style={{ display: "block" }}
+                />
+              ))}
             </span>
           )}
         </div>
@@ -78,7 +66,7 @@ function CellContent({ cardName, manaCost }: { cardName: string | null; manaCost
 /** Full table cell (td) for a draft board pick. */
 export function DraftBoardCell({
   cardName,
-  manaCost,
+  colorIdentity,
   isActive,
   isMyColumn,
   isEditable = false,
@@ -158,7 +146,7 @@ export function DraftBoardCell({
           onCancel={handleCancel}
         />
       ) : (
-        <CellContent cardName={displayName} manaCost={optimisticCardName ? null : manaCost} />
+        <CellContent cardName={displayName} colorIdentity={optimisticCardName ? [] : colorIdentity} />
       )}
     </td>
   );

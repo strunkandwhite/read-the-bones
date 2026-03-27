@@ -156,7 +156,10 @@ export function DraftBoardModal({
               <span style={{ fontSize: "11px", color: "#a1a1aa" }}>
                 {availableCount} available
                 {bannedCardNames && bannedCardNames.length > 0 && (
-                  <span style={{ color: "#71717a" }}>{" · "}{bannedCardNames.length} banned</span>
+                  <span
+                    style={{ color: "#71717a", cursor: "default" }}
+                    title={bannedCardNames.join("\n")}
+                  >{" · "}{bannedCardNames.length} banned</span>
                 )}
               </span>
             )}
