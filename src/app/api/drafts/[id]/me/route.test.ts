@@ -19,7 +19,7 @@ describe("GET /api/drafts/[id]/me", () => {
 
   it("returns seat for valid token", async () => {
     mockExecute.mockResolvedValueOnce({
-      rows: [{ seat: 3, auto_pick: 1, display_name: "Alice", draft_id: "test-draft" }],
+      rows: [{ seat: 3, auto_pick: 1, display_name: "Alice", auto_pick_mode: "resilient", draft_id: "test-draft" }],
     });
 
     const req = makeRequest(
@@ -30,7 +30,7 @@ describe("GET /api/drafts/[id]/me", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body).toEqual({ seat: 3, autoPick: true, displayName: "Alice" });
+    expect(body).toEqual({ seat: 3, autoPick: true, autoPickMode: "resilient", displayName: "Alice" });
   });
 
   it("returns 401 for missing token", async () => {
@@ -54,7 +54,7 @@ describe("GET /api/drafts/[id]/me", () => {
 
   it("returns 401 when token belongs to different draft", async () => {
     mockExecute.mockResolvedValueOnce({
-      rows: [{ seat: 1, auto_pick: 0, display_name: null, draft_id: "other-draft" }],
+      rows: [{ seat: 1, auto_pick: 0, display_name: null, auto_pick_mode: "resilient", draft_id: "other-draft" }],
     });
 
     const req = makeRequest(
@@ -68,7 +68,7 @@ describe("GET /api/drafts/[id]/me", () => {
 
   it("handles null display_name", async () => {
     mockExecute.mockResolvedValueOnce({
-      rows: [{ seat: 5, auto_pick: 0, display_name: null, draft_id: "test-draft" }],
+      rows: [{ seat: 5, auto_pick: 0, display_name: null, auto_pick_mode: "cautious", draft_id: "test-draft" }],
     });
 
     const req = makeRequest(
@@ -79,6 +79,6 @@ describe("GET /api/drafts/[id]/me", () => {
     const body = await res.json();
 
     expect(res.status).toBe(200);
-    expect(body).toEqual({ seat: 5, autoPick: false, displayName: null });
+    expect(body).toEqual({ seat: 5, autoPick: false, autoPickMode: "cautious", displayName: null });
   });
 });

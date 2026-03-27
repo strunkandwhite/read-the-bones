@@ -13,10 +13,12 @@ vi.mock("@/core/tokenAuth", () => ({
 }));
 
 const mockUpdateAutoPick = vi.fn();
+const mockUpdateAutoPickMode = vi.fn();
 const mockUpdateDisplayName = vi.fn();
 const mockGetSeatSettings = vi.fn();
 vi.mock("@/core/db/queries/seatTokens", () => ({
   updateAutoPick: (...args: unknown[]) => mockUpdateAutoPick(...args),
+  updateAutoPickMode: (...args: unknown[]) => mockUpdateAutoPickMode(...args),
   updateDisplayName: (...args: unknown[]) => mockUpdateDisplayName(...args),
   getSeatSettings: (...args: unknown[]) => mockGetSeatSettings(...args),
 }));
@@ -41,7 +43,7 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
   it("updates auto_pick and returns settings", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 2, autoPick: false });
     mockUpdateAutoPick.mockResolvedValueOnce(undefined);
-    mockGetSeatSettings.mockResolvedValueOnce({ autoPick: true, displayName: "Bob" });
+    mockGetSeatSettings.mockResolvedValueOnce({ autoPick: true, displayName: "Bob", autoPickMode: "resilient" });
 
     const res = await PUT(
       makeRequest({ auto_pick: true }),
@@ -52,6 +54,7 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
     expect(res.status).toBe(200);
     expect(body.seat).toBe(2);
     expect(body.autoPick).toBe(true);
+    expect(body.autoPickMode).toBe("resilient");
     expect(body.displayName).toBe("Bob");
     expect(mockUpdateAutoPick).toHaveBeenCalledOnce();
   });
@@ -59,7 +62,7 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
   it("updates display_name and returns settings", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
     mockUpdateDisplayName.mockResolvedValueOnce(undefined);
-    mockGetSeatSettings.mockResolvedValueOnce({ autoPick: false, displayName: "Alice" });
+    mockGetSeatSettings.mockResolvedValueOnce({ autoPick: false, displayName: "Alice", autoPickMode: "resilient" });
 
     const res = await PUT(
       makeRequest({ display_name: "Alice" }),
@@ -76,7 +79,7 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
   it("clears display_name when empty string is sent", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
     mockUpdateDisplayName.mockResolvedValueOnce(undefined);
-    mockGetSeatSettings.mockResolvedValueOnce({ autoPick: false, displayName: null });
+    mockGetSeatSettings.mockResolvedValueOnce({ autoPick: false, displayName: null, autoPickMode: "resilient" });
 
     const res = await PUT(
       makeRequest({ display_name: "" }),
@@ -99,11 +102,41 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
     expect(res.status).toBe(401);
   });
 
+  it("updates auto_pick_mode and returns settings", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: true });
+    mockUpdateAutoPickMode.mockResolvedValueOnce(undefined);
+    mockGetSeatSettings.mockResolvedValueOnce({ autoPick: true, displayName: null, autoPickMode: "cautious" });
+
+    const res = await PUT(
+      makeRequest({ auto_pick_mode: "cautious" }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.autoPickMode).toBe("cautious");
+    expect(mockUpdateAutoPickMode).toHaveBeenCalledOnce();
+  });
+
+  it("rejects invalid auto_pick_mode", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: true });
+
+    const res = await PUT(
+      makeRequest({ auto_pick_mode: "invalid" }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toContain("auto_pick_mode");
+    expect(mockUpdateAutoPickMode).not.toHaveBeenCalled();
+  });
+
   it("updates both auto_pick and display_name together", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 3, autoPick: false });
     mockUpdateAutoPick.mockResolvedValueOnce(undefined);
     mockUpdateDisplayName.mockResolvedValueOnce(undefined);
-    mockGetSeatSettings.mockResolvedValueOnce({ autoPick: true, displayName: "Charlie" });
+    mockGetSeatSettings.mockResolvedValueOnce({ autoPick: true, displayName: "Charlie", autoPickMode: "resilient" });
 
     const res = await PUT(
       makeRequest({ auto_pick: true, display_name: "Charlie" }),
