@@ -5,6 +5,7 @@ interface UseMySeatReturn {
   autoPick: boolean;
   displayName: string | null;
   toggleAutoPick: () => Promise<void>;
+  updateDisplayName: (name: string) => Promise<void>;
 }
 
 export function useMySeat(
@@ -62,5 +63,25 @@ export function useMySeat(
     } catch { /* ignore */ }
   }, [draftId, token, autoPick]);
 
-  return { mySeat, autoPick, displayName, toggleAutoPick };
+  const updateDisplayName = useCallback(async (name: string) => {
+    if (!draftId || !token) return;
+    const previous = displayName;
+    const newValue = name || null;
+    setDisplayName(newValue);
+    try {
+      const res = await fetch(`/api/drafts/${draftId}/seat-settings`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Seat-Token": token,
+        },
+        body: JSON.stringify({ display_name: name }),
+      });
+      if (!res.ok) setDisplayName(previous);
+    } catch {
+      setDisplayName(previous);
+    }
+  }, [draftId, token, displayName]);
+
+  return { mySeat, autoPick, displayName, toggleAutoPick, updateDisplayName };
 }
