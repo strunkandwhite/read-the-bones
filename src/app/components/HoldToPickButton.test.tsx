@@ -11,9 +11,9 @@ describe("HoldToPickButton", () => {
     expect(screen.getByText("Hold to Pick")).toBeTruthy();
   });
 
-  it("has green background styling", () => {
+  it("has emerald background styling", () => {
     render(<HoldToPickButton onPick={vi.fn()} />);
     const button = screen.getByRole("button");
-    expect(button.className).toContain("bg-green");
+    expect(button.className).toContain("bg-emerald");
   });
 });

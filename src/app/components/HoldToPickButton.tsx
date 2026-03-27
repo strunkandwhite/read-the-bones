@@ -14,7 +14,7 @@ export function HoldToPickButton({ onPick, disabled }: HoldToPickButtonProps) {
   return (
     <button
       className={`relative overflow-hidden w-full rounded-lg py-3.5 text-center font-bold text-base text-white
-        ${disabled ? "bg-gray-600 cursor-not-allowed" : "bg-green-700 hover:bg-green-600 cursor-pointer"}
+        ${disabled ? "bg-gray-600 cursor-not-allowed" : "bg-emerald-700 hover:bg-emerald-600 cursor-pointer"}
         transition-colors select-none touch-none`}
       disabled={disabled}
       {...(disabled ? {} : handlers)}
@@ -23,7 +23,7 @@ export function HoldToPickButton({ onPick, disabled }: HoldToPickButtonProps) {
     >
       {/* Progress bar fill */}
       <div
-        className="absolute inset-0 bg-green-500 transition-none"
+        className="absolute inset-0 bg-emerald-500 transition-none"
         style={{
           width: `${progress * 100}%`,
           opacity: isHolding ? 0.4 : 0,

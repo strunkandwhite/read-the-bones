@@ -18,7 +18,7 @@ export function CardStatusIcon({ status, queuePosition }: CardStatusIconProps) {
     case "queued":
       return (
         <span
-          className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-blue-600 text-white text-[9px] font-bold"
+          className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-amber-600 text-white text-[9px] font-bold"
           title={`Queue position ${queuePosition}`}
         >
           {queuePosition}

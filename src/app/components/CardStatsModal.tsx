@@ -252,7 +252,7 @@ function ActionButtons(props: CardStatsModalProps) {
           {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} />}
           {props.onQueue && (
             <button
-              className="w-full rounded-lg bg-blue-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-600"
+              className="w-full cursor-pointer rounded-lg bg-amber-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-600"
               onClick={props.onQueue}
             >
               Queue
@@ -260,7 +260,7 @@ function ActionButtons(props: CardStatsModalProps) {
           )}
           {props.onFloat && (
             <button
-              className="w-full rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600"
+              className="w-full cursor-pointer rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600"
               onClick={props.onFloat}
             >
               Float
@@ -275,7 +275,7 @@ function ActionButtons(props: CardStatsModalProps) {
           {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} />}
           {props.onUnqueue && (
             <button
-              className="w-full rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600"
+              className="w-full cursor-pointer rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600"
               onClick={props.onUnqueue}
             >
               Unqueue{props.queuePosition != null ? ` (#${props.queuePosition})` : ""}
@@ -290,7 +290,7 @@ function ActionButtons(props: CardStatsModalProps) {
           {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} />}
           {props.onQueue && (
             <button
-              className="w-full rounded-lg bg-blue-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-blue-600"
+              className="w-full cursor-pointer rounded-lg bg-amber-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-600"
               onClick={props.onQueue}
             >
               Queue
@@ -298,7 +298,7 @@ function ActionButtons(props: CardStatsModalProps) {
           )}
           {props.onUnfloat && (
             <button
-              className="w-full rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600"
+              className="w-full cursor-pointer rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600"
               onClick={props.onUnfloat}
             >
               Unfloat
