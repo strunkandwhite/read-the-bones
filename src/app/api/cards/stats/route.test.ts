@@ -29,6 +29,9 @@ describe("GET /api/cards/stats", () => {
       pick: { drafts_in_pool: 3, times_picked: 3, avg_pick: 12, median_pick: 10, geomean_pick: 12 },
       play: null,
       wins: null,
+      pick_history: [],
+      pick_distribution: Array(15).fill(0),
+      color_pair_breakdown: [],
     });
     const res = await GET(makeRequest({ card_name: "Lightning Bolt" }));
     expect(res.status).toBe(200);
@@ -72,6 +75,9 @@ describe("GET /api/cards/stats", () => {
       pick: { drafts_in_pool: 1, times_picked: 1, avg_pick: 5, median_pick: 5, geomean_pick: 5 },
       play: null,
       wins: null,
+      pick_history: [],
+      pick_distribution: Array(15).fill(0),
+      color_pair_breakdown: [],
     });
     await GET(makeRequest({ card_name: "Bolt", deck_colors: "RW", draft_id: "tarkir" }));
     expect(queries.getCardStats).toHaveBeenCalledWith(

@@ -7,6 +7,9 @@ import { resolveCard } from "../cards";
 import { getCardPlayStats, getCardWinStats } from "../decklists";
 import { wilsonInterval } from "../../../wilsonInterval";
 import { getCardPickStats } from "./pickStats";
+import { getPickHistory, type PickHistoryEntry } from "./pickHistory";
+import { getColorPairBreakdown, type ColorPairEntry } from "./colorPairBreakdown";
+import { getClient } from "../../client";
 
 /** Minimum number of match results needed for confident win rate statistics. */
 const MIN_SAMPLE_SIZE = 5;
@@ -54,6 +57,12 @@ export interface CardStatsResult {
     drafts_with_data: number;
     filtered: boolean; // true = deck_colors applied, false = overall fallback
   } | null;
+  // Per-draft pick history
+  pick_history: PickHistoryEntry[];
+  // 15-bucket distribution of pick positions
+  pick_distribution: number[];
+  // Top color pair archetypes that maindeck this card
+  color_pair_breakdown: ColorPairEntry[];
 }
 
 /**
@@ -78,8 +87,10 @@ export async function getCardStats(
     color_identity: scryfall?.color_identity || [],
   };
 
-  // Run pick stats and win stats in parallel, passing the resolved card_id
-  const [pickStats, winStats] = await Promise.all([
+  const client = await getClient();
+
+  // Run all stats queries in parallel, passing the resolved card_id
+  const [pickStats, winStats, historyResult, colorPairs] = await Promise.all([
     getCardPickStats({
       card_name: card.name,
       card_id: cardId,
@@ -93,6 +104,8 @@ export async function getCardStats(
       draft_id: params.draft_id,
       deck_colors: params.deck_colors,
     }),
+    getPickHistory(client, card.name, params.draft_id),
+    getColorPairBreakdown(client, card.name, params.draft_id),
   ]);
 
   // Build play stats
@@ -186,5 +199,8 @@ export async function getCardStats(
     },
     play,
     wins,
+    pick_history: historyResult.pickHistory,
+    pick_distribution: historyResult.pickDistribution,
+    color_pair_breakdown: colorPairs,
   };
 }
