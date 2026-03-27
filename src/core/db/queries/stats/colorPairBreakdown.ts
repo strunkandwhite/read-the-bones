@@ -1,0 +1,78 @@
+/**
+ * Color pair breakdown query — finds which color pair archetypes typically play a given card.
+ */
+
+import type { Client } from "@libsql/client";
+import { parseScryfallJson } from "../helpers";
+import { inferDeckColor } from "../../../inferDeckColor";
+
+export interface ColorPairEntry {
+  colorPair: string;
+  percentage: number;
+  deckCount: number;
+}
+
+/**
+ * For a given card, find all decks that maindecked it,
+ * infer each deck's color pair, and return the top 3
+ * color pairs that represent ≥10% of total decks.
+ */
+export async function getColorPairBreakdown(
+  client: Client,
+  cardName: string,
+  draftId?: string,
+): Promise<ColorPairEntry[]> {
+  const draftFilter = draftId ? "AND dc.draft_id = ?" : "";
+  const args: (string | number)[] = [cardName];
+  if (draftId) args.push(draftId);
+
+  // Get all maindecked cards' Scryfall data for decks containing the target card.
+  // Self-join: dc finds decks containing the target card, dc2 gets all cards in those decks.
+  const result = await client.execute({
+    sql: `SELECT dc2.draft_id, dc2.seat, c2.scryfall_json
+          FROM deck_cards dc
+          JOIN cards c ON c.card_id = dc.card_id
+          JOIN deck_cards dc2 ON dc2.draft_id = dc.draft_id AND dc2.seat = dc.seat
+            AND dc2.zone = 'deck'
+          JOIN cards c2 ON c2.card_id = dc2.card_id
+          WHERE c.name = ? AND dc.zone = 'deck' ${draftFilter}`,
+    args,
+  });
+
+  if (result.rows.length === 0) return [];
+
+  // Group by deck (draft_id + seat), aggregate color counts
+  const deckColors = new Map<string, Map<string, number>>();
+  for (const row of result.rows) {
+    const key = `${row.draft_id}:${row.seat}`;
+    if (!deckColors.has(key)) deckColors.set(key, new Map());
+    const colors = deckColors.get(key)!;
+
+    const scryfall = parseScryfallJson(row.scryfall_json as string | null);
+    const colorIdentity = scryfall?.color_identity ?? [];
+    for (const c of colorIdentity) {
+      colors.set(c, (colors.get(c) || 0) + 1);
+    }
+  }
+
+  // Infer color pair for each deck
+  const pairCounts = new Map<string, number>();
+  for (const colors of deckColors.values()) {
+    const pair = inferDeckColor(colors);
+    pairCounts.set(pair, (pairCounts.get(pair) || 0) + 1);
+  }
+
+  const totalDecks = deckColors.size;
+  const threshold = totalDecks * 0.1;
+
+  // Sort by count descending, filter to ≥10%, cap at 3
+  return Array.from(pairCounts.entries())
+    .filter(([, count]) => count >= threshold)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([colorPair, deckCount]) => ({
+      colorPair,
+      percentage: Math.round((deckCount / totalDecks) * 100),
+      deckCount,
+    }));
+}
