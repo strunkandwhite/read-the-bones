@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
 import { AppError } from "@/core/errors";
+import { getDraftPhase } from "@/core/db/queries/drafts";
+import { reportMatchResult } from "@/core/db/queries/matches";
 
 export async function POST(
   request: NextRequest,
@@ -17,7 +19,6 @@ export async function POST(
     if (opponent_seat == null || wins == null || losses == null) {
       return NextResponse.json({ error: "opponent_seat, wins, and losses required" }, { status: 400 });
     }
-    // Validate types
     if (!Number.isInteger(opponent_seat) || !Number.isInteger(wins) || !Number.isInteger(losses)) {
       return NextResponse.json({ error: "opponent_seat, wins, and losses must be integers" }, { status: 400 });
     }
@@ -31,14 +32,10 @@ export async function POST(
       return NextResponse.json({ error: "Cannot report a match against yourself" }, { status: 400 });
     }
 
-    const draft = await client.execute({
-      sql: "SELECT phase FROM drafts WHERE draft_id = ?",
-      args: [draftId],
-    });
-    if (draft.rows.length === 0) {
+    const phase = await getDraftPhase(client, draftId);
+    if (phase === null) {
       return NextResponse.json({ error: "Draft not found" }, { status: 404 });
     }
-    const phase = draft.rows[0].phase as string;
     if (phase !== "playing" && phase !== "complete") {
       return NextResponse.json({ error: `Cannot report matches in '${phase}' phase` }, { status: 400 });
     }
@@ -48,11 +45,7 @@ export async function POST(
     const seat1Wins = mySeat === seat1 ? wins : losses;
     const seat2Wins = mySeat === seat2 ? wins : losses;
 
-    await client.execute({
-      sql: `INSERT OR REPLACE INTO match_events (draft_id, seat1, seat2, seat1_wins, seat2_wins, reported_by_seat)
-            VALUES (?, ?, ?, ?, ?, ?)`,
-      args: [draftId, seat1, seat2, seat1Wins, seat2Wins, mySeat],
-    });
+    await reportMatchResult(client, draftId, seat1, seat2, seat1Wins, seat2Wins, mySeat);
 
     return NextResponse.json({ success: true, seat1, seat2, seat1Wins, seat2Wins });
   } catch (error) {

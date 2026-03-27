@@ -3,14 +3,23 @@ import { POST } from "./route";
 import { NextRequest } from "next/server";
 import { AuthError } from "@/core/errors";
 
-const mockExecute = vi.fn();
 vi.mock("@/core/db/client", () => ({
-  getClient: vi.fn(() => Promise.resolve({ execute: mockExecute })),
+  getClient: vi.fn(() => Promise.resolve({ execute: vi.fn() })),
 }));
 
 const mockAuthenticateSeat = vi.fn();
 vi.mock("@/core/tokenAuth", () => ({
   authenticateSeat: (...args: unknown[]) => mockAuthenticateSeat(...args),
+}));
+
+const mockGetDraftPhase = vi.fn();
+vi.mock("@/core/db/queries/drafts", () => ({
+  getDraftPhase: (...args: unknown[]) => mockGetDraftPhase(...args),
+}));
+
+const mockReportMatchResult = vi.fn();
+vi.mock("@/core/db/queries/matches", () => ({
+  reportMatchResult: (...args: unknown[]) => mockReportMatchResult(...args),
 }));
 
 function makeRequest(body: Record<string, unknown>, token = "test-token") {
@@ -32,10 +41,8 @@ describe("POST /api/drafts/[id]/match", () => {
 
   it("saves match result and returns normalized seats", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 3, autoPick: false });
-    mockExecute.mockResolvedValueOnce({
-      rows: [{ phase: "playing" }],
-    });
-    mockExecute.mockResolvedValueOnce({ rows: [] }); // INSERT
+    mockGetDraftPhase.mockResolvedValueOnce("playing");
+    mockReportMatchResult.mockResolvedValueOnce(undefined);
 
     const res = await POST(
       makeRequest({ opponent_seat: 1, wins: 2, losses: 1 }),
@@ -47,8 +54,11 @@ describe("POST /api/drafts/[id]/match", () => {
     expect(body.success).toBe(true);
     expect(body.seat1).toBe(1);
     expect(body.seat2).toBe(3);
-    expect(body.seat1Wins).toBe(1); // losses from reporter's perspective
-    expect(body.seat2Wins).toBe(2); // wins from reporter's perspective
+    expect(body.seat1Wins).toBe(1);
+    expect(body.seat2Wins).toBe(2);
+    expect(mockReportMatchResult).toHaveBeenCalledWith(
+      expect.anything(), "test", 1, 3, 1, 2, 3
+    );
   });
 
   it("returns 401 without token", async () => {
@@ -88,9 +98,7 @@ describe("POST /api/drafts/[id]/match", () => {
 
   it("returns 400 when draft is in wrong phase", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
-    mockExecute.mockResolvedValueOnce({
-      rows: [{ phase: "drafting" }],
-    });
+    mockGetDraftPhase.mockResolvedValueOnce("drafting");
 
     const res = await POST(
       makeRequest({ opponent_seat: 2, wins: 2, losses: 1 }),
@@ -102,12 +110,22 @@ describe("POST /api/drafts/[id]/match", () => {
     expect(body.error).toContain("drafting");
   });
 
+  it("returns 404 when draft not found", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockGetDraftPhase.mockResolvedValueOnce(null);
+
+    const res = await POST(
+      makeRequest({ opponent_seat: 2, wins: 2, losses: 1 }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    expect(res.status).toBe(404);
+  });
+
   it("allows match reporting in complete phase", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
-    mockExecute.mockResolvedValueOnce({
-      rows: [{ phase: "complete" }],
-    });
-    mockExecute.mockResolvedValueOnce({ rows: [] }); // INSERT
+    mockGetDraftPhase.mockResolvedValueOnce("complete");
+    mockReportMatchResult.mockResolvedValueOnce(undefined);
 
     const res = await POST(
       makeRequest({ opponent_seat: 2, wins: 2, losses: 0 }),
