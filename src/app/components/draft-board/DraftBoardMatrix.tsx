@@ -4,6 +4,7 @@ import { useMemo, useRef, useEffect } from "react";
 import { buildPickMatrix } from "@/core/snakeDraft";
 import type { BoardData } from "@/app/hooks/useLiveDraftStatus";
 import { DraftBoardCell } from "./DraftBoardCell";
+import { InlineEditableName } from "./InlineEditableName";
 
 const SEAT_COLORS = [
   "#e8c050", "#ff6050", "#60c0ff", "#70dd70", "#e080d0",
@@ -15,6 +16,7 @@ interface DraftBoardMatrixProps {
   mySeat: number | null;
   nextPickN: number | null;
   nextSeat: number | null;
+  onUpdateDisplayName?: (name: string) => Promise<void>;
 }
 
 export function DraftBoardMatrix({
@@ -22,6 +24,7 @@ export function DraftBoardMatrix({
   mySeat,
   nextPickN,
   nextSeat: _nextSeat,
+  onUpdateDisplayName,
 }: DraftBoardMatrixProps) {
   const matrix = useMemo(
     () => buildPickMatrix(board.numSeats, board.picksPerPlayer),
@@ -89,6 +92,8 @@ export function DraftBoardMatrix({
           0%, 100% { border-color: #3b82f6; }
           50% { border-color: transparent; }
         }
+        .pencil-icon { opacity: 0; transition: opacity 0.15s; }
+        th:hover .pencil-icon { opacity: 0.5; }
       `}</style>
       <table
         style={{
@@ -123,7 +128,12 @@ export function DraftBoardMatrix({
                   backgroundColor: mySeat === seat ? "rgba(59,130,246,0.1)" : undefined,
                 }}
               >
-                {board.seatNames[String(seat)] || `Seat ${seat}`}
+                <InlineEditableName
+                  currentName={board.seatNames[String(seat)] || `Seat ${seat}`}
+                  seatNumber={seat}
+                  isEditable={mySeat === seat && !!onUpdateDisplayName}
+                  onSave={onUpdateDisplayName ?? (async () => {})}
+                />
               </th>
             ))}
           </tr>

@@ -163,7 +163,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     liveDraftStatus.dataChanged,
   );
 
-  const { mySeat, autoPick, toggleAutoPick } = useMySeat(draftSelection.activeDraft, seatToken.token);
+  const { mySeat, autoPick, toggleAutoPick, updateDisplayName } = useMySeat(draftSelection.activeDraft, seatToken.token);
 
   const { handlePick, pickError, setPickError, isMyTurn, consecutivePicks } = useLiveDraftPicking({
     activeDraft: draftSelection.activeDraft,
@@ -607,6 +607,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
           isOpen={draftBoardOpen}
           onClose={() => setDraftBoardOpen(false)}
           onMatchReported={() => draftBoard.refresh()}
+          onUpdateDisplayName={updateDisplayName}
         />
       )}
 

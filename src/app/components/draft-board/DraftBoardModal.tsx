@@ -17,6 +17,7 @@ interface DraftBoardModalProps {
   isOpen: boolean;
   onClose: () => void;
   onMatchReported: () => void;
+  onUpdateDisplayName?: (name: string) => Promise<void>;
 }
 
 const PHASE_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
@@ -35,6 +36,7 @@ export function DraftBoardModal({
   isOpen,
   onClose,
   onMatchReported,
+  onUpdateDisplayName,
 }: DraftBoardModalProps) {
   useScrollLock(isOpen);
 
@@ -152,6 +154,7 @@ export function DraftBoardModal({
                 mySeat={mySeat}
                 nextPickN={nextPick?.pickNumber ?? null}
                 nextSeat={nextPick?.seat ?? null}
+                onUpdateDisplayName={onUpdateDisplayName}
               />
               <StandingsSection
                 board={board}
