@@ -25,25 +25,34 @@ interface StandingsRow {
 function DraftProgress({
   board,
   status,
+  mySeat,
 }: {
   board: BoardData;
   status: LiveDraftStatus | null;
+  mySeat: number | null;
 }) {
   if (!status || board.phase !== "drafting") return null;
 
   const nextPickNumber = (status.latestPickN ?? 0) + 1;
+  const isMyPick = mySeat !== null && status.nextSeat === mySeat;
   const nextSeatName =
     status.nextSeat !== null
-      ? board.seatNames[status.nextSeat - 1] ?? `Seat ${status.nextSeat}`
+      ? board.seatNames[String(status.nextSeat)] ?? `Seat ${status.nextSeat}`
       : null;
 
   return (
     <div style={{ padding: "8px 0", fontSize: "12px", color: "#888" }}>
-      {nextSeatName && (
+      {isMyPick ? (
         <span>
-          Next pick: <span style={{ color: "#e0e0e0" }}>{nextSeatName}</span> (Pick #{nextPickNumber})
+          <span style={{ color: "#34d399" }}>Your pick</span>{" "}
+          (Pick #{nextPickNumber})
         </span>
-      )}
+      ) : nextSeatName ? (
+        <span>
+          Next pick: <span style={{ color: "#e0e0e0" }}>{nextSeatName}</span>{" "}
+          (Pick #{nextPickNumber})
+        </span>
+      ) : null}
     </div>
   );
 }
@@ -73,7 +82,7 @@ export function StandingsSection({
         >
           Draft Progress
         </h3>
-        <DraftProgress board={board} status={status} />
+        <DraftProgress board={board} status={status} mySeat={mySeat} />
       </div>
     );
   }

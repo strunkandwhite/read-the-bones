@@ -179,7 +179,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
 
   const isLocal = useMemo(() => isLocalClient(), []);
 
-  const { handlePick: _handlePick, pickError, setPickError, isMyTurn, consecutivePicks } = useLiveDraftPicking({
+  const { handlePick: _handlePick, pickError, setPickError, isMyTurn } = useLiveDraftPicking({
     activeDraft: draftSelection.activeDraft,
     token: seatToken.token,
     mySeat,
@@ -460,7 +460,11 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
               {draftSelection.activeDraft && (
                 <button
                   onClick={() => setDraftBoardOpen(!draftBoardOpen)}
-                  className="cursor-pointer rounded-md p-2 text-zinc-500 transition-colors hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+                  className={`cursor-pointer rounded-md p-2 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
+                    draftSelection.activeDraft && mySeat !== null && isMyTurn
+                      ? "text-emerald-400 animate-pulse"
+                      : "text-zinc-500 dark:text-zinc-400"
+                  }`}
                   title={`Pod View — ${draftSelection.activeDraft}`}
                   aria-label={`Pod View — ${draftSelection.activeDraft}`}
                 >
@@ -471,11 +475,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                     <rect x="9" y="9" width="6" height="6" rx="1" />
                   </svg>
                 </button>
-              )}
-              {isMyTurn && consecutivePicks > 1 && (
-                <span className="rounded-md bg-amber-900/50 px-2 py-1 text-xs font-medium text-amber-300">
-                  {consecutivePicks}&times; pick
-                </span>
               )}
               {draftSelection.activeDraft && draftSelection.selectedSeat !== null && (
                 <button
