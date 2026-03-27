@@ -32,6 +32,9 @@ export async function PUT(
     const client = await getClient();
     const { seat } = await authenticateSeat(client, request, draftId);
     const body = await request.json();
+    if (!Array.isArray(body)) {
+      return NextResponse.json({ error: "Request body must be an array" }, { status: 400 });
+    }
     const cardNames: string[] = body.map((entry: { card_name: string }) => entry.card_name);
 
     const cardIds: number[] = [];

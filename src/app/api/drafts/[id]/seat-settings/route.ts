@@ -15,6 +15,10 @@ export async function PUT(
 
     const body = await request.json();
 
+    if (body.display_name !== undefined && typeof body.display_name === "string" && body.display_name.length > 50) {
+      return NextResponse.json({ error: "display_name must be 50 characters or fewer" }, { status: 400 });
+    }
+
     if (body.auto_pick !== undefined) {
       await updateAutoPick(client, draftId, seat, body.auto_pick);
     }
