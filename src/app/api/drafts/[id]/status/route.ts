@@ -24,15 +24,15 @@ export async function GET(
     }
     const { phase, num_seats: numSeats, picks_per_player: picksPerPlayer } = draft.rows[0];
 
-    const latestPickN = await getLatestPickNumber(client, draftId);
-
+    const [latestPickN, recentPicks, seatNames, matchCount] = await Promise.all([
+      getLatestPickNumber(client, draftId),
+      getRecentPicks(client, draftId, 10),
+      getSeatDisplayNames(client, draftId),
+      getMatchCount(client, draftId),
+    ]);
     const next = picksPerPlayer
       ? getNextPick(latestPickN, numSeats as number, picksPerPlayer as number)
       : null;
-
-    const recentPicks = await getRecentPicks(client, draftId, 10);
-    const seatNames = await getSeatDisplayNames(client, draftId);
-    const matchCount = await getMatchCount(client, draftId);
 
     const ns = numSeats as number;
     const totalMatches = (ns * (ns - 1)) / 2;
