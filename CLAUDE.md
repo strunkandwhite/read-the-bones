@@ -188,6 +188,7 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/specs/2026-03-21-deep-clean-design.md` - Deep clean design
 - `docs/superpowers/specs/2026-03-21-winning-decks-by-color-design.md` - Winning decks by color design
 - `docs/superpowers/specs/2026-03-23-server-side-oracle-search-design.md` - Server-side oracle search design
+- `docs/superpowers/specs/2026-03-27-inline-name-editing-design.md` - Inline name editing in live draft pod view
 
 ### Superpowers Plans
 
@@ -208,3 +209,4 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/plans/2026-03-26-live-draft-e2e-feedback.md` - Live draft e2e feedback fixes
 - `docs/superpowers/plans/2026-03-26-live-draft-gap-closure.md` - Live draft gap closure
 - `docs/superpowers/plans/2026-03-27-deep-clean-fixes.md` - Deep clean fixes (this audit)
+- `docs/superpowers/plans/2026-03-27-inline-name-editing.md` - Inline name editing implementation
