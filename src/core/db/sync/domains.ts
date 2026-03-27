@@ -3,13 +3,13 @@ import { createHash } from "crypto";
 import type { Client } from "@libsql/client";
 import type { CardPick, MatchResult } from "../../parseSheetRows";
 
-function sha256(input: string): string {
+export function sha256Short(input: string): string {
   return createHash("sha256").update(input).digest("hex").slice(0, 16);
 }
 
 export function hashPool(cardNames: string[]): string {
   const sorted = [...cardNames].sort();
-  return sha256(sorted.join("\n"));
+  return sha256Short(sorted.join("\n"));
 }
 
 export function hashPicks(picks: CardPick[]): string {
@@ -17,7 +17,7 @@ export function hashPicks(picks: CardPick[]): string {
     (a, b) => a.pickPosition - b.pickPosition || a.seat - b.seat,
   );
   const lines = sorted.map((p) => `${p.pickPosition}:${p.seat}:${p.cardName}`);
-  return sha256(lines.join("\n"));
+  return sha256Short(lines.join("\n"));
 }
 
 export function hashMatches(matches: MatchResult[]): string {
@@ -27,7 +27,16 @@ export function hashMatches(matches: MatchResult[]): string {
   const lines = sorted.map(
     (m) => `${m.seat1}:${m.seat2}:${m.seat1GamesWon}:${m.seat2GamesWon}`,
   );
-  return sha256(lines.join("\n"));
+  return sha256Short(lines.join("\n"));
+}
+
+export function computeIngestionHash(
+  rows: Array<{ pool_hash: unknown; picks_hash: unknown; matches_hash: unknown }>
+): string {
+  const combined = rows
+    .map((r) => `${r.pool_hash ?? ""}:${r.picks_hash ?? ""}:${r.matches_hash ?? ""}`)
+    .join("|");
+  return sha256Short(combined);
 }
 
 export function compareDomainHash(
