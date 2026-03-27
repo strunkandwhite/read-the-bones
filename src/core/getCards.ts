@@ -17,7 +17,7 @@ import {
 import { calculateCardStats, DISTRIBUTION_BUCKET_COUNT } from "./calculateStats";
 import { getClient } from "./db/client";
 import { computeIngestionHash } from "./db/sync/domains";
-import { transformScryfallJson } from "./db/queries/helpers";
+import { transformScryfallJson, parseBannedCardNames } from "./db/queries/helpers";
 import { cardNameKey } from "./parseSheetRows";
 import { round3 } from "./utils";
 
@@ -109,15 +109,11 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
     draftCubeSnapshots.set(draftId, cubeSnapshotId);
 
     const bannedCardsJson = row.banned_cards as string | null;
-    if (bannedCardsJson) {
-      try {
-        const names = JSON.parse(bannedCardsJson) as string[];
-        const banKeys = new Set(names.map(n => cardNameKey(n)));
-        bannedCardsByDraft.set(draftId, banKeys);
-        bannedCardNamesByDraft.set(draftId, names);
-      } catch {
-        // Ignore malformed JSON
-      }
+    const bannedNames = parseBannedCardNames(bannedCardsJson);
+    if (bannedNames.length > 0) {
+      const banKeys = new Set(bannedNames.map(n => cardNameKey(n)));
+      bannedCardsByDraft.set(draftId, banKeys);
+      bannedCardNamesByDraft.set(draftId, bannedNames);
     }
 
     if (row.phase === 'complete') {

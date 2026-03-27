@@ -3,7 +3,7 @@
  */
 
 import { getClient } from "../client";
-import { getOptedOutSeats, parseScryfallJson, matchesColorFilter } from "./helpers";
+import { getOptedOutSeats, parseScryfallJson, matchesColorFilter, parseBannedCards } from "./helpers";
 import { getFrontFace } from "../../cardNames";
 
 export interface GetPicksParams {
@@ -153,16 +153,7 @@ export async function getAvailableCards(
 
   // Parse banned cards for filtering
   const bannedCardsRaw = draftResult.rows[0].banned_cards as string | null;
-  let bannedCards = new Set<string>();
-  if (bannedCardsRaw) {
-    try {
-      bannedCards = new Set(
-        (JSON.parse(bannedCardsRaw) as string[]).map((name) => name.toLowerCase())
-      );
-    } catch {
-      // Ignore malformed JSON
-    }
-  }
+  const bannedCards = parseBannedCards(bannedCardsRaw);
 
   // Get all cards in the cube with their quantities
   const cubeCardsResult = await client.execute({

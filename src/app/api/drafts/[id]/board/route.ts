@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
+import { parseBannedCardNames } from "@/core/db/queries/helpers";
 
 export async function GET(
   _request: NextRequest,
@@ -57,9 +58,7 @@ export async function GET(
       if (r.display_name) seatNames[String(r.seat)] = r.display_name as string;
     }
 
-    const bannedCards: string[] = d.banned_cards
-      ? JSON.parse(d.banned_cards as string)
-      : [];
+    const bannedCards = parseBannedCardNames(d.banned_cards as string | null);
 
     return NextResponse.json({
       draftId,

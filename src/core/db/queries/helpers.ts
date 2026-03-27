@@ -3,6 +3,33 @@
  */
 
 import { getClient } from "../client";
+
+/**
+ * Parse banned cards JSON from database column.
+ * Returns a lowercase Set for O(1) lookups, or an empty Set on null/malformed input.
+ */
+export function parseBannedCards(json: string | null): Set<string> {
+  if (!json) return new Set();
+  try {
+    const names = JSON.parse(json) as string[];
+    return new Set(names.map((n) => n.toLowerCase()));
+  } catch {
+    return new Set();
+  }
+}
+
+/**
+ * Parse banned cards JSON from database column as a raw name array.
+ * Used when original casing is needed (e.g., API responses, display).
+ */
+export function parseBannedCardNames(json: string | null): string[] {
+  if (!json) return [];
+  try {
+    return JSON.parse(json) as string[];
+  } catch {
+    return [];
+  }
+}
 import type { Card, ScryfallCardData } from "../schema";
 import type { ScryCard } from "../../types";
 import { inferDeckColor } from "../../inferDeckColor";

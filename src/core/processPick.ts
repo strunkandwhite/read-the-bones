@@ -1,6 +1,7 @@
 import type { Client } from '@libsql/client';
 import { getNextPick, getTotalPicks } from './snakeDraft';
 import { removeCardFromAllQueues, getAutoPickCandidate } from './db/queries/pickQueue';
+import { parseBannedCards } from './db/queries/helpers';
 
 export interface ProcessPickResult {
   picks: { pickN: number; seat: number; cardId: number; cardName: string }[];
@@ -30,9 +31,7 @@ export async function processPick(
   const phase = row.phase as string;
   const numSeats = row.num_seats as number;
   const picksPerPlayer = row.picks_per_player as number;
-  const bannedCards: string[] = row.banned_cards
-    ? JSON.parse(row.banned_cards as string)
-    : [];
+  const bannedCards = parseBannedCards(row.banned_cards as string | null);
 
   if (phase !== 'drafting') {
     throw new Error(`Draft is in '${phase}' phase, not 'drafting'`);
@@ -51,8 +50,7 @@ export async function processPick(
   }
 
   // 3. Validate card is available and not banned
-  const bannedLower = bannedCards.map((b: string) => b.toLowerCase());
-  if (bannedLower.includes(input.cardName.toLowerCase())) {
+  if (bannedCards.has(input.cardName.toLowerCase())) {
     throw new Error(`${input.cardName} is banned`);
   }
   const alreadyPicked = await client.execute({
