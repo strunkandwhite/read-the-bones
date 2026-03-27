@@ -167,7 +167,7 @@ export async function POST(request: NextRequest) {
   // Allow if valid CRON_SECRET is provided, OR if request comes from same origin
   const origin = request.headers.get("origin") ?? "";
   const host = request.headers.get("host") ?? "";
-  const isSameOrigin = origin.includes(host) && host.length > 0;
+  const isSameOrigin = host.length > 0 && (origin === `https://${host}` || origin === `http://${host}`);
   const isAuthedByCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
 
   if (!isAuthedByCron && !isSameOrigin) {

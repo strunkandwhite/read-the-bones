@@ -37,6 +37,9 @@ export async function PUT(
     if (!Array.isArray(body)) {
       return NextResponse.json({ error: "Request body must be an array" }, { status: 400 });
     }
+    if (body.length > 500) {
+      return NextResponse.json({ error: "Queue cannot exceed 500 entries" }, { status: 400 });
+    }
     const cardNames: string[] = body.map((entry: { card_name: string }) => entry.card_name);
 
     // Batch resolve card names to IDs

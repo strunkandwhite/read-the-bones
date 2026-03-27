@@ -20,6 +20,9 @@ export async function PUT(
     }
 
     if (body.auto_pick !== undefined) {
+      if (typeof body.auto_pick !== "boolean") {
+        return NextResponse.json({ error: "auto_pick must be a boolean" }, { status: 400 });
+      }
       await updateAutoPick(client, draftId, seat, body.auto_pick);
     }
     if (body.auto_pick_mode !== undefined) {
