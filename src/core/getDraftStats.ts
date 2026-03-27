@@ -8,6 +8,7 @@
 
 import { getClient } from "./db/client";
 import { computeIngestionHash } from "./db/sync/domains";
+import { parseScryfallJson } from "./db/queries/helpers";
 import { inferDeckColor } from "./inferDeckColor";
 import { wilsonInterval } from "./wilsonInterval";
 
@@ -115,9 +116,7 @@ async function computeWinRateByColor(
   const seatColors = new Map<string, Map<string, number>>();
   for (const row of deckResult.rows) {
     const key = `${row.draft_id}:${row.seat}`;
-    const scryfall = row.scryfall_json
-      ? JSON.parse(row.scryfall_json as string)
-      : null;
+    const scryfall = parseScryfallJson(row.scryfall_json as string | null);
     const colors: string[] = scryfall?.color_identity ?? [];
 
     if (!seatColors.has(key)) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
-import { parseBannedCardNames } from "@/core/db/queries/helpers";
+import { parseBannedCardNames, transformScryfallJson } from "@/core/db/queries/helpers";
 
 export async function GET(
   _request: NextRequest,
@@ -28,24 +28,14 @@ export async function GET(
       args: [draftId],
     });
     const picks = picksResult.rows.map((r) => {
-      let colorIdentity: string[] = [];
-      let manaCost = "";
-      try {
-        const sf = JSON.parse(r.scryfall_json as string);
-        colorIdentity = sf.color_identity ?? [];
-        manaCost = sf.mana_cost ?? "";
-        // DFCs: use front-face mana cost only
-        if (!manaCost && sf.card_faces?.[0]?.mana_cost) {
-          manaCost = sf.card_faces[0].mana_cost;
-        }
-      } catch { /* ignore parse errors */ }
+      const sf = transformScryfallJson(r.scryfall_json as string | null, r.name as string);
       return {
         pickN: r.pick_n as number,
         seat: r.seat as number,
         cardName: r.name as string,
         oracleId: r.oracle_id as string,
-        colorIdentity,
-        manaCost,
+        colorIdentity: sf?.colorIdentity ?? [],
+        manaCost: sf?.manaCost ?? "",
       };
     });
 
