@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
 import { getQueue, setQueue } from "@/core/db/queries/pickQueue";
+import { AppError } from "@/core/errors";
 
 export async function GET(
   request: NextRequest,
@@ -14,8 +15,8 @@ export async function GET(
     const queue = await getQueue(client, draftId, seat);
     return NextResponse.json({ queue });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("token")) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
     console.error("[/api/drafts/[id]/queue] GET Error:", error);
     return NextResponse.json({ error: "Failed to load queue" }, { status: 500 });
@@ -49,8 +50,8 @@ export async function PUT(
     const queue = await getQueue(client, draftId, seat);
     return NextResponse.json({ queue });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("token")) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
     console.error("[/api/drafts/[id]/queue] PUT Error:", error);
     return NextResponse.json({ error: "Failed to update queue" }, { status: 500 });

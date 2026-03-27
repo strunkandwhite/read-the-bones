@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
 import { updateAutoPick, updateDisplayName } from "@/core/db/queries/seatTokens";
+import { AppError } from "@/core/errors";
 
 export async function PUT(
   request: NextRequest,
@@ -33,8 +34,8 @@ export async function PUT(
       displayName: row.display_name as string | null,
     });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("token")) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
     console.error("[/api/drafts/[id]/seat-settings] Error:", error);
     return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });

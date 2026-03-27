@@ -2,6 +2,7 @@ import type { Client } from '@libsql/client';
 import { getNextPick, getTotalPicks } from './snakeDraft';
 import { removeCardFromAllQueues, getAutoPickCandidate } from './db/queries/pickQueue';
 import { parseBannedCards } from './db/queries/helpers';
+import { NotFoundError, ValidationError, ConflictError } from './errors';
 
 export interface ProcessPickResult {
   picks: { pickN: number; seat: number; cardId: number; cardName: string }[];
@@ -26,7 +27,7 @@ export async function processPick(
           FROM drafts WHERE draft_id = ?`,
     args: [input.draftId],
   });
-  if (draft.rows.length === 0) throw new Error('Draft not found');
+  if (draft.rows.length === 0) throw new NotFoundError('Draft not found');
   const row = draft.rows[0];
   const phase = row.phase as string;
   const numSeats = row.num_seats as number;
@@ -34,7 +35,7 @@ export async function processPick(
   const bannedCards = parseBannedCards(row.banned_cards as string | null);
 
   if (phase !== 'drafting') {
-    throw new Error(`Draft is in '${phase}' phase, not 'drafting'`);
+    throw new ValidationError(`Draft is in '${phase}' phase, not 'drafting'`);
   }
 
   // 2. Derive whose turn it is
@@ -44,14 +45,14 @@ export async function processPick(
   });
   const currentCount = pickCount.rows[0].cnt as number;
   const next = getNextPick(currentCount, numSeats, picksPerPlayer);
-  if (!next) throw new Error('All picks are made');
+  if (!next) throw new ValidationError('All picks are made');
   if (next.seat !== input.seat) {
-    throw new Error(`It's seat ${next.seat}'s turn, not seat ${input.seat}'s`);
+    throw new ValidationError(`It's seat ${next.seat}'s turn, not seat ${input.seat}'s`);
   }
 
   // 3. Validate card is available and not banned
   if (bannedCards.has(input.cardName.toLowerCase())) {
-    throw new Error(`${input.cardName} is banned`);
+    throw new ValidationError(`${input.cardName} is banned`);
   }
   const alreadyPicked = await client.execute({
     sql: `SELECT 1 FROM pick_events
@@ -59,7 +60,7 @@ export async function processPick(
     args: [input.draftId, input.cardId],
   });
   if (alreadyPicked.rows.length > 0) {
-    throw new Error(`${input.cardName} has already been picked`);
+    throw new ValidationError(`${input.cardName} has already been picked`);
   }
 
   // 4. Insert with optimistic concurrency + cascade
@@ -84,7 +85,7 @@ export async function processPick(
              input.draftId, pickN],
     });
     if (inserted.rowsAffected === 0) {
-      throw new Error('Conflict: pick_n already exists — retry');
+      throw new ConflictError('Conflict: pick_n already exists — retry');
     }
 
     picks.push({

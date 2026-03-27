@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
 import { processPick } from "@/core/processPick";
+import { AppError } from "@/core/errors";
 
 export async function POST(
   request: NextRequest,
@@ -36,16 +37,8 @@ export async function POST(
 
     return NextResponse.json(result);
   } catch (error) {
-    if (error instanceof Error) {
-      if (error.message.includes("Conflict")) {
-        return NextResponse.json({ error: error.message }, { status: 409 });
-      }
-      if (error.message.includes("seat token")) {
-        return NextResponse.json({ error: error.message }, { status: 401 });
-      }
-      if (error.message.includes("turn") || error.message.includes("banned") || error.message.includes("already been picked")) {
-        return NextResponse.json({ error: error.message }, { status: 400 });
-      }
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
     console.error("[/api/drafts/[id]/pick] Error:", error);
     return NextResponse.json({ error: "Pick failed" }, { status: 500 });

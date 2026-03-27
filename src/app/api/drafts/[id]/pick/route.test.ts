@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { POST } from "./route";
 import { NextRequest } from "next/server";
+import { AuthError, ConflictError, ValidationError } from "@/core/errors";
 
 const mockExecute = vi.fn();
 vi.mock("@/core/db/client", () => ({
@@ -73,7 +74,7 @@ describe("POST /api/drafts/[id]/pick", () => {
   });
 
   it("returns 401 when authentication fails", async () => {
-    mockAuthenticateSeat.mockRejectedValueOnce(new Error("Missing seat token"));
+    mockAuthenticateSeat.mockRejectedValueOnce(new AuthError("Missing seat token"));
 
     const res = await POST(
       makeRequest({ card_name: "Lightning Bolt" }, ""),
@@ -86,7 +87,7 @@ describe("POST /api/drafts/[id]/pick", () => {
   it("returns 409 on conflict", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
     mockExecute.mockResolvedValueOnce({ rows: [{ card_id: 42 }] });
-    mockProcessPick.mockRejectedValueOnce(new Error("Conflict: pick already made"));
+    mockProcessPick.mockRejectedValueOnce(new ConflictError("Conflict: pick already made"));
 
     const res = await POST(
       makeRequest({ card_name: "Lightning Bolt" }),
@@ -99,7 +100,7 @@ describe("POST /api/drafts/[id]/pick", () => {
   it("returns 400 when not your turn", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
     mockExecute.mockResolvedValueOnce({ rows: [{ card_id: 42 }] });
-    mockProcessPick.mockRejectedValueOnce(new Error("Not your turn"));
+    mockProcessPick.mockRejectedValueOnce(new ValidationError("Not your turn"));
 
     const res = await POST(
       makeRequest({ card_name: "Lightning Bolt" }),
