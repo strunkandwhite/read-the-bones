@@ -156,7 +156,7 @@ describe("usePickQueue", () => {
 
     const { result } = renderHook(() => usePickQueue("draft-1", "token-1", 0));
 
-    await new Promise((r) => setTimeout(r, 50));
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
     expect(result.current.queue).toEqual([]);
   });
 });

@@ -48,8 +48,7 @@ describe("useMySeat", () => {
 
     const { result } = renderHook(() => useMySeat("test-draft", "bad-token"));
 
-    // Give it time to settle
-    await new Promise((r) => setTimeout(r, 50));
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
     expect(result.current.mySeat).toBeNull();
   });
 
@@ -58,7 +57,7 @@ describe("useMySeat", () => {
 
     const { result } = renderHook(() => useMySeat("test-draft", "my-token"));
 
-    await new Promise((r) => setTimeout(r, 50));
+    await waitFor(() => expect(globalThis.fetch).toHaveBeenCalled());
     expect(result.current.mySeat).toBeNull();
   });
 
