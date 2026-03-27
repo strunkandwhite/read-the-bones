@@ -98,13 +98,16 @@ export async function processPick(
 
     // Detect affected seats for cautious auto-pick mode (BEFORE removing from queues)
     const affectedSeats = await getQueuesContainingCard(client, input.draftId, currentCardId);
-    for (const { seat: affectedSeat } of affectedSeats) {
-      if (affectedSeat === currentSeat) continue; // skip the picker
-      const settings = await getSeatSettings(client, input.draftId, affectedSeat);
-      if (settings?.autoPickMode === 'cautious') {
-        await updateAutoPick(client, input.draftId, affectedSeat, false);
-      }
-    }
+    await Promise.all(
+      affectedSeats
+        .filter(({ seat: s }) => s !== currentSeat)
+        .map(async ({ seat: affectedSeat }) => {
+          const settings = await getSeatSettings(client, input.draftId, affectedSeat);
+          if (settings?.autoPickMode === 'cautious') {
+            await updateAutoPick(client, input.draftId, affectedSeat, false);
+          }
+        })
+    );
 
     // Remove from all queues
     await removeCardFromAllQueues(client, input.draftId, currentCardId);
