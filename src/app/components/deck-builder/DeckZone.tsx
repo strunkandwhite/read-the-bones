@@ -22,8 +22,8 @@ interface DeckZoneProps {
   columns: ColumnMap;
   scryfallData: Map<string, ScryCard>;
   cardStats: Map<string, CardStats>;
-  speculativeCards: string[];
-  onRemoveSpeculative?: (cardName: string) => void;
+  floatedCards: string[];
+  onRemoveFloat?: (cardName: string) => void;
 }
 
 export function DeckZone({
@@ -31,8 +31,8 @@ export function DeckZone({
   columns,
   scryfallData,
   cardStats,
-  speculativeCards,
-  onRemoveSpeculative,
+  floatedCards,
+  onRemoveFloat,
 }: DeckZoneProps) {
   const totalCards = Object.values(columns).reduce(
     (sum, cards) => sum + cards.length,
@@ -53,13 +53,13 @@ export function DeckZone({
     return { creatureCount: creatures, spellCount: spells, landCount: lands };
   }, [columns, scryfallData]);
 
-  // Compute which specific card instances are speculative.
-  // For each name, the last N copies (in column order) are speculative,
-  // where N = count of that name in speculativeCards.
-  const { speculativeIndices, speculativeCount } = useMemo(() => {
-    // Count speculative copies per name
+  // Compute which specific card instances are floated.
+  // For each name, the last N copies (in column order) are floated,
+  // where N = count of that name in floatedCards.
+  const { floatedIndices, floatedCount } = useMemo(() => {
+    // Count floated copies per name
     const specCountByName = new Map<string, number>();
-    for (const name of speculativeCards) {
+    for (const name of floatedCards) {
       specCountByName.set(name, (specCountByName.get(name) || 0) + 1);
     }
 
@@ -87,10 +87,10 @@ export function DeckZone({
       }
     }
 
-    return { speculativeIndices: indices, speculativeCount: indices.size };
-  }, [columns, speculativeCards]);
+    return { floatedIndices: indices, floatedCount: indices.size };
+  }, [columns, floatedCards]);
 
-  const pickedCount = totalCards - speculativeCount;
+  const pickedCount = totalCards - floatedCount;
 
   return (
     <div>
@@ -103,8 +103,8 @@ export function DeckZone({
         </span>
         <span className="text-[11px] text-zinc-500">
           {pickedCount} picked
-          {speculativeCount > 0 && (
-            <> · <span className="text-amber-500/80">{speculativeCount} speculative</span></>
+          {floatedCount > 0 && (
+            <> · <span className="text-amber-500/80">{floatedCount} floated</span></>
           )}
         </span>
         {totalCards > 0 && (
@@ -123,8 +123,8 @@ export function DeckZone({
             zone={zone}
             scryfallData={scryfallData}
             cardStats={cardStats}
-            speculativeIndices={speculativeIndices}
-            onRemoveSpeculative={onRemoveSpeculative}
+            floatedIndices={floatedIndices}
+            onRemoveFloat={onRemoveFloat}
           />
         ))}
       </div>

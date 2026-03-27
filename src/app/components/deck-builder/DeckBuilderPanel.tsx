@@ -276,8 +276,8 @@ export function DeckBuilderPanel({
             columns={state.zones.sideboard}
             scryfallData={scryfallData}
             cardStats={cardStats}
-            speculativeCards={floatedCards}
-            onRemoveSpeculative={handleRemoveFloat}
+            floatedCards={floatedCards}
+            onRemoveFloat={handleRemoveFloat}
           />
           <div className="border-t border-zinc-700/30" />
           <DeckZone
@@ -285,8 +285,8 @@ export function DeckBuilderPanel({
             columns={state.zones.deck}
             scryfallData={scryfallData}
             cardStats={cardStats}
-            speculativeCards={floatedCards}
-            onRemoveSpeculative={handleRemoveFloat}
+            floatedCards={floatedCards}
+            onRemoveFloat={handleRemoveFloat}
           />
         </div>
 

@@ -145,7 +145,7 @@ export type BasicLandCounts = {
 };
 
 /**
- * Complete deck builder state, persisted to localStorage and Turso snapshots.
+ * Complete deck builder state, persisted server-side via /api/drafts/[id]/deck-state.
  */
 export type DeckState = {
   draftId: string;

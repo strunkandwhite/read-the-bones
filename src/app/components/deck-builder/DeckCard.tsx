@@ -8,14 +8,14 @@ import { CSS } from "@dnd-kit/utilities";
 interface DeckCardProps {
   cardName: string;
   imageUri?: string;
-  isSpeculative: boolean;
+  isFloated: boolean;
   isLast: boolean;
   id: string; // unique drag ID: "zone:column:index:cardName"
-  onRemoveSpeculative?: (cardName: string) => void;
+  onRemoveFloat?: (cardName: string) => void;
   pickScore?: number;
 }
 
-export function DeckCard({ cardName, imageUri, isSpeculative, isLast, id, onRemoveSpeculative, pickScore }: DeckCardProps) {
+export function DeckCard({ cardName, imageUri, isFloated, isLast, id, onRemoveFloat, pickScore }: DeckCardProps) {
   const {
     attributes,
     listeners,
@@ -42,7 +42,7 @@ export function DeckCard({ cardName, imageUri, isSpeculative, isLast, id, onRemo
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.3 : isSpeculative ? 0.35 : 1,
+    opacity: isDragging ? 0.3 : isFloated ? 0.35 : 1,
   };
 
   // Show only the name bar (~28px) for stacked cards, full image for the last card
@@ -55,7 +55,7 @@ export function DeckCard({ cardName, imageUri, isSpeculative, isLast, id, onRemo
       onMouseEnter={handleMouseEnter}
       onMouseLeave={() => setShowImage(false)}
       className={`group/card relative cursor-grab active:cursor-grabbing rounded overflow-hidden ${
-        isSpeculative
+        isFloated
           ? "border border-dashed border-zinc-500/70"
           : "border border-zinc-700/50"
       } ${!isLast ? "h-[28px]" : ""}`}
@@ -76,12 +76,12 @@ export function DeckCard({ cardName, imageUri, isSpeculative, isLast, id, onRemo
           {cardName}
         </div>
       )}
-      {/* Remove button for speculative cards */}
-      {isSpeculative && onRemoveSpeculative && (
+      {/* Remove button for floated cards */}
+      {isFloated && onRemoveFloat && (
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onRemoveSpeculative(cardName);
+            onRemoveFloat(cardName);
           }}
           onPointerDown={(e) => e.stopPropagation()}
           className="absolute top-0.5 right-0.5 z-10 flex h-4 w-4 cursor-pointer items-center justify-center rounded-full bg-black/60 text-white opacity-0 transition-opacity group-hover/card:opacity-100 hover:bg-red-600"

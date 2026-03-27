@@ -72,11 +72,5 @@ export function validateDeckState(input: unknown): ValidationResult {
     }
   }
 
-  if (deck.speculativeCards !== undefined) {
-    if (!Array.isArray(deck.speculativeCards) || !deck.speculativeCards.every((v: unknown) => typeof v === "string")) {
-      return { valid: false, reason: "speculativeCards must be a string array" };
-    }
-  }
-
   return { valid: true };
 }

@@ -16,8 +16,8 @@ interface DeckColumnProps {
   zone: "deck" | "sideboard";
   scryfallData: Map<string, ScryCard>;
   cardStats: Map<string, CardStats>;
-  speculativeIndices: Set<string>;
-  onRemoveSpeculative?: (cardName: string) => void;
+  floatedIndices: Set<string>;
+  onRemoveFloat?: (cardName: string) => void;
 }
 
 export function DeckColumn({
@@ -27,8 +27,8 @@ export function DeckColumn({
   zone,
   scryfallData,
   cardStats,
-  speculativeIndices,
-  onRemoveSpeculative,
+  floatedIndices,
+  onRemoveFloat,
 }: DeckColumnProps) {
   const droppableId = `${zone}:${columnKey}`;
   const { setNodeRef, isOver } = useDroppable({ id: droppableId });
@@ -69,9 +69,9 @@ export function DeckColumn({
                 id={`${zone}:${columnKey}:${idx}:${name}`}
                 cardName={name}
                 imageUri={imageUri}
-                isSpeculative={speculativeIndices.has(`${columnKey}:${idx}`)}
+                isFloated={floatedIndices.has(`${columnKey}:${idx}`)}
                 isLast={idx === cardNames.length - 1}
-                onRemoveSpeculative={onRemoveSpeculative}
+                onRemoveFloat={onRemoveFloat}
                 pickScore={stats?.weightedGeomean}
               />
             );
