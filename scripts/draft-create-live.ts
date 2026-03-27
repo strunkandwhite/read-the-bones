@@ -179,7 +179,7 @@ async function main() {
 
   console.log(`\nSeat URLs:`);
   for (const { seat, token } of tokens) {
-    console.log(`  Seat ${seat}: https://readthebones.app/drafts/${draftId}?token=${token}`);
+    console.log(`  Seat ${seat}: https://read-the-bones.vercel.app/drafts/${draftId}?token=${token}`);
   }
 }
 

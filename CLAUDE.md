@@ -47,7 +47,7 @@ pnpm sync --dry-run            # Preview what would change without writing to DB
 # Draft lifecycle
 pnpm draft:create --name "Draft Name" --date 2026-01-15 --sheet-id <id>  # Create new draft
 pnpm draft:reset <draft-name>  # Reset a draft (clear all data, re-sync from scratch)
-pnpm draft:delete <draft-name>  # Delete a draft and all its data
+pnpm draft:delete <draft-id>  # Permanently delete a draft and all associated data
 
 # Decklists
 pnpm decklists                 # Fetch decklists from sealeddeck.tech and write to Turso
