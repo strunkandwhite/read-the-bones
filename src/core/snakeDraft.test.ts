@@ -24,8 +24,13 @@ describe('derivePickSeat', () => {
       expect(derivePickSeat(12, opts)).toMatchObject({ seat: 4, round: 3 });
     });
 
+    it('round 4 reverse: seats 4,3,2,1', () => {
+      expect(derivePickSeat(13, opts)).toMatchObject({ seat: 4, round: 4 });
+      expect(derivePickSeat(16, opts)).toMatchObject({ seat: 1, round: 4 });
+    });
+
     it('all single picks have isDoublePick = false', () => {
-      for (let i = 1; i <= 12; i++) {
+      for (let i = 1; i <= 16; i++) {
         expect(derivePickSeat(i, opts).isDoublePick).toBe(false);
       }
     });
@@ -34,33 +39,26 @@ describe('derivePickSeat', () => {
   describe('double-pick region (4 seats, 6 picks each)', () => {
     const opts = { numSeats: 4, picksPerPlayer: 6 };
 
-    it('round 4 reverse (double): seats 4,4,3,3,2,2,1,1', () => {
-      expect(derivePickSeat(13, opts)).toMatchObject({ seat: 4, round: 4, isDoublePick: true });
-      expect(derivePickSeat(14, opts)).toMatchObject({ seat: 4, round: 4 });
-      expect(derivePickSeat(15, opts)).toMatchObject({ seat: 3, round: 4 });
-      expect(derivePickSeat(16, opts)).toMatchObject({ seat: 3, round: 4 });
-      expect(derivePickSeat(17, opts)).toMatchObject({ seat: 2, round: 4 });
-      expect(derivePickSeat(18, opts)).toMatchObject({ seat: 2, round: 4 });
-      expect(derivePickSeat(19, opts)).toMatchObject({ seat: 1, round: 4 });
-      expect(derivePickSeat(20, opts)).toMatchObject({ seat: 1, round: 4 });
+    it('round 5 forward (double): seats 1,1,2,2,3,3,4,4', () => {
+      expect(derivePickSeat(17, opts)).toMatchObject({ seat: 1, round: 5, isDoublePick: true });
+      expect(derivePickSeat(18, opts)).toMatchObject({ seat: 1, round: 5 });
+      expect(derivePickSeat(19, opts)).toMatchObject({ seat: 2, round: 5 });
+      expect(derivePickSeat(20, opts)).toMatchObject({ seat: 2, round: 5 });
+      expect(derivePickSeat(21, opts)).toMatchObject({ seat: 3, round: 5 });
+      expect(derivePickSeat(22, opts)).toMatchObject({ seat: 3, round: 5 });
+      expect(derivePickSeat(23, opts)).toMatchObject({ seat: 4, round: 5 });
+      expect(derivePickSeat(24, opts)).toMatchObject({ seat: 4, round: 5 });
     });
 
-    it('round 4 has 8 double picks (all 4 seats x 2)', () => {
-      for (let i = 13; i <= 20; i++) {
+    it('round 5 has 8 double picks (all 4 seats x 2)', () => {
+      for (let i = 17; i <= 24; i++) {
         expect(derivePickSeat(i, opts).isDoublePick).toBe(true);
       }
     });
   });
 
-  describe('trailing single-pick round (4 seats, 6 picks each, odd remainder)', () => {
+  describe('every seat gets exactly 6 picks (4 seats, 6 picks each)', () => {
     const opts = { numSeats: 4, picksPerPlayer: 6 };
-
-    it('round 5 forward (trailing single): seats 1,2,3,4', () => {
-      expect(derivePickSeat(21, opts)).toMatchObject({ seat: 1, round: 5, isDoublePick: false });
-      expect(derivePickSeat(22, opts)).toMatchObject({ seat: 2, round: 5, isDoublePick: false });
-      expect(derivePickSeat(23, opts)).toMatchObject({ seat: 3, round: 5, isDoublePick: false });
-      expect(derivePickSeat(24, opts)).toMatchObject({ seat: 4, round: 5, isDoublePick: false });
-    });
 
     it('every seat gets exactly 6 picks', () => {
       const counts = new Map<number, number>();
@@ -89,15 +87,15 @@ describe('derivePickSeat', () => {
       expect(derivePickSeat(11, opts)).toMatchObject({ seat: 10, round: 2 });
     });
 
-    it('pick 220 is last single pick', () => {
-      const result = derivePickSeat(220, opts);
+    it('pick 230 is last single pick', () => {
+      const result = derivePickSeat(230, opts);
       expect(result.isDoublePick).toBe(false);
     });
 
-    it('pick 221 is first double pick', () => {
-      const result = derivePickSeat(221, opts);
+    it('pick 231 is first double pick', () => {
+      const result = derivePickSeat(231, opts);
       expect(result.isDoublePick).toBe(true);
-      expect(result.round).toBe(23);
+      expect(result.round).toBe(24);
     });
 
     it('total picks = 450', () => {
@@ -113,6 +111,35 @@ describe('derivePickSeat', () => {
       for (let s = 1; s <= 10; s++) {
         expect(counts.get(s)).toBe(45);
       }
+    });
+  });
+
+  describe('2 seats, 10 picks each (no trailing single)', () => {
+    const opts = { numSeats: 2, picksPerPlayer: 10 };
+
+    it('has 6 single rounds (picks 1-12) then 2 double rounds (picks 13-20)', () => {
+      // Single region: picks 1-12
+      for (let i = 1; i <= 12; i++) {
+        expect(derivePickSeat(i, opts).isDoublePick).toBe(false);
+      }
+      // Double region: picks 13-20
+      for (let i = 13; i <= 20; i++) {
+        expect(derivePickSeat(i, opts).isDoublePick).toBe(true);
+      }
+    });
+
+    it('every seat gets exactly 10 picks', () => {
+      const counts = new Map<number, number>();
+      for (let i = 1; i <= 20; i++) {
+        const { seat } = derivePickSeat(i, opts);
+        counts.set(seat, (counts.get(seat) ?? 0) + 1);
+      }
+      expect(counts.get(1)).toBe(10);
+      expect(counts.get(2)).toBe(10);
+    });
+
+    it('pick 21 throws (exceeds total)', () => {
+      expect(() => derivePickSeat(21, opts)).toThrow();
     });
   });
 });

@@ -178,7 +178,6 @@ export function DraftBoardMatrix({
                   {subRow === 0 && (
                     <td rowSpan={2} style={roundLabelStyle}>
                       <span>{row.round}</span>
-                      <span style={{ marginLeft: "2px", fontSize: "9px" }}> 2x</span>
                       <span style={{ marginLeft: "3px", fontSize: "9px", color: "#666" }}>
                         {row.isForward ? "\u2192" : "\u2190"}
                       </span>

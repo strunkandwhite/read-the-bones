@@ -14,12 +14,10 @@ export function derivePickSeat(
   opts: SnakeDraftOpts,
 ): PickSeatResult {
   const { numSeats, picksPerPlayer } = opts;
-  const singlePickRounds = Math.floor(picksPerPlayer / 2);
+  const doublePickRounds = Math.floor(picksPerPlayer / 4);
+  const singlePickRounds = picksPerPlayer - 2 * doublePickRounds;
   const singlePickTotal = singlePickRounds * numSeats;
-  const remainingPerPlayer = picksPerPlayer - singlePickRounds;
-  const fullDoubleRounds = Math.floor(remainingPerPlayer / 2);
-  const fullDoubleTotal = fullDoubleRounds * numSeats * 2;
-  const hasTrailingSingle = remainingPerPlayer % 2 === 1;
+  const doublePickTotal = doublePickRounds * numSeats * 2;
   const picksPerDoubleRound = numSeats * 2;
 
   let round: number;
@@ -31,7 +29,7 @@ export function derivePickSeat(
     round = Math.ceil(pickNumber / numSeats);
     posInRound = (pickNumber - 1) % numSeats;
     isDoublePick = false;
-  } else if (pickNumber <= singlePickTotal + fullDoubleTotal) {
+  } else if (pickNumber <= singlePickTotal + doublePickTotal) {
     // Double-pick region
     const doublePickIndex = pickNumber - singlePickTotal - 1;
     const doubleRound = Math.floor(doublePickIndex / picksPerDoubleRound);
@@ -39,12 +37,6 @@ export function derivePickSeat(
     round = singlePickRounds + 1 + doubleRound;
     posInRound = Math.floor(posInDoubleRound / 2);
     isDoublePick = true;
-  } else if (hasTrailingSingle) {
-    // Trailing single-pick round (when picksPerPlayer is odd)
-    const trailingIndex = pickNumber - singlePickTotal - fullDoubleTotal - 1;
-    round = singlePickRounds + fullDoubleRounds + 1;
-    posInRound = trailingIndex % numSeats;
-    isDoublePick = false;
   } else {
     throw new Error(`Pick number ${pickNumber} exceeds total picks`);
   }
