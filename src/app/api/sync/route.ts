@@ -159,7 +159,21 @@ export async function GET(request: NextRequest) {
  * POST /api/sync — Called by "Sync Now" button.
  * Rate-limited to prevent quota exhaustion.
  */
-export async function POST() {
+export async function POST(request: NextRequest) {
+  // Accept auth from either header (cron) or from a known origin (UI button)
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
+
+  // Allow if valid CRON_SECRET is provided, OR if request comes from same origin
+  const origin = request.headers.get("origin") ?? "";
+  const host = request.headers.get("host") ?? "";
+  const isSameOrigin = origin.includes(host) && host.length > 0;
+  const isAuthedByCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
+
+  if (!isAuthedByCron && !isSameOrigin) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   try {
     const client = await getClient();
 
