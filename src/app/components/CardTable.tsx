@@ -16,10 +16,7 @@ import type { EnrichedCardStats } from "@/core/types";
 import type { ColorFilterMode } from "@/core/colorFilter";
 import { filterCardsByColor } from "@/core/colorFilter";
 import { ManaSymbols, ColorPills } from "./ManaSymbols";
-import { wilsonInterval } from "@/core/wilsonInterval";
-import { Sparkline } from "./Sparkline";
 import { CardNameCell } from "./CardNameCell";
-import { DistributionHistogram } from "./DistributionHistogram";
 import { track } from "@vercel/analytics/react";
 import { useSlowRenderTracking } from "../hooks/useSlowRenderTracking";
 import { InfoTooltip } from "./InfoTooltip";
@@ -40,6 +37,7 @@ export interface CardTableProps {
   queuedCards?: Map<string, number>;
   onQueueAdd?: (cardName: string) => void;
   onQueueRemove?: (cardName: string) => void;
+  onCardClick?: (cardName: string) => void;
 }
 
 const columnHelper = createColumnHelper<EnrichedCardStats>();
@@ -50,15 +48,6 @@ const PICK_EXPLANATION = `Weighted geometric mean of pick positions across all d
 Weighting factors:
 • Copy weight: 0.5^(n-1) for nth copy
 • Unpicked cards: 0.5x weight (position set to pool size)`;
-
-const DECKLIST_WIN_RATE_EXPLANATION = `Deck Win Rate shows the actual win rate of players who maindecked this card.
-
-Higher = better (players who played this card in their deck won more)
-
-How it works:
-• Uses real decklist submissions (not estimated from pick position)
-• Only counts games where the card was in the player's main deck
-• Aggregated across all drafts with both decklist and match data`;
 
 export function CardTable({
   cards,
@@ -76,6 +65,7 @@ export function CardTable({
   queuedCards,
   onQueueAdd,
   onQueueRemove,
+  onCardClick,
 }: CardTableProps) {
   useSlowRenderTracking("card_table");
   const deckBuilderCardCountsRef = useRef(deckBuilderCardCounts);
@@ -124,19 +114,14 @@ export function CardTable({
     return () => observer.disconnect();
   }, []);
 
-  // Mobile: Card + P# only | Tablet: + Cost, Colors | Desktop: + Type, GPWR, Picked | Wide: + Distribution, History
+  // Mobile: Card + P# only | Tablet: + Cost, Colors | Desktop/Wide: + Type
   const isDesktopOrWider = breakpoint === "desktop" || breakpoint === "wide";
   const columnVisibility: VisibilityState = useMemo(() => {
     const showSm = breakpoint !== "mobile";
-    const showLg = breakpoint === "wide";
     return {
       manaCost: showSm,
       type: isDesktopOrWider,
       colors: showSm,
-      distribution: showLg,
-      decklistWinRate: isDesktopOrWider,
-      history: showLg,
-      timesPicked: isDesktopOrWider,
     };
   }, [breakpoint, isDesktopOrWider]);
 
@@ -152,19 +137,6 @@ export function CardTable({
       return next;
     });
   }, []);
-
-  // Compute global draft timeline for shared sparkline x-axis (sorted unique dates)
-  const draftTimeline = useMemo((): string[] => {
-    const dates = new Set<string>();
-    for (const card of cards) {
-      for (const score of card.scoreHistory) {
-        dates.add(score.date);
-      }
-    }
-    return Array.from(dates).sort();
-  }, [cards]);
-
-  const hasAnyDecklistWinRate = cards.some((c) => c.decklistWinRate);
 
   const columns = useMemo(
     () => [
@@ -241,79 +213,8 @@ export function CardTable({
           );
         },
       }),
-      columnHelper.display({
-        id: "distribution",
-        header: "Distribution",
-        size: 110,
-        cell: ({ row }) => <DistributionHistogram distribution={row.original.pickDistribution} />,
-      }),
-      ...(hasAnyDecklistWinRate
-        ? [
-            columnHelper.accessor((row) => row.decklistWinRate?.winRate ?? -1, {
-              id: "decklistWinRate",
-              size: 90,
-              header: () => (
-                <span className="inline-flex items-center">
-                  GPWR
-                  <InfoTooltip text={DECKLIST_WIN_RATE_EXPLANATION} />
-                </span>
-              ),
-              cell: ({ row }) => {
-                const wr = row.original.decklistWinRate;
-                if (!wr) {
-                  return <span className="text-sm text-zinc-400">—</span>;
-                }
-                const pct = Math.round(wr.winRate * 100);
-                const total = wr.gameWins + wr.gameLosses;
-                const { lower, upper } = wilsonInterval(wr.gameWins, total);
-                const margin = ((upper - lower) / 2 * 100).toFixed(0);
-                return (
-                  <div className="group relative">
-                    <span className="font-mono text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                      {pct}%
-                    </span>
-                    <span className="ml-1 font-mono text-xs text-zinc-400 dark:text-zinc-500">
-                      ±{margin}%
-                    </span>
-                    <div className="absolute -top-10 left-0 z-50 hidden rounded bg-zinc-800 px-2 py-1 text-xs whitespace-nowrap text-white group-hover:block">
-                      {wr.gameWins}W / {wr.gameLosses}L across {wr.timesMaindecked} decks ({wr.draftsWithData} drafts)
-                    </div>
-                  </div>
-                );
-              },
-              sortingFn: (a, b) => {
-                const aVal = a.original.decklistWinRate?.winRate ?? -1;
-                const bVal = b.original.decklistWinRate?.winRate ?? -1;
-                return aVal - bVal;
-              },
-            }),
-          ]
-        : []),
-      columnHelper.display({
-        id: "history",
-        header: "History",
-        size: 100,
-        cell: ({ row }) => (
-          <Sparkline history={row.original.scoreHistory} draftTimeline={draftTimeline} />
-        ),
-      }),
-      columnHelper.accessor((row) => row.draftsPickedIn, {
-        id: "timesPicked",
-        header: "Picked",
-        size: 90,
-        cell: ({ row }) => {
-          if (row.original.timesAvailable === 0) {
-            return <span className="text-sm text-zinc-400 dark:text-zinc-500">—</span>;
-          }
-          return (
-            <span className="text-sm text-zinc-600 dark:text-zinc-400">
-              {row.original.draftsPickedIn} / {row.original.timesAvailable}
-            </span>
-          );
-        },
-      }),
     ],
-    [currentCubeCopies, hasAnyDecklistWinRate, draftTimeline]
+    [currentCubeCopies]
   );
 
   const filteredData = useMemo(() => {
@@ -438,12 +339,14 @@ export function CardTable({
                           ref={rowVirtualizer.measureElement}
                           className="bg-white transition-colors hover:bg-zinc-50 dark:bg-zinc-900 dark:hover:bg-zinc-800"
                           style={{
+                            cursor: onCardClick ? "pointer" : undefined,
                             opacity:
                               takenCardNames?.has(row.original.cardName) &&
                               !seatCardNames?.has(row.original.cardName)
                                 ? 0.35
                                 : 1,
                           }}
+                          onClick={() => onCardClick?.(row.original.cardName)}
                           onMouseEnter={() => {
                             const now = Date.now();
                             if (now - lastHoverTrackRef.current > 5000) {
