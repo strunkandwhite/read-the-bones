@@ -3,6 +3,7 @@
 import { useMemo, useEffect, useState, useCallback, useRef } from "react";
 import { useLiveDraftPicking } from "../hooks/useLiveDraftPicking";
 import { useSharedDeckLoader } from "../hooks/useSharedDeckLoader";
+import { useDeckBuilderSync } from "../hooks/useDeckBuilderSync";
 import { track } from "@vercel/analytics/react";
 import { ActiveDraftIndicator } from "./ActiveDraftIndicator";
 import { CardTable } from "./CardTable";
@@ -250,38 +251,16 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     return counts;
   }, [deckBuilder.state.zones]);
 
-  // Initialize deck builder from seat picks when first opened
-  const deckBuilderInitialized = useRef(false);
-  useEffect(() => {
-    if (deckBuilderActive && seatCardList && seatCardList.length > 0 && !deckBuilderInitialized.current) {
-      const isEmpty = Object.values(deckBuilder.state.zones.deck).flat().length === 0
-        && Object.values(deckBuilder.state.zones.sideboard).flat().length === 0;
-      if (isEmpty) {
-        deckBuilder.dispatch({
-          type: "INIT_FROM_PICKS",
-          picks: seatCardList!,
-          scryfallData: scryfallDataMap,
-          draftId: draftSelection.activeDraft ?? "",
-          seat: draftSelection.selectedSeat ?? 0,
-        });
-      }
-      deckBuilderInitialized.current = true;
-    }
-    if (!deckBuilderActive) {
-      deckBuilderInitialized.current = false;
-    }
-  }, [deckBuilderActive, seatCardList]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Reconcile picked cards with deck builder state on every data refresh
-  useEffect(() => {
-    if (!deckBuilderActive || !seatCardList || seatCardList.length === 0) return;
-    deckBuilder.dispatch({
-      type: "SYNC_PICKS",
-      pickedCardNames: seatCardList,
-      takenCardNames: takenCardNamesSet ? Array.from(takenCardNamesSet) : undefined,
-      scryfallData: scryfallDataMap,
-    });
-  }, [seatCardList, deckBuilderActive]); // eslint-disable-line react-hooks/exhaustive-deps
+  useDeckBuilderSync({
+    deckBuilderActive,
+    seatCardList,
+    takenCardNamesSet,
+    deckBuilderState: deckBuilder.state,
+    dispatch: deckBuilder.dispatch,
+    scryfallDataMap,
+    activeDraft: draftSelection.activeDraft,
+    selectedSeat: draftSelection.selectedSeat,
+  });
 
   // Handler for adding speculative picks from the card table
   const handleAddSpeculative = useCallback(

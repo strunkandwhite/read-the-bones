@@ -1,0 +1,109 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach } from "vitest";
+import { renderHook } from "@testing-library/react";
+import { useDeckBuilderSync } from "./useDeckBuilderSync";
+import type { DeckState, ScryCard } from "@/core/types";
+
+function makeEmptyState(overrides: Partial<DeckState> = {}): DeckState {
+  return {
+    draftId: "test-draft",
+    seat: 1,
+    zones: {
+      deck: {},
+      sideboard: {},
+    },
+    speculativeCards: [],
+    ...overrides,
+  } as DeckState;
+}
+
+describe("useDeckBuilderSync", () => {
+  const dispatch = vi.fn();
+  const scryfallDataMap = new Map<string, ScryCard>();
+
+  const baseProps = {
+    deckBuilderActive: true,
+    seatCardList: ["Lightning Bolt", "Counterspell"],
+    takenCardNamesSet: new Set(["Sol Ring"]),
+    deckBuilderState: makeEmptyState(),
+    dispatch,
+    scryfallDataMap,
+    activeDraft: "test-draft",
+    selectedSeat: 1,
+  };
+
+  beforeEach(() => {
+    vi.restoreAllMocks();
+    dispatch.mockClear();
+  });
+
+  it("dispatches INIT_FROM_PICKS when first activated with empty zones", () => {
+    renderHook(() => useDeckBuilderSync(baseProps));
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "INIT_FROM_PICKS" }),
+    );
+  });
+
+  it("does not dispatch INIT_FROM_PICKS when zones are non-empty", () => {
+    const state = makeEmptyState({
+      zones: {
+        deck: { "0": ["Existing Card"] },
+        sideboard: {},
+      },
+    });
+
+    renderHook(() => useDeckBuilderSync({ ...baseProps, deckBuilderState: state }));
+
+    expect(dispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "INIT_FROM_PICKS" }),
+    );
+  });
+
+  it("does not dispatch when deck builder is inactive", () => {
+    renderHook(() =>
+      useDeckBuilderSync({ ...baseProps, deckBuilderActive: false }),
+    );
+
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("does not dispatch when seatCardList is empty", () => {
+    renderHook(() =>
+      useDeckBuilderSync({ ...baseProps, seatCardList: [] }),
+    );
+
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("dispatches SYNC_PICKS when active with card list", () => {
+    renderHook(() => useDeckBuilderSync(baseProps));
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "SYNC_PICKS",
+        pickedCardNames: ["Lightning Bolt", "Counterspell"],
+      }),
+    );
+  });
+
+  it("resets initialized flag when deactivated then reactivated", () => {
+    const { rerender } = renderHook(
+      (props) => useDeckBuilderSync(props),
+      { initialProps: baseProps },
+    );
+
+    dispatch.mockClear();
+
+    // Deactivate
+    rerender({ ...baseProps, deckBuilderActive: false });
+    dispatch.mockClear();
+
+    // Reactivate — should dispatch INIT_FROM_PICKS again
+    rerender({ ...baseProps, deckBuilderActive: true });
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "INIT_FROM_PICKS" }),
+    );
+  });
+});
