@@ -306,9 +306,10 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   );
 
   const handleUpdateDisplayName = useCallback(async (name: string) => {
+    if (mySeat !== null) draftBoard.patchSeatName(mySeat, name || `Seat ${mySeat}`);
     await updateDisplayName(name);
     draftBoard.refresh();
-  }, [updateDisplayName, draftBoard]);
+  }, [updateDisplayName, draftBoard, mySeat]);
 
   // Compose draft selection change with data fetching
   const onDraftsChange = async (newSelection: Set<string>) => {

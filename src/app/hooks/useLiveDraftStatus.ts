@@ -78,7 +78,7 @@ export interface BoardData {
 export function useDraftBoard(
   draftId: string | null,
   dataChanged: number,
-): { board: BoardData | null; isLoading: boolean; refresh: () => void } {
+): { board: BoardData | null; isLoading: boolean; refresh: () => void; patchSeatName: (seat: number, name: string) => void } {
   const [board, setBoard] = useState<BoardData | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const lastSeenRef = useRef(0);
@@ -93,6 +93,13 @@ export function useDraftBoard(
     setIsLoading(false);
   }, [draftId]);
 
+  const patchSeatName = useCallback((seat: number, name: string) => {
+    setBoard(prev => prev ? {
+      ...prev,
+      seatNames: { ...prev.seatNames, [String(seat)]: name },
+    } : prev);
+  }, []);
+
   /* eslint-disable react-hooks/set-state-in-effect -- syncing from external system (API fetch) */
   useEffect(() => { if (draftId) refresh(); }, [draftId, refresh]);
 
@@ -104,5 +111,5 @@ export function useDraftBoard(
   }, [dataChanged, refresh]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  return { board, isLoading, refresh };
+  return { board, isLoading, refresh, patchSeatName };
 }
