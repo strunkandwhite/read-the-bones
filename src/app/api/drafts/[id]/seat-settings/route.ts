@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
-import { updateAutoPick, updateDisplayName } from "@/core/db/queries/seatTokens";
+import { updateAutoPick, updateDisplayName, getSeatSettings } from "@/core/db/queries/seatTokens";
 import { AppError } from "@/core/errors";
 
 export async function PUT(
@@ -26,16 +26,12 @@ export async function PUT(
       await updateDisplayName(client, draftId, seat, body.display_name || null);
     }
 
-    const result = await client.execute({
-      sql: "SELECT auto_pick, display_name FROM seat_tokens WHERE draft_id = ? AND seat = ?",
-      args: [draftId, seat],
-    });
-    const row = result.rows[0];
+    const settings = await getSeatSettings(client, draftId, seat);
 
     return NextResponse.json({
       seat,
-      autoPick: row.auto_pick === 1,
-      displayName: row.display_name as string | null,
+      autoPick: settings!.autoPick,
+      displayName: settings!.displayName,
     });
   } catch (error) {
     if (error instanceof AppError) {

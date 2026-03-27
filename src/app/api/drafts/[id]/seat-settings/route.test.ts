@@ -3,9 +3,8 @@ import { PUT } from "./route";
 import { NextRequest } from "next/server";
 import { AuthError } from "@/core/errors";
 
-const mockExecute = vi.fn();
 vi.mock("@/core/db/client", () => ({
-  getClient: vi.fn(() => Promise.resolve({ execute: mockExecute })),
+  getClient: vi.fn(() => Promise.resolve({ execute: vi.fn() })),
 }));
 
 const mockAuthenticateSeat = vi.fn();
@@ -15,9 +14,11 @@ vi.mock("@/core/tokenAuth", () => ({
 
 const mockUpdateAutoPick = vi.fn();
 const mockUpdateDisplayName = vi.fn();
+const mockGetSeatSettings = vi.fn();
 vi.mock("@/core/db/queries/seatTokens", () => ({
   updateAutoPick: (...args: unknown[]) => mockUpdateAutoPick(...args),
   updateDisplayName: (...args: unknown[]) => mockUpdateDisplayName(...args),
+  getSeatSettings: (...args: unknown[]) => mockGetSeatSettings(...args),
 }));
 
 function makeRequest(body: Record<string, unknown>, token = "test-token") {
@@ -40,9 +41,7 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
   it("updates auto_pick and returns settings", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 2, autoPick: false });
     mockUpdateAutoPick.mockResolvedValueOnce(undefined);
-    mockExecute.mockResolvedValueOnce({
-      rows: [{ auto_pick: 1, display_name: "Bob" }],
-    });
+    mockGetSeatSettings.mockResolvedValueOnce({ autoPick: true, displayName: "Bob" });
 
     const res = await PUT(
       makeRequest({ auto_pick: true }),
@@ -60,9 +59,7 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
   it("updates display_name and returns settings", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
     mockUpdateDisplayName.mockResolvedValueOnce(undefined);
-    mockExecute.mockResolvedValueOnce({
-      rows: [{ auto_pick: 0, display_name: "Alice" }],
-    });
+    mockGetSeatSettings.mockResolvedValueOnce({ autoPick: false, displayName: "Alice" });
 
     const res = await PUT(
       makeRequest({ display_name: "Alice" }),
@@ -79,9 +76,7 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
   it("clears display_name when empty string is sent", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
     mockUpdateDisplayName.mockResolvedValueOnce(undefined);
-    mockExecute.mockResolvedValueOnce({
-      rows: [{ auto_pick: 0, display_name: null }],
-    });
+    mockGetSeatSettings.mockResolvedValueOnce({ autoPick: false, displayName: null });
 
     const res = await PUT(
       makeRequest({ display_name: "" }),
@@ -108,9 +103,7 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 3, autoPick: false });
     mockUpdateAutoPick.mockResolvedValueOnce(undefined);
     mockUpdateDisplayName.mockResolvedValueOnce(undefined);
-    mockExecute.mockResolvedValueOnce({
-      rows: [{ auto_pick: 1, display_name: "Charlie" }],
-    });
+    mockGetSeatSettings.mockResolvedValueOnce({ autoPick: true, displayName: "Charlie" });
 
     const res = await PUT(
       makeRequest({ auto_pick: true, display_name: "Charlie" }),
