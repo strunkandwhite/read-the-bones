@@ -559,4 +559,298 @@ describe("searchLocalCards", () => {
       expect(result).toHaveLength(2);
     });
   });
+
+  // ─── Advanced features (negation, OR, parentheses, exact name, identity, mana cost, color comparisons) ───
+
+  describe("advanced features", () => {
+    const bolt = createCard({
+      name: "Lightning Bolt",
+      manaCost: "{R}",
+      manaValue: 1,
+      typeLine: "Instant",
+      colors: ["R"],
+      colorIdentity: ["R"],
+      oracleText: "Lightning Bolt deals 3 damage to any target.",
+    });
+
+    const counter = createCard({
+      name: "Counterspell",
+      manaCost: "{U}{U}",
+      manaValue: 2,
+      typeLine: "Instant",
+      colors: ["U"],
+      colorIdentity: ["U"],
+      oracleText: "Counter target spell.",
+    });
+
+    const goyf = createCard({
+      name: "Tarmogoyf",
+      manaCost: "{1}{G}",
+      manaValue: 2,
+      typeLine: "Creature — Lhurgoyf",
+      colors: ["G"],
+      colorIdentity: ["G"],
+      oracleText:
+        "Tarmogoyf's power is equal to the number of card types among cards in all graveyards and its toughness is equal to that number plus 1.",
+    });
+
+    const nicol = createCard({
+      name: "Nicol Bolas, Planeswalker",
+      manaCost: "{4}{U}{B}{B}{R}",
+      manaValue: 8,
+      typeLine: "Legendary Planeswalker — Bolas",
+      colors: ["U", "B", "R"],
+      colorIdentity: ["U", "B", "R"],
+      oracleText:
+        "+3: Destroy target noncreature permanent.\n-2: Gain control of target creature.",
+    });
+
+    const sol = createCard({
+      name: "Sol Ring",
+      manaCost: "{1}",
+      manaValue: 1,
+      typeLine: "Artifact",
+      colors: [],
+      colorIdentity: [],
+      oracleText: "{T}: Add {C}{C}.",
+    });
+
+    const azorius = createCard({
+      name: "Azorius Signet",
+      manaCost: "{2}",
+      manaValue: 2,
+      typeLine: "Artifact",
+      colors: [],
+      colorIdentity: ["W", "U"],
+      oracleText: "{1}, {T}: Add {W}{U}.",
+    });
+
+    const fire = createCard({
+      name: "Fire",
+      manaCost: "{1}{R}",
+      manaValue: 2,
+      typeLine: "Instant",
+      colors: ["R"],
+      colorIdentity: ["R"],
+      oracleText:
+        "Fire deals 2 damage divided as you choose among one or two targets.",
+    });
+
+    const advCards = [bolt, counter, goyf, nicol, sol, azorius, fire];
+
+    function names(cards: ScryCard[]): string[] {
+      return cards.map((c) => c.name).sort();
+    }
+
+    describe("negation", () => {
+      it("negates a type term", () => {
+        expect(names(searchLocalCards("-t:instant", advCards))).toEqual([
+          "Azorius Signet",
+          "Nicol Bolas, Planeswalker",
+          "Sol Ring",
+          "Tarmogoyf",
+        ]);
+      });
+
+      it("negates a color term", () => {
+        expect(names(searchLocalCards("-c:r", advCards))).toEqual([
+          "Azorius Signet",
+          "Counterspell",
+          "Sol Ring",
+          "Tarmogoyf",
+        ]);
+      });
+
+      it("combines negation with positive terms", () => {
+        expect(names(searchLocalCards("t:instant -c:r", advCards))).toEqual([
+          "Counterspell",
+        ]);
+      });
+
+      it("negates mana value", () => {
+        expect(names(searchLocalCards("-mv=2", advCards))).toEqual([
+          "Lightning Bolt",
+          "Nicol Bolas, Planeswalker",
+          "Sol Ring",
+        ]);
+      });
+    });
+
+    describe("OR logic", () => {
+      it("basic OR between two terms", () => {
+        expect(
+          names(searchLocalCards("t:creature or t:artifact", advCards)),
+        ).toEqual(["Azorius Signet", "Sol Ring", "Tarmogoyf"]);
+      });
+
+      it("OR with three terms", () => {
+        expect(
+          names(
+            searchLocalCards("bolt or counterspell or tarmogoyf", advCards),
+          ),
+        ).toEqual(["Counterspell", "Lightning Bolt", "Tarmogoyf"]);
+      });
+    });
+
+    describe("parentheses grouping", () => {
+      it("groups OR with AND", () => {
+        expect(
+          names(searchLocalCards("(t:instant or t:sorcery) c:r", advCards)),
+        ).toEqual(["Fire", "Lightning Bolt"]);
+      });
+
+      it("nested groups", () => {
+        expect(
+          names(
+            searchLocalCards(
+              "(t:instant or t:creature) (c:r or c:g)",
+              advCards,
+            ),
+          ),
+        ).toEqual(["Fire", "Lightning Bolt", "Tarmogoyf"]);
+      });
+
+      it("negated group with De Morgan's", () => {
+        expect(
+          names(searchLocalCards("-(t:instant or t:creature)", advCards)),
+        ).toEqual([
+          "Azorius Signet",
+          "Nicol Bolas, Planeswalker",
+          "Sol Ring",
+        ]);
+      });
+    });
+
+    describe("exact name (!)", () => {
+      it("matches exact name", () => {
+        expect(names(searchLocalCards("!Fire", advCards))).toEqual(["Fire"]);
+      });
+
+      it("does not match partial name", () => {
+        expect(searchLocalCards("!Lightning", advCards)).toEqual([]);
+      });
+
+      it("is case-insensitive", () => {
+        expect(names(searchLocalCards("!fire", advCards))).toEqual(["Fire"]);
+      });
+
+      it("works with quoted exact name", () => {
+        expect(
+          names(searchLocalCards('!"Lightning Bolt"', advCards)),
+        ).toEqual(["Lightning Bolt"]);
+      });
+    });
+
+    describe("color identity (id:)", () => {
+      it("matches color identity", () => {
+        expect(names(searchLocalCards("id:wu", advCards))).toEqual([
+          "Azorius Signet",
+        ]);
+      });
+
+      it("matches identity superset", () => {
+        expect(names(searchLocalCards("id:ub", advCards))).toEqual([
+          "Nicol Bolas, Planeswalker",
+        ]);
+      });
+
+      it("matches exact identity", () => {
+        expect(names(searchLocalCards("id=wu", advCards))).toEqual([
+          "Azorius Signet",
+        ]);
+      });
+    });
+
+    describe("mana cost (m:)", () => {
+      it("matches mana symbol shorthand", () => {
+        expect(names(searchLocalCards("m:uu", advCards))).toEqual([
+          "Counterspell",
+        ]);
+      });
+
+      it("matches with brace notation", () => {
+        expect(names(searchLocalCards("m:{U}{U}", advCards))).toEqual([
+          "Counterspell",
+        ]);
+      });
+
+      it("matches single symbol", () => {
+        expect(names(searchLocalCards("m:r", advCards))).toEqual([
+          "Fire",
+          "Lightning Bolt",
+          "Nicol Bolas, Planeswalker",
+        ]);
+      });
+    });
+
+    describe("color comparisons", () => {
+      it("c:m finds multicolor cards", () => {
+        expect(names(searchLocalCards("c:m", advCards))).toEqual([
+          "Nicol Bolas, Planeswalker",
+        ]);
+      });
+
+      it("c=r finds exactly mono-red", () => {
+        expect(names(searchLocalCards("c=r", advCards))).toEqual([
+          "Fire",
+          "Lightning Bolt",
+        ]);
+      });
+
+      it("c>=ub finds cards with at least U and B", () => {
+        expect(names(searchLocalCards("c>=ub", advCards))).toEqual([
+          "Nicol Bolas, Planeswalker",
+        ]);
+      });
+
+      it("c<=r finds cards that are subset of red (colorless or mono-red)", () => {
+        expect(names(searchLocalCards("c<=r", advCards))).toEqual([
+          "Azorius Signet",
+          "Fire",
+          "Lightning Bolt",
+          "Sol Ring",
+        ]);
+      });
+    });
+
+    describe("mv!= (not equal)", () => {
+      it("excludes specific mana value", () => {
+        expect(names(searchLocalCards("mv!=2", advCards))).toEqual([
+          "Lightning Bolt",
+          "Nicol Bolas, Planeswalker",
+          "Sol Ring",
+        ]);
+      });
+    });
+
+    describe("robustness edge cases", () => {
+      it("unmatched closing paren doesn't crash", () => {
+        expect(() =>
+          searchLocalCards("t:instant)", advCards),
+        ).not.toThrow();
+      });
+
+      it("unmatched opening paren doesn't crash", () => {
+        expect(() =>
+          searchLocalCards("(t:instant", advCards),
+        ).not.toThrow();
+      });
+
+      it("empty parens don't crash", () => {
+        expect(() => searchLocalCards("()", advCards)).not.toThrow();
+      });
+
+      it("or at start of query doesn't crash", () => {
+        expect(() =>
+          searchLocalCards("or t:instant", advCards),
+        ).not.toThrow();
+      });
+
+      it("or at end of query doesn't crash", () => {
+        expect(() =>
+          searchLocalCards("t:instant or", advCards),
+        ).not.toThrow();
+      });
+    });
+  });
 });
