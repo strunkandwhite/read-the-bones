@@ -260,6 +260,43 @@ async function loadPickEvents(client: Client): Promise<PickEventsResult> {
 }
 
 /**
+ * Step 4: Load all cards in each cube snapshot, grouped by snapshot ID.
+ */
+async function loadCubeCards(
+  client: Client,
+  uniqueCubeSnapshots: number[],
+): Promise<Map<number, Map<number, CubeCardInfo>>> {
+  if (uniqueCubeSnapshots.length === 0) return new Map();
+
+  const placeholders = uniqueCubeSnapshots.map(() => "?").join(", ");
+  const cubeCardsResult = await client.execute({
+    sql: `SELECT csc.cube_snapshot_id, csc.card_id, csc.qty,
+                 c.name as card_name, c.scryfall_json
+          FROM cube_snapshot_cards csc
+          JOIN cards c ON csc.card_id = c.card_id
+          WHERE csc.cube_snapshot_id IN (${placeholders})`,
+    args: [...uniqueCubeSnapshots],
+  });
+
+  const cubeCardsBySnapshot = new Map<number, Map<number, CubeCardInfo>>();
+  for (const row of cubeCardsResult.rows) {
+    const snapshotId = row.cube_snapshot_id as number;
+    const cardId = row.card_id as number;
+
+    if (!cubeCardsBySnapshot.has(snapshotId)) {
+      cubeCardsBySnapshot.set(snapshotId, new Map());
+    }
+    cubeCardsBySnapshot.get(snapshotId)!.set(cardId, {
+      cardName: row.card_name as string,
+      qty: row.qty as number,
+      scryfallJson: row.scryfall_json as string | null,
+    });
+  }
+
+  return cubeCardsBySnapshot;
+}
+
+/**
  * Compute card statistics from the Turso database.
  *
  * When no draftIds are specified, stats are computed across all completed drafts.
@@ -303,31 +340,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
   const { scryfallDataMap, picksByDraftAndCard } = await loadPickEvents(client);
 
   // 4. Load cube snapshot cards to find unpicked cards
-  const cubeSnapshotPlaceholders = uniqueCubeSnapshots.map(() => "?").join(", ");
-  const cubeCardsResult = await client.execute({
-    sql: `SELECT csc.cube_snapshot_id, csc.card_id, csc.qty,
-                 c.name as card_name, c.scryfall_json
-          FROM cube_snapshot_cards csc
-          JOIN cards c ON csc.card_id = c.card_id
-          WHERE csc.cube_snapshot_id IN (${cubeSnapshotPlaceholders})`,
-    args: [...uniqueCubeSnapshots],
-  });
-
-  // Group cube cards by snapshot
-  const cubeCardsBySnapshot = new Map<number, Map<number, { cardName: string; qty: number; scryfallJson: string | null }>>();
-  for (const row of cubeCardsResult.rows) {
-    const snapshotId = row.cube_snapshot_id as number;
-    const cardId = row.card_id as number;
-
-    if (!cubeCardsBySnapshot.has(snapshotId)) {
-      cubeCardsBySnapshot.set(snapshotId, new Map());
-    }
-    cubeCardsBySnapshot.get(snapshotId)!.set(cardId, {
-      cardName: row.card_name as string,
-      qty: row.qty as number,
-      scryfallJson: row.scryfall_json as string | null,
-    });
-  }
+  const cubeCardsBySnapshot = await loadCubeCards(client, uniqueCubeSnapshots);
 
   // 5. Build picks array from selected drafts, including unpicked entries
   const allPicks: CardPick[] = [];
