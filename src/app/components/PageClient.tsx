@@ -2,7 +2,7 @@
 
 import { useMemo, useEffect, useState, useCallback, useRef } from "react";
 import { useLiveDraftPicking } from "../hooks/useLiveDraftPicking";
-import { useSearchParams } from "next/navigation";
+import { useSharedDeckLoader } from "../hooks/useSharedDeckLoader";
 import { track } from "@vercel/analytics/react";
 import { ActiveDraftIndicator } from "./ActiveDraftIndicator";
 import { CardTable } from "./CardTable";
@@ -229,40 +229,13 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     }
   }, [mySeat, draftSelection.selectedSeat]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const searchParams = useSearchParams();
-  const sharedDeckId = searchParams.get("deck");
-
-  // Load shared deck from query param
-  useEffect(() => {
-    if (!sharedDeckId) return;
-
-    async function loadSharedDeck() {
-      try {
-        const res = await fetch(`/api/deck/${sharedDeckId}`);
-        if (!res.ok) {
-          console.error(`Failed to load shared deck ${sharedDeckId}: ${res.status}`);
-          return;
-        }
-        const deckState = await res.json();
-
-        // Set draft context to match the shared deck
-        draftSelection.setActiveDraft(deckState.draftId);
-        draftSelection.setSelectedSeat(deckState.seat);
-
-        // Load the shared deck into the deck builder, pre-empting
-        // the localStorage hydration that would otherwise overwrite it
-        deckBuilder.loadSnapshot(deckState);
-
-        // Activate and open the deck builder modal
-        setDeckBuilderActive(true);
-        setDeckBuilderModalOpen(true);
-      } catch (err) {
-        console.error("Failed to load shared deck:", err);
-      }
-    }
-
-    loadSharedDeck();
-  }, [sharedDeckId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useSharedDeckLoader({
+    setActiveDraft: draftSelection.setActiveDraft,
+    setSelectedSeat: draftSelection.setSelectedSeat,
+    loadSnapshot: deckBuilder.loadSnapshot,
+    setDeckBuilderActive,
+    setDeckBuilderModalOpen,
+  });
 
   // Collect card name counts in the deck builder for the table indicator
   const deckBuilderCardCounts = useMemo(() => {
