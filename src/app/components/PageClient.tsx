@@ -165,7 +165,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
 
   const { mySeat, autoPick, toggleAutoPick, updateDisplayName } = useMySeat(draftSelection.activeDraft, seatToken.token);
 
-  const { handlePick, pickError, setPickError, isMyTurn, consecutivePicks } = useLiveDraftPicking({
+  const { handlePick: _handlePick, pickError, setPickError, isMyTurn, consecutivePicks } = useLiveDraftPicking({
     activeDraft: draftSelection.activeDraft,
     token: seatToken.token,
     mySeat,
@@ -206,19 +206,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     setDeckBuilderModalOpen,
   });
 
-  // Collect card name counts in the deck builder for the table indicator
-  const deckBuilderCardCounts = useMemo(() => {
-    const counts = new Map<string, number>();
-    for (const zone of ["deck", "sideboard"] as const) {
-      for (const cards of Object.values(deckBuilder.state.zones[zone])) {
-        for (const name of cards) {
-          counts.set(name, (counts.get(name) || 0) + 1);
-        }
-      }
-    }
-    return counts;
-  }, [deckBuilder.state.zones]);
-
   useDeckBuilderSync({
     deckBuilderActive,
     seatCardList,
@@ -229,37 +216,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     activeDraft: draftSelection.activeDraft,
     selectedSeat: draftSelection.selectedSeat,
   });
-
-  // Handler for adding speculative picks from the card table
-  const handleAddSpeculative = useCallback(
-    (cardName: string) => {
-      deckBuilder.dispatch({
-        type: "ADD_SPECULATIVE",
-        cardName,
-        scryfallData: scryfallDataMap,
-        maxCopies: cardData.cubeCopies[cardName] || 1,
-      });
-      track("deck_card_add", { zone: "deck", source: "table" });
-    },
-    [deckBuilder, scryfallDataMap, cardData.cubeCopies]
-  );
-
-  // Handler for removing speculative picks from the card table
-  const handleRemoveSpeculative = useCallback(
-    (cardName: string) => {
-      deckBuilder.dispatch({
-        type: "REMOVE_SPECULATIVE",
-        cardName,
-      });
-    },
-    [deckBuilder]
-  );
-
-  // Track speculative card names for the card table indicator
-  const speculativeCardNames = useMemo(
-    () => new Set(deckBuilder.state.speculativeCards),
-    [deckBuilder.state.speculativeCards]
-  );
 
   const handleActiveDraftChange = useCallback(
     (draftId: string | null) => {
@@ -542,15 +498,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
             currentCubeCopies={displayedCubeCopies}
             takenCardNames={takenCardNamesSet}
             seatCardNames={seatCardNames}
-            onAddSpeculative={(deckBuilderActive || seatToken.hasSeatToken) ? handleAddSpeculative : undefined}
-            onRemoveSpeculative={(deckBuilderActive || seatToken.hasSeatToken) ? handleRemoveSpeculative : undefined}
-            deckBuilderCardCounts={(deckBuilderActive || seatToken.hasSeatToken) ? deckBuilderCardCounts : undefined}
-            speculativeCardNames={(deckBuilderActive || seatToken.hasSeatToken) ? speculativeCardNames : undefined}
-            isMyTurn={isMyTurn}
-            onPick={seatToken.hasSeatToken ? handlePick : undefined}
-            queuedCards={seatToken.hasSeatToken ? pickQueue.queuedCards : undefined}
-            onQueueAdd={seatToken.hasSeatToken ? pickQueue.addToQueue : undefined}
-            onQueueRemove={seatToken.hasSeatToken ? pickQueue.removeFromQueue : undefined}
           />
         ) : (
           <div className="rounded-lg border border-zinc-200 bg-white p-12 text-center dark:border-zinc-700 dark:bg-zinc-900">

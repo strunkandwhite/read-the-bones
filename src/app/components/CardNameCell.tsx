@@ -1,86 +1,20 @@
 "use client";
 
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef } from "react";
 import { createPortal } from "react-dom";
 import Image from "next/image";
 import type { EnrichedCardStats } from "@/core/types";
-
-/** Stacked-layers icon — indicates a card is in the deck builder. */
-function DeckIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-      <rect x="2" y="5" width="10" height="7" rx="1.5" opacity="0.45" />
-      <rect x="4" y="3" width="10" height="7" rx="1.5" />
-    </svg>
-  );
-}
-
-/** Small X icon for removing speculative cards. */
-function RemoveIcon({ className }: { className?: string }) {
-  return (
-    <svg className={className} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-      <path d="M4 4l8 8M12 4l-8 8" />
-    </svg>
-  );
-}
-
-/** Two-step pick button with confirmation timeout. */
-function PickButton({ cardName, onPick }: { cardName: string; onPick: (name: string) => Promise<void> }) {
-  const [confirming, setConfirming] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  useEffect(() => {
-    if (confirming) {
-      timeoutRef.current = setTimeout(() => setConfirming(false), 3000);
-      return () => clearTimeout(timeoutRef.current);
-    }
-  }, [confirming]);
-
-  if (confirming) {
-    return (
-      <button
-        onClick={(e) => { e.stopPropagation(); setConfirming(false); onPick(cardName); }}
-        className="inline-flex h-4 w-4 items-center justify-center rounded text-[9px] font-bold text-red-400 ring-1 ring-red-500/50 animate-pulse hover:text-red-300"
-        title="Click again to confirm pick"
-      >
-        ✓
-      </button>
-    );
-  }
-
-  return (
-    <button
-      onClick={(e) => { e.stopPropagation(); setConfirming(true); }}
-      className="inline-flex h-4 w-4 items-center justify-center rounded text-[9px] text-emerald-500/70 ring-1 ring-emerald-500/30 hover:text-emerald-400 hover:ring-emerald-400/50"
-      title="Pick this card"
-    >
-      ✓
-    </button>
-  );
-}
+import { CardStatusIcon, type CardStatus } from "./CardStatusIcon";
 
 interface CardNameCellProps {
   card: EnrichedCardStats;
   cubeCopies?: number;
-  onAddSpeculative?: (cardName: string) => void;
-  onRemoveSpeculative?: (cardName: string) => void;
-  canAddMore?: boolean;
-  isInDeckBuilder?: boolean;
-  isSpeculative?: boolean;
-  isTaken?: boolean;
-  isSeatCard?: boolean;
-  // Live draft props
-  onPick?: (cardName: string) => Promise<void>;
-  isMyTurn?: boolean;
-  queuePos?: number;
-  onQueueAdd?: (cardName: string) => void;
-  onQueueRemove?: (cardName: string) => void;
+  cardStatus: CardStatus;
+  queuePosition?: number;
 }
 
 export function CardNameCell({
-  card, cubeCopies, onAddSpeculative, onRemoveSpeculative, canAddMore,
-  isInDeckBuilder, isSpeculative, isTaken, isSeatCard,
-  onPick, isMyTurn, queuePos, onQueueAdd, onQueueRemove,
+  card, cubeCopies, cardStatus, queuePosition,
 }: CardNameCellProps) {
   const [showImage, setShowImage] = useState(false);
   const [position, setPosition] = useState({ top: 0, left: 0 });
@@ -131,101 +65,8 @@ export function CardNameCell({
             ×{cubeCopies}
           </span>
         )}
-        {/* Right-side icons: pick, queue, and deck builder */}
-        {(() => {
-          const icons: ReactNode[] = [];
-
-          // Live draft: pick icon (emerald DeckIcon, visible on hover when it's my turn)
-          if (onPick && isMyTurn && !isTaken && !isSeatCard) {
-            icons.push(
-              <PickButton key="pick" cardName={card.cardName} onPick={onPick} />
-            );
-          }
-
-          // Live draft: queue icon (hide for cards already picked by this seat)
-          if (onQueueAdd && onQueueRemove && !isTaken && !isSeatCard) {
-            if (queuePos !== undefined) {
-              icons.push(
-                <button
-                  key="queue"
-                  onClick={(e) => { e.stopPropagation(); onQueueRemove(card.cardName); }}
-                  className="inline-flex h-4 w-4 items-center justify-center rounded bg-blue-500/20 text-[9px] font-medium text-blue-400 ring-1 ring-blue-500/40 hover:bg-blue-500/30"
-                  title={`Queued #${queuePos} — click to remove`}
-                >
-                  {queuePos}
-                </button>
-              );
-            } else {
-              icons.push(
-                <button
-                  key="queue-add"
-                  onClick={(e) => { e.stopPropagation(); onQueueAdd(card.cardName); }}
-                  className="inline-flex h-4 w-4 items-center justify-center rounded text-[9px] text-blue-500/50 ring-1 ring-blue-500/30 hover:text-blue-400 hover:ring-blue-400/50"
-                  title="Add to pick queue"
-                >
-                  +
-                </button>
-              );
-            }
-          }
-
-          // Deck builder: seat card or in deck builder (solid blue)
-          if (isSeatCard && !isInDeckBuilder) {
-            icons.push(<DeckIcon key="deck" className="h-3.5 w-3.5 shrink-0 text-blue-400" />);
-          } else if (isInDeckBuilder && !isSpeculative) {
-            icons.push(<DeckIcon key="deck" className="h-3.5 w-3.5 shrink-0 text-blue-400" />);
-          } else if (isSpeculative && onRemoveSpeculative) {
-            // Speculative — show remove + optionally add if more copies available
-            icons.push(
-              <span key="deck-spec" className="flex shrink-0 items-center">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemoveSpeculative(card.cardName);
-                  }}
-                  className="group/spec flex h-4 w-4 cursor-pointer items-center justify-center"
-                  title="Remove speculative card"
-                  aria-label="Remove speculative card"
-                >
-                  <DeckIcon className="h-3.5 w-3.5 text-zinc-300 opacity-50 group-hover/spec:hidden dark:text-zinc-400" />
-                  <RemoveIcon className="hidden h-3.5 w-3.5 text-red-400 group-hover/spec:block" />
-                </button>
-                {canAddMore && onAddSpeculative && !isTaken && (
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onAddSpeculative(card.cardName);
-                    }}
-                    className="flex h-4 w-4 cursor-pointer items-center justify-center opacity-0 transition-opacity group-hover/row:opacity-35 active:opacity-100"
-                    title="Add another copy"
-                    aria-label="Add another copy"
-                  >
-                    <DeckIcon className="h-3.5 w-3.5 text-zinc-300 dark:text-zinc-400" />
-                  </button>
-                )}
-              </span>
-            );
-          } else if (onAddSpeculative && canAddMore && !isTaken) {
-            // Can add speculative — show deck icon on row hover
-            icons.push(
-              <button
-                key="deck-add"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAddSpeculative(card.cardName);
-                }}
-                className="flex h-4 w-4 shrink-0 cursor-pointer items-center justify-center opacity-0 transition-opacity group-hover/row:opacity-35 active:opacity-100"
-                title="Add to deck builder"
-                aria-label="Add to deck builder"
-              >
-                <DeckIcon className="h-3.5 w-3.5 text-zinc-300 dark:text-zinc-400" />
-              </button>
-            );
-          }
-
-          if (icons.length === 0) return null;
-          return <span className="ml-1 flex shrink-0 items-center gap-0.5">{icons}</span>;
-        })()}
+        {/* Status icon */}
+        <CardStatusIcon status={cardStatus} queuePosition={queuePosition} />
       </div>
 
       {showImage && imageUri && createPortal(

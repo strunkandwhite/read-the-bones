@@ -28,15 +28,6 @@ export interface CardTableProps {
   currentCubeCopies: Record<string, number>;
   takenCardNames?: Set<string>;
   seatCardNames?: Set<string>;
-  onAddSpeculative?: (cardName: string) => void;
-  onRemoveSpeculative?: (cardName: string) => void;
-  deckBuilderCardCounts?: Map<string, number>;
-  speculativeCardNames?: Set<string>;
-  isMyTurn?: boolean;
-  onPick?: (cardName: string) => Promise<void>;
-  queuedCards?: Map<string, number>;
-  onQueueAdd?: (cardName: string) => void;
-  onQueueRemove?: (cardName: string) => void;
   onCardClick?: (cardName: string) => void;
 }
 
@@ -56,40 +47,9 @@ export function CardTable({
   currentCubeCopies,
   takenCardNames,
   seatCardNames,
-  onAddSpeculative,
-  onRemoveSpeculative,
-  deckBuilderCardCounts,
-  speculativeCardNames,
-  isMyTurn,
-  onPick,
-  queuedCards,
-  onQueueAdd,
-  onQueueRemove,
   onCardClick,
 }: CardTableProps) {
   useSlowRenderTracking("card_table");
-  const deckBuilderCardCountsRef = useRef(deckBuilderCardCounts);
-  deckBuilderCardCountsRef.current = deckBuilderCardCounts;
-  const speculativeCardNamesRef = useRef(speculativeCardNames);
-  speculativeCardNamesRef.current = speculativeCardNames;
-  const takenCardNamesRef = useRef(takenCardNames);
-  takenCardNamesRef.current = takenCardNames;
-  const seatCardNamesRef = useRef(seatCardNames);
-  seatCardNamesRef.current = seatCardNames;
-  const onAddSpeculativeRef = useRef(onAddSpeculative);
-  onAddSpeculativeRef.current = onAddSpeculative;
-  const onRemoveSpeculativeRef = useRef(onRemoveSpeculative);
-  onRemoveSpeculativeRef.current = onRemoveSpeculative;
-  const isMyTurnRef = useRef(isMyTurn);
-  isMyTurnRef.current = isMyTurn;
-  const onPickRef = useRef(onPick);
-  onPickRef.current = onPick;
-  const queuedCardsRef = useRef(queuedCards);
-  queuedCardsRef.current = queuedCards;
-  const onQueueAddRef = useRef(onQueueAdd);
-  onQueueAddRef.current = onQueueAdd;
-  const onQueueRemoveRef = useRef(onQueueRemove);
-  onQueueRemoveRef.current = onQueueRemove;
 
   const [sorting, setSorting] = useState<SortingState>([{ id: "pickScore", desc: false }]);
   const lastHoverTrackRef = useRef(0);
@@ -148,21 +108,7 @@ export function CardTable({
           <CardNameCell
             card={row.original}
             cubeCopies={currentCubeCopies[row.original.cardName]}
-            onAddSpeculative={onAddSpeculativeRef.current}
-            onRemoveSpeculative={onRemoveSpeculativeRef.current}
-            canAddMore={
-              !deckBuilderCardCountsRef.current?.has(row.original.cardName) ||
-              (deckBuilderCardCountsRef.current?.get(row.original.cardName) ?? 0) < (currentCubeCopies[row.original.cardName] || 1)
-            }
-            isInDeckBuilder={deckBuilderCardCountsRef.current?.has(row.original.cardName)}
-            isSpeculative={speculativeCardNamesRef.current?.has(row.original.cardName)}
-            isTaken={takenCardNamesRef.current?.has(row.original.cardName) && !seatCardNamesRef.current?.has(row.original.cardName)}
-            isSeatCard={seatCardNamesRef.current?.has(row.original.cardName)}
-            onPick={onPickRef.current}
-            isMyTurn={isMyTurnRef.current}
-            queuePos={queuedCardsRef.current?.get(row.original.cardName)}
-            onQueueAdd={onQueueAddRef.current}
-            onQueueRemove={onQueueRemoveRef.current}
+            cardStatus="none"
           />
         ),
       }),
