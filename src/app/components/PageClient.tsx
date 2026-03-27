@@ -18,6 +18,7 @@ import type { DraftStatsResponse } from "@/core/getDraftStats";
 import type { ScryCard, CardStats } from "@/core/types";
 import { DeckBuilderPanel } from "./deck-builder/DeckBuilderPanel";
 import { useDeckBuilder } from "../hooks/useDeckBuilder";
+import { useScrollLock } from "@/app/hooks/useScrollLock";
 import { useLiveDraftStatus, useDraftBoard } from "../hooks/useLiveDraftStatus";
 import { useSeatToken } from "../hooks/useSeatToken";
 import { usePickQueue } from "../hooks/usePickQueue";
@@ -139,14 +140,10 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   }, [draftSelection.activeDraft, draftSelection.selectedSeat]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Close modal on Escape key + lock body scroll when open
-  useEffect(() => {
-    if (deckBuilderModalOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+  useScrollLock(deckBuilderModalOpen);
 
+  // Close modal on Escape key
+  useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape" && draftBoardOpen) {
         setDraftBoardOpen(false);
@@ -158,7 +155,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
     };
   }, [deckBuilderModalOpen, draftBoardOpen]);
 
