@@ -17,6 +17,10 @@ interface DraftBoardMatrixProps {
   nextPickN: number | null;
   nextSeat: number | null;
   onUpdateDisplayName?: (name: string) => Promise<void>;
+  handlePick?: (cardName: string) => Promise<void>;
+  isMyTurn?: boolean;
+  draftId?: string;
+  pickError?: string | null;
 }
 
 export function DraftBoardMatrix({
@@ -25,6 +29,10 @@ export function DraftBoardMatrix({
   nextPickN,
   nextSeat: _nextSeat,
   onUpdateDisplayName,
+  handlePick,
+  isMyTurn = false,
+  draftId,
+  pickError = null,
 }: DraftBoardMatrixProps) {
   const matrix = useMemo(
     () => buildPickMatrix(board.numSeats, board.picksPerPlayer),
@@ -194,6 +202,11 @@ export function DraftBoardMatrix({
                         manaCost={pick?.manaCost ?? null}
                         isActive={isActive ?? false}
                         isMyColumn={mySeat === seat}
+                        isEditable={!!isActive && isMyTurn && !!handlePick}
+                        draftId={draftId ?? null}
+                        nextPickN={nextPickN}
+                        onPick={handlePick}
+                        pickError={isActive ? pickError : null}
                       />
                     );
                   })}
@@ -227,6 +240,11 @@ export function DraftBoardMatrix({
                       manaCost={pick?.manaCost ?? null}
                       isActive={isActive ?? false}
                       isMyColumn={mySeat === seat}
+                      isEditable={!!isActive && isMyTurn && !!handlePick}
+                      draftId={draftId ?? null}
+                      nextPickN={nextPickN}
+                      onPick={handlePick}
+                      pickError={isActive ? pickError : null}
                     />
                   );
                 })}
