@@ -556,6 +556,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
             takenCardNames={takenCardNamesSet}
             seatCardNames={seatCardNames}
             onCardClick={setSelectedCard}
+            getCardStatus={getCardStatus}
           />
         ) : (
           <div className="rounded-lg border border-zinc-200 bg-white p-12 text-center dark:border-zinc-700 dark:bg-zinc-900">
@@ -616,17 +617,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
           pickQueue={pickQueue.queue.map((e) => ({ cardName: e.cardName, position: e.priority + 1 }))}
           autoPick={autoPick}
           autoPickMode={autoPickMode}
-          onQueueReorder={(cardNames) => {
-            // Sync the reordered queue to the server
-            const body = cardNames.map((card_name) => ({ card_name }));
-            if (draftSelection.activeDraft && seatToken.token) {
-              fetch(`/api/drafts/${draftSelection.activeDraft}/queue`, {
-                method: "PUT",
-                headers: { "X-Seat-Token": seatToken.token, "Content-Type": "application/json" },
-                body: JSON.stringify(body),
-              });
-            }
-          }}
+          onQueueReorder={pickQueue.reorderQueue}
           onQueueRemove={pickQueue.removeFromQueue}
           onToggleAutoPick={toggleAutoPick}
           onChangeAutoPickMode={updateAutoPickMode}

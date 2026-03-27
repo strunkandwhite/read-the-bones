@@ -29,6 +29,7 @@ export interface CardTableProps {
   takenCardNames?: Set<string>;
   seatCardNames?: Set<string>;
   onCardClick?: (cardName: string) => void;
+  getCardStatus?: (cardName: string) => { status: "picked" | "queued" | "floated" | "none" | "taken"; queuePosition?: number };
 }
 
 const columnHelper = createColumnHelper<EnrichedCardStats>();
@@ -48,6 +49,7 @@ export function CardTable({
   takenCardNames,
   seatCardNames,
   onCardClick,
+  getCardStatus,
 }: CardTableProps) {
   useSlowRenderTracking("card_table");
 
@@ -104,13 +106,17 @@ export function CardTable({
         id: "card",
         header: "Card",
         size: 260,
-        cell: ({ row }) => (
-          <CardNameCell
-            card={row.original}
-            cubeCopies={currentCubeCopies[row.original.cardName]}
-            cardStatus="none"
-          />
-        ),
+        cell: ({ row }) => {
+          const cs = getCardStatus?.(row.original.cardName);
+          return (
+            <CardNameCell
+              card={row.original}
+              cubeCopies={currentCubeCopies[row.original.cardName]}
+              cardStatus={cs?.status === "taken" ? "none" : cs?.status ?? "none"}
+              queuePosition={cs?.queuePosition}
+            />
+          );
+        },
       }),
       columnHelper.accessor((row) => row.scryfall?.manaValue ?? 0, {
         id: "manaCost",
@@ -160,7 +166,7 @@ export function CardTable({
         },
       }),
     ],
-    [currentCubeCopies]
+    [currentCubeCopies, getCardStatus]
   );
 
   const filteredData = useMemo(() => {

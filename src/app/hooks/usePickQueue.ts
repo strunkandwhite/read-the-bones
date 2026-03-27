@@ -11,6 +11,7 @@ interface UsePickQueueReturn {
   queuedCards: Map<string, number>;
   addToQueue: (cardName: string) => void;
   removeFromQueue: (cardName: string) => void;
+  reorderQueue: (cardNames: string[]) => void;
   isLoading: boolean;
 }
 
@@ -73,5 +74,5 @@ export function usePickQueue(
     [queue],
   );
 
-  return { queue, queuedCards, addToQueue, removeFromQueue, isLoading };
+  return { queue, queuedCards, addToQueue, removeFromQueue, reorderQueue: syncQueue, isLoading };
 }

@@ -18,15 +18,20 @@ export function useFloatedCards(draftId: string | null, token: string | null) {
   const addFloat = useCallback(
     async (cardName: string) => {
       if (!draftId || !token) return;
-      await fetch(`/api/drafts/${draftId}/float`, {
-        method: "PUT",
-        headers: {
-          "X-Seat-Token": token,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ card_name: cardName }),
-      });
       setFloatedCards((prev) => [...prev, cardName]);
+      try {
+        const res = await fetch(`/api/drafts/${draftId}/float`, {
+          method: "PUT",
+          headers: {
+            "X-Seat-Token": token,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ card_name: cardName }),
+        });
+        if (!res.ok) setFloatedCards((prev) => prev.filter((c) => c !== cardName));
+      } catch {
+        setFloatedCards((prev) => prev.filter((c) => c !== cardName));
+      }
     },
     [draftId, token],
   );
@@ -34,15 +39,20 @@ export function useFloatedCards(draftId: string | null, token: string | null) {
   const removeFloat = useCallback(
     async (cardName: string) => {
       if (!draftId || !token) return;
-      await fetch(`/api/drafts/${draftId}/float`, {
-        method: "DELETE",
-        headers: {
-          "X-Seat-Token": token,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ card_name: cardName }),
-      });
       setFloatedCards((prev) => prev.filter((c) => c !== cardName));
+      try {
+        const res = await fetch(`/api/drafts/${draftId}/float`, {
+          method: "DELETE",
+          headers: {
+            "X-Seat-Token": token,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ card_name: cardName }),
+        });
+        if (!res.ok) setFloatedCards((prev) => [...prev, cardName]);
+      } catch {
+        setFloatedCards((prev) => [...prev, cardName]);
+      }
     },
     [draftId, token],
   );

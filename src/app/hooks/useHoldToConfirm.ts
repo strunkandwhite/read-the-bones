@@ -70,6 +70,14 @@ export function useHoldToConfirm({
     }, FRAME_INTERVAL);
   }, [duration]);
 
+  // Clean up timers on unmount (e.g., modal closes mid-hold)
+  useEffect(() => {
+    return () => {
+      if (confirmTimerRef.current) clearTimeout(confirmTimerRef.current);
+      if (progressTimerRef.current) clearInterval(progressTimerRef.current);
+    };
+  }, []);
+
   const handlers = {
     onPointerDown: (e: React.PointerEvent | PointerEvent) => {
       // Prevent text selection during hold
