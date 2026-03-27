@@ -10,7 +10,8 @@ import {
 function createMockClient() {
   return {
     execute: vi.fn(),
-  } as unknown as Client & { execute: ReturnType<typeof vi.fn> };
+    batch: vi.fn().mockResolvedValue([]),
+  } as unknown as Client & { execute: ReturnType<typeof vi.fn>; batch: ReturnType<typeof vi.fn> };
 }
 
 describe("getQueue", () => {
@@ -43,71 +44,44 @@ describe("getQueue", () => {
 
 describe("setQueue", () => {
   let client: ReturnType<typeof createMockClient>;
+  beforeEach(() => { client = createMockClient(); });
 
-  beforeEach(() => {
-    client = createMockClient();
-  });
-
-  it("deletes existing queue then inserts new entries in order", async () => {
-    client.execute.mockResolvedValue({ rows: [] });
-
+  it("batches delete + inserts in correct priority order", async () => {
     await setQueue(client, "draft-1", 2, [10, 20, 30]);
 
-    // First call: DELETE
-    expect(client.execute).toHaveBeenCalledTimes(4); // 1 delete + 3 inserts
-    expect(client.execute.mock.calls[0][0].sql).toContain("DELETE");
-    expect(client.execute.mock.calls[0][0].args).toEqual(["draft-1", 2]);
-
-    // Subsequent calls: INSERTs with correct priority ordering
-    expect(client.execute.mock.calls[1][0].sql).toContain("INSERT");
-    expect(client.execute.mock.calls[1][0].args).toEqual(["draft-1", 2, 1, 10]);
-    expect(client.execute.mock.calls[2][0].args).toEqual(["draft-1", 2, 2, 20]);
-    expect(client.execute.mock.calls[3][0].args).toEqual(["draft-1", 2, 3, 30]);
+    expect(client.batch).toHaveBeenCalledOnce();
+    const statements = client.batch.mock.calls[0][0];
+    expect(statements).toHaveLength(4);
+    expect(statements[0].sql).toContain("DELETE");
+    expect(statements[0].args).toEqual(["draft-1", 2]);
+    expect(statements[1].args).toEqual(["draft-1", 2, 1, 10]);
+    expect(statements[2].args).toEqual(["draft-1", 2, 2, 20]);
+    expect(statements[3].args).toEqual(["draft-1", 2, 3, 30]);
   });
 });
 
 describe("removeCardFromAllQueues", () => {
   let client: ReturnType<typeof createMockClient>;
+  beforeEach(() => { client = createMockClient(); });
 
-  beforeEach(() => {
-    client = createMockClient();
-  });
-
-  it("deletes the card and renumbers remaining entries", async () => {
-    // Call 1: DELETE the card from all queues
+  it("deletes the card and batches renumbered entries", async () => {
     client.execute.mockResolvedValueOnce({ rows: [] });
-    // Call 2: SELECT DISTINCT seats
-    client.execute.mockResolvedValueOnce({
-      rows: [{ seat: 1 }],
-    });
-    // Call 3: SELECT remaining cards for seat 1
+    client.execute.mockResolvedValueOnce({ rows: [{ seat: 1 }] });
     client.execute.mockResolvedValueOnce({
       rows: [{ card_id: 20 }, { card_id: 30 }],
     });
-    // Call 4: DELETE seat 1 entries
-    client.execute.mockResolvedValueOnce({ rows: [] });
-    // Calls 5-6: INSERT renumbered entries
-    client.execute.mockResolvedValueOnce({ rows: [] });
-    client.execute.mockResolvedValueOnce({ rows: [] });
 
     await removeCardFromAllQueues(client, "draft-1", 10);
 
-    // First call: delete the target card
-    expect(client.execute.mock.calls[0][0].sql).toContain("DELETE");
     expect(client.execute.mock.calls[0][0].args).toEqual(["draft-1", 10]);
-
-    // Second call: find affected seats
     expect(client.execute.mock.calls[1][0].sql).toContain("DISTINCT seat");
 
-    // Third call: get remaining entries for seat 1
-    expect(client.execute.mock.calls[2][0].args).toEqual(["draft-1", 1]);
-
-    // Fourth call: delete seat 1 entries for re-insertion
-    expect(client.execute.mock.calls[3][0].sql).toContain("DELETE");
-
-    // Fifth and sixth calls: re-insert with renumbered priorities
-    expect(client.execute.mock.calls[4][0].args).toEqual(["draft-1", 1, 1, 20]);
-    expect(client.execute.mock.calls[5][0].args).toEqual(["draft-1", 1, 2, 30]);
+    expect(client.batch).toHaveBeenCalledOnce();
+    const statements = client.batch.mock.calls[0][0];
+    expect(statements).toHaveLength(3);
+    expect(statements[0].sql).toContain("DELETE");
+    expect(statements[1].args).toEqual(["draft-1", 1, 1, 20]);
+    expect(statements[2].args).toEqual(["draft-1", 1, 2, 30]);
   });
 });
 

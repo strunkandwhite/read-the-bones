@@ -71,10 +71,23 @@ describe("GET /api/sync (cron)", () => {
   });
 });
 
+// Helper to create a same-origin POST request
+function sameOriginRequest(): NextRequest {
+  return new NextRequest(new URL("http://localhost:3000/api/sync"), {
+    method: "POST",
+    headers: { origin: "http://localhost:3000", host: "localhost:3000" },
+  });
+}
+
 describe("POST /api/sync (manual)", () => {
+  it("returns 401 when request is not same-origin and no cron secret", async () => {
+    const res = await POST(new NextRequest(new URL("http://localhost:3000/api/sync"), { method: "POST" }));
+    expect(res.status).toBe(401);
+  });
+
   it("returns 429 when rate limited", async () => {
     vi.mocked(isRateLimited).mockResolvedValueOnce(true);
-    const res = await POST();
+    const res = await POST(sameOriginRequest());
     expect(res.status).toBe(429);
   });
 });

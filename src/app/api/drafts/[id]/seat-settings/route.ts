@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
 import { updateAutoPick, updateDisplayName } from "@/core/db/queries/seatTokens";
+import { AppError } from "@/core/errors";
 
 export async function PUT(
   request: NextRequest,
@@ -13,6 +14,10 @@ export async function PUT(
     const { seat } = await authenticateSeat(client, request, draftId);
 
     const body = await request.json();
+
+    if (body.display_name !== undefined && typeof body.display_name === "string" && body.display_name.length > 50) {
+      return NextResponse.json({ error: "display_name must be 50 characters or fewer" }, { status: 400 });
+    }
 
     if (body.auto_pick !== undefined) {
       await updateAutoPick(client, draftId, seat, body.auto_pick);
@@ -33,8 +38,8 @@ export async function PUT(
       displayName: row.display_name as string | null,
     });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("token")) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
     console.error("[/api/drafts/[id]/seat-settings] Error:", error);
     return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });

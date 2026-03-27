@@ -6,9 +6,9 @@
  * the per-card stats in getCards.ts.
  */
 
-import { createHash } from "node:crypto";
-
 import { getClient } from "./db/client";
+import { computeIngestionHash } from "./db/sync/domains";
+import { parseScryfallJson } from "./db/queries/helpers";
 import { inferDeckColor } from "./inferDeckColor";
 import { wilsonInterval } from "./wilsonInterval";
 
@@ -116,9 +116,7 @@ async function computeWinRateByColor(
   const seatColors = new Map<string, Map<string, number>>();
   for (const row of deckResult.rows) {
     const key = `${row.draft_id}:${row.seat}`;
-    const scryfall = row.scryfall_json
-      ? JSON.parse(row.scryfall_json as string)
-      : null;
+    const scryfall = parseScryfallJson(row.scryfall_json as string | null);
     const colors: string[] = scryfall?.color_identity ?? [];
 
     if (!seatColors.has(key)) {
@@ -221,10 +219,9 @@ export async function getDraftStats(
     : completedDraftIds;
 
   // Compute cache fingerprint from per-domain hashes
-  const combined = draftsResult.rows
-    .map((r) => `${r.pool_hash ?? ""}:${r.picks_hash ?? ""}:${r.matches_hash ?? ""}`)
-    .join("|");
-  const ingestionHash = createHash("sha256").update(combined).digest("hex").slice(0, 16);
+  const ingestionHash = computeIngestionHash(
+    draftsResult.rows as unknown as Array<{ pool_hash: unknown; picks_hash: unknown; matches_hash: unknown }>
+  );
 
   // Compute both stats in parallel
   const [winRateBySeat, winRateByColor] = await Promise.all([

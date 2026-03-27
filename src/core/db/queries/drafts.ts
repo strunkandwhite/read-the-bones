@@ -3,6 +3,7 @@
  */
 
 import { getClient } from "../client";
+import { parseBannedCardNames } from "./helpers";
 
 export interface DraftListItem {
   draft_id: string;
@@ -89,21 +90,13 @@ export async function getDraft(draftId: string): Promise<DraftDetails | null> {
 
   const draft = draftResult.rows[0];
 
-  const bannedCardsJson = draft.banned_cards as string | null;
-  let bannedCards: string[] | null = null;
-  if (bannedCardsJson) {
-    try {
-      bannedCards = JSON.parse(bannedCardsJson) as string[];
-    } catch {
-      // Ignore malformed JSON
-    }
-  }
+  const bannedCards = parseBannedCardNames(draft.banned_cards as string | null);
 
   return {
     draft_id: draft.draft_id as string,
     draft_name: draft.draft_name as string,
     draft_date: draft.draft_date as string,
     num_seats: draft.num_seats as number,
-    banned_cards: bannedCards,
+    banned_cards: bannedCards.length > 0 ? bannedCards : null,
   };
 }

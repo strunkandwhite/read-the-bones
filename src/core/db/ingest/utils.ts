@@ -1,6 +1,5 @@
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { createHash } from "crypto";
 import dotenv from "dotenv";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -44,11 +43,4 @@ export function generateOracleId(cardName: string): string {
   return `generated:${normalized}`;
 }
 
-/**
- * Compute cube hash from sorted card names.
- */
-export function computeCubeHash(cardNames: string[]): string {
-  const sorted = [...cardNames].sort();
-  const combined = sorted.join("\n");
-  return createHash("sha256").update(combined).digest("hex").slice(0, 16);
-}
+export { hashPool as computeCubeHash } from "../sync/domains";

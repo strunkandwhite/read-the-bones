@@ -4,7 +4,7 @@ Analytics tool for Magic: the Gathering rotisserie drafts. Aggregates pick data 
 
 ## What It Does
 
-- Parses draft CSV files exported from Excel/Google Sheets
+- Syncs draft data from Google Sheets via the Sheets API
 - Calculates card rankings using weighted geometric mean of pick position
 - Displays results in a filterable, sortable web table
 - Enriches cards with images and metadata from Scryfall
@@ -22,6 +22,7 @@ Analytics tool for Magic: the Gathering rotisserie drafts. Aggregates pick data 
 - **Deck builder:** Drag-and-drop deck building with maindeck/sideboard zones and shareable deck snapshots
 - **Seat selection:** View individual drafter picks, available cards, and decklists by seat
 - **Win rate analysis:** Multiple win metrics including game-percent win rate, win equity, and decklist-based win rates
+- **Live drafts:** Run rotisserie drafts in-app with snake order, pick queues, auto-pick cascades, and match reporting
 
 ## Setup
 
@@ -42,13 +43,9 @@ pnpm precommit   # Run all checks: typecheck, lint, knip, tests
 
 ## Adding Draft Data
 
-1. Create a folder in `data/` for each draft
-2. Export the draft picks sheet as `picks.csv`
-3. Export the card pool as `pool.csv`
-4. Optionally export match results as `matches.csv`
-5. Add `metadata.json` with draft name, date, and optional sheet ID
-6. Run `pnpm ingest` to load into the database
-7. Run `pnpm dev` or `pnpm build`
+1. Create a draft: `pnpm draft:create --name "Draft Name" --date 2026-01-15 --sheet-id <google-sheet-id>`
+2. Sync data: `pnpm sync` (fetches picks and matches from Google Sheets into Turso)
+3. Optionally add decklists: add sealeddeck.tech URLs to `data/decklists.txt`, then run `pnpm decklists`
 
 ## REST API
 
@@ -64,8 +61,24 @@ The app exposes GET endpoints under `/api/` for querying draft data programmatic
 | `/api/drafts/[id]/standings` | Match standings |
 | `/api/drafts/[id]/pool` | Full draft pool (groupable by color or type) |
 | `/api/drafts/[id]/deck` | Decklist for a specific seat |
+| `/api/cards/search` | Scryfall-style card search (`q` required) |
 | `/api/cards/stats` | Card statistics across drafts |
 | `/api/stats` | Overall draft statistics |
+| `/api/decks/winning` | Top winning decks by color archetype (`color_pair` required) |
+
+### Live Draft Routes
+
+These routes support in-app rotisserie drafting. Most require a seat token via `X-Seat-Token` header.
+
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/drafts/[id]/status` | GET | Draft state, next seat, recent picks |
+| `/api/drafts/[id]/me` | GET | Resolve seat from token |
+| `/api/drafts/[id]/pick` | POST | Submit a pick |
+| `/api/drafts/[id]/queue` | GET/PUT | Manage pick queue |
+| `/api/drafts/[id]/board` | GET | Full pick matrix data |
+| `/api/drafts/[id]/match` | POST | Report a match result |
+| `/api/drafts/[id]/seat-settings` | PUT | Update auto-pick, display name |
 
 ## Player Privacy
 
@@ -79,7 +92,7 @@ Players can opt out of having their picks and match results included in API quer
 ["Player Name", "Another Player"]
 ```
 
-Names are matched case-insensitively against CSV column headers. When you run `pnpm ingest`, opted-out players are recorded in the database. Their data is then redacted from query responses (seat numbers show as `[REDACTED]`), though their picks still affect game state calculations (e.g., available cards).
+Names are matched case-insensitively against seat display names. When you run `pnpm sync`, opted-out players are recorded in the database. Their data is then redacted from query responses (seat numbers show as `[REDACTED]`), though their picks still affect game state calculations (e.g., available cards).
 
 ## Tech Stack
 

@@ -18,11 +18,13 @@ import type { DraftStatsResponse } from "@/core/getDraftStats";
 import type { ScryCard, CardStats } from "@/core/types";
 import { DeckBuilderPanel } from "./deck-builder/DeckBuilderPanel";
 import { useDeckBuilder } from "../hooks/useDeckBuilder";
+import { useScrollLock } from "@/app/hooks/useScrollLock";
 import { useLiveDraftStatus, useDraftBoard } from "../hooks/useLiveDraftStatus";
 import { useSeatToken } from "../hooks/useSeatToken";
 import { usePickQueue } from "../hooks/usePickQueue";
 import { DraftBoardModal } from "./draft-board/DraftBoardModal";
 import { useMySeat } from "../hooks/useMySeat";
+import { derivePickSeat, getTotalPicks } from "@/core/snakeDraft";
 
 
 export interface PageClientProps {
@@ -138,14 +140,10 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   }, [draftSelection.activeDraft, draftSelection.selectedSeat]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Close modal on Escape key + lock body scroll when open
-  useEffect(() => {
-    if (deckBuilderModalOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
+  useScrollLock(deckBuilderModalOpen);
 
+  // Close modal on Escape key
+  useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape" && draftBoardOpen) {
         setDraftBoardOpen(false);
@@ -157,7 +155,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
     };
   }, [deckBuilderModalOpen, draftBoardOpen]);
 
@@ -230,14 +227,11 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   const consecutivePicks = (() => {
     if (!isMyTurn || !liveDraftStatus.status || mySeat === null) return 0;
     const { latestPickN, numSeats, picksPerPlayer } = liveDraftStatus.status;
+    const totalPicks = getTotalPicks(numSeats, picksPerPlayer);
     let count = 0;
     let pickN = latestPickN + 1;
-    const totalPicks = numSeats * picksPerPlayer;
     while (pickN <= totalPicks) {
-      const round = Math.ceil(pickN / numSeats);
-      const posInRound = ((pickN - 1) % numSeats);
-      const isForward = round % 2 === 1;
-      const seat = isForward ? posInRound + 1 : numSeats - posInRound;
+      const { seat } = derivePickSeat(pickN, { numSeats, picksPerPlayer });
       if (seat !== mySeat) break;
       count++;
       pickN++;

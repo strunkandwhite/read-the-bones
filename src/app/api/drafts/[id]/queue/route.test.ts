@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET, PUT } from "./route";
 import { NextRequest } from "next/server";
+import { AuthError } from "@/core/errors";
 
 const mockExecute = vi.fn();
 vi.mock("@/core/db/client", () => ({
@@ -62,7 +63,7 @@ describe("GET /api/drafts/[id]/queue", () => {
   });
 
   it("returns 401 without token", async () => {
-    mockAuthenticateSeat.mockRejectedValueOnce(new Error("Missing seat token"));
+    mockAuthenticateSeat.mockRejectedValueOnce(new AuthError("Missing seat token"));
 
     const res = await GET(
       makeGetRequest(""),
@@ -78,8 +79,12 @@ describe("PUT /api/drafts/[id]/queue", () => {
 
   it("replaces queue and returns updated queue", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
-    mockExecute.mockResolvedValueOnce({ rows: [{ card_id: 10 }] });
-    mockExecute.mockResolvedValueOnce({ rows: [{ card_id: 20 }] });
+    mockExecute.mockResolvedValueOnce({
+      rows: [
+        { card_id: 10, name: "Lightning Bolt" },
+        { card_id: 20, name: "Counterspell" },
+      ],
+    });
     mockSetQueue.mockResolvedValueOnce(undefined);
     mockGetQueue.mockResolvedValueOnce([
       { priority: 1, cardId: 10, cardName: "Lightning Bolt" },
@@ -112,7 +117,7 @@ describe("PUT /api/drafts/[id]/queue", () => {
   });
 
   it("returns 401 without token", async () => {
-    mockAuthenticateSeat.mockRejectedValueOnce(new Error("Missing seat token"));
+    mockAuthenticateSeat.mockRejectedValueOnce(new AuthError("Missing seat token"));
 
     const res = await PUT(
       makePutRequest([{ card_name: "Lightning Bolt" }], ""),

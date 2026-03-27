@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCards } from "@/core/getCards";
+import { isLocalHost } from "@/core/isLocal";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -18,8 +19,7 @@ export async function GET(request: NextRequest) {
 
   // Detect localhost from Host header
   const host = request.headers.get("host") ?? "";
-  const isLocal =
-    host.startsWith("localhost") || host.startsWith("127.0.0.1");
+  const isLocal = isLocalHost(host);
 
   try {
     const result = await getCards({

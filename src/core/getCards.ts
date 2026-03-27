@@ -6,8 +6,6 @@
  * replacing the build-time loadCardDataFromTurso().
  */
 
-import { createHash } from "node:crypto";
-
 import {
   DEFAULT_POOL_SIZE,
   type CardPick,
@@ -18,7 +16,8 @@ import {
 } from "./types";
 import { calculateCardStats, DISTRIBUTION_BUCKET_COUNT } from "./calculateStats";
 import { getClient } from "./db/client";
-import { transformScryfallJson } from "./db/queries/helpers";
+import { computeIngestionHash } from "./db/sync/domains";
+import { transformScryfallJson, parseBannedCardNames } from "./db/queries/helpers";
 import { cardNameKey } from "./parseSheetRows";
 import { round3 } from "./utils";
 
@@ -71,10 +70,9 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
   });
 
   // Compute cache fingerprint from per-domain hashes
-  const combined = draftsResult.rows
-    .map((r) => `${r.pool_hash ?? ""}:${r.picks_hash ?? ""}:${r.matches_hash ?? ""}`)
-    .join("|");
-  const ingestionHash = createHash("sha256").update(combined).digest("hex").slice(0, 16);
+  const ingestionHash = computeIngestionHash(
+    draftsResult.rows as unknown as Array<{ pool_hash: unknown; picks_hash: unknown; matches_hash: unknown }>
+  );
 
   if (draftsResult.rows.length === 0) {
     return {
@@ -111,15 +109,11 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
     draftCubeSnapshots.set(draftId, cubeSnapshotId);
 
     const bannedCardsJson = row.banned_cards as string | null;
-    if (bannedCardsJson) {
-      try {
-        const names = JSON.parse(bannedCardsJson) as string[];
-        const banKeys = new Set(names.map(n => cardNameKey(n)));
-        bannedCardsByDraft.set(draftId, banKeys);
-        bannedCardNamesByDraft.set(draftId, names);
-      } catch {
-        // Ignore malformed JSON
-      }
+    const bannedNames = parseBannedCardNames(bannedCardsJson);
+    if (bannedNames.length > 0) {
+      const banKeys = new Set(bannedNames.map(n => cardNameKey(n)));
+      bannedCardsByDraft.set(draftId, banKeys);
+      bannedCardNamesByDraft.set(draftId, bannedNames);
     }
 
     if (row.phase === 'complete') {

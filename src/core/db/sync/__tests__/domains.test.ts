@@ -1,12 +1,47 @@
 // src/core/db/sync/__tests__/domains.test.ts
 import { describe, it, expect } from "vitest";
 import {
+  sha256Short,
+  computeIngestionHash,
   hashPicks,
   hashPool,
   hashMatches,
   compareDomainHash,
 } from "../domains";
 import type { CardPick, MatchResult } from "../../../parseSheetRows";
+
+describe("sha256Short", () => {
+  it("returns a 16-character hex string", () => {
+    const result = sha256Short("test input");
+    expect(result).toHaveLength(16);
+    expect(result).toMatch(/^[0-9a-f]{16}$/);
+  });
+  it("returns same hash for same input", () => {
+    expect(sha256Short("hello")).toBe(sha256Short("hello"));
+  });
+  it("returns different hash for different input", () => {
+    expect(sha256Short("a")).not.toBe(sha256Short("b"));
+  });
+});
+
+describe("computeIngestionHash", () => {
+  it("computes hash from draft domain hashes", () => {
+    const rows = [{ pool_hash: "abc", picks_hash: "def", matches_hash: "ghi" }];
+    const hash = computeIngestionHash(rows);
+    expect(hash).toHaveLength(16);
+    expect(hash).toMatch(/^[0-9a-f]{16}$/);
+  });
+  it("handles null hashes", () => {
+    const rows = [{ pool_hash: null, picks_hash: null, matches_hash: null }];
+    const hash = computeIngestionHash(rows);
+    expect(hash).toHaveLength(16);
+  });
+  it("returns different hash for different inputs", () => {
+    const rows1 = [{ pool_hash: "a", picks_hash: "b", matches_hash: "c" }];
+    const rows2 = [{ pool_hash: "x", picks_hash: "y", matches_hash: "z" }];
+    expect(computeIngestionHash(rows1)).not.toBe(computeIngestionHash(rows2));
+  });
+});
 
 describe("hashPool", () => {
   it("produces consistent hash for same cards regardless of order", () => {

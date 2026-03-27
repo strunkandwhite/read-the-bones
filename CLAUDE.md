@@ -8,14 +8,15 @@ MTG rotisserie draft analytics tool.
 src/
   core/           # Framework-agnostic logic (parsing, stats, Scryfall)
     db/           # Turso database client, migrations
-      queries/    # Domain-based query modules (cards, drafts, picks, pool, decklists, stats)
+      queries/    # Domain-based query modules (cards, drafts, picks, pool, decklists, stats, search, pickQueue, seatTokens, sharedDecks, helpers)
       ingest/     # Ingestion helpers (Scryfall resolution, db-helpers, utils)
       sync/       # Unified sync pipeline (domain hashing, batch ops, card cache, orchestrator)
   build/          # Build-time utilities (Scryfall cache)
   app/            # Next.js web app
     components/   # React components
       deck-builder/ # Deck builder panel and card management
-    hooks/        # Custom hooks (draft selection, card data, search, filtering, deck builder)
+      draft-board/  # Draft board modal and related components
+    hooks/        # Custom hooks (draft selection, card data, search, filtering, deck builder, live draft status, seat token, pick queue, scroll lock, sync status)
     api/          # API routes (internal + REST)
 scripts/          # CLI tools (sync, draft:create, draft:reset, decklists)
 ```
@@ -26,13 +27,14 @@ scripts/          # CLI tools (sync, draft:create, draft:reset, decklists)
 pnpm dev         # Start dev server
 pnpm build       # Build for production (dynamic SSR, no prebuild step)
 pnpm test        # Run tests
+pnpm test:e2e    # Run Playwright e2e tests (requires chromium: npx playwright install chromium)
 pnpm screenshot  # Take screenshot (requires dev server running)
 
 # Quality checks
 pnpm typecheck   # TypeScript type checking (tsc --noEmit)
 pnpm lint        # ESLint (zero warnings allowed)
 pnpm knip        # Detect unused files, exports, and dependencies
-pnpm precommit   # Run all checks: typecheck → lint → knip → tests
+pnpm precommit   # Run all checks: typecheck → lint → knip → tests → e2e
 
 # Database commands
 pnpm db:migrate  # Run database migrations (creates tables in Turso)
@@ -45,6 +47,7 @@ pnpm sync --dry-run            # Preview what would change without writing to DB
 # Draft lifecycle
 pnpm draft:create --name "Draft Name" --date 2026-01-15 --sheet-id <id>  # Create new draft
 pnpm draft:reset <draft-name>  # Reset a draft (clear all data, re-sync from scratch)
+pnpm draft:delete <draft-name>  # Delete a draft and all its data
 
 # Decklists
 pnpm decklists                 # Fetch decklists from sealeddeck.tech and write to Turso
@@ -56,7 +59,7 @@ pnpm draft:start <name>              # Start drafting (setup → drafting)
 pnpm draft:admin <subcommand>        # Admin tools (undo-pick, edit-pick, regen-token, set-phase, add-ban, remove-ban, enter-match)
 ```
 
-**Decklists:** Add sealeddeck.tech URLs to `decklists.txt` (grouped by draft name), then run `pnpm decklists`. The script fetches each deck, matches it to a seat by card overlap with pick data from Turso, and writes deck cards directly to the database.
+**Decklists:** Add sealeddeck.tech URLs to `data/decklists.txt` (grouped by draft name), then run `pnpm decklists`. The script fetches each deck, matches it to a seat by card overlap with pick data from Turso, and writes deck cards directly to the database.
 
 **Sync:** `pnpm sync` fetches data from Google Sheets and writes it to Turso. Per-domain hashing (pool, picks, matches) means only changed data is replaced. Use `pnpm draft:reset <name>` followed by `pnpm sync <name>` to force a full reimport.
 
@@ -140,7 +143,7 @@ Local Scryfall-style search (searches only cards in the cube):
 - `bolt` - name search (plain text)
 - `t:instant c:u` - combine terms (AND logic)
 
-Search is debounced (500ms) and runs locally against cached card data.
+Search is debounced (500ms) and runs locally against cached card data. Server-side search is also available via `/api/cards/search` (supports `draft_id` and `available_only` filters).
 
 ## Key Features
 
@@ -182,6 +185,9 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/specs/2026-03-21-analytics-custom-events-design.md` - Analytics custom events
 - `docs/superpowers/specs/2026-03-22-unified-sync-pipeline-design.md` - Unified sync pipeline (Sheets → Turso)
 - `docs/superpowers/specs/2026-03-23-live-draft-design.md` - Live draft system (pool, drafting, matches, standings)
+- `docs/superpowers/specs/2026-03-21-deep-clean-design.md` - Deep clean design
+- `docs/superpowers/specs/2026-03-21-winning-decks-by-color-design.md` - Winning decks by color design
+- `docs/superpowers/specs/2026-03-23-server-side-oracle-search-design.md` - Server-side oracle search design
 
 ### Superpowers Plans
 
@@ -197,3 +203,8 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/plans/2026-03-20-codebase-cleanup.md` - Codebase cleanup (dead code, file splits, test quality)
 - `docs/superpowers/plans/2026-03-22-unified-sync-pipeline.md` - Unified sync pipeline implementation
 - `docs/superpowers/plans/2026-03-23-live-draft.md` - Live draft implementation
+- `docs/superpowers/plans/2026-03-21-deep-clean-fixes.md` - Deep clean fixes (prior audit)
+- `docs/superpowers/plans/2026-03-23-server-side-oracle-search.md` - Server-side oracle search implementation
+- `docs/superpowers/plans/2026-03-26-live-draft-e2e-feedback.md` - Live draft e2e feedback fixes
+- `docs/superpowers/plans/2026-03-26-live-draft-gap-closure.md` - Live draft gap closure
+- `docs/superpowers/plans/2026-03-27-deep-clean-fixes.md` - Deep clean fixes (this audit)

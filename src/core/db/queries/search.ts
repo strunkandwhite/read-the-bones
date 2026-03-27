@@ -5,6 +5,7 @@
  */
 
 import { getClient } from "../client";
+import { parseBannedCards } from "./helpers";
 
 export type SearchableCard = {
   name: string;
@@ -58,21 +59,9 @@ export async function getSearchableCards(
   const cubeSnapshotId = draftResult.rows[0].cube_snapshot_id as number;
 
   // Parse banned cards for available-only filtering
-  let bannedCards = new Set<string>();
-  if (params.availableOnly) {
-    const bannedCardsRaw = draftResult.rows[0].banned_cards as string | null;
-    if (bannedCardsRaw) {
-      try {
-        bannedCards = new Set(
-          (JSON.parse(bannedCardsRaw) as string[]).map((name) =>
-            name.toLowerCase(),
-          ),
-        );
-      } catch {
-        // Ignore malformed JSON
-      }
-    }
-  }
+  const bannedCards = params.availableOnly
+    ? parseBannedCards(draftResult.rows[0].banned_cards as string | null)
+    : new Set<string>();
 
   // Get all cards in the cube
   const cubeCardsResult = await client.execute({

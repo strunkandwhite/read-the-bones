@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
+import { AppError } from "@/core/errors";
 
 export async function POST(
   request: NextRequest,
@@ -15,6 +16,16 @@ export async function POST(
     const { opponent_seat, wins, losses } = body;
     if (opponent_seat == null || wins == null || losses == null) {
       return NextResponse.json({ error: "opponent_seat, wins, and losses required" }, { status: 400 });
+    }
+    // Validate types
+    if (!Number.isInteger(opponent_seat) || !Number.isInteger(wins) || !Number.isInteger(losses)) {
+      return NextResponse.json({ error: "opponent_seat, wins, and losses must be integers" }, { status: 400 });
+    }
+    if (wins < 0 || losses < 0) {
+      return NextResponse.json({ error: "wins and losses must be non-negative" }, { status: 400 });
+    }
+    if (opponent_seat < 1) {
+      return NextResponse.json({ error: "opponent_seat must be >= 1" }, { status: 400 });
     }
     if (opponent_seat === mySeat) {
       return NextResponse.json({ error: "Cannot report a match against yourself" }, { status: 400 });
@@ -45,8 +56,8 @@ export async function POST(
 
     return NextResponse.json({ success: true, seat1, seat2, seat1Wins, seat2Wins });
   } catch (error) {
-    if (error instanceof Error && error.message.includes("token")) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
     console.error("[/api/drafts/[id]/match] Error:", error);
     return NextResponse.json({ error: "Failed to report match" }, { status: 500 });

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import type { BoardData, LiveDraftStatus } from "@/app/hooks/useLiveDraftStatus";
+import { useScrollLock } from "@/app/hooks/useScrollLock";
 import { getNextPick } from "@/core/snakeDraft";
 import { DraftBoardMatrix } from "./DraftBoardMatrix";
 import { StandingsSection } from "./StandingsSection";
@@ -35,11 +36,11 @@ export function DraftBoardModal({
   onClose,
   onMatchReported,
 }: DraftBoardModalProps) {
-  // Lock body scroll and handle Escape
+  useScrollLock(isOpen);
+
+  // Handle Escape key
   useEffect(() => {
     if (!isOpen) return;
-
-    document.body.style.overflow = "hidden";
 
     function handleKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
@@ -48,11 +49,8 @@ export function DraftBoardModal({
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = "";
     };
   }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
 
   const phase = board?.phase ?? status?.phase ?? "unknown";
   const badgeColors = PHASE_BADGE_COLORS[phase] ?? { bg: "#333", text: "#aaa" };

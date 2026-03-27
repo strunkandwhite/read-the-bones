@@ -1,5 +1,6 @@
 import type { Client } from '@libsql/client';
 import { resolveToken } from './db/queries/seatTokens';
+import { AuthError } from './errors';
 
 export function extractToken(request: Request): string | null {
   const header = request.headers.get('X-Seat-Token');
@@ -14,9 +15,9 @@ export async function authenticateSeat(
   draftId: string,
 ): Promise<{ seat: number; autoPick: boolean }> {
   const token = extractToken(request);
-  if (!token) throw new Error('Missing seat token');
+  if (!token) throw new AuthError('Missing seat token');
   const resolved = await resolveToken(client, token);
-  if (!resolved) throw new Error('Invalid seat token');
-  if (resolved.draftId !== draftId) throw new Error('Token does not match draft');
+  if (!resolved) throw new AuthError('Invalid seat token');
+  if (resolved.draftId !== draftId) throw new AuthError('Token does not match draft');
   return { seat: resolved.seat, autoPick: resolved.autoPick };
 }

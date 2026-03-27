@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { PUT } from "./route";
 import { NextRequest } from "next/server";
+import { AuthError } from "@/core/errors";
 
 const mockExecute = vi.fn();
 vi.mock("@/core/db/client", () => ({
@@ -93,7 +94,7 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
   });
 
   it("returns 401 without token", async () => {
-    mockAuthenticateSeat.mockRejectedValueOnce(new Error("Missing seat token"));
+    mockAuthenticateSeat.mockRejectedValueOnce(new AuthError("Missing seat token"));
 
     const res = await PUT(
       makeRequest({ auto_pick: true }, ""),
