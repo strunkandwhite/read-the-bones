@@ -102,16 +102,9 @@ function getColorFromIdentity(colorIdentity: string[]): string {
 }
 
 /**
- * Compute card statistics from the Turso database.
- *
- * When no draftIds are specified, stats are computed across all completed drafts.
- * When draftIds are provided, only those drafts contribute to the stats.
- * The full list of draftIds/completedDraftIds is always returned (for the Settings panel).
+ * Step 1: Query all drafts, build metadata maps, compute ingestion hash, track banned cards.
  */
-export async function getCards(params: GetCardsParams): Promise<CardStatsResponse> {
-  const client = await getClient();
-
-  // 1. Load all drafts with metadata (including domain hashes for cache fingerprint)
+async function loadDraftMetadata(client: Client): Promise<DraftMetadataResult | null> {
   const draftsResult = await client.execute({
     sql: `SELECT d.draft_id, d.draft_name, d.draft_date, d.cube_snapshot_id, d.num_seats, d.phase, d.banned_cards,
                  d.pool_hash, d.picks_hash, d.matches_hash
@@ -120,21 +113,12 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
     args: [],
   });
 
-  // Compute cache fingerprint from per-domain hashes
   const ingestionHash = computeIngestionHash(
     draftsResult.rows as unknown as Array<{ pool_hash: unknown; picks_hash: unknown; matches_hash: unknown }>
   );
 
   if (draftsResult.rows.length === 0) {
-    return {
-      cards: [],
-      draftCount: 0,
-      cubeCopies: {},
-      draftMetadata: {},
-      draftIds: [],
-      completedDraftIds: [],
-      ingestionHash,
-    };
+    return null;
   }
 
   const draftIds: string[] = [];
@@ -171,7 +155,6 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
       completedDraftSet.add(draftId);
     }
 
-    // First row is most recent (ordered by date DESC)
     if (mostRecentCubeSnapshotId === null) {
       mostRecentCubeSnapshotId = cubeSnapshotId;
     }
@@ -179,9 +162,50 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
 
   const completedDraftIds = draftIds.filter((id) => completedDraftSet.has(id));
 
-  // Determine the selected set of drafts for stats computation
+  return {
+    draftIds,
+    completedDraftIds,
+    draftMetadataMap,
+    draftCubeSnapshots,
+    mostRecentCubeSnapshotId,
+    bannedCardsByDraft,
+    bannedCardNamesByDraft,
+    ingestionHash,
+  };
+}
+
+/**
+ * Compute card statistics from the Turso database.
+ *
+ * When no draftIds are specified, stats are computed across all completed drafts.
+ * When draftIds are provided, only those drafts contribute to the stats.
+ * The full list of draftIds/completedDraftIds is always returned (for the Settings panel).
+ */
+export async function getCards(params: GetCardsParams): Promise<CardStatsResponse> {
+  const client = await getClient();
+
+  // 1. Load all drafts with metadata
+  const draftMeta = await loadDraftMetadata(client);
+
+  if (!draftMeta) {
+    return {
+      cards: [],
+      draftCount: 0,
+      cubeCopies: {},
+      draftMetadata: {},
+      draftIds: [],
+      completedDraftIds: [],
+      ingestionHash: computeIngestionHash([]),
+    };
+  }
+
+  const {
+    draftIds, completedDraftIds, draftMetadataMap, draftCubeSnapshots,
+    mostRecentCubeSnapshotId, bannedCardsByDraft, bannedCardNamesByDraft, ingestionHash,
+  } = draftMeta;
+
   const selectedDraftIds: string[] = params.draftIds
-    ? params.draftIds.filter((id) => completedDraftSet.has(id))
+    ? params.draftIds.filter((id) => new Set(completedDraftIds).has(id))
     : completedDraftIds;
 
   const selectedDraftSet = new Set(selectedDraftIds);
