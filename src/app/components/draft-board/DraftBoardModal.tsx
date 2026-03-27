@@ -5,6 +5,8 @@ import type { BoardData, LiveDraftStatus } from "@/app/hooks/useLiveDraftStatus"
 import { useScrollLock } from "@/app/hooks/useScrollLock";
 import { getNextPick } from "@/core/snakeDraft";
 import { DraftBoardMatrix } from "./DraftBoardMatrix";
+import { QueuePanel } from "./QueuePanel";
+import type { QueueItem } from "./QueuePanel";
 import { StandingsSection } from "./StandingsSection";
 
 interface DraftBoardModalProps {
@@ -18,6 +20,13 @@ interface DraftBoardModalProps {
   onClose: () => void;
   onMatchReported: () => void;
   onUpdateDisplayName?: (name: string) => Promise<void>;
+  pickQueue?: QueueItem[];
+  autoPick?: boolean;
+  autoPickMode?: "resilient" | "cautious";
+  onQueueReorder?: (queue: string[]) => void;
+  onQueueRemove?: (cardName: string) => void;
+  onToggleAutoPick?: () => void;
+  onChangeAutoPickMode?: (mode: "resilient" | "cautious") => void;
 }
 
 const PHASE_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
@@ -37,6 +46,13 @@ export function DraftBoardModal({
   onClose,
   onMatchReported,
   onUpdateDisplayName,
+  pickQueue = [],
+  autoPick = false,
+  autoPickMode = "resilient",
+  onQueueReorder,
+  onQueueRemove,
+  onToggleAutoPick,
+  onChangeAutoPickMode,
 }: DraftBoardModalProps) {
   useScrollLock(isOpen);
 
@@ -164,6 +180,17 @@ export function DraftBoardModal({
                 token={token}
                 onMatchReported={onMatchReported}
               />
+              {token !== null && (
+                <QueuePanel
+                  queue={pickQueue}
+                  autoPick={autoPick}
+                  autoPickMode={autoPickMode}
+                  onReorder={onQueueReorder ?? (() => {})}
+                  onRemove={onQueueRemove ?? (() => {})}
+                  onToggleAutoPick={onToggleAutoPick ?? (() => {})}
+                  onChangeAutoPickMode={onChangeAutoPickMode ?? (() => {})}
+                />
+              )}
             </>
           ) : (
             <div
