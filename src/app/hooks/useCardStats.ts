@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 type CardStatsData = {
   pick: { drafts_in_pool: number; times_picked: number; avg_pick: number; median_pick: number; geomean_pick: number };
@@ -14,27 +14,29 @@ export function useCardStats(cardName: string | null, draftId?: string) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const fetchStats = useCallback(async (name: string, draft?: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params = new URLSearchParams({ card_name: name });
+      if (draft) params.set("draft_id", draft);
+      const res = await fetch(`/api/cards/stats?${params}`);
+      if (!res.ok) throw new Error(`Stats fetch failed: ${res.status}`);
+      setData(await res.json());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!cardName) {
       setData(null);
       return;
     }
-
-    setLoading(true);
-    setError(null);
-
-    const params = new URLSearchParams({ card_name: cardName });
-    if (draftId) params.set("draft_id", draftId);
-
-    fetch(`/api/cards/stats?${params}`)
-      .then((res) => {
-        if (!res.ok) throw new Error(`Stats fetch failed: ${res.status}`);
-        return res.json();
-      })
-      .then(setData)
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, [cardName, draftId]);
+    fetchStats(cardName, draftId);
+  }, [cardName, draftId, fetchStats]);
 
   return { data, loading, error };
 }
