@@ -15,11 +15,62 @@ import {
   type ScryCard,
 } from "./types";
 import { calculateCardStats, DISTRIBUTION_BUCKET_COUNT } from "./calculateStats";
-import { getClient } from "./db/client";
+import { getClient, type Client } from "./db/client";
 import { computeIngestionHash } from "./db/sync/domains";
 import { transformScryfallJson, parseBannedCardNames } from "./db/queries/helpers";
 import { cardNameKey } from "./parseSheetRows";
 import { round3 } from "./utils";
+
+// --- Internal types for extracted subfunctions ---
+
+type DraftRow = {
+  draft_id: string;
+  draft_name: string;
+  draft_date: string;
+  cube_snapshot_id: number;
+  num_seats: number;
+  phase: string;
+  banned_cards: string | null;
+  pool_hash: unknown;
+  picks_hash: unknown;
+  matches_hash: unknown;
+};
+
+type DraftMetadataResult = {
+  draftIds: string[];
+  completedDraftIds: string[];
+  draftMetadataMap: Map<string, DraftMetadata>;
+  draftCubeSnapshots: Map<string, number>;
+  mostRecentCubeSnapshotId: number | null;
+  bannedCardsByDraft: Map<string, Set<string>>;
+  bannedCardNamesByDraft: Map<string, string[]>;
+  ingestionHash: string;
+};
+
+type CubeCardInfo = {
+  cardName: string;
+  qty: number;
+  scryfallJson: string | null;
+};
+
+type PickEventsResult = {
+  scryfallDataMap: Map<string, ScryCard>;
+  picksByDraftAndCard: Map<string, Map<string, CardPick[]>>;
+};
+
+type DecklistWinRateData = {
+  winRate: number;
+  gameWins: number;
+  gameLosses: number;
+  timesMaindecked: number;
+  draftsWithData: number;
+};
+
+type CubeDisplayData = {
+  cubeCopies: Record<string, number>;
+  currentCubeSet: Set<string>;
+  currentCubeKeySet: Set<string>;
+};
 
 export type GetCardsParams = {
   draftIds?: string[];
