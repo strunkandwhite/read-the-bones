@@ -8,7 +8,7 @@ MTG rotisserie draft analytics tool.
 src/
   core/           # Framework-agnostic logic (parsing, stats, Scryfall)
     db/           # Turso database client, migrations
-      queries/    # Domain-based query modules (cards, drafts, picks, pool, decklists, stats, search, pickQueue, seatTokens, sharedDecks, helpers)
+      queries/    # Domain-based query modules (cards, decks, decklists, drafts, floatedCards, helpers, matches, pickQueue, picks, pool, search, seatTokens, stats/)
       ingest/     # Ingestion helpers (Scryfall resolution, db-helpers, utils)
       sync/       # Unified sync pipeline (domain hashing, batch ops, card cache, orchestrator)
   build/          # Build-time utilities (Scryfall cache)
@@ -16,7 +16,7 @@ src/
     components/   # React components
       deck-builder/ # Deck builder panel and card management
       draft-board/  # Draft board modal and related components
-    hooks/        # Custom hooks (draft selection, card data, search, filtering, deck builder, live draft status, seat token, pick queue, scroll lock, sync status)
+    hooks/        # Custom hooks (draft selection, card data, search, filtering, deck builder, live draft status, seat token, pick queue, scroll lock, sync status, useCardStats, useDeckBuilderSync, useFloatedCards, useHoldToConfirm, useLiveDraftPicking, useModalManagement, useMySeat, useSharedDeckLoader, useSlowRenderTracking)
     api/          # API routes (internal + REST)
 scripts/          # CLI tools (sync, draft:create, draft:reset, decklists)
 ```
@@ -92,12 +92,14 @@ The app exposes REST API routes under `/api/` for querying draft data. All route
 | Route | Method | Auth | Description |
 |-------|--------|------|-------------|
 | `/api/drafts/[id]/status` | GET | None | Draft state, next seat, recent picks |
-| `/api/drafts/[id]/me` | GET | Token | Resolve seat from token: `{ seat, autoPick, displayName }` |
+| `/api/drafts/[id]/me` | GET | Token | Resolve seat from token: `{ seat, autoPick, autoPickMode, displayName }` |
 | `/api/drafts/[id]/pick` | POST | Token | Submit a pick. Body: `{ card_name: string }` (snake_case, not camelCase) |
 | `/api/drafts/[id]/queue` | GET/PUT | Token | Manage player's pick queue |
 | `/api/drafts/[id]/board` | GET | None | Full pick matrix data |
 | `/api/drafts/[id]/match` | POST | Token | Report a match result |
 | `/api/drafts/[id]/seat-settings` | PUT | Token | Update auto-pick toggle, display name |
+| `/api/drafts/[id]/float` | GET/PUT/DELETE | Token | Manage floated (speculative) cards |
+| `/api/drafts/[id]/deck-state` | GET/PUT | Token | WIP deck state persistence |
 
 **Internal routes** (used by the web app, not part of the public API):
 - `/api/cards` — Card data for client-side rendering
@@ -150,10 +152,10 @@ Search is debounced (500ms) and runs locally against cached card data. Server-si
 
 - **Active draft sync:** Drafts linked to a Google Sheet (`sheetId` in metadata) sync picks live via polling. The UI shows sync status and a "Sync Now" button.
 - **Banned cards:** Drafts can specify banned cards in metadata. Banned cards are visually marked in the card table and excluded from available card queries.
-- **Deck builder:** Per-seat deck building panel with drag-and-drop, maindeck/sideboard zones, and shareable deck snapshots via `/api/deck`.
-- **Shared decks:** Immutable deck snapshots stored in the `shared_decks` table, accessible via short URLs.
+- **Deck builder:** Per-seat deck building panel with drag-and-drop, maindeck/sideboard zones, server-side persistence with save status indicator, and shareable deck snapshots via `/api/deck`.
+- **Shared decks:** Immutable deck snapshots stored in the `decks` table (kind = 'snapshot'), accessible via short URLs.
 - **Seat selection:** View picks and deck data for individual seats within a draft.
-- **Decklist win rate:** Localhost-only column showing actual win rates of players who maindecked each card.
+- **Decklist win rate:** Localhost-only data showing actual win rates in the card stats modal.
 - **Live drafts:** Run rotisserie drafts in-app with snake order, pick queues, and auto-pick cascades. Created via `pnpm draft:create-live`, managed via seat tokens for player identity. Draft board modal shows pick matrix, standings, and match reporting.
 
 ## Terminology: Picks vs Rounds
@@ -191,6 +193,8 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/specs/2026-03-23-server-side-oracle-search-design.md` - Server-side oracle search design
 - `docs/superpowers/specs/2026-03-27-inline-name-editing-design.md` - Inline name editing in live draft pod view
 - `docs/superpowers/specs/2026-03-27-card-table-and-live-draft-ux-design.md` - Card table rework, stats modal, hold-to-pick, float state, queue management
+- `docs/superpowers/specs/2026-03-27-inline-pick-autocomplete-design.md` - Inline pick autocomplete design
+- `docs/superpowers/specs/2026-03-27-server-side-deck-persistence-design.md` - Server-side deck persistence design
 
 ### Superpowers Plans
 
@@ -213,3 +217,10 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/plans/2026-03-27-deep-clean-fixes.md` - Deep clean fixes (this audit)
 - `docs/superpowers/plans/2026-03-27-inline-name-editing.md` - Inline name editing implementation
 - `docs/superpowers/plans/2026-03-27-card-table-and-live-draft-ux.md` - Card table and live draft UX implementation
+- `docs/superpowers/plans/2026-03-26-live-draft-ux-fixes.md` - Live draft UX fixes
+- `docs/superpowers/plans/2026-03-27-getcards-decomposition.md` - getCards decomposition
+- `docs/superpowers/plans/2026-03-27-live-draft-query-layer.md` - Live draft query layer
+- `docs/superpowers/plans/2026-03-27-pageclient-decomposition.md` - PageClient decomposition
+- `docs/superpowers/plans/2026-03-27-scryfall-module-reorganization.md` - Scryfall module reorganization
+- `docs/superpowers/plans/2026-03-27-server-side-deck-persistence.md` - Server-side deck persistence
+- `docs/superpowers/plans/2026-03-27-stats-module-split.md` - Stats module split
