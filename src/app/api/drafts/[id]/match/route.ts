@@ -17,6 +17,16 @@ export async function POST(
     if (opponent_seat == null || wins == null || losses == null) {
       return NextResponse.json({ error: "opponent_seat, wins, and losses required" }, { status: 400 });
     }
+    // Validate types
+    if (!Number.isInteger(opponent_seat) || !Number.isInteger(wins) || !Number.isInteger(losses)) {
+      return NextResponse.json({ error: "opponent_seat, wins, and losses must be integers" }, { status: 400 });
+    }
+    if (wins < 0 || losses < 0) {
+      return NextResponse.json({ error: "wins and losses must be non-negative" }, { status: 400 });
+    }
+    if (opponent_seat < 1) {
+      return NextResponse.json({ error: "opponent_seat must be >= 1" }, { status: 400 });
+    }
     if (opponent_seat === mySeat) {
       return NextResponse.json({ error: "Cannot report a match against yourself" }, { status: 400 });
     }
