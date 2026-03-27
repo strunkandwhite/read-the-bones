@@ -23,6 +23,7 @@ import { useSeatToken } from "../hooks/useSeatToken";
 import { usePickQueue } from "../hooks/usePickQueue";
 import { DraftBoardModal } from "./draft-board/DraftBoardModal";
 import { useMySeat } from "../hooks/useMySeat";
+import { derivePickSeat, getTotalPicks } from "@/core/snakeDraft";
 
 
 export interface PageClientProps {
@@ -230,14 +231,11 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   const consecutivePicks = (() => {
     if (!isMyTurn || !liveDraftStatus.status || mySeat === null) return 0;
     const { latestPickN, numSeats, picksPerPlayer } = liveDraftStatus.status;
+    const totalPicks = getTotalPicks(numSeats, picksPerPlayer);
     let count = 0;
     let pickN = latestPickN + 1;
-    const totalPicks = numSeats * picksPerPlayer;
     while (pickN <= totalPicks) {
-      const round = Math.ceil(pickN / numSeats);
-      const posInRound = ((pickN - 1) % numSeats);
-      const isForward = round % 2 === 1;
-      const seat = isForward ? posInRound + 1 : numSeats - posInRound;
+      const { seat } = derivePickSeat(pickN, { numSeats, picksPerPlayer });
       if (seat !== mySeat) break;
       count++;
       pickN++;
