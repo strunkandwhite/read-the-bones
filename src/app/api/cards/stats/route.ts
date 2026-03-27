@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as queries from "@/core/db/queries";
+import { AppError } from "@/core/errors";
 
 export async function GET(request: NextRequest) {
   try {
@@ -34,6 +35,9 @@ export async function GET(request: NextRequest) {
       headers: { "Cache-Control": "public, s-maxage=300" },
     });
   } catch (error) {
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     console.error("[/api/cards/stats] Error:", error);
     return NextResponse.json(
       { error: "Failed to load card stats" },

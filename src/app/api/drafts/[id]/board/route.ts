@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
+import { AppError } from "@/core/errors";
 import { parseBannedCardNames } from "@/core/db/queries/helpers";
 import { getPicksWithCardDetails } from "@/core/db/queries/picks";
 import { getSeatDisplayNames } from "@/core/db/queries/seatTokens";
@@ -37,6 +38,9 @@ export async function GET(
       headers: { "Cache-Control": "public, s-maxage=5" },
     });
   } catch (error) {
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     console.error("[/api/drafts/[id]/board] Error:", error);
     return NextResponse.json({ error: "Failed to load board" }, { status: 500 });
   }

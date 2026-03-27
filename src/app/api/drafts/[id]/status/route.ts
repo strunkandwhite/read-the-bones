@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
+import { AppError } from "@/core/errors";
 import { getNextPick } from "@/core/snakeDraft";
 import { getLatestPickNumber, getRecentPicks } from "@/core/db/queries/picks";
 import { getSeatDisplayNames } from "@/core/db/queries/seatTokens";
@@ -51,6 +52,9 @@ export async function GET(
       headers: { "Cache-Control": "no-cache" },
     });
   } catch (error) {
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
     console.error("[/api/drafts/[id]/status] Error:", error);
     return NextResponse.json({ error: "Failed to load status" }, { status: 500 });
   }
