@@ -30,6 +30,7 @@ import { usePickQueue } from "../hooks/usePickQueue";
 import { DraftBoardModal } from "./draft-board/DraftBoardModal";
 import { useMySeat } from "../hooks/useMySeat";
 import { getFrontFace } from "@/core/cardNames";
+import type { CardStatusResult } from "@/core/cardStatus";
 
 
 export interface PageClientProps {
@@ -194,7 +195,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
 
   // Card status helper: determines whether a card is picked, queued, floated, taken, or none
   const getCardStatus = useCallback(
-    (cardName: string): { status: "picked" | "queued" | "floated" | "none" | "taken"; queuePosition?: number } => {
+    (cardName: string): CardStatusResult => {
       // Picked by the current seat
       if (seatCardNames?.has(cardName)) {
         return { status: "picked" };

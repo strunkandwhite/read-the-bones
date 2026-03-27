@@ -8,7 +8,7 @@ import { Sparkline } from "./Sparkline";
 import { ColorPills } from "./ManaSymbols";
 import type { DraftScore } from "@/core/types";
 
-type CardStatus = "picked" | "queued" | "floated" | "none" | "taken";
+import type { CardStatus } from "@/core/cardStatus";
 
 type CardStatsModalProps = {
   cardName: string | null;

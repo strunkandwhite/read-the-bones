@@ -14,6 +14,7 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { EnrichedCardStats } from "@/core/types";
 import type { ColorFilterMode } from "@/core/colorFilter";
+import type { CardStatusResult } from "@/core/cardStatus";
 import { filterCardsByColor } from "@/core/colorFilter";
 import { ManaSymbols, ColorPills } from "./ManaSymbols";
 import { CardNameCell } from "./CardNameCell";
@@ -29,7 +30,7 @@ export interface CardTableProps {
   takenCardNames?: Set<string>;
   seatCardNames?: Set<string>;
   onCardClick?: (cardName: string) => void;
-  getCardStatus?: (cardName: string) => { status: "picked" | "queued" | "floated" | "none" | "taken"; queuePosition?: number };
+  getCardStatus?: (cardName: string) => CardStatusResult;
 }
 
 const columnHelper = createColumnHelper<EnrichedCardStats>();

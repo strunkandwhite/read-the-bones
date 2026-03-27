@@ -1,4 +1,5 @@
-export type CardStatus = "picked" | "queued" | "floated" | "none";
+import type { CardStatus } from "@/core/cardStatus";
+export type { CardStatus } from "@/core/cardStatus";
 
 type CardStatusIconProps = {
   status: CardStatus;
@@ -38,6 +39,8 @@ export function CardStatusIcon({ status, queuePosition }: CardStatusIconProps) {
         </span>
       );
     case "none":
+      return null;
+    case "taken":
       return null;
   }
 }
