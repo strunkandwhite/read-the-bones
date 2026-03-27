@@ -1,4 +1,5 @@
 import type { Client } from "@libsql/client";
+import { batchInsertCubeSnapshotCards } from "../sync/batch";
 import { log } from "./utils";
 
 /**
@@ -118,12 +119,8 @@ export async function ensureCubeSnapshot(
       args: [cubeSnapshotId],
     });
 
-    for (const [, { cardId, qty }] of cardIds) {
-      await client.execute({
-        sql: "INSERT INTO cube_snapshot_cards (cube_snapshot_id, card_id, qty) VALUES (?, ?, ?)",
-        args: [cubeSnapshotId, cardId, qty],
-      });
-    }
+    const staleEntries = [...cardIds.values()].map(({ cardId, qty }) => ({ cardId, qty }));
+    await batchInsertCubeSnapshotCards(client, cubeSnapshotId, staleEntries);
 
     return cubeSnapshotId;
   }
@@ -137,12 +134,8 @@ export async function ensureCubeSnapshot(
   const cubeSnapshotId = Number(result.lastInsertRowid);
 
   // Insert cube_snapshot_cards
-  for (const [, { cardId, qty }] of cardIds) {
-    await client.execute({
-      sql: "INSERT INTO cube_snapshot_cards (cube_snapshot_id, card_id, qty) VALUES (?, ?, ?)",
-      args: [cubeSnapshotId, cardId, qty],
-    });
-  }
+  const newEntries = [...cardIds.values()].map(({ cardId, qty }) => ({ cardId, qty }));
+  await batchInsertCubeSnapshotCards(client, cubeSnapshotId, newEntries);
 
   return cubeSnapshotId;
 }
