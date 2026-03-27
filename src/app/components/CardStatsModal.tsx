@@ -176,7 +176,7 @@ function StatsContent({ data, isLocal }: { data: StatsData; isLocal?: boolean })
         <StatRow
           label="Picked"
           value={`${pick.times_picked} / ${pick_history.length}`}
-          annotation={times_banned > 0 ? `banned ${times_banned}` : undefined}
+          annotation={times_banned > 0 ? `banned ${times_banned}x` : undefined}
         />
         {isLocal && wins && (
           <StatRow
