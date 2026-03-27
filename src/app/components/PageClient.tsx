@@ -4,6 +4,7 @@ import { useMemo, useEffect, useState, useCallback, useRef } from "react";
 import { useLiveDraftPicking } from "../hooks/useLiveDraftPicking";
 import { useSharedDeckLoader } from "../hooks/useSharedDeckLoader";
 import { useDeckBuilderSync } from "../hooks/useDeckBuilderSync";
+import { useModalManagement } from "../hooks/useModalManagement";
 import { track } from "@vercel/analytics/react";
 import { ActiveDraftIndicator } from "./ActiveDraftIndicator";
 import { CardTable } from "./CardTable";
@@ -110,52 +111,19 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
       scryfallMatchNames: search.scryfallMatchNames,
     });
 
-  const [deckBuilderActive, setDeckBuilderActive] = useState(false);
-  const [deckBuilderModalOpen, setDeckBuilderModalOpen] = useState(false);
-  const [draftBoardOpen, setDraftBoardOpen] = useState(false);
-  // Restore modal open state from localStorage on mount
-  /* eslint-disable react-hooks/set-state-in-effect -- syncing from external storage (localStorage) */
-  useEffect(() => {
-    const stored = localStorage.getItem("deckBuilderOpen");
-    if (stored === "true" && draftSelection.activeDraft && draftSelection.selectedSeat !== null) {
-      setDeckBuilderActive(true);
-      setDeckBuilderModalOpen(true);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  // Persist modal open state to localStorage
-  useEffect(() => {
-    localStorage.setItem("deckBuilderOpen", String(deckBuilderModalOpen));
-  }, [deckBuilderModalOpen]);
-
-  // Close modal and deactivate deck builder when draft/seat deselected
-  /* eslint-disable react-hooks/set-state-in-effect -- resetting derived state when upstream selection changes */
-  useEffect(() => {
-    if (!draftSelection.activeDraft || draftSelection.selectedSeat === null) {
-      setDeckBuilderActive(false);
-      setDeckBuilderModalOpen(false);
-    }
-  }, [draftSelection.activeDraft, draftSelection.selectedSeat]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+  const {
+    deckBuilderActive,
+    setDeckBuilderActive,
+    deckBuilderModalOpen,
+    setDeckBuilderModalOpen,
+    draftBoardOpen,
+    setDraftBoardOpen,
+  } = useModalManagement({
+    activeDraft: draftSelection.activeDraft,
+    selectedSeat: draftSelection.selectedSeat,
+  });
 
   useScrollLock(deckBuilderModalOpen);
-
-  // Close modal on Escape key
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape" && draftBoardOpen) {
-        setDraftBoardOpen(false);
-      }
-      if (e.key === "Escape" && deckBuilderModalOpen) {
-        setDeckBuilderModalOpen(false);
-      }
-    }
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [deckBuilderModalOpen, draftBoardOpen]);
 
   // Build Scryfall data map for the deck builder
   const scryfallDataMap = useMemo(() => {
@@ -508,7 +476,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                   onClick={() => {
                     const wasOpen = deckBuilderModalOpen;
                     if (!deckBuilderActive) setDeckBuilderActive(true);
-                    setDeckBuilderModalOpen((prev) => !prev);
+                    setDeckBuilderModalOpen(!wasOpen);
                     if (!wasOpen && draftSelection.activeDraft && draftSelection.selectedSeat !== null) {
                       track("deck_builder_open", {
                         draft: draftSelection.activeDraft,
