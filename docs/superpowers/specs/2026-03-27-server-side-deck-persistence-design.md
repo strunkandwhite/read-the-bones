@@ -46,7 +46,8 @@ The partial unique index ensures one WIP row per seat+draft while allowing multi
 - Deck contents are sensitive because they include queued and floated picks
 
 **`PUT /api/drafts/[id]/deck-state`** (authenticated via seat token)
-- Validates body with `validateDeckState()`
+- Validates body with `validateDeckState()` (extend to also validate `speculativeCards` if present — must be a string array)
+- Server always sets `kind = 'wip'` regardless of what the client sends
 - Upserts into `decks` with `kind = 'wip'`
 - Returns `{ ok: true }`
 
@@ -71,13 +72,15 @@ The partial unique index ensures one WIP row per seat+draft while allowing multi
 **`useSharedDeckLoader` hook — simplified:**
 
 - Fetches `GET /api/deck/[id]` (snapshot) as today
-- Dispatches `INIT_FROM_SNAPSHOT` to populate the view in memory
-- No longer calls `loadSnapshot` (which wrote to localStorage)
+- Receives `dispatch` directly (instead of the old `loadSnapshot` callback) and dispatches `INIT_FROM_SNAPSHOT` to populate the view in memory
 - Navigating away discards the snapshot view — no side effects
 
-**`loadSnapshot` callback — removed.** It existed to pre-empt localStorage hydration. With localStorage gone, shared deck viewing just dispatches `INIT_FROM_SNAPSHOT` directly.
+**`loadSnapshot` callback — removed.** It existed to pre-empt localStorage hydration. With localStorage gone, `useSharedDeckLoader` dispatches `INIT_FROM_SNAPSHOT` via `dispatch` directly.
 
-**`useDeckBuilderSync` hook — unchanged.** `SYNC_PICKS` reconciliation still works the same. New picks are added to the deck, and the debounced save persists the result.
+**`useDeckBuilderSync` hook — initialization logic adjusted:**
+
+- `SYNC_PICKS` reconciliation is unchanged. New picks are added to the deck, and the debounced save persists the result.
+- The "initialize from picks if zones are empty" logic needs coordination with the API fetch in `useDeckBuilder`. Today, `useDeckBuilderSync` checks if zones are empty and fires `INIT_FROM_PICKS`. With the new flow, `useDeckBuilder` fetches from the API on mount and dispatches either `INIT_FROM_SNAPSHOT` or `INIT_FROM_PICKS`. To prevent a race, `useDeckBuilder` exposes a `ready` flag (set after the initial API fetch resolves). `useDeckBuilderSync` gates its initialization check on `ready` — it won't fire `INIT_FROM_PICKS` until the API fetch has completed and the state reflects the server response (or the 404 fallback).
 
 ### 4. Debounced Save Strategy
 
@@ -100,7 +103,7 @@ Non-intrusive visual feedback that changes are persisting.
 ### 6. Migration
 
 1. Create `decks` table with schema and partial unique index
-2. Migrate existing `shared_decks` rows into `decks` with `kind = 'snapshot'`, mapping `deck_id` to `id`
+2. Migrate existing `shared_decks` rows into `decks` with `kind = 'snapshot'`, mapping `deck_id` to `id`. Set `updated_at = created_at` for migrated rows (snapshots are immutable, so these timestamps are identical).
 3. Drop `shared_decks` table
 4. No localStorage migration — existing localStorage deck states are abandoned. On first load after the change, users get `INIT_FROM_PICKS` (fresh deck from their picks). This is the same experience as opening on a new device today.
 
@@ -119,8 +122,8 @@ Non-intrusive visual feedback that changes are persisting.
 | File | Change |
 |---|---|
 | `src/core/db/schema.sql` | Add `decks` table, drop `shared_decks` |
-| `src/app/hooks/useDeckBuilder.ts` | Replace localStorage with fetch-on-mount + debounced PUT |
-| `src/app/hooks/useDeckBuilderSync.ts` | Remove localStorage assumptions |
+| `src/app/hooks/useDeckBuilder.ts` | Replace localStorage with fetch-on-mount + debounced PUT; expose `ready` flag |
+| `src/app/hooks/useDeckBuilderSync.ts` | Gate initialization on `ready` flag from `useDeckBuilder`; remove localStorage assumptions |
 | `src/app/hooks/useSharedDeckLoader.ts` | Remove `loadSnapshot` call, dispatch `INIT_FROM_SNAPSHOT` in memory only |
 | `src/app/components/deck-builder/DeckBuilderPanel.tsx` | Add save indicator to toolbar, remove `loadSnapshot` prop |
 | `src/app/api/deck/route.ts` | Insert into `decks` with `kind = 'snapshot'` |
