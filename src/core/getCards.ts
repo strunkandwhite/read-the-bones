@@ -454,6 +454,67 @@ function buildCubeDisplayData(
 }
 
 /**
+ * Steps 8-11: Calculate stats, enrich with Scryfall data, filter to cube, create new card stubs.
+ */
+function assembleCardStats(
+  allPicks: CardPick[],
+  draftMetadataMap: Map<string, DraftMetadata>,
+  scryfallDataMap: Map<string, ScryCard>,
+  currentCubeSet: Set<string>,
+  currentCubeKeySet: Set<string>,
+  decklistWinRates: Map<string, DecklistWinRateData>,
+  includeMatchData: boolean,
+): EnrichedCardStats[] {
+  // 8. Calculate card stats
+  const stats = calculateCardStats(allPicks, draftMetadataMap);
+
+  // Attach decklist win rates
+  if (includeMatchData) {
+    for (const stat of stats) {
+      const key = cardNameKey(stat.cardName);
+      const decklistWR = decklistWinRates.get(key);
+      if (decklistWR) {
+        stat.decklistWinRate = decklistWR;
+      }
+    }
+  }
+
+  // 9. Enrich stats with Scryfall data
+  const enrichedStats: EnrichedCardStats[] = stats.map((stat) => ({
+    ...stat,
+    scryfall: scryfallDataMap.get(cardNameKey(stat.cardName)),
+  }));
+
+  // 10. Filter to only cards in current cube
+  const filteredCards =
+    currentCubeKeySet.size > 0
+      ? enrichedStats.filter((c) => currentCubeKeySet.has(cardNameKey(c.cardName)))
+      : enrichedStats;
+
+  // 11. Find new cards in current cube that have no historical data
+  const cardsWithStatsKeys = new Set(stats.map((s) => cardNameKey(s.cardName)));
+  const newCards = Array.from(currentCubeSet).filter(
+    (name) => !cardsWithStatsKeys.has(cardNameKey(name))
+  );
+
+  const newCardEntries: EnrichedCardStats[] = newCards.map((cardName) => ({
+    cardName,
+    weightedGeomean: Infinity,
+    totalPicks: 0,
+    timesAvailable: 0,
+    draftsPickedIn: 0,
+    timesUnpicked: 0,
+    maxCopiesInDraft: 0,
+    colors: [] as string[],
+    scoreHistory: [] as DraftScore[],
+    pickDistribution: new Array(DISTRIBUTION_BUCKET_COUNT).fill(0),
+    scryfall: scryfallDataMap.get(cardNameKey(cardName)),
+  }));
+
+  return [...filteredCards, ...newCardEntries];
+}
+
+/**
  * Compute card statistics from the Turso database.
  *
  * When no draftIds are specified, stats are computed across all completed drafts.
@@ -518,55 +579,11 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
     displayCubeSnapshotId, cubeCardsBySnapshot, scryfallDataMap,
   );
 
-  // 8. Calculate card stats
-  const stats = calculateCardStats(allPicks, draftMetadataMap);
-
-  // Attach decklist win rates
-  if (params.includeMatchData) {
-    for (const stat of stats) {
-      const key = cardNameKey(stat.cardName);
-      const decklistWR = decklistWinRates.get(key);
-      if (decklistWR) {
-        stat.decklistWinRate = decklistWR;
-      }
-    }
-  }
-
-  // 9. Enrich stats with Scryfall data
-  const enrichedStats: EnrichedCardStats[] = stats.map((stat) => ({
-    ...stat,
-    scryfall: scryfallDataMap.get(cardNameKey(stat.cardName)),
-  }));
-
-  // 10. Filter to only cards in current cube (key-based to handle DFC name variants)
-  const filteredCards =
-    currentCubeKeySet.size > 0
-      ? enrichedStats.filter((c) => currentCubeKeySet.has(cardNameKey(c.cardName)))
-      : enrichedStats;
-
-  // 11. Find new cards in current cube that have no historical data
-  const cardsWithStatsKeys = new Set(stats.map((s) => cardNameKey(s.cardName)));
-  const newCards = Array.from(currentCubeSet).filter(
-    (name) => !cardsWithStatsKeys.has(cardNameKey(name))
+  // 8-11. Calculate stats, enrich, filter, add new card stubs
+  const allCards = assembleCardStats(
+    allPicks, draftMetadataMap, scryfallDataMap,
+    currentCubeSet, currentCubeKeySet, decklistWinRates, params.includeMatchData,
   );
-
-  // Create stub entries for new cards
-  const newCardEntries: EnrichedCardStats[] = newCards.map((cardName) => ({
-    cardName,
-    weightedGeomean: Infinity,
-    totalPicks: 0,
-    timesAvailable: 0,
-    draftsPickedIn: 0,
-    timesUnpicked: 0,
-    maxCopiesInDraft: 0,
-    colors: [] as string[],
-    scoreHistory: [] as DraftScore[],
-    pickDistribution: new Array(DISTRIBUTION_BUCKET_COUNT).fill(0),
-    scryfall: scryfallDataMap.get(cardNameKey(cardName)),
-  }));
-
-  // Combine: historical cards first, then new cards
-  const allCards = [...filteredCards, ...newCardEntries];
 
   // Convert draftMetadata Map to plain object
   const draftMetadataObj: Record<string, { name: string; date: string; numDrafters: number }> = {};
@@ -597,7 +614,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
   }
 
   console.log(
-    `[getCards] Loaded ${filteredCards.length} cards from ${selectedDraftIds.length}/${draftIds.length} drafts (${newCards.length} new to cube)`
+    `[getCards] Loaded ${allCards.length} cards from ${selectedDraftIds.length}/${draftIds.length} drafts`
   );
 
   return {
