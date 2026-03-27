@@ -1,0 +1,41 @@
+import type { Client } from '@libsql/client';
+
+export async function getFloatedCards(
+  client: Client,
+  draftId: string,
+  seat: number,
+): Promise<string[]> {
+  const result = await client.execute({
+    sql: `SELECT card_name FROM floated_cards
+          WHERE draft_id = ? AND seat = ?
+          ORDER BY created_at ASC`,
+    args: [draftId, seat],
+  });
+  return result.rows.map((row) => row.card_name as string);
+}
+
+export async function addFloatedCard(
+  client: Client,
+  draftId: string,
+  seat: number,
+  cardName: string,
+): Promise<void> {
+  await client.execute({
+    sql: `INSERT OR IGNORE INTO floated_cards (draft_id, seat, card_name)
+          VALUES (?, ?, ?)`,
+    args: [draftId, seat, cardName],
+  });
+}
+
+export async function removeFloatedCard(
+  client: Client,
+  draftId: string,
+  seat: number,
+  cardName: string,
+): Promise<void> {
+  await client.execute({
+    sql: `DELETE FROM floated_cards
+          WHERE draft_id = ? AND seat = ? AND card_name = ?`,
+    args: [draftId, seat, cardName],
+  });
+}
