@@ -9,7 +9,6 @@ function validDeck() {
       deck: { col0: ["Lightning Bolt", "Counterspell"] },
       sideboard: { col0: ["Dark Ritual"] },
     },
-    speculativeCards: ["Brainstorm"],
     basicLands: { Plains: 0, Island: 5, Swamp: 0, Mountain: 3, Forest: 0 },
   };
 }
@@ -105,18 +104,6 @@ describe("validateDeckState", () => {
     deck.zones.sideboard = { col0: [] };
     const result = validateDeckState(deck);
     expect(result).toEqual({ valid: false, reason: "total cards 101 exceeds limit of 100" });
-  });
-
-  it("rejects non-string-array speculativeCards", () => {
-    const deck = { ...validDeck(), speculativeCards: "not-an-array" };
-    const result = validateDeckState(deck);
-    expect(result).toEqual({ valid: false, reason: "speculativeCards must be string array" });
-  });
-
-  it("rejects speculativeCards with non-string elements", () => {
-    const deck = { ...validDeck(), speculativeCards: [1, 2] };
-    const result = validateDeckState(deck);
-    expect(result).toEqual({ valid: false, reason: "speculativeCards must be string array" });
   });
 
   it("rejects negative basicLand counts", () => {

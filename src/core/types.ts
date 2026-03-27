@@ -74,42 +74,14 @@ export type CardStats = {
   cardName: string;
   /** Weighted geometric mean of pick positions (lower = better) */
   weightedGeomean: number;
-  /** Total number of times this card was picked */
-  totalPicks: number;
   /** Number of drafts where this card was in the pool */
   timesAvailable: number;
   /** Number of drafts where at least one copy was picked */
   draftsPickedIn: number;
-  /** Number of drafts where this card went unpicked */
-  timesUnpicked: number;
   /** Highest copy number seen in any single draft (for annotation) */
   maxCopiesInDraft: number;
   /** Color identities associated with this card */
   colors: string[];
-  /** Score history across drafts, sorted by date */
-  scoreHistory: DraftScore[];
-  /**
-   * Distribution of picks across 15 buckets, each covering 30 picks:
-   * [0] = Picks 1-30, [1] = Picks 31-60, ..., [14] = Picks 421-450+
-   */
-  pickDistribution: number[];
-  /**
-   * Win rate from actual decklist data.
-   * Based on match results of seats that maindecked this card.
-   * Only available for cards with decklist + match data.
-   */
-  decklistWinRate?: {
-    /** Win rate: gameWins / (gameWins + gameLosses) */
-    winRate: number;
-    /** Total games won by seats that maindecked this card */
-    gameWins: number;
-    /** Total games lost by seats that maindecked this card */
-    gameLosses: number;
-    /** Number of distinct (draft, seat) pairs that maindecked this card */
-    timesMaindecked: number;
-    /** Number of distinct drafts where this card was maindecked */
-    draftsWithData: number;
-  };
 };
 
 /**
@@ -182,7 +154,6 @@ export type DeckState = {
     deck: ColumnMap;
     sideboard: ColumnMap;
   };
-  speculativeCards: string[];
   basicLands: BasicLandCounts;
 };
 

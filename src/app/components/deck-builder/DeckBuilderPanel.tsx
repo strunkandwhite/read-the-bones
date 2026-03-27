@@ -28,6 +28,8 @@ interface DeckBuilderPanelProps {
   cardStats: Map<string, CardStats>;
   draftName: string;
   onClose: () => void;
+  floatedCards?: string[];
+  onRemoveFloat?: (cardName: string) => void;
 }
 
 function parseDragId(id: string) {
@@ -47,6 +49,8 @@ export function DeckBuilderPanel({
   cardStats,
   draftName,
   onClose,
+  floatedCards = [],
+  onRemoveFloat,
 }: DeckBuilderPanelProps) {
   useSlowRenderTracking("deck_builder");
   const [showBasicLands, setShowBasicLands] = useState(false);
@@ -183,12 +187,12 @@ export function DeckBuilderPanel({
     dispatch({ type: "CLEAR_DECK", scryfallData });
   }, [dispatch, scryfallData, state.zones]);
 
-  const handleRemoveSpeculative = useCallback(
+  const handleRemoveFloat = useCallback(
     (cardName: string) => {
-      dispatch({ type: "REMOVE_SPECULATIVE", cardName });
+      onRemoveFloat?.(cardName);
       track("deck_card_removed", { zone: "deck" });
     },
-    [dispatch],
+    [onRemoveFloat],
   );
 
   const dragOverlayCard = useMemo(() => {
@@ -256,8 +260,8 @@ export function DeckBuilderPanel({
             columns={state.zones.sideboard}
             scryfallData={scryfallData}
             cardStats={cardStats}
-            speculativeCards={state.speculativeCards}
-            onRemoveSpeculative={handleRemoveSpeculative}
+            speculativeCards={floatedCards}
+            onRemoveSpeculative={handleRemoveFloat}
           />
           <div className="border-t border-zinc-700/30" />
           <DeckZone
@@ -265,8 +269,8 @@ export function DeckBuilderPanel({
             columns={state.zones.deck}
             scryfallData={scryfallData}
             cardStats={cardStats}
-            speculativeCards={state.speculativeCards}
-            onRemoveSpeculative={handleRemoveSpeculative}
+            speculativeCards={floatedCards}
+            onRemoveSpeculative={handleRemoveFloat}
           />
         </div>
 

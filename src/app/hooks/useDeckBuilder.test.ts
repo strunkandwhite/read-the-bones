@@ -86,7 +86,6 @@ describe("useDeckBuilder", () => {
           lands: [],
         },
       },
-      speculativeCards: [],
       basicLands: { Plains: 0, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
     };
     localStorage.setItem("deckState:tarkir:1", JSON.stringify(savedState));
@@ -146,7 +145,6 @@ describe("useDeckBuilder", () => {
           lands: [],
         },
       },
-      speculativeCards: [],
       basicLands: { Plains: 0, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
     };
 
@@ -196,7 +194,6 @@ describe("useDeckBuilder", () => {
           lands: [],
         },
       },
-      speculativeCards: [],
       basicLands: { Plains: 0, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
     };
     localStorage.setItem("deckState:terminate:7", JSON.stringify(staleState));

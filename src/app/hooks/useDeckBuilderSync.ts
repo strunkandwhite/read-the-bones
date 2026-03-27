@@ -5,7 +5,6 @@ import type { DeckAction } from "@/core/deckBuilder";
 interface UseDeckBuilderSyncProps {
   deckBuilderActive: boolean;
   seatCardList: string[] | undefined;
-  takenCardNamesSet: Set<string> | undefined;
   deckBuilderState: DeckState;
   dispatch: (action: DeckAction) => void;
   scryfallDataMap: Map<string, ScryCard>;
@@ -25,7 +24,6 @@ interface UseDeckBuilderSyncProps {
 export function useDeckBuilderSync({
   deckBuilderActive,
   seatCardList,
-  takenCardNamesSet,
   deckBuilderState,
   dispatch,
   scryfallDataMap,
@@ -60,7 +58,6 @@ export function useDeckBuilderSync({
     dispatch({
       type: "SYNC_PICKS",
       pickedCardNames: seatCardList,
-      takenCardNames: takenCardNamesSet ? Array.from(takenCardNamesSet) : undefined,
       scryfallData: scryfallDataMap,
     });
   }, [seatCardList, deckBuilderActive]); // eslint-disable-line react-hooks/exhaustive-deps

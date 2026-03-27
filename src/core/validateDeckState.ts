@@ -57,15 +57,6 @@ export function validateDeckState(input: unknown): ValidationResult {
     };
   }
 
-  if (deck.speculativeCards !== undefined) {
-    if (
-      !Array.isArray(deck.speculativeCards) ||
-      !deck.speculativeCards.every((v) => typeof v === "string")
-    ) {
-      return { valid: false, reason: "speculativeCards must be string array" };
-    }
-  }
-
   if (deck.basicLands !== undefined) {
     if (typeof deck.basicLands !== "object" || deck.basicLands === null) {
       return { valid: false, reason: "basicLands must be an object" };

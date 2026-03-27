@@ -156,11 +156,6 @@ describe("createEmptyDeckState", () => {
     }
   });
 
-  it("has empty speculative cards", () => {
-    const state = createEmptyDeckState("tarkir", 1);
-    expect(state.speculativeCards).toEqual([]);
-  });
-
   it("has zero basic lands", () => {
     const state = createEmptyDeckState("tarkir", 1);
     expect(state.basicLands).toEqual({
@@ -397,118 +392,6 @@ describe("deckReducer", () => {
     });
   });
 
-  describe("ADD_SPECULATIVE", () => {
-    it("adds a card to deck and speculative list", () => {
-      const state = createEmptyDeckState("tarkir", 1);
-      const result = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-      });
-      expect(result.speculativeCards).toEqual(["Lightning Bolt"]);
-      expect(result.zones.deck["mv-0-1"]).toContain("Lightning Bolt");
-    });
-
-    it("prevents duplicate speculative cards", () => {
-      let state = createEmptyDeckState("tarkir", 1);
-      state = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-      });
-      const result = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-      });
-      expect(result).toBe(state);
-      expect(result.speculativeCards).toEqual(["Lightning Bolt"]);
-    });
-
-    it("allows adding multiple copies when maxCopies allows", () => {
-      let state = createEmptyDeckState("tarkir", 1);
-      state = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-        maxCopies: 2,
-      });
-      const result = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-        maxCopies: 2,
-      });
-      expect(result.speculativeCards).toEqual(["Lightning Bolt", "Lightning Bolt"]);
-      expect(result.zones.deck["mv-0-1"].filter((c: string) => c === "Lightning Bolt")).toHaveLength(2);
-    });
-
-    it("blocks adding beyond maxCopies", () => {
-      let state = createEmptyDeckState("tarkir", 1);
-      state = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-        maxCopies: 2,
-      });
-      state = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-        maxCopies: 2,
-      });
-      const result = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-        maxCopies: 2,
-      });
-      expect(result).toBe(state);
-      expect(result.speculativeCards).toEqual(["Lightning Bolt", "Lightning Bolt"]);
-    });
-  });
-
-  describe("REMOVE_SPECULATIVE", () => {
-    it("removes a speculative card from deck", () => {
-      let state = createEmptyDeckState("tarkir", 1);
-      state = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-      });
-      const result = deckReducer(state, {
-        type: "REMOVE_SPECULATIVE",
-        cardName: "Lightning Bolt",
-      });
-      expect(result.speculativeCards).toEqual([]);
-      expect(result.zones.deck["mv-0-1"]).not.toContain("Lightning Bolt");
-    });
-
-    it("removes a speculative card that was moved to sideboard", () => {
-      let state = createEmptyDeckState("tarkir", 1);
-      state = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-      });
-      state = deckReducer(state, {
-        type: "MOVE_CARD",
-        cardName: "Lightning Bolt",
-        fromZone: "deck",
-        toZone: "sideboard",
-        fromColumn: "mv-0-1",
-        toColumn: "mv-0-1",
-        toIndex: 0,
-      });
-      const result = deckReducer(state, {
-        type: "REMOVE_SPECULATIVE",
-        cardName: "Lightning Bolt",
-      });
-      expect(result.speculativeCards).toEqual([]);
-      expect(result.zones.sideboard["mv-0-1"]).not.toContain("Lightning Bolt");
-    });
-  });
-
   describe("SET_BASICS", () => {
     it("updates basic land counts", () => {
       const state = createEmptyDeckState("tarkir", 1);
@@ -642,7 +525,6 @@ describe("deckReducer", () => {
             lands: [],
           },
         },
-        speculativeCards: [],
         basicLands: { Plains: 0, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
       };
       const result = deckReducer(state, {
@@ -669,36 +551,6 @@ describe("deckReducer", () => {
       expect(result.zones.deck["mv-2"]).toContain("Counterspell");
     });
 
-    it("promotes speculative cards to real (removes from speculativeCards, keeps position)", () => {
-      let state = createEmptyDeckState("tarkir", 1);
-      state = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-      });
-      // Card starts in deck from ADD_SPECULATIVE; move to sideboard to verify it stays there
-      state = deckReducer(state, {
-        type: "MOVE_CARD",
-        cardName: "Lightning Bolt",
-        fromZone: "deck",
-        toZone: "sideboard",
-        fromColumn: "mv-0-1",
-        toColumn: "mv-0-1",
-        toIndex: 0,
-      });
-      expect(state.speculativeCards).toEqual(["Lightning Bolt"]);
-      expect(state.zones.sideboard["mv-0-1"]).toContain("Lightning Bolt");
-
-      const result = deckReducer(state, {
-        type: "SYNC_PICKS",
-        pickedCardNames: ["Lightning Bolt"],
-        scryfallData,
-      });
-      expect(result.speculativeCards).toEqual([]);
-      // Card stays in the sideboard zone where user placed it
-      expect(result.zones.sideboard["mv-0-1"]).toContain("Lightning Bolt");
-    });
-
     it("returns same state reference when nothing changes", () => {
       let state = createEmptyDeckState("tarkir", 1);
       state = deckReducer(state, {
@@ -716,123 +568,6 @@ describe("deckReducer", () => {
       expect(result).toBe(state);
     });
 
-    it("handles both promotion and addition in one call", () => {
-      let state = createEmptyDeckState("tarkir", 1);
-      state = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-      });
-      const result = deckReducer(state, {
-        type: "SYNC_PICKS",
-        pickedCardNames: ["Lightning Bolt", "Counterspell"],
-        scryfallData,
-      });
-      expect(result.speculativeCards).toEqual([]);
-      expect(result.zones.deck["mv-0-1"]).toContain("Lightning Bolt");
-      expect(result.zones.deck["mv-2"]).toContain("Counterspell");
-    });
-
-    it("removes speculative cards taken by other players", () => {
-      let state = createEmptyDeckState("tarkir", 1);
-      state = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-      });
-      expect(state.speculativeCards).toEqual(["Lightning Bolt"]);
-      expect(state.zones.deck["mv-0-1"]).toContain("Lightning Bolt");
-
-      const result = deckReducer(state, {
-        type: "SYNC_PICKS",
-        pickedCardNames: [],
-        takenCardNames: ["Lightning Bolt"],
-        scryfallData,
-      });
-      expect(result.speculativeCards).toEqual([]);
-      expect(result.zones.deck["mv-0-1"]).not.toContain("Lightning Bolt");
-      expect(result.zones.sideboard["mv-0-1"]).not.toContain("Lightning Bolt");
-    });
-
-    it("preserves speculative status when real pick already covers needed count", () => {
-      // Bug: 1 real pick + 1 speculative of same card → SYNC_PICKS was removing
-      // the speculative flag, making both copies appear as real picks
-      let state = createEmptyDeckState("tarkir", 1);
-      state = deckReducer(state, {
-        type: "INIT_FROM_PICKS",
-        picks: ["Lightning Bolt"],
-        scryfallData,
-        draftId: "tarkir",
-        seat: 1,
-      });
-      state = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-        maxCopies: 2,
-      });
-      expect(state.speculativeCards).toEqual(["Lightning Bolt"]);
-      expect(
-        state.zones.deck["mv-0-1"].filter((c: string) => c === "Lightning Bolt"),
-      ).toHaveLength(2);
-
-      const result = deckReducer(state, {
-        type: "SYNC_PICKS",
-        pickedCardNames: ["Lightning Bolt"],
-        scryfallData,
-      });
-      // The speculative copy should remain speculative
-      expect(result.speculativeCards).toEqual(["Lightning Bolt"]);
-      expect(
-        result.zones.deck["mv-0-1"].filter((c: string) => c === "Lightning Bolt"),
-      ).toHaveLength(2);
-    });
-
-    it("partially promotes when picks cover some speculative copies", () => {
-      // 2 speculative copies, 1 real pick arrives → promote 1, keep 1 speculative
-      let state = createEmptyDeckState("tarkir", 1);
-      state = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-        maxCopies: 2,
-      });
-      state = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-        maxCopies: 2,
-      });
-      expect(state.speculativeCards).toEqual(["Lightning Bolt", "Lightning Bolt"]);
-
-      const result = deckReducer(state, {
-        type: "SYNC_PICKS",
-        pickedCardNames: ["Lightning Bolt"],
-        scryfallData,
-      });
-      // 1 promoted to real, 1 remains speculative
-      expect(result.speculativeCards).toEqual(["Lightning Bolt"]);
-      expect(
-        result.zones.deck["mv-0-1"].filter((c: string) => c === "Lightning Bolt"),
-      ).toHaveLength(2);
-    });
-
-    it("keeps speculative cards that are not taken", () => {
-      let state = createEmptyDeckState("tarkir", 1);
-      state = deckReducer(state, {
-        type: "ADD_SPECULATIVE",
-        cardName: "Lightning Bolt",
-        scryfallData,
-      });
-      const result = deckReducer(state, {
-        type: "SYNC_PICKS",
-        pickedCardNames: [],
-        takenCardNames: ["Counterspell"],
-        scryfallData,
-      });
-      expect(result.speculativeCards).toEqual(["Lightning Bolt"]);
-      expect(result.zones.deck["mv-0-1"]).toContain("Lightning Bolt");
-    });
   });
 
   describe("REORDER_CARD", () => {
@@ -929,7 +664,6 @@ describe("migrateDeckState", () => {
           lands: [],
         },
       },
-      speculativeCards: [],
       basicLands: { Plains: 0, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
     };
     const migrated = migrateDeckState(legacy);

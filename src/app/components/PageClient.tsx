@@ -8,6 +8,7 @@ import { useModalManagement } from "../hooks/useModalManagement";
 import { track } from "@vercel/analytics/react";
 import { ActiveDraftIndicator } from "./ActiveDraftIndicator";
 import { CardTable } from "./CardTable";
+import { CardStatsModal } from "./CardStatsModal";
 import { ColorFilter } from "./ColorFilter";
 import { Settings } from "./Settings";
 import { StatsModal } from "./StatsModal";
@@ -16,6 +17,8 @@ import { useDraftSelection } from "../hooks/useDraftSelection";
 import { useCardData } from "../hooks/useCardData";
 import { useCardSearch } from "../hooks/useCardSearch";
 import { useCardFiltering } from "../hooks/useCardFiltering";
+import { useFloatedCards } from "../hooks/useFloatedCards";
+import { isLocalClient } from "@/core/isLocal";
 import type { CardStatsResponse } from "@/core/getCards";
 import type { DraftStatsResponse } from "@/core/getDraftStats";
 import type { ScryCard, CardStats } from "@/core/types";
@@ -163,7 +166,18 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     liveDraftStatus.dataChanged,
   );
 
-  const { mySeat, autoPick, toggleAutoPick, updateDisplayName } = useMySeat(draftSelection.activeDraft, seatToken.token);
+  const { mySeat, autoPick, autoPickMode, toggleAutoPick, updateDisplayName, updateAutoPickMode } = useMySeat(draftSelection.activeDraft, seatToken.token);
+
+  // Float state (server-side speculative cards)
+  const { floatedCards, addFloat, removeFloat } = useFloatedCards(
+    draftSelection.activeDraft,
+    seatToken.token,
+  );
+
+  // Card stats modal
+  const [selectedCard, setSelectedCard] = useState<string | null>(null);
+
+  const isLocal = useMemo(() => isLocalClient(), []);
 
   const { handlePick: _handlePick, pickError, setPickError, isMyTurn, consecutivePicks } = useLiveDraftPicking({
     activeDraft: draftSelection.activeDraft,
@@ -174,6 +188,50 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     autoPick,
     queuedCards: pickQueue.queuedCards,
   });
+
+  // Card status helper: determines whether a card is picked, queued, floated, taken, or none
+  const getCardStatus = useCallback(
+    (cardName: string): { status: "picked" | "queued" | "floated" | "none" | "taken"; queuePosition?: number } => {
+      // Picked by the current seat
+      if (seatCardNames?.has(cardName)) {
+        return { status: "picked" };
+      }
+      // In the pick queue
+      const queuePriority = pickQueue.queuedCards.get(cardName);
+      if (queuePriority != null) {
+        return { status: "queued", queuePosition: queuePriority + 1 };
+      }
+      // Floated (server-side speculative)
+      if (floatedCards.includes(cardName)) {
+        return { status: "floated" };
+      }
+      // Taken by someone else
+      if (takenCardNamesSet?.has(cardName)) {
+        return { status: "taken" };
+      }
+      return { status: "none" };
+    },
+    [seatCardNames, pickQueue.queuedCards, floatedCards, takenCardNamesSet],
+  );
+
+  // Get Scryfall image URL for a card
+  const getImageUrl = useCallback(
+    (cardName: string | null): string | undefined => {
+      if (!cardName) return undefined;
+      const card = cardData.cards.find((c) => c.cardName === cardName);
+      return card?.scryfall?.imageUri;
+    },
+    [cardData.cards],
+  );
+
+  // Wrap handlePick to close the modal after a successful pick
+  const handlePick = useCallback(
+    async (cardName: string) => {
+      await _handlePick(cardName);
+      setSelectedCard(null);
+    },
+    [_handlePick],
+  );
 
   // Clear stale deck builder state when a draft has been reset
   // (same draft_id but back to "drafting" phase with 0 picks)
@@ -209,7 +267,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   useDeckBuilderSync({
     deckBuilderActive,
     seatCardList,
-    takenCardNamesSet,
     deckBuilderState: deckBuilder.state,
     dispatch: deckBuilder.dispatch,
     scryfallDataMap,
@@ -498,6 +555,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
             currentCubeCopies={displayedCubeCopies}
             takenCardNames={takenCardNamesSet}
             seatCardNames={seatCardNames}
+            onCardClick={setSelectedCard}
           />
         ) : (
           <div className="rounded-lg border border-zinc-200 bg-white p-12 text-center dark:border-zinc-700 dark:bg-zinc-900">
@@ -555,6 +613,23 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
           onClose={() => setDraftBoardOpen(false)}
           onMatchReported={() => draftBoard.refresh()}
           onUpdateDisplayName={updateDisplayName}
+          pickQueue={pickQueue.queue.map((e) => ({ cardName: e.cardName, position: e.priority + 1 }))}
+          autoPick={autoPick}
+          autoPickMode={autoPickMode}
+          onQueueReorder={(cardNames) => {
+            // Sync the reordered queue to the server
+            const body = cardNames.map((card_name) => ({ card_name }));
+            if (draftSelection.activeDraft && seatToken.token) {
+              fetch(`/api/drafts/${draftSelection.activeDraft}/queue`, {
+                method: "PUT",
+                headers: { "X-Seat-Token": seatToken.token, "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+              });
+            }
+          }}
+          onQueueRemove={pickQueue.removeFromQueue}
+          onToggleAutoPick={toggleAutoPick}
+          onChangeAutoPickMode={updateAutoPickMode}
         />
       )}
 
@@ -574,10 +649,31 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
               cardStats={cardStatsMap}
               draftName={cardData.draftMetadata[draftSelection.activeDraft]?.name ?? draftSelection.activeDraft}
               onClose={() => setDeckBuilderModalOpen(false)}
+              floatedCards={floatedCards}
+              onRemoveFloat={removeFloat}
             />
           </div>
         </div>
       )}
+
+      {/* Card Stats Modal */}
+      <CardStatsModal
+        cardName={selectedCard}
+        scryfallImageUrl={getImageUrl(selectedCard)}
+        isOpen={!!selectedCard}
+        onClose={() => setSelectedCard(null)}
+        draftId={draftSelection.activeDraft ?? undefined}
+        isLiveDraft={!!draftSelection.activeDraft && liveDraftStatus.status?.phase === "drafting"}
+        isMyTurn={isMyTurn}
+        cardStatus={selectedCard ? getCardStatus(selectedCard).status : "none"}
+        queuePosition={selectedCard ? getCardStatus(selectedCard).queuePosition : undefined}
+        onPick={selectedCard ? () => handlePick(selectedCard) : undefined}
+        onQueue={selectedCard ? () => pickQueue.addToQueue(selectedCard) : undefined}
+        onUnqueue={selectedCard ? () => pickQueue.removeFromQueue(selectedCard) : undefined}
+        onFloat={selectedCard ? () => addFloat(selectedCard) : undefined}
+        onUnfloat={selectedCard ? () => removeFloat(selectedCard) : undefined}
+        isLocal={isLocal}
+      />
     </div>
   );
 }

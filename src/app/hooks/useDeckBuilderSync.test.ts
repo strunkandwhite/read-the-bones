@@ -12,7 +12,6 @@ function makeEmptyState(overrides: Partial<DeckState> = {}): DeckState {
       deck: {},
       sideboard: {},
     },
-    speculativeCards: [],
     ...overrides,
   } as DeckState;
 }
@@ -24,7 +23,6 @@ describe("useDeckBuilderSync", () => {
   const baseProps = {
     deckBuilderActive: true,
     seatCardList: ["Lightning Bolt", "Counterspell"],
-    takenCardNamesSet: new Set(["Sol Ring"]),
     deckBuilderState: makeEmptyState(),
     dispatch,
     scryfallDataMap,

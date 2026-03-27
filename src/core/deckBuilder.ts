@@ -27,10 +27,21 @@ const LEGACY_KEY_MAP: [string, ColumnKey][] = [
   ["cmc-6+", "mv-6+"],
 ];
 
-/** Migrate legacy cmc-* column keys to mv-* in a persisted DeckState. */
-export function migrateDeckState(state: DeckState): DeckState {
-  const needsMigration = Object.keys(state.zones.deck).some((k) => k.startsWith("cmc-"));
-  if (!needsMigration) return state;
+/** Migrate legacy cmc-* column keys to mv-* in a persisted DeckState.
+ *  Also strips the deprecated `speculativeCards` field from old snapshots. */
+export function migrateDeckState(state: DeckState & { speculativeCards?: unknown }): DeckState {
+  // Strip deprecated speculativeCards from persisted data
+  let cleaned: DeckState;
+  if ("speculativeCards" in state) {
+    const { speculativeCards: _, ...rest } = state;
+    void _;
+    cleaned = rest;
+  } else {
+    cleaned = state;
+  }
+
+  const needsMigration = Object.keys(cleaned.zones.deck).some((k) => k.startsWith("cmc-"));
+  if (!needsMigration) return cleaned;
 
   const migrateZone = (zone: Record<string, string[]>): Record<string, string[]> => {
     const migrated: Record<string, string[]> = {};
@@ -42,10 +53,10 @@ export function migrateDeckState(state: DeckState): DeckState {
   };
 
   return {
-    ...state,
+    ...cleaned,
     zones: {
-      deck: migrateZone(state.zones.deck),
-      sideboard: migrateZone(state.zones.sideboard),
+      deck: migrateZone(cleaned.zones.deck),
+      sideboard: migrateZone(cleaned.zones.sideboard),
     },
   };
 }
@@ -104,7 +115,6 @@ export function createEmptyDeckState(draftId: string, seat: number): DeckState {
       deck: createEmptyColumnMap(),
       sideboard: createEmptyColumnMap(),
     },
-    speculativeCards: [],
     basicLands: {
       Plains: 0,
       Island: 0,
@@ -138,16 +148,6 @@ export type DeckAction =
       toIndex: number;
     }
   | {
-      type: "ADD_SPECULATIVE";
-      cardName: string;
-      scryfallData: Map<string, ScryCard>;
-      maxCopies?: number;
-    }
-  | {
-      type: "REMOVE_SPECULATIVE";
-      cardName: string;
-    }
-  | {
       type: "SET_BASICS";
       basics: BasicLandCounts;
       scryfallData: Map<string, ScryCard>;
@@ -170,7 +170,6 @@ export type DeckAction =
   | {
       type: "SYNC_PICKS";
       pickedCardNames: string[];
-      takenCardNames?: string[];
       scryfallData: Map<string, ScryCard>;
     };
 
@@ -208,43 +207,6 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
         }
       }
 
-      return next;
-    }
-
-    case "ADD_SPECULATIVE": {
-      const maxCopies = action.maxCopies ?? 1;
-      // Count how many copies are already in all zones + speculative
-      const allCards = [
-        ...Object.values(state.zones.deck).flat(),
-        ...Object.values(state.zones.sideboard).flat(),
-      ];
-      const currentCount = allCards.filter((c) => c === action.cardName).length;
-      if (currentCount >= maxCopies) return state;
-      const next = structuredClone(state);
-      next.speculativeCards.push(action.cardName);
-      const scry = action.scryfallData.get(action.cardName);
-      const col = scry ? getColumnKey(scry) : "mv-0-1";
-      next.zones.deck[col].push(action.cardName);
-      return next;
-    }
-
-    case "REMOVE_SPECULATIVE": {
-      if (!state.speculativeCards.includes(action.cardName)) return state;
-      const next = structuredClone(state);
-      // Remove one instance from speculativeCards (supports multiples)
-      const specIdx = next.speculativeCards.indexOf(action.cardName);
-      if (specIdx !== -1) next.speculativeCards.splice(specIdx, 1);
-      // Remove from whichever zone it's in
-      for (const zone of ["deck", "sideboard"] as const) {
-        for (const col of Object.keys(next.zones[zone])) {
-          const arr = next.zones[zone][col];
-          const idx = arr.indexOf(action.cardName);
-          if (idx !== -1) {
-            arr.splice(idx, 1);
-            return next;
-          }
-        }
-      }
       return next;
     }
 
@@ -312,33 +274,6 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
       }
 
       for (const [cardName, neededCount] of pickedCounts) {
-        // Promote speculative → real only when real copies are insufficient.
-        // speculativeCards may have been mutated by prior iterations, so read from `next` if available.
-        // existingCounts (from original state) is still valid because promotion doesn't change zone contents.
-        const source = next ?? state;
-        const specCount = source.speculativeCards.filter(
-          (c) => c === cardName,
-        ).length;
-        if (specCount > 0) {
-          const realCount =
-            (existingCounts.get(cardName) || 0) - specCount;
-          const toPromote = Math.max(
-            0,
-            Math.min(specCount, neededCount - realCount),
-          );
-          if (toPromote > 0) {
-            if (!next) next = structuredClone(state);
-            let removed = 0;
-            next.speculativeCards = next.speculativeCards.filter((c) => {
-              if (c === cardName && removed < toPromote) {
-                removed++;
-                return false;
-              }
-              return true;
-            });
-            changed = true;
-          }
-        }
         // Add missing copies to deck
         const currentCount = existingCounts.get(cardName) || 0;
         const toAdd = neededCount - currentCount;
@@ -351,36 +286,6 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
           }
           existingCounts.set(cardName, neededCount);
           changed = true;
-        }
-      }
-
-      // Remove speculative cards that were taken by other players
-      if (action.takenCardNames) {
-        const pickedSet = new Set(action.pickedCardNames);
-        const takenSet = new Set(action.takenCardNames);
-        const source = next ?? state;
-        const speculativeToRemove = source.speculativeCards.filter(
-          (c) => takenSet.has(c) && !pickedSet.has(c),
-        );
-        if (speculativeToRemove.length > 0) {
-          if (!next) next = structuredClone(state);
-          for (const cardName of speculativeToRemove) {
-            // Remove one instance from speculativeCards
-            const specIdx = next.speculativeCards.indexOf(cardName);
-            if (specIdx !== -1) next.speculativeCards.splice(specIdx, 1);
-            // Remove from whichever zone it's in
-            for (const zone of ["deck", "sideboard"] as const) {
-              for (const col of Object.keys(next.zones[zone])) {
-                const arr = next.zones[zone][col];
-                const idx = arr.indexOf(cardName);
-                if (idx !== -1) {
-                  arr.splice(idx, 1);
-                  break;
-                }
-              }
-            }
-            changed = true;
-          }
         }
       }
 

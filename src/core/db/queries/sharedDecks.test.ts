@@ -23,7 +23,6 @@ describe("createSharedDeck", () => {
       draftId: "tarkir",
       seat: 3,
       zones: { deck: {}, sideboard: {} },
-      speculativeCards: [],
       basicLands: { Plains: 0, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
     };
 
@@ -52,7 +51,6 @@ describe("getSharedDeck", () => {
       draftId: "tarkir",
       seat: 3,
       zones: { deck: {}, sideboard: {} },
-      speculativeCards: [],
       basicLands: { Plains: 0, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
     };
 
