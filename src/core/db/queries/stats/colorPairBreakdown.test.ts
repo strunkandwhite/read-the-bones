@@ -21,7 +21,7 @@ describe("getColorPairBreakdown", () => {
     client = createMockClient();
   });
 
-  it("returns top 3 color pairs above 10% threshold", async () => {
+  it("returns top color pairs sorted by frequency", async () => {
     const { inferDeckColor } = await import("../../../inferDeckColor");
 
     // 4 decks maindecked the target card.
@@ -58,7 +58,7 @@ describe("getColorPairBreakdown", () => {
     ]);
   });
 
-  it("filters out color pairs below 10%", async () => {
+  it("includes all pairs regardless of percentage", async () => {
     const { inferDeckColor } = await import("../../../inferDeckColor");
 
     // 10 decks total. Generate rows — one per deck for simplicity.
@@ -70,7 +70,7 @@ describe("getColorPairBreakdown", () => {
       })),
     });
 
-    // 9 are RW, 1 is RG (10% exactly — should be included)
+    // 9 are RW, 1 is RG
     (inferDeckColor as ReturnType<typeof vi.fn>)
       .mockReturnValueOnce("RW")
       .mockReturnValueOnce("RW")
@@ -84,7 +84,6 @@ describe("getColorPairBreakdown", () => {
       .mockReturnValueOnce("RG");
 
     const result = await getColorPairBreakdown(client, "Some Card");
-    // RW at 90%, RG at 10% — both meet threshold
     expect(result).toHaveLength(2);
     expect(result[0]).toEqual({ colorPair: "RW", percentage: 90, deckCount: 9 });
     expect(result[1]).toEqual({ colorPair: "RG", percentage: 10, deckCount: 1 });
@@ -96,7 +95,7 @@ describe("getColorPairBreakdown", () => {
     expect(result).toEqual([]);
   });
 
-  it("caps at 3 results", async () => {
+  it("caps at 4 results", async () => {
     const { inferDeckColor } = await import("../../../inferDeckColor");
 
     // 10 decks, one row each
@@ -122,7 +121,7 @@ describe("getColorPairBreakdown", () => {
       .mockReturnValueOnce("BG");
 
     const result = await getColorPairBreakdown(client, "Popular Card");
-    expect(result).toHaveLength(3);
+    expect(result).toHaveLength(4);
   });
 
   it("handles cards with no color identity (colorless)", async () => {

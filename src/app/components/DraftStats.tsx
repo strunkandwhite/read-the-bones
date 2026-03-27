@@ -54,8 +54,8 @@ const AMBER_THEME: BarTheme = {
 
 // Chart uses viewBox so it scales to fill container width
 const VIEWBOX_W = 400;
-const CHART_HEIGHT = 140;
-const MARGIN = { top: 12, right: 4, bottom: 24, left: 36 };
+const CHART_HEIGHT = 148;
+const MARGIN = { top: 12, right: 4, bottom: 32, left: 36 };
 const INNER_H = CHART_HEIGHT - MARGIN.top - MARGIN.bottom;
 
 function WinRateHistogram({
@@ -194,16 +194,23 @@ function WinRateHistogram({
               strokeWidth={1}
             />
 
-            {/* X-axis label */}
-            <text
-              x={x + barWidth / 2}
-              y={CHART_HEIGHT - 6}
-              textAnchor="middle"
-              className="fill-zinc-500 dark:fill-zinc-400 font-mono"
-              fontSize={9}
-            >
-              {b.label}
-            </text>
+            {/* X-axis label — mana symbols */}
+            {b.label.split("").map((color, ci) => {
+              const symbolSize = 8;
+              const gap = 0.5;
+              const totalW = b.label.length * symbolSize + (b.label.length - 1) * gap;
+              const sx = x + barWidth / 2 - totalW / 2 + ci * (symbolSize + gap);
+              return (
+                <image
+                  key={ci}
+                  href={`/mana/${color}.svg`}
+                  x={sx}
+                  y={CHART_HEIGHT - MARGIN.bottom + 6}
+                  width={symbolSize}
+                  height={symbolSize}
+                />
+              );
+            })}
 
             {/* Tooltip */}
             <title>

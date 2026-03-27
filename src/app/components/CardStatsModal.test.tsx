@@ -10,6 +10,7 @@ vi.mock("@/app/hooks/useCardStats", () => ({
       pick: { drafts_in_pool: 5, times_picked: 4, avg_pick: 10.2, median_pick: 9, geomean_pick: 12.4 },
       pick_history: [],
       pick_distribution: Array(15).fill(0),
+      times_banned: 0,
       color_pair_breakdown: [{ colorPair: "RW", percentage: 55, deckCount: 3 }],
     },
     loading: false,
@@ -31,7 +32,7 @@ describe("CardStatsModal", () => {
 
   it("renders card image when open", () => {
     render(<CardStatsModal {...defaultProps} />);
-    const img = screen.getByRole("img");
+    const img = screen.getByAltText("Lightning Bolt");
     expect(img).toBeTruthy();
   });
 

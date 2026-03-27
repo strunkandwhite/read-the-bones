@@ -106,7 +106,7 @@ describe("QueuePanel", () => {
       />,
     );
     const bolt = screen.getByText("Lightning Bolt");
-    expect(bolt.style.textDecoration).toContain("line-through");
+    expect(bolt.className).toContain("line-through");
   });
 
   it("disables up button for first item", () => {

@@ -14,8 +14,8 @@ export interface ColorPairEntry {
 
 /**
  * For a given card, find all decks that maindecked it,
- * infer each deck's color pair, and return the top 3
- * color pairs that represent ≥10% of total decks.
+ * infer each deck's color pair, and return the top 4
+ * color pairs by frequency.
  */
 export async function getColorPairBreakdown(
   client: Client,
@@ -63,13 +63,11 @@ export async function getColorPairBreakdown(
   }
 
   const totalDecks = deckColors.size;
-  const threshold = totalDecks * 0.1;
 
-  // Sort by count descending, filter to ≥10%, cap at 3
+  // Sort by count descending, top 4
   return Array.from(pairCounts.entries())
-    .filter(([, count]) => count >= threshold)
     .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
+    .slice(0, 4)
     .map(([colorPair, deckCount]) => ({
       colorPair,
       percentage: Math.round((deckCount / totalDecks) * 100),

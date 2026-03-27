@@ -92,11 +92,11 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
 
   const search = useCardSearch({ cards: cardData.cards });
 
-  // Clear color filter when viewport drops below xl (color filter icons hidden)
+  // Clear color filter when viewport drops below sm (color filter icons hidden)
   const clearColorFilter = search.setColorFilter;
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
-    const mq = window.matchMedia("(min-width: 1280px)");
+    const mq = window.matchMedia("(min-width: 640px)");
     const handler = (e: MediaQueryListEvent) => {
       if (!e.matches) clearColorFilter([]);
     };
@@ -420,8 +420,8 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
               </div>
             </div>
 
-            {/* Color Filter — hidden below lg, search syntax (c:r) covers the same ground */}
-            <div className="hidden lg:block">
+            {/* Color Filter — hidden below sm */}
+            <div className="hidden sm:block">
               <ColorFilter
                 selected={search.colorFilter}
                 onChange={search.setColorFilter}

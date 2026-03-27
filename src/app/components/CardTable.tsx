@@ -54,7 +54,6 @@ export function CardTable({
   useSlowRenderTracking("card_table");
 
   const [sorting, setSorting] = useState<SortingState>([{ id: "pickScore", desc: false }]);
-  const lastHoverTrackRef = useRef(0);
 
   // Track responsive breakpoint based on actual container width (handles browser zoom)
   const [breakpoint, setBreakpoint] = useState<"mobile" | "tablet" | "desktop" | "wide">("wide");
@@ -299,13 +298,6 @@ export function CardTable({
                                 : 1,
                           }}
                           onClick={() => onCardClick?.(row.original.cardName)}
-                          onMouseEnter={() => {
-                            const now = Date.now();
-                            if (now - lastHoverTrackRef.current > 5000) {
-                              lastHoverTrackRef.current = now;
-                              track("card_hover", { card_name: row.original.cardName });
-                            }
-                          }}
                         >
                           {row.getVisibleCells().map((cell) => (
                             <td

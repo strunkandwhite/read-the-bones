@@ -24,9 +24,9 @@ export function DistributionHistogram({ distribution }: Props) {
     return <span className="text-xs text-zinc-400">-</span>;
   }
 
-  const width = 60;
-  const height = 24;
-  const padding = 2;
+  const width = 160;
+  const height = 48;
+  const padding = 4;
   const barCount = DISTRIBUTION_BUCKET_COUNT;
   const barGap = 1;
   const barWidth = (width - padding * 2 - barGap * (barCount - 1)) / barCount;

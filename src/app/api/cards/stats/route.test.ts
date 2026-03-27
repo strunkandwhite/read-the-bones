@@ -31,6 +31,7 @@ describe("GET /api/cards/stats", () => {
       wins: null,
       pick_history: [],
       pick_distribution: Array(15).fill(0),
+      times_banned: 0,
       color_pair_breakdown: [],
     });
     const res = await GET(makeRequest({ card_name: "Lightning Bolt" }));
@@ -77,6 +78,7 @@ describe("GET /api/cards/stats", () => {
       wins: null,
       pick_history: [],
       pick_distribution: Array(15).fill(0),
+      times_banned: 0,
       color_pair_breakdown: [],
     });
     await GET(makeRequest({ card_name: "Bolt", deck_colors: "RW", draft_id: "tarkir" }));

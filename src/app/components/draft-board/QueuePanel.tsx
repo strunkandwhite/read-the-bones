@@ -38,110 +38,49 @@ export function QueuePanel({
   }
 
   return (
-    <div
-      style={{
-        marginTop: "16px",
-        padding: "16px",
-        borderRadius: "8px",
-        border: "1px solid rgba(39,39,42,0.6)",
-        backgroundColor: "rgba(24,24,27,0.5)",
-      }}
-    >
+    <div className="mt-4 rounded-lg border border-zinc-800/60 bg-zinc-900/50 p-4">
       {/* Header with auto-pick toggle */}
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          marginBottom: "12px",
-        }}
-      >
-        <span
-          style={{
-            fontSize: "13px",
-            fontWeight: 600,
-            color: "#e4e4e7",
-            letterSpacing: "-0.01em",
-          }}
-        >
+      <div className="mb-3 flex items-center justify-between">
+        <span className="text-[13px] font-semibold tracking-tight text-zinc-200">
           Pick Queue
         </span>
-        <label
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            fontSize: "12px",
-            color: "#a1a1aa",
-            cursor: "pointer",
-          }}
-        >
+        <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-400">
           <span>Auto-pick</span>
           <input
             type="checkbox"
             checked={autoPick}
             onChange={onToggleAutoPick}
-            style={{ cursor: "pointer" }}
+            className="cursor-pointer"
           />
         </label>
       </div>
 
       {/* Mode selector — only visible when auto-pick is on */}
       {autoPick && (
-        <div
-          style={{
-            display: "flex",
-            gap: "8px",
-            marginBottom: "12px",
-          }}
-        >
+        <div className="mb-3 flex gap-2">
           <button
             onClick={() => onChangeAutoPickMode("resilient")}
-            style={{
-              flex: 1,
-              padding: "6px 10px",
-              borderRadius: "6px",
-              border:
-                autoPickMode === "resilient"
-                  ? "1px solid #854d0e"
-                  : "1px solid rgba(39,39,42,0.6)",
-              backgroundColor:
-                autoPickMode === "resilient"
-                  ? "rgba(133,77,14,0.2)"
-                  : "transparent",
-              color: autoPickMode === "resilient" ? "#fde68a" : "#71717a",
-              fontSize: "11px",
-              cursor: "pointer",
-              textAlign: "left",
-            }}
+            className={`flex-1 cursor-pointer rounded-md border px-2.5 py-1.5 text-left text-[11px] ${
+              autoPickMode === "resilient"
+                ? "border-yellow-800 bg-yellow-800/20 text-amber-200"
+                : "border-zinc-800/60 bg-transparent text-zinc-500"
+            }`}
           >
-            <div style={{ fontWeight: 600 }}>Resilient</div>
-            <div style={{ marginTop: "2px", opacity: 0.8 }}>
+            <div className="font-semibold">Resilient</div>
+            <div className="mt-0.5 opacity-80">
               Skips taken cards, picks next available
             </div>
           </button>
           <button
             onClick={() => onChangeAutoPickMode("cautious")}
-            style={{
-              flex: 1,
-              padding: "6px 10px",
-              borderRadius: "6px",
-              border:
-                autoPickMode === "cautious"
-                  ? "1px solid #1e3a5f"
-                  : "1px solid rgba(39,39,42,0.6)",
-              backgroundColor:
-                autoPickMode === "cautious"
-                  ? "rgba(30,58,95,0.2)"
-                  : "transparent",
-              color: autoPickMode === "cautious" ? "#93c5fd" : "#71717a",
-              fontSize: "11px",
-              cursor: "pointer",
-              textAlign: "left",
-            }}
+            className={`flex-1 cursor-pointer rounded-md border px-2.5 py-1.5 text-left text-[11px] ${
+              autoPickMode === "cautious"
+                ? "border-blue-900 bg-blue-900/20 text-blue-300"
+                : "border-zinc-800/60 bg-transparent text-zinc-500"
+            }`}
           >
-            <div style={{ fontWeight: 600 }}>Cautious</div>
-            <div style={{ marginTop: "2px", opacity: 0.8 }}>
+            <div className="font-semibold">Cautious</div>
+            <div className="mt-0.5 opacity-80">
               Pauses if top pick was taken
             </div>
           </button>
@@ -150,59 +89,24 @@ export function QueuePanel({
 
       {/* Queue list */}
       {queue.length === 0 ? (
-        <div
-          style={{
-            padding: "20px 0",
-            textAlign: "center",
-            color: "#52525b",
-            fontSize: "12px",
-          }}
-        >
+        <div className="py-5 text-center text-xs text-zinc-600">
           Queue is empty. Add cards from the card table.
         </div>
       ) : (
-        <ol
-          style={{
-            listStyle: "none",
-            margin: 0,
-            padding: 0,
-            display: "flex",
-            flexDirection: "column",
-            gap: "4px",
-          }}
-        >
+        <ol className="m-0 flex list-none flex-col gap-1 p-0">
           {queue.map((item, index) => (
             <li
               key={item.cardName}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "6px",
-                padding: "4px 8px",
-                borderRadius: "4px",
-                backgroundColor: "rgba(39,39,42,0.3)",
-                fontSize: "12px",
-              }}
+              className="flex items-center gap-1.5 rounded bg-zinc-800/30 px-2 py-1 text-xs"
             >
               {/* Position number */}
-              <span
-                style={{
-                  color: "#52525b",
-                  fontWeight: 600,
-                  fontSize: "11px",
-                  minWidth: "16px",
-                }}
-              >
+              <span className="min-w-[16px] text-[11px] font-semibold text-zinc-600">
                 {index + 1}.
               </span>
 
               {/* Card name */}
               <span
-                style={{
-                  flex: 1,
-                  color: item.taken ? "#52525b" : "#d4d4d8",
-                  textDecoration: item.taken ? "line-through" : "none",
-                }}
+                className={`flex-1 ${item.taken ? "text-zinc-600 line-through" : "text-zinc-300"}`}
               >
                 {item.cardName}
               </span>
@@ -212,15 +116,11 @@ export function QueuePanel({
                 onClick={() => moveUp(index)}
                 disabled={index === 0}
                 aria-label={`Move up ${item.cardName}`}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: index === 0 ? "#27272a" : "#71717a",
-                  cursor: index === 0 ? "default" : "pointer",
-                  padding: "2px 4px",
-                  fontSize: "12px",
-                  lineHeight: 1,
-                }}
+                className={`border-none bg-transparent px-1 py-0.5 text-xs leading-none ${
+                  index === 0
+                    ? "cursor-default text-zinc-800"
+                    : "cursor-pointer text-zinc-500"
+                }`}
               >
                 ▲
               </button>
@@ -228,15 +128,11 @@ export function QueuePanel({
                 onClick={() => moveDown(index)}
                 disabled={index === queue.length - 1}
                 aria-label={`Move down ${item.cardName}`}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: index === queue.length - 1 ? "#27272a" : "#71717a",
-                  cursor: index === queue.length - 1 ? "default" : "pointer",
-                  padding: "2px 4px",
-                  fontSize: "12px",
-                  lineHeight: 1,
-                }}
+                className={`border-none bg-transparent px-1 py-0.5 text-xs leading-none ${
+                  index === queue.length - 1
+                    ? "cursor-default text-zinc-800"
+                    : "cursor-pointer text-zinc-500"
+                }`}
               >
                 ▼
               </button>
@@ -245,15 +141,7 @@ export function QueuePanel({
               <button
                 onClick={() => onRemove(item.cardName)}
                 aria-label={`Remove ${item.cardName}`}
-                style={{
-                  background: "none",
-                  border: "none",
-                  color: "#71717a",
-                  cursor: "pointer",
-                  padding: "2px 4px",
-                  fontSize: "14px",
-                  lineHeight: 1,
-                }}
+                className="cursor-pointer border-none bg-transparent px-1 py-0.5 text-sm leading-none text-zinc-500"
               >
                 &times;
               </button>

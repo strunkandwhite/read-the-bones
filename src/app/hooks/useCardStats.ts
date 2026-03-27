@@ -4,8 +4,9 @@ type CardStatsData = {
   pick: { drafts_in_pool: number; times_picked: number; avg_pick: number; median_pick: number; geomean_pick: number };
   play?: { times_drafted: number; times_maindecked: number; play_rate: number };
   wins?: { game_wins: number; game_losses: number; win_rate: number; win_rate_ci: { lower: number; center: number; upper: number }; low_sample: boolean; drafts_with_data: number };
-  pick_history: Array<{ draftId: string; draftName: string; draftDate: string; pickPosition: number; picked: boolean }>;
+  pick_history: Array<{ draftId: string; draftName: string; draftDate: string; pickPosition: number; picked: boolean; numSeats: number }>;
   pick_distribution: number[];
+  times_banned: number;
   color_pair_breakdown: Array<{ colorPair: string; percentage: number; deckCount: number }>;
 };
 

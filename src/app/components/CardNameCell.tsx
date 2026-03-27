@@ -1,7 +1,5 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { createPortal } from "react-dom";
 import Image from "next/image";
 import type { EnrichedCardStats } from "@/core/types";
 import { CardStatusIcon, type CardStatus } from "./CardStatusIcon";
@@ -16,28 +14,11 @@ interface CardNameCellProps {
 export function CardNameCell({
   card, cubeCopies, cardStatus, queuePosition,
 }: CardNameCellProps) {
-  const [showImage, setShowImage] = useState(false);
-  const [position, setPosition] = useState({ top: 0, left: 0 });
-  const cellRef = useRef<HTMLDivElement>(null);
   const imageUri = card.scryfall?.imageUri;
 
-  const handleMouseEnter = () => {
-    if (cellRef.current) {
-      const rect = cellRef.current.getBoundingClientRect();
-      const left = Math.min(rect.right + 8, window.innerWidth - 340);
-      const top = Math.max(8, Math.min(rect.top, window.innerHeight - 480));
-      setPosition({ top, left });
-    }
-    setShowImage(true);
-  };
-
   return (
-    <div className="relative group/row min-w-0" ref={cellRef}>
-      <div
-        className="flex cursor-pointer items-center gap-2 min-w-0"
-        onMouseEnter={handleMouseEnter}
-        onMouseLeave={() => setShowImage(false)}
-      >
+    <div className="min-w-0">
+      <div className="flex cursor-pointer items-center gap-2 min-w-0">
         {imageUri && (
           <Image
             src={imageUri}
@@ -68,19 +49,6 @@ export function CardNameCell({
         {/* Status icon */}
         <CardStatusIcon status={cardStatus} queuePosition={queuePosition} />
       </div>
-
-      {showImage && imageUri && createPortal(
-        <div className="fixed z-[9999] pointer-events-none" style={{ top: position.top, left: position.left }}>
-          <Image
-            src={imageUri}
-            alt={card.cardName}
-            width={320}
-            height={448}
-            className="rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-800"
-          />
-        </div>,
-        document.body,
-      )}
     </div>
   );
 }

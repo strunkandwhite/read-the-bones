@@ -19,10 +19,10 @@ export function Sparkline({
     return <span className="text-xs text-zinc-400">-</span>;
   }
 
-  const width = 80;
-  const height = 24;
-  const padding = 2;
-  const dotRadius = 3;
+  const width = 160;
+  const height = 48;
+  const padding = 4;
+  const dotRadius = 3.5;
 
   // Calculate range from actual data with padding
   const positions = history.map((h) => h.pickPosition);
@@ -86,8 +86,8 @@ export function Sparkline({
           />
         ))}
       </svg>
-      {/* Tooltip on hover */}
-      <div className="absolute -top-8 left-0 z-50 hidden rounded bg-zinc-800 px-2 py-1 text-xs whitespace-nowrap text-white group-hover:block">
+      {/* Tooltip on hover — positioned above with bottom-full to avoid modal scroll */}
+      <div className="pointer-events-none absolute bottom-full left-0 z-50 mb-1 hidden max-h-32 overflow-y-auto rounded bg-zinc-800 px-2 py-1 text-xs whitespace-nowrap text-white group-hover:block">
         {history.map((h, i) => {
           // Format: "Pick X", "Pick X (4/5)" for aggregated, or "unpicked"
           let pickLabel: string;

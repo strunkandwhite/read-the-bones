@@ -61,6 +61,8 @@ export interface CardStatsResult {
   pick_history: PickHistoryEntry[];
   // 15-bucket distribution of pick positions
   pick_distribution: number[];
+  // Number of drafts where this card was banned
+  times_banned: number;
   // Top color pair archetypes that maindeck this card
   color_pair_breakdown: ColorPairEntry[];
 }
@@ -201,6 +203,7 @@ export async function getCardStats(
     wins,
     pick_history: historyResult.pickHistory,
     pick_distribution: historyResult.pickDistribution,
+    times_banned: historyResult.timesBanned,
     color_pair_breakdown: colorPairs,
   };
 }
