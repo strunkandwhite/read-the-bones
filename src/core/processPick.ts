@@ -1,6 +1,7 @@
 import type { Client } from '@libsql/client';
 import { getNextPick, getTotalPicks } from './snakeDraft';
-import { removeCardFromAllQueues, getAutoPickCandidate } from './db/queries/pickQueue';
+import { removeCardFromAllQueues, getAutoPickCandidate, getQueuesContainingCard } from './db/queries/pickQueue';
+import { getSeatSettings, updateAutoPick } from './db/queries/seatTokens';
 import { parseBannedCards } from './db/queries/helpers';
 import { NotFoundError, ValidationError, ConflictError } from './errors';
 
@@ -94,6 +95,16 @@ export async function processPick(
       cardId: currentCardId,
       cardName: currentCardName,
     });
+
+    // Detect affected seats for cautious auto-pick mode (BEFORE removing from queues)
+    const affectedSeats = await getQueuesContainingCard(client, input.draftId, currentCardId);
+    for (const { seat: affectedSeat } of affectedSeats) {
+      if (affectedSeat === currentSeat) continue; // skip the picker
+      const settings = await getSeatSettings(client, input.draftId, affectedSeat);
+      if (settings?.autoPickMode === 'cautious') {
+        await updateAutoPick(client, input.draftId, affectedSeat, false);
+      }
+    }
 
     // Remove from all queues
     await removeCardFromAllQueues(client, input.draftId, currentCardId);

@@ -76,6 +76,26 @@ export async function removeCardFromAllQueues(
   }
 }
 
+/**
+ * Find all seats that have a specific card in their queue.
+ * Used to detect queue invalidation when a card is picked.
+ * MUST be called BEFORE removeCardFromAllQueues for the same card.
+ */
+export async function getQueuesContainingCard(
+  client: Client,
+  draftId: string,
+  cardId: number,
+): Promise<Array<{ seat: number }>> {
+  const result = await client.execute({
+    sql: `SELECT DISTINCT st.seat
+          FROM pick_queue pq
+          JOIN seat_tokens st ON st.draft_id = pq.draft_id AND st.seat = pq.seat
+          WHERE pq.draft_id = ? AND pq.card_id = ?`,
+    args: [draftId, cardId],
+  });
+  return result.rows.map((row) => ({ seat: row.seat as number }));
+}
+
 export async function getAutoPickCandidate(
   client: Client,
   draftId: string,

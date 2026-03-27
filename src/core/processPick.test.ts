@@ -5,6 +5,13 @@ import { processPick } from './processPick';
 vi.mock('./db/queries/pickQueue', () => ({
   removeCardFromAllQueues: vi.fn().mockResolvedValue(undefined),
   getAutoPickCandidate: vi.fn().mockResolvedValue(null),
+  getQueuesContainingCard: vi.fn().mockResolvedValue([]),
+}));
+
+// Mock seatTokens module
+vi.mock('./db/queries/seatTokens', () => ({
+  getSeatSettings: vi.fn().mockResolvedValue(null),
+  updateAutoPick: vi.fn().mockResolvedValue(undefined),
 }));
 
 // ============================================================================
@@ -194,6 +201,152 @@ describe('processPick', () => {
       ],
       phaseChanged: true,
       newPhase: 'playing',
+    });
+  });
+
+  describe('cautious auto-pick mode', () => {
+    it('pauses auto-pick when a queued card is taken and mode is cautious', async () => {
+      const { getQueuesContainingCard } = await import('./db/queries/pickQueue');
+      const { getSeatSettings, updateAutoPick } = await import('./db/queries/seatTokens');
+
+      // Seat 2 has Lightning Bolt (card 42) queued
+      vi.mocked(getQueuesContainingCard).mockResolvedValueOnce([{ seat: 2 }]);
+      // Seat 2 is in cautious mode
+      vi.mocked(getSeatSettings).mockResolvedValueOnce({
+        autoPick: true,
+        displayName: null,
+        autoPickMode: 'cautious',
+      });
+
+      // 1. Draft metadata
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([
+          { phase: 'drafting', num_seats: 4, picks_per_player: 6, banned_cards: null },
+        ]),
+      );
+      // 2. Pick count — 0 picks
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ cnt: 0 }]),
+      );
+      // 3. Already-picked check — card is available
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([]),
+      );
+      // 4. INSERT pick_events — success
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([], 1),
+      );
+      // 5. getQueuesContainingCard, getSeatSettings, updateAutoPick, removeCardFromAllQueues are mocked
+      // 6. Check next seat for auto_pick — no token found (break cascade)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([]),
+      );
+
+      await processPick(mockClient as never, baseInput);
+
+      expect(getQueuesContainingCard).toHaveBeenCalledWith(
+        mockClient, 'draft-1', 42,
+      );
+      expect(getSeatSettings).toHaveBeenCalledWith(
+        mockClient, 'draft-1', 2,
+      );
+      expect(updateAutoPick).toHaveBeenCalledWith(
+        mockClient, 'draft-1', 2, false,
+      );
+    });
+
+    it('does not pause auto-pick when mode is resilient', async () => {
+      const { getQueuesContainingCard } = await import('./db/queries/pickQueue');
+      const { getSeatSettings, updateAutoPick } = await import('./db/queries/seatTokens');
+
+      // Seat 2 has the card queued
+      vi.mocked(getQueuesContainingCard).mockResolvedValueOnce([{ seat: 2 }]);
+      // Seat 2 is in resilient mode
+      vi.mocked(getSeatSettings).mockResolvedValueOnce({
+        autoPick: true,
+        displayName: null,
+        autoPickMode: 'resilient',
+      });
+
+      // 1. Draft metadata
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([
+          { phase: 'drafting', num_seats: 4, picks_per_player: 6, banned_cards: null },
+        ]),
+      );
+      // 2. Pick count — 0 picks
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ cnt: 0 }]),
+      );
+      // 3. Already-picked check — card is available
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([]),
+      );
+      // 4. INSERT pick_events — success
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([], 1),
+      );
+      // 5. Check next seat for auto_pick — no token found (break cascade)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([]),
+      );
+
+      await processPick(mockClient as never, baseInput);
+
+      expect(getQueuesContainingCard).toHaveBeenCalledWith(
+        mockClient, 'draft-1', 42,
+      );
+      expect(getSeatSettings).toHaveBeenCalledWith(
+        mockClient, 'draft-1', 2,
+      );
+      // updateAutoPick should NOT have been called
+      expect(updateAutoPick).not.toHaveBeenCalled();
+    });
+
+    it('skips the picker seat when checking affected queues', async () => {
+      const { getQueuesContainingCard } = await import('./db/queries/pickQueue');
+      const { getSeatSettings, updateAutoPick } = await import('./db/queries/seatTokens');
+
+      // Both seat 1 (the picker) and seat 3 have the card queued
+      vi.mocked(getQueuesContainingCard).mockResolvedValueOnce([
+        { seat: 1 }, { seat: 3 },
+      ]);
+      // Only seat 3 should be checked — seat 1 is the picker
+      vi.mocked(getSeatSettings).mockResolvedValueOnce({
+        autoPick: true,
+        displayName: null,
+        autoPickMode: 'cautious',
+      });
+
+      // 1. Draft metadata
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([
+          { phase: 'drafting', num_seats: 4, picks_per_player: 6, banned_cards: null },
+        ]),
+      );
+      // 2. Pick count
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ cnt: 0 }]),
+      );
+      // 3. Already-picked check
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([]),
+      );
+      // 4. INSERT
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([], 1),
+      );
+      // 5. Check next seat for auto_pick — break
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([]),
+      );
+
+      await processPick(mockClient as never, baseInput);
+
+      // getSeatSettings called only for seat 3, not seat 1
+      expect(getSeatSettings).toHaveBeenCalledTimes(1);
+      expect(getSeatSettings).toHaveBeenCalledWith(mockClient, 'draft-1', 3);
+      expect(updateAutoPick).toHaveBeenCalledWith(mockClient, 'draft-1', 3, false);
     });
   });
 });
