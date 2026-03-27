@@ -14,14 +14,10 @@ function makeCard(name: string): EnrichedCardStats {
   return {
     cardName: name,
     weightedGeomean: 1,
-    totalPicks: 1,
     timesAvailable: 1,
     draftsPickedIn: 1,
-    timesUnpicked: 0,
     maxCopiesInDraft: 1,
     colors: ["R"],
-    scoreHistory: [],
-    pickDistribution: [],
     scryfall: {
       name,
       imageUri: "",

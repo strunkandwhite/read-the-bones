@@ -10,16 +10,14 @@ import {
   DEFAULT_POOL_SIZE,
   type CardPick,
   type DraftMetadata,
-  type DraftScore,
   type EnrichedCardStats,
   type ScryCard,
 } from "./types";
-import { calculateCardStats, DISTRIBUTION_BUCKET_COUNT } from "./calculateStats";
+import { calculateCardStats } from "./calculateStats";
 import { getClient, type Client } from "./db/client";
 import { computeIngestionHash } from "./db/sync/domains";
 import { transformScryfallJson, parseBannedCardNames } from "./db/queries/helpers";
 import { cardNameKey } from "./parseSheetRows";
-import { round3 } from "./utils";
 
 // --- Internal types for extracted subfunctions ---
 
@@ -45,14 +43,6 @@ type PickEventsResult = {
   picksByDraftAndCard: Map<string, Map<string, CardPick[]>>;
 };
 
-type DecklistWinRateData = {
-  winRate: number;
-  gameWins: number;
-  gameLosses: number;
-  timesMaindecked: number;
-  draftsWithData: number;
-};
-
 type CubeDisplayData = {
   cubeCopies: Record<string, number>;
   currentCubeSet: Set<string>;
@@ -61,7 +51,6 @@ type CubeDisplayData = {
 
 export type GetCardsParams = {
   draftIds?: string[];
-  includeMatchData: boolean;
   activeDraft?: string;
   /** Use this draft's cube snapshot for pool filtering instead of the most recent */
   poolAsOfDraft?: string;
@@ -358,55 +347,6 @@ function buildAllPicks(
 }
 
 /**
- * Step 6: Conditionally fetch win rate data from deck_cards + match_events.
- * Returns an empty map when includeMatchData is false.
- */
-async function loadDecklistWinRates(
-  client: Client,
-  includeMatchData: boolean,
-): Promise<Map<string, DecklistWinRateData>> {
-  const decklistWinRates = new Map<string, DecklistWinRateData>();
-
-  if (!includeMatchData) return decklistWinRates;
-
-  const decklistWinResult = await client.execute({
-    sql: `SELECT c.name as card_name,
-                 COUNT(DISTINCT dc.draft_id || '-' || dc.seat) as times_maindecked,
-                 COUNT(DISTINCT dc.draft_id) as drafts_with_data,
-                 SUM(CASE WHEN me.seat1 = dc.seat THEN me.seat1_wins
-                          WHEN me.seat2 = dc.seat THEN me.seat2_wins
-                          ELSE 0 END) as game_wins,
-                 SUM(CASE WHEN me.seat1 = dc.seat THEN me.seat2_wins
-                          WHEN me.seat2 = dc.seat THEN me.seat1_wins
-                          ELSE 0 END) as game_losses
-          FROM deck_cards dc
-          JOIN cards c ON dc.card_id = c.card_id
-          JOIN match_events me ON me.draft_id = dc.draft_id
-               AND (me.seat1 = dc.seat OR me.seat2 = dc.seat)
-          WHERE dc.zone = 'deck'
-          GROUP BY c.name`,
-    args: [],
-  });
-
-  for (const row of decklistWinResult.rows) {
-    const cardName = row.card_name as string;
-    const gameWins = row.game_wins as number;
-    const gameLosses = row.game_losses as number;
-    const total = gameWins + gameLosses;
-
-    decklistWinRates.set(cardNameKey(cardName), {
-      winRate: total > 0 ? round3(gameWins / total) : 0,
-      gameWins,
-      gameLosses,
-      timesMaindecked: row.times_maindecked as number,
-      draftsWithData: row.drafts_with_data as number,
-    });
-  }
-
-  return decklistWinRates;
-}
-
-/**
  * Step 7: Build cubeCopies and currentCubeSet from the display cube snapshot.
  * Mutates scryfallDataMap to add Scryfall data for current cube cards not seen elsewhere.
  */
@@ -445,26 +385,12 @@ function buildCubeDisplayData(
  */
 function assembleCardStats(
   allPicks: CardPick[],
-  draftMetadataMap: Map<string, DraftMetadata>,
   scryfallDataMap: Map<string, ScryCard>,
   currentCubeSet: Set<string>,
   currentCubeKeySet: Set<string>,
-  decklistWinRates: Map<string, DecklistWinRateData>,
-  includeMatchData: boolean,
 ): EnrichedCardStats[] {
   // 8. Calculate card stats
-  const stats = calculateCardStats(allPicks, draftMetadataMap);
-
-  // Attach decklist win rates
-  if (includeMatchData) {
-    for (const stat of stats) {
-      const key = cardNameKey(stat.cardName);
-      const decklistWR = decklistWinRates.get(key);
-      if (decklistWR) {
-        stat.decklistWinRate = decklistWR;
-      }
-    }
-  }
+  const stats = calculateCardStats(allPicks);
 
   // 9. Enrich stats with Scryfall data
   const enrichedStats: EnrichedCardStats[] = stats.map((stat) => ({
@@ -487,14 +413,10 @@ function assembleCardStats(
   const newCardEntries: EnrichedCardStats[] = newCards.map((cardName) => ({
     cardName,
     weightedGeomean: Infinity,
-    totalPicks: 0,
     timesAvailable: 0,
     draftsPickedIn: 0,
-    timesUnpicked: 0,
     maxCopiesInDraft: 0,
     colors: [] as string[],
-    scoreHistory: [] as DraftScore[],
-    pickDistribution: new Array(DISTRIBUTION_BUCKET_COUNT).fill(0),
     scryfall: scryfallDataMap.get(cardNameKey(cardName)),
   }));
 
@@ -554,10 +476,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
     bannedCardsByDraft, scryfallDataMap,
   );
 
-  // 6. Conditionally load decklist win rate data
-  const decklistWinRates = await loadDecklistWinRates(client, params.includeMatchData);
-
-  // 7. Load cube cards for the selected pool snapshot
+  // 6. Load cube cards for the selected pool snapshot
   const displayCubeSnapshotId = params.poolAsOfDraft
     ? draftCubeSnapshots.get(params.poolAsOfDraft) ?? mostRecentCubeSnapshotId
     : mostRecentCubeSnapshotId;
@@ -566,10 +485,10 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
     displayCubeSnapshotId, cubeCardsBySnapshot, scryfallDataMap,
   );
 
-  // 8-11. Calculate stats, enrich, filter, add new card stubs
+  // 7-10. Calculate stats, enrich, filter, add new card stubs
   const allCards = assembleCardStats(
-    allPicks, draftMetadataMap, scryfallDataMap,
-    currentCubeSet, currentCubeKeySet, decklistWinRates, params.includeMatchData,
+    allPicks, scryfallDataMap,
+    currentCubeSet, currentCubeKeySet,
   );
 
   // Convert draftMetadata Map to plain object

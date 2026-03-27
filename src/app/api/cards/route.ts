@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCards } from "@/core/getCards";
-import { isLocalHost } from "@/core/isLocal";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -17,22 +16,14 @@ export async function GET(request: NextRequest) {
   // Parse pool-as-of draft ID (use this draft's cube snapshot for pool filtering)
   const poolAsOfDraft = searchParams.get("poolAsOfDraft") ?? undefined;
 
-  // Detect localhost from Host header
-  const host = request.headers.get("host") ?? "";
-  const isLocal = isLocalHost(host);
-
   try {
     const result = await getCards({
       draftIds,
-      includeMatchData: isLocal,
       activeDraft,
       poolAsOfDraft,
     });
 
     // Cache forever at the edge — the ?v= param busts the cache on new ingestions.
-    // Localhost and production return different data (decklist win rate),
-    // but they naturally get different cache keys because the client
-    // includes &local=1 on localhost requests (see PageClient).
     // When activeDraft is present, disable caching since taken cards change frequently.
     const cacheControl = activeDraft
       ? "no-store"

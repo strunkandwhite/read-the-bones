@@ -13,10 +13,9 @@ interface DeckCardProps {
   id: string; // unique drag ID: "zone:column:index:cardName"
   onRemoveSpeculative?: (cardName: string) => void;
   pickScore?: number;
-  decklistWinRate?: { winRate: number; gameWins: number; gameLosses: number };
 }
 
-export function DeckCard({ cardName, imageUri, isSpeculative, isLast, id, onRemoveSpeculative, pickScore, decklistWinRate }: DeckCardProps) {
+export function DeckCard({ cardName, imageUri, isSpeculative, isLast, id, onRemoveSpeculative, pickScore }: DeckCardProps) {
   const {
     attributes,
     listeners,
@@ -110,15 +109,6 @@ export function DeckCard({ cardName, imageUri, isSpeculative, isLast, id, onRemo
               <span className="text-zinc-400">
                 Pick <span className="font-mono font-semibold text-zinc-100">{pickScore.toFixed(1)}</span>
               </span>
-              {decklistWinRate && (
-                <>
-                  <div className="h-3 w-px bg-zinc-700/60" />
-                  <span className="text-zinc-400">
-                    GPWR <span className="font-mono font-semibold text-zinc-100">{Math.round(decklistWinRate.winRate * 100)}%</span>
-                    <span className="ml-1 text-zinc-500/80">{decklistWinRate.gameWins}W/{decklistWinRate.gameLosses}L</span>
-                  </span>
-                </>
-              )}
             </div>
           )}
         </div>,

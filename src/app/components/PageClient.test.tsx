@@ -2,7 +2,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, act, cleanup } from "@testing-library/react";
 import { PageClient, type PageClientProps } from "./PageClient";
-import { DISTRIBUTION_BUCKET_COUNT } from "@/core/calculateStats";
 import type { CardStatsResponse } from "@/core/getCards";
 import type { DraftStatsResponse } from "@/core/getDraftStats";
 
@@ -58,14 +57,10 @@ function makeTestProps(overrides?: Partial<CardStatsResponse>): PageClientProps 
         {
           cardName: "Lightning Bolt",
           weightedGeomean: 5.0,
-          totalPicks: 3,
           timesAvailable: 3,
           draftsPickedIn: 3,
-          timesUnpicked: 0,
           maxCopiesInDraft: 1,
           colors: ["R"],
-          scoreHistory: [],
-          pickDistribution: new Array(DISTRIBUTION_BUCKET_COUNT).fill(0),
         },
       ],
       draftCount: 2,

@@ -73,7 +73,6 @@ export function DeckColumn({
                 isLast={idx === cardNames.length - 1}
                 onRemoveSpeculative={onRemoveSpeculative}
                 pickScore={stats?.weightedGeomean}
-                decklistWinRate={stats?.decklistWinRate}
               />
             );
           })}
