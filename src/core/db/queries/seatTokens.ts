@@ -128,6 +128,28 @@ export async function getSeatDisplayNames(
 }
 
 /**
+ * Get settings for all seats in a draft as a map keyed by seat number.
+ */
+export async function getAllSeatSettings(
+  client: Client,
+  draftId: string,
+): Promise<Map<number, { autoPick: boolean; autoPickMode: string; displayName: string | null }>> {
+  const result = await client.execute({
+    sql: "SELECT seat, auto_pick, auto_pick_mode, display_name FROM seat_tokens WHERE draft_id = ?",
+    args: [draftId],
+  });
+  const map = new Map<number, { autoPick: boolean; autoPickMode: string; displayName: string | null }>();
+  for (const row of result.rows) {
+    map.set(row.seat as number, {
+      autoPick: row.auto_pick === 1,
+      autoPickMode: (row.auto_pick_mode as string) ?? "resilient",
+      displayName: row.display_name as string | null,
+    });
+  }
+  return map;
+}
+
+/**
  * Get settings for a specific seat in a draft.
  * Returns null if the seat doesn't exist.
  */

@@ -1,7 +1,7 @@
 import type { Client } from '@libsql/client';
 import { getNextPick, getTotalPicks } from './snakeDraft';
 import { removeCardFromAllQueues, getAutoPickCandidate, getQueuesContainingCard } from './db/queries/pickQueue';
-import { getSeatSettings, updateAutoPick } from './db/queries/seatTokens';
+import { getAllSeatSettings, updateAutoPick } from './db/queries/seatTokens';
 import { parseBannedCards } from './db/queries/helpers';
 import { NotFoundError, ValidationError, ConflictError } from './errors';
 
@@ -75,6 +75,7 @@ export async function processPick(
   // 4. Insert with optimistic concurrency + cascade
   const picks: ProcessPickResult['picks'] = [];
   const maxCascade = numSeats * 2;
+  const allSeatSettings = await getAllSeatSettings(client, input.draftId);
 
   let currentSeat = input.seat;
   let currentCardId = input.cardId;
@@ -138,7 +139,7 @@ export async function processPick(
         affectedSeats
           .filter(({ seat: s }) => s !== currentSeat)
           .map(async ({ seat: affectedSeat }) => {
-            const settings = await getSeatSettings(client, input.draftId, affectedSeat);
+            const settings = allSeatSettings.get(affectedSeat);
             if (settings?.autoPickMode === 'cautious') {
               await updateAutoPick(client, input.draftId, affectedSeat, false);
             }
@@ -163,11 +164,8 @@ export async function processPick(
     const nextAfter = getNextPick(totalAfter, numSeats, picksPerPlayer);
     if (!nextAfter) break;
 
-    const nextSeatToken = await client.execute({
-      sql: `SELECT auto_pick FROM seat_tokens WHERE draft_id = ? AND seat = ?`,
-      args: [input.draftId, nextAfter.seat],
-    });
-    if (nextSeatToken.rows.length === 0 || nextSeatToken.rows[0].auto_pick !== 1) {
+    const nextSettings = allSeatSettings.get(nextAfter.seat);
+    if (!nextSettings?.autoPick) {
       break;
     }
 

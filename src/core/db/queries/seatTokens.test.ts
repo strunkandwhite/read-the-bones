@@ -9,6 +9,7 @@ import {
   updateAutoPickMode,
   getSeatDisplayNames,
   getSeatSettings,
+  getAllSeatSettings,
 } from "./seatTokens";
 
 function createMockClient() {
@@ -242,6 +243,54 @@ describe("getSeatDisplayNames", () => {
     const result = await getSeatDisplayNames(mockClient as never, "draft-1");
 
     expect(result).toEqual({});
+  });
+});
+
+describe("getAllSeatSettings", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("returns a map of seat number to settings for all seats", async () => {
+    const mockClient = createMockClient();
+    mockClient.execute.mockResolvedValue({
+      rows: [
+        { seat: 1, auto_pick: 1, auto_pick_mode: "resilient", display_name: "Alice" },
+        { seat: 2, auto_pick: 0, auto_pick_mode: "cautious", display_name: null },
+        { seat: 3, auto_pick: 1, auto_pick_mode: "resilient", display_name: "Charlie" },
+      ],
+    });
+
+    const result = await getAllSeatSettings(mockClient as never, "draft-1");
+
+    expect(result.size).toBe(3);
+    expect(result.get(1)).toEqual({ autoPick: true, autoPickMode: "resilient", displayName: "Alice" });
+    expect(result.get(2)).toEqual({ autoPick: false, autoPickMode: "cautious", displayName: null });
+    expect(result.get(3)).toEqual({ autoPick: true, autoPickMode: "resilient", displayName: "Charlie" });
+    expect(mockClient.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining("SELECT seat, auto_pick, auto_pick_mode, display_name FROM seat_tokens WHERE draft_id = ?"),
+        args: ["draft-1"],
+      })
+    );
+  });
+
+  it("returns an empty map when no seats exist", async () => {
+    const mockClient = createMockClient();
+    mockClient.execute.mockResolvedValue({ rows: [] });
+
+    const result = await getAllSeatSettings(mockClient as never, "draft-1");
+
+    expect(result.size).toBe(0);
+  });
+
+  it("defaults auto_pick_mode to 'resilient' when null", async () => {
+    const mockClient = createMockClient();
+    mockClient.execute.mockResolvedValue({
+      rows: [{ seat: 1, auto_pick: 1, auto_pick_mode: null, display_name: null }],
+    });
+
+    const result = await getAllSeatSettings(mockClient as never, "draft-1");
+
+    expect(result.get(1)?.autoPickMode).toBe("resilient");
   });
 });
 
