@@ -8,7 +8,7 @@ MTG rotisserie draft analytics tool.
 src/
   core/           # Framework-agnostic logic (parsing, stats, Scryfall)
     db/           # Turso database client, migrations
-      queries/    # Domain-based query modules (cards, decks, decklists, drafts, floatedCards, helpers, matches, pickQueue, picks, pool, search, seatTokens, stats/)
+      queries/    # Domain-based query modules (cards, decks, decklists, drafts, floatedCards, helpers, matches, pickQueue, picks, playStats, pool, search, seatTokens, stats/, winStats, winningDecks)
       ingest/     # Ingestion helpers (Scryfall resolution, db-helpers, utils)
       sync/       # Unified sync pipeline (domain hashing, batch ops, card cache, orchestrator)
   build/          # Build-time utilities (Scryfall cache)
@@ -16,7 +16,8 @@ src/
     components/   # React components
       deck-builder/ # Deck builder panel and card management
       draft-board/  # Draft board modal and related components
-    hooks/        # Custom hooks (draft selection, card data, search, filtering, deck builder, live draft status, seat token, pick queue, scroll lock, sync status, useCardStats, useDeckBuilderSync, useFloatedCards, useHoldToConfirm, useLiveDraftPicking, useModalManagement, useMySeat, useSharedDeckLoader, useSlowRenderTracking)
+    hooks/        # Custom hooks (useHoldToConfirm, useModalManagement, useScrollLock, useSharedDeckLoader, useSlowRenderTracking)
+    stores/       # Zustand stores (draftStore, cardStore, liveStore, selectors, hydration)
     api/          # API routes (internal + REST)
 scripts/          # CLI tools (sync, draft:create, draft:reset, decklists)
 ```
@@ -64,7 +65,7 @@ pnpm draft:admin <subcommand>        # Admin tools (undo-pick, edit-pick, regen-
 
 **Sync:** `pnpm sync` fetches data from Google Sheets and writes it to Turso. Per-domain hashing (pool, picks, matches) means only changed data is replaced. Use `pnpm draft:reset <name>` followed by `pnpm sync <name>` to force a full reimport.
 
-**Data flow:** The web app queries Turso at request time (SSR). To update draft data:
+**Data flow:** The web app queries Turso at request time (SSR). Client-side state is managed with Zustand stores (draftStore, cardStore, liveStore) that are hydrated from SSR data and updated via polling. To update draft data:
 1. Run `pnpm sync` to pull latest from Google Sheets into Turso
 2. Deploy or restart the dev server — data is fetched live from Turso
 
@@ -91,11 +92,10 @@ The app exposes REST API routes under `/api/` for querying draft data. All route
 
 | Route | Method | Auth | Description |
 |-------|--------|------|-------------|
-| `/api/drafts/[id]/status` | GET | None | Draft state, next seat, recent picks |
+| `/api/drafts/[id]/live` | GET | None | Merged status + board data (phase, picks, seatNames, bannedCards) |
 | `/api/drafts/[id]/me` | GET | Token | Resolve seat from token: `{ seat, autoPick, autoPickMode, displayName }` |
 | `/api/drafts/[id]/pick` | POST | Token | Submit a pick. Body: `{ card_name: string }` (snake_case, not camelCase) |
 | `/api/drafts/[id]/queue` | GET/PUT | Token | Manage player's pick queue |
-| `/api/drafts/[id]/board` | GET | None | Full pick matrix data |
 | `/api/drafts/[id]/match` | POST | Token | Report a match result |
 | `/api/drafts/[id]/seat-settings` | PUT | Token | Update auto-pick toggle, display name |
 | `/api/drafts/[id]/float` | GET/PUT/DELETE | Token | Manage floated (speculative) cards |
@@ -195,6 +195,8 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/specs/2026-03-27-card-table-and-live-draft-ux-design.md` - Card table rework, stats modal, hold-to-pick, float state, queue management
 - `docs/superpowers/specs/2026-03-27-inline-pick-autocomplete-design.md` - Inline pick autocomplete design
 - `docs/superpowers/specs/2026-03-27-server-side-deck-persistence-design.md` - Server-side deck persistence design
+- `docs/superpowers/specs/2026-03-29-data-flow-consolidation-design.md` - Data flow consolidation (Zustand stores, polling, SSR hydration)
+- `docs/superpowers/specs/2026-03-29-multi-copy-card-picks-design.md` - Multi-copy card picks design
 
 ### Superpowers Plans
 
@@ -224,3 +226,6 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/plans/2026-03-27-scryfall-module-reorganization.md` - Scryfall module reorganization
 - `docs/superpowers/plans/2026-03-27-server-side-deck-persistence.md` - Server-side deck persistence
 - `docs/superpowers/plans/2026-03-27-stats-module-split.md` - Stats module split
+- `docs/superpowers/plans/2026-03-29-data-flow-consolidation.md` - Data flow consolidation implementation
+- `docs/superpowers/plans/2026-03-29-live-draft-ux-fixes.md` - Live draft UX fixes
+- `docs/superpowers/plans/2026-03-29-spectator-auth-gating.md` - Spectator auth gating

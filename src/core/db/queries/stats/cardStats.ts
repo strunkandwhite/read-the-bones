@@ -4,7 +4,8 @@
 
 import { parseScryfallJson } from "../helpers";
 import { resolveCard } from "../cards";
-import { getCardPlayStats, getCardWinStats } from "../decklists";
+import { getCardPlayStats } from "../playStats";
+import { getCardWinStats } from "../winStats";
 import { wilsonInterval } from "../../../wilsonInterval";
 import { getCardPickStats } from "./pickStats";
 import { getPickHistory, type PickHistoryEntry } from "./pickHistory";

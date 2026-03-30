@@ -78,11 +78,10 @@ These routes support in-app rotisserie drafting. Most require a seat token via `
 
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/api/drafts/[id]/status` | GET | Draft state, next seat, recent picks |
+| `/api/drafts/[id]/live` | GET | Merged status + board data (phase, picks, seatNames, bannedCards) |
 | `/api/drafts/[id]/me` | GET | Resolve seat from token |
 | `/api/drafts/[id]/pick` | POST | Submit a pick |
 | `/api/drafts/[id]/queue` | GET/PUT | Manage pick queue |
-| `/api/drafts/[id]/board` | GET | Full pick matrix data |
 | `/api/drafts/[id]/match` | POST | Report a match result |
 | `/api/drafts/[id]/seat-settings` | PUT | Update auto-pick, display name |
 | `/api/drafts/[id]/float` | GET/PUT/DELETE | Manage floated (speculative) cards |
@@ -105,6 +104,7 @@ Names are matched case-insensitively against seat display names. When you run `p
 ## Tech Stack
 
 - Next.js + React + TypeScript
+- Zustand (client-side state management)
 - Turso (SQLite) database
 - TanStack Table
 - Scryfall API

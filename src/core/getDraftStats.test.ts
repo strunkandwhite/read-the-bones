@@ -278,7 +278,7 @@ describe("getDraftStats", () => {
     });
 
     // Only include d1
-    const result = await getDraftStats({ draftIds: ["d1"] });
+    await getDraftStats({ draftIds: ["d1"] });
 
     // inferSeatColors should have been called with only ["d1"]
     expect(mockInferSeatColors).toHaveBeenCalledWith(["d1"]);
