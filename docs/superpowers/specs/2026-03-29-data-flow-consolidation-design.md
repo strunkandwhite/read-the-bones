@@ -118,7 +118,7 @@ interface DraftStoreActions {
 
 #### Polling Logic
 
-Single 10s interval when `activeDraft` is set:
+Single unified polling loop when `activeDraft` is set. The interval is **10s** — the user confirmed this latency is acceptable for rotisserie drafts (previously 3s during drafting, 15s during playing).
 
 ```
 poll():
@@ -130,6 +130,14 @@ poll():
 ```
 
 The `/api/drafts/{id}/live` endpoint is new (see Server-Side Changes). It returns both status and board data in one response, eliminating two separate fetches.
+
+#### `effectivePoolAsOfDraft` Logic
+
+When reading `poolAsOfDraft` for card data fetches, the store applies fallback logic: `effectivePoolAsOfDraft = activeDraft ?? poolAsOfDraft`. This matches the current behavior in PageClient (line 59). The card store reads `effectivePoolAsOfDraft` (not raw `poolAsOfDraft`) when fetching card data.
+
+#### Sync State
+
+The store tracks `manualSyncInFlight: boolean` alongside `syncStatus` to show a spinner during manual sync operations. `triggerSync()` sets this to true, clears it on response.
 
 #### localStorage Persistence
 
@@ -162,7 +170,7 @@ interface CardStoreState {
   // Search & filtering
   searchQuery: string;
   colorFilter: string[];
-  colorFilterMode: string;
+  colorFilterMode: ColorFilterMode;          // "inclusive" | "exclusive"
 
   // Card stats modal
   selectedCard: string | null;
@@ -182,6 +190,8 @@ cardStatsMap: Map<string, CardStats>         // cardName → stats
 takenCardNamesSet: Set<string>               // Cards taken in active draft
 takenCardCounts: Map<string, number>         // cardName → times taken
 bannedCardNamesSet: Set<string>              // Banned in active draft
+seatCardNames: Set<string>                   // Cards picked by selectedSeat
+seatCardList: string[]                       // Ordered list of seat's picks
 
 // Computed from cardData + search + draft selection:
 displayCards: EnrichedCardStats[]            // After banned/taken filtering
@@ -189,7 +199,9 @@ searchFilteredCards: EnrichedCardStats[]     // After search + color filter
 
 // Computed from cardData metadata:
 drafts: DraftInfo[]                          // For selector dropdown
-availableCount: number                       // Non-banned, non-taken count
+availableCount: number                       // Non-banned, non-taken cards
+  // = cardData.cards filtered by: not in takenCardNamesSet,
+  // not in bannedCardNamesSet (including front-face DFC check for bans)
 ```
 
 #### Actions
@@ -199,10 +211,11 @@ interface CardStoreActions {
   // Search
   setSearchQuery(query: string): void;       // Debounced 500ms
   setColorFilter(colors: string[]): void;
+  setColorFilterMode(mode: ColorFilterMode): void;
   clearSearch(): void;
 
   // Card stats modal
-  selectCard(name: string): void;            // Fetches /api/cards/stats
+  selectCard(name: string, excludeDraftId?: string): void;  // Fetches /api/cards/stats
   clearSelectedCard(): void;
 
   // Data
@@ -260,6 +273,7 @@ interface LiveStoreState {
 
   // Picking
   pickError: string | null;
+  consecutivePicks: number;                 // Tracks consecutive picks by same seat
 
   // Deck builder
   deckState: DeckState;
@@ -429,6 +443,13 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   );
 }
 ```
+
+**Component-local state** that stays in PageClient or moves to individual components:
+- `deckFilterActive` — mobile toggle, pure UI. Stays component-local (in CardTable or PageClient).
+- Responsive color filter clearing (media query effect) — stays in the component that renders ColorFilter.
+- `getImageUrl` — reads `scryfallDataMap` from `useCardStore`. Becomes a store selector or utility.
+
+**Analytics tracking:** `track()` calls currently embedded in hooks (`useCardSearch` for search events, `useSyncStatus` for sync events, etc.) move into the corresponding store actions. Each action that fires `track()` today continues to do so from its new location.
 
 Components import stores directly:
 - `CardTable` → `useCardStore(s => s.searchFilteredCards)`, `useLiveStore` for card status
