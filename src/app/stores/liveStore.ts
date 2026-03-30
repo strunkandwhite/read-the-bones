@@ -87,8 +87,9 @@ interface LiveStoreState {
 type SetState = (partial: Partial<LiveStoreState>) => void;
 type GetState = () => LiveStoreState;
 
-async function syncQueue(set: SetState, get: GetState, cardNames: string[]) {
-  const { seatToken, queue: previousQueue } = get();
+async function syncQueue(set: SetState, get: GetState, cardNames: string[], previousQueue?: QueueEntry[]) {
+  const { seatToken } = get();
+  const fallbackQueue = previousQueue ?? get().queue;
   const activeDraft = useDraftStore.getState().activeDraft;
   if (!seatToken || !activeDraft) return;
 
@@ -113,15 +114,15 @@ async function syncQueue(set: SetState, get: GetState, cardNames: string[]) {
       });
     } else {
       set({
-        queue: previousQueue,
-        queuedCards: new Map(previousQueue.map((e) => [e.cardName, e.priority])),
+        queue: fallbackQueue,
+        queuedCards: new Map(fallbackQueue.map((e) => [e.cardName, e.priority])),
         queueError: "Failed to sync queue",
       });
     }
   } catch {
     set({
-      queue: previousQueue,
-      queuedCards: new Map(previousQueue.map((e) => [e.cardName, e.priority])),
+      queue: fallbackQueue,
+      queuedCards: new Map(fallbackQueue.map((e) => [e.cardName, e.priority])),
       queueError: "Failed to sync queue",
     });
   }
@@ -410,15 +411,27 @@ export const useLiveStore = create<LiveStoreState>()(
     },
 
     addToQueue: (cardName: string) => {
-      const { queue } = get();
-      const newNames = [...queue.map((e) => e.cardName), cardName];
-      syncQueue(set, get, newNames);
+      const { queue: original } = get();
+      // Optimistic update: add card to queue immediately
+      const optimisticQueue = [...original, { priority: original.length + 1, cardId: 0, cardName }];
+      set({
+        queue: optimisticQueue,
+        queuedCards: new Map(optimisticQueue.map((e) => [e.cardName, e.priority])),
+      });
+      const newNames = [...original.map((e) => e.cardName), cardName];
+      syncQueue(set, get, newNames, original);
     },
 
     removeFromQueue: (cardName: string) => {
-      const { queue } = get();
-      const newNames = queue.filter((e) => e.cardName !== cardName).map((e) => e.cardName);
-      syncQueue(set, get, newNames);
+      const { queue: original } = get();
+      // Optimistic update: remove card from queue immediately
+      const optimisticQueue = original.filter((e) => e.cardName !== cardName);
+      set({
+        queue: optimisticQueue,
+        queuedCards: new Map(optimisticQueue.map((e) => [e.cardName, e.priority])),
+      });
+      const newNames = optimisticQueue.map((e) => e.cardName);
+      syncQueue(set, get, newNames, original);
     },
 
     reorderQueue: (cardNames: string[]) => {

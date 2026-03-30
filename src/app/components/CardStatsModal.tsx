@@ -48,10 +48,16 @@ export function CardStatsModal() {
     [selectedCard]
   );
 
+  // Subscribe to the store values that getCardStatus reads internally,
+  // so the status recomputes when queue/float state changes
+  const queuedCards = useLiveStore((s) => s.queuedCards);
+  const floatedCardsSet = useLiveStore((s) => s.floatedCardsSet);
+  const seatCardNames = useCardStore((s) => s.seatCardNames);
+  const takenCardNamesSet = useCardStore((s) => s.takenCardNamesSet);
+
   const cardStatusResult = useMemo(
     () => selectedCard ? getCardStatus(selectedCard) : null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedCard, isAuthed]
+    [selectedCard, isAuthed, queuedCards, floatedCardsSet, seatCardNames, takenCardNamesSet]
   );
 
   const cardStatus: CardStatus = cardStatusResult?.status ?? "none";
