@@ -34,7 +34,7 @@ async function main() {
     "deck_cards",
     "deck_hashes",
     "privacy_opt_outs",
-    "shared_decks",
+    "decks",
     "seat_tokens",
   ];
   for (const table of tables) {
