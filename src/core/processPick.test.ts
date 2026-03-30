@@ -8,6 +8,11 @@ vi.mock('./db/queries/pickQueue', () => ({
   getQueuesContainingCard: vi.fn().mockResolvedValue([]),
 }));
 
+// Mock floatedCards module
+vi.mock('./db/queries/floatedCards', () => ({
+  removeFloatedCardByCardId: vi.fn().mockResolvedValue(undefined),
+}));
+
 // Mock seatTokens module
 vi.mock('./db/queries/seatTokens', () => ({
   getAllSeatSettings: vi.fn().mockResolvedValue(new Map()),
@@ -156,6 +161,35 @@ describe('processPick', () => {
       phaseChanged: false,
       newPhase: null,
     });
+  });
+
+  it('calls removeFloatedCardByCardId when isLastCopy is true', async () => {
+    const { removeFloatedCardByCardId } = await import('./db/queries/floatedCards');
+
+    // 1. Draft metadata
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { phase: 'drafting', num_seats: 4, picks_per_player: 6, banned_cards: null },
+      ]),
+    );
+    // 2. Pick count -- 0 picks
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ cnt: 0 }]),
+    );
+    // 3. Availability check -- picked_count=0, qty=1 (last copy)
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ picked_count: 0, qty: 1 }]),
+    );
+    // 4. INSERT pick_events -- success
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([], 1),
+    );
+
+    await processPick(mockClient as never, baseInput);
+
+    expect(removeFloatedCardByCardId).toHaveBeenCalledWith(
+      mockClient, 'draft-1', 42,
+    );
   });
 
   it('transitions to playing when all picks are made', async () => {
