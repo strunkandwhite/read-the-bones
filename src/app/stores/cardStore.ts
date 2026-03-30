@@ -61,6 +61,16 @@ export function _resetSearchState() {
 // Types
 // ---------------------------------------------------------------------------
 
+export type CardStatsData = {
+  pick: { drafts_in_pool: number; times_picked: number; avg_pick: number; median_pick: number; geomean_pick: number };
+  play?: { times_drafted: number; times_maindecked: number; play_rate: number };
+  wins?: { game_wins: number; game_losses: number; win_rate: number; win_rate_ci: { lower: number; center: number; upper: number }; low_sample: boolean; drafts_with_data: number };
+  pick_history: Array<{ draftId: string; draftName: string; draftDate: string; pickPosition: number; picked: boolean; numSeats: number }>;
+  pick_distribution: number[];
+  times_banned: number;
+  color_pair_breakdown: Array<{ colorPair: string; percentage: number; deckCount: number }>;
+};
+
 interface DraftListItem {
   id: string;
   name: string;
@@ -93,6 +103,11 @@ interface CardStoreState {
   availableCount: number;
   drafts: DraftListItem[];
 
+  // Card stats modal state
+  selectedCard: string | null;
+  cardStatsDetail: CardStatsData | null;
+  cardStatsLoading: boolean;
+
   // Actions
   fetchCardData: () => Promise<void>;
   hydrate: (initial: CardStatsResponse, draftStats: DraftStatsResponse) => void;
@@ -100,6 +115,8 @@ interface CardStoreState {
   setColorFilter: (colors: string[]) => void;
   setColorFilterMode: (mode: ColorFilterMode) => void;
   clearSearch: () => void;
+  selectCard: (name: string, excludeDraftId?: string) => Promise<void>;
+  clearSelectedCard: () => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -244,6 +261,11 @@ export const useCardStore = create<CardStoreState>()(
     colorFilterMode: "inclusive" as ColorFilterMode,
     scryfallMatchNames: null,
 
+    // Card stats modal state
+    selectedCard: null,
+    cardStatsDetail: null,
+    cardStatsLoading: false,
+
     // Derived state (initial empty values)
     scryfallDataMap: new Map(),
     cardStatsMap: new Map(),
@@ -368,6 +390,23 @@ export const useCardStore = create<CardStoreState>()(
       recompute();
       track("search_cleared");
     },
+
+    selectCard: async (name, excludeDraftId) => {
+      set({ selectedCard: name, cardStatsLoading: true, cardStatsDetail: null });
+      try {
+        const params = new URLSearchParams({ card_name: name });
+        if (excludeDraftId) params.set("exclude_draft_id", excludeDraftId);
+        const res = await fetch(`/api/cards/stats?${params}`);
+        if (!res.ok) throw new Error(`Stats fetch failed: ${res.status}`);
+        set({ cardStatsDetail: await res.json() });
+      } catch (error) {
+        console.error("Failed to fetch card stats:", error);
+      } finally {
+        set({ cardStatsLoading: false });
+      }
+    },
+
+    clearSelectedCard: () => set({ selectedCard: null, cardStatsDetail: null }),
   })),
 );
 

@@ -6,6 +6,7 @@ import {
   EMPTY_CARD_DATA,
   EMPTY_DRAFT_STATS,
   _resetSearchState,
+  type CardStatsData,
 } from "./cardStore";
 import type { EnrichedCardStats } from "@/core/types";
 
@@ -89,6 +90,9 @@ function resetStores() {
     searchFilteredCards: [],
     availableCount: 0,
     drafts: [],
+    selectedCard: null,
+    cardStatsDetail: null,
+    cardStatsLoading: false,
   });
 }
 
@@ -592,5 +596,80 @@ describe("cardStore — derived state", () => {
       isComplete: false,
       numDrafters: 10,
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Card stats modal
+// ---------------------------------------------------------------------------
+
+describe("cardStore — card stats modal", () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  const mockStatsData: CardStatsData = {
+    pick: {
+      drafts_in_pool: 5,
+      times_picked: 3,
+      avg_pick: 4.2,
+      median_pick: 4,
+      geomean_pick: 4.0,
+    },
+    pick_history: [],
+    pick_distribution: [],
+    times_banned: 0,
+    color_pair_breakdown: [],
+  };
+
+  beforeEach(() => {
+    resetStores();
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+    fetchSpy.mockResolvedValue(new Response(JSON.stringify(mockStatsData)));
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+  });
+
+  it("selectCard sets selectedCard and fetches /api/cards/stats", async () => {
+    await useCardStore.getState().selectCard("Lightning Bolt");
+
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    const url = String(fetchSpy.mock.calls[0][0]);
+    expect(url).toContain("/api/cards/stats");
+    expect(url).toContain("card_name=Lightning+Bolt");
+
+    const state = useCardStore.getState();
+    expect(state.selectedCard).toBe("Lightning Bolt");
+    expect(state.cardStatsDetail).toEqual(mockStatsData);
+  });
+
+  it("selectCard passes excludeDraftId when provided", async () => {
+    await useCardStore.getState().selectCard("Snapcaster Mage", "draft-123");
+
+    const url = String(fetchSpy.mock.calls[0][0]);
+    expect(url).toContain("exclude_draft_id=draft-123");
+  });
+
+  it("clearSelectedCard resets selectedCard and cardStatsDetail", async () => {
+    await useCardStore.getState().selectCard("Lightning Bolt");
+
+    useCardStore.getState().clearSelectedCard();
+
+    const state = useCardStore.getState();
+    expect(state.selectedCard).toBeNull();
+    expect(state.cardStatsDetail).toBeNull();
+  });
+
+  it("cardStatsLoading is true during fetch", async () => {
+    const loadingStates: boolean[] = [];
+    const unsub = useCardStore.subscribe(
+      (state) => state.cardStatsLoading,
+      (loading) => loadingStates.push(loading),
+    );
+
+    await useCardStore.getState().selectCard("Path to Exile");
+    unsub();
+
+    expect(loadingStates).toEqual([true, false]);
   });
 });
