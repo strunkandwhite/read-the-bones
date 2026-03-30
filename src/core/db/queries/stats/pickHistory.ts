@@ -60,7 +60,7 @@ export async function getPickHistory(
           JOIN cube_snapshot_cards cs ON cs.cube_snapshot_id = d.cube_snapshot_id
             AND cs.card_id = c.card_id
           LEFT JOIN pick_events pe ON pe.draft_id = d.draft_id AND pe.card_id = c.card_id
-          WHERE d.phase != 'setup' ${draftFilter} ${excludeFilter}
+          WHERE d.phase = 'complete' ${draftFilter} ${excludeFilter}
           ORDER BY d.draft_date ASC`,
     args,
   });

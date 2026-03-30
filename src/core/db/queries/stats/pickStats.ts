@@ -82,7 +82,7 @@ export async function getCardPickStats(
     sql: `SELECT DISTINCT d.draft_id, d.cube_snapshot_id
           FROM drafts d
           JOIN cube_snapshot_cards csc ON d.cube_snapshot_id = csc.cube_snapshot_id
-          WHERE csc.card_id = ? ${draftWhere}`,
+          WHERE csc.card_id = ? AND d.phase = 'complete' ${draftWhere}`,
     args: [card_id, ...draftArgs],
   });
 
