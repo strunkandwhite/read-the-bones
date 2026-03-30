@@ -25,7 +25,8 @@
     "db:migrate": "tsx src/core/db/migrate.ts",
     "draft:create-live": "tsx scripts/draft-create-live.ts",
     "draft:start": "tsx scripts/draft-start.ts",
-    "draft:admin": "tsx scripts/draft-admin.ts"
+    "draft:admin": "tsx scripts/draft-admin.ts",
+    "scryfall:backfill": "tsx scripts/backfill-scryfall.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

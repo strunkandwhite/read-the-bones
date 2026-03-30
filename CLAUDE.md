@@ -59,11 +59,16 @@ pnpm draft:create-live --name "Name" --date 2026-04-01 --seats 10 --picks-per-pl
 # Default cube ID for new drafts: cubecobra:samp
 pnpm draft:start <name>              # Start drafting (setup → drafting)
 pnpm draft:admin <subcommand>        # Admin tools (undo-pick, edit-pick, regen-token, set-phase, add-ban, remove-ban, enter-match)
+
+# Scryfall data
+pnpm scryfall:backfill         # Fetch missing Scryfall data for cards in Turso, update local cache
 ```
 
 **Decklists:** Add sealeddeck.tech URLs to `data/decklists.txt` (grouped by draft name), then run `pnpm decklists`. The script fetches each deck, matches it to a seat by card overlap with pick data from Turso, and writes deck cards directly to the database.
 
 **Sync:** `pnpm sync` fetches data from Google Sheets and writes it to Turso. Per-domain hashing (pool, picks, matches) means only changed data is replaced. Use `pnpm draft:reset <name>` followed by `pnpm sync <name>` to force a full reimport.
+
+**Scryfall backfill:** When a new draft uses cards not in the local Scryfall cache (`cache/scryfall.json`), those cards get inserted into Turso with `scryfall_json = NULL`. Run `pnpm scryfall:backfill` to fetch missing card data from the Scryfall API, update the local cache, and backfill the database. This is typically needed after creating a live draft with a new/updated cube.
 
 **Data flow:** The web app queries Turso at request time (SSR). Client-side state is managed with Zustand stores (draftStore, cardStore, liveStore) that are hydrated from SSR data and updated via polling. To update draft data:
 1. Run `pnpm sync` to pull latest from Google Sheets into Turso
