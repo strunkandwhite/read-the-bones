@@ -426,12 +426,18 @@ useDraftStore.subscribe(
   () => useCardStore.getState().fetchCardData(),
 );
 
+// Refetch card data when activeDraft changes (taken cards depend on active draft)
+useDraftStore.subscribe(
+  (state) => state.activeDraft,
+  () => useCardStore.getState().fetchCardData(),
+);
+
 // Recompute derived state when display-affecting draftStore state changes
 useDraftStore.subscribe(
   (state) =>
-    [state.activeDraft, state.hideTaken, state.selectedSeat] as const,
+    [state.hideTaken, state.selectedSeat] as const,
   () => recompute(),
   {
-    equalityFn: (a, b) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2],
+    equalityFn: (a, b) => a[0] === b[0] && a[1] === b[1],
   },
 );

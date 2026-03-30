@@ -257,13 +257,23 @@ describe("PageClient", () => {
     consoleSpy.mockRestore();
   });
 
-  it("filters out banned cards from display when active draft is selected", () => {
+  it("filters out banned cards from display when active draft is selected", async () => {
     localStorage.setItem("activeDraft", "draft-c");
 
     const props = makeTestProps({
       bannedCardNames: ["Lightning Bolt"],
     });
-    render(<PageClient {...props} />);
+
+    // Mock fetch to return the same card data (with banned cards) when
+    // the activeDraft subscription triggers fetchCardData
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(props.initialCardData),
+    });
+
+    await act(async () => {
+      render(<PageClient {...props} />);
+    });
 
     // The only card is banned + filtered, so we should see the empty state
     const emptyState = screen.queryAllByText("No card data available.");

@@ -90,13 +90,13 @@ interface DraftState {
 const POLL_INTERVAL_MS = 10_000;
 
 let pollInterval: ReturnType<typeof setInterval> | null = null;
-let prevPickN = 0;
+let prevPickN = -1; // -1 = no previous data (first poll)
 let prevSeatNamesKey = "";
 let prevSyncedAt = "0";
 
 /** Reset module-scoped polling state (for tests). */
 export function _resetPollingState() {
-  prevPickN = 0;
+  prevPickN = -1;
   prevSeatNamesKey = "";
   prevSyncedAt = "0";
   if (pollInterval) {
@@ -169,9 +169,9 @@ function applyPollResults(
       bannedCards: liveData.bannedCards as string[],
     };
 
-    // Detect pick changes (skip first load via prevPickN > 0 guard)
+    // Detect pick changes (skip first poll via prevPickN === -1 guard)
     if ((status.latestPickN as number) !== prevPickN) {
-      if (prevPickN > 0) versionBump = true;
+      if (prevPickN !== -1) versionBump = true;
       prevPickN = status.latestPickN;
     }
 
@@ -388,7 +388,7 @@ useDraftStore.subscribe(
   (state) => state.activeDraft,
   (activeDraft) => {
     useDraftStore.getState().stopPolling();
-    prevPickN = 0;
+    prevPickN = -1;
     prevSeatNamesKey = "";
     if (activeDraft) useDraftStore.getState().startPolling();
   },
