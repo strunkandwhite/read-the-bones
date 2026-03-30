@@ -179,14 +179,19 @@ async function getCubePoolSizes(
  * Step 3: Load all pick events with Scryfall data.
  * Builds scryfallDataMap (card key -> ScryCard) and picksByDraftAndCard (draftId -> cardKey -> CardPick[]).
  */
-async function loadPickEvents(client: Client): Promise<PickEventsResult> {
+async function loadPickEvents(client: Client, draftIds: string[]): Promise<PickEventsResult> {
+  if (draftIds.length === 0) {
+    return { scryfallDataMap: new Map(), picksByDraftAndCard: new Map() };
+  }
+
   const picksResult = await client.execute({
     sql: `SELECT pe.draft_id, pe.pick_n, pe.seat,
                  c.name as card_name, c.scryfall_json
           FROM pick_events pe
           JOIN cards c ON pe.card_id = c.card_id
+          WHERE pe.draft_id IN (${placeholders(draftIds.length)})
           ORDER BY pe.draft_id, pe.pick_n`,
-    args: [],
+    args: [...draftIds],
   });
 
   const scryfallDataMap = new Map<string, ScryCard>();
@@ -459,12 +464,23 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
 
   const selectedDraftSet = new Set(selectedDraftIds);
 
-  // 2. Get pool sizes for each cube snapshot
-  const uniqueCubeSnapshots = [...new Set(draftCubeSnapshots.values())];
+  // 2. Collect cube snapshots needed for selected drafts + display snapshot
+  const selectedSnapshotIds = new Set<number>();
+  for (const id of selectedDraftIds) {
+    const snap = draftCubeSnapshots.get(id);
+    if (snap !== undefined) selectedSnapshotIds.add(snap);
+  }
+  // Ensure display snapshot is included (for pool filtering / cube display)
+  const displayCubeSnapshotId = params.poolAsOfDraft
+    ? draftCubeSnapshots.get(params.poolAsOfDraft) ?? mostRecentCubeSnapshotId
+    : mostRecentCubeSnapshotId;
+  if (displayCubeSnapshotId !== null) selectedSnapshotIds.add(displayCubeSnapshotId);
+
+  const uniqueCubeSnapshots = [...selectedSnapshotIds];
   const poolSizes = await getCubePoolSizes(client, uniqueCubeSnapshots);
 
-  // 3. Load all picks with card names and Scryfall data
-  const { scryfallDataMap, picksByDraftAndCard } = await loadPickEvents(client);
+  // 3. Load picks scoped to selected drafts
+  const { scryfallDataMap, picksByDraftAndCard } = await loadPickEvents(client, selectedDraftIds);
 
   // 4. Load cube snapshot cards to find unpicked cards
   const cubeCardsBySnapshot = await loadCubeCards(client, uniqueCubeSnapshots);
@@ -476,11 +492,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
     bannedCardsByDraft, scryfallDataMap,
   );
 
-  // 6. Load cube cards for the selected pool snapshot
-  const displayCubeSnapshotId = params.poolAsOfDraft
-    ? draftCubeSnapshots.get(params.poolAsOfDraft) ?? mostRecentCubeSnapshotId
-    : mostRecentCubeSnapshotId;
-
+  // 6. Build cube display data from the selected pool snapshot
   const { cubeCopies, currentCubeSet, currentCubeKeySet } = buildCubeDisplayData(
     displayCubeSnapshotId, cubeCardsBySnapshot, scryfallDataMap,
   );

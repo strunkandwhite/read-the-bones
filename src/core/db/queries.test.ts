@@ -1160,13 +1160,13 @@ describe("getCardPickStats", () => {
     );
     // Banned cards check (none)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
-    // Picks of this card
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ draft_id: "draft1", pick_n: 5, seat: 1 }])
-    );
     // Cube sizes
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([{ cube_snapshot_id: 1, total_cards: 540 }])
+    );
+    // Picks of this card
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ draft_id: "draft1", pick_n: 5, seat: 1 }])
     );
     // Opt-outs (none)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
@@ -1198,6 +1198,10 @@ describe("getCardPickStats", () => {
     );
     // Banned cards check (none)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+    // Cube sizes
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ cube_snapshot_id: 1, total_cards: 540 }])
+    );
     // Picks - positions 5, 10, 20
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
@@ -1205,10 +1209,6 @@ describe("getCardPickStats", () => {
         { draft_id: "draft2", pick_n: 20, seat: 2 },
         { draft_id: "draft3", pick_n: 10, seat: 3 },
       ])
-    );
-    // Cube sizes
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ cube_snapshot_id: 1, total_cards: 540 }])
     );
     // Opt-outs (none)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
@@ -1235,16 +1235,16 @@ describe("getCardPickStats", () => {
     );
     // Banned cards check (none)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+    // Cube sizes
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ cube_snapshot_id: 1, total_cards: 540 }])
+    );
     // Picks
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
         { draft_id: "draft1", pick_n: 5, seat: 1 },
         { draft_id: "draft2", pick_n: 10, seat: 2 },
       ])
-    );
-    // Cube sizes
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ cube_snapshot_id: 1, total_cards: 540 }])
     );
     // Opt-outs (none)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
@@ -1276,16 +1276,16 @@ describe("getCardPickStats", () => {
     );
     // Banned cards check (none)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+    // Cube sizes
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ cube_snapshot_id: 1, total_cards: 540 }])
+    );
     // Picks: seat 1 picked at 5, seat 2 (opted out) picked at 50
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
         { draft_id: "draft1", pick_n: 5, seat: 1 },
         { draft_id: "draft1", pick_n: 50, seat: 2 },
       ])
-    );
-    // Cube sizes
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ cube_snapshot_id: 1, total_cards: 540 }])
     );
     // Opt-outs: seat 2 in draft1 is opted out
     mockClient.execute.mockResolvedValueOnce(
