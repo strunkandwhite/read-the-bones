@@ -29,6 +29,8 @@ describe("useDeckBuilderSync", () => {
     activeDraft: "test-draft",
     selectedSeat: 1,
     ready: true,
+    floatedCards: [] as string[],
+    queuedCardNames: [] as string[],
   };
 
   beforeEach(() => {
@@ -119,6 +121,68 @@ describe("useDeckBuilderSync", () => {
     );
     expect(dispatch).toHaveBeenCalledWith(
       expect.objectContaining({ type: "INIT_FROM_PICKS" }),
+    );
+  });
+
+  it("includes floated cards in SYNC_PICKS dispatch", () => {
+    renderHook(() =>
+      useDeckBuilderSync({ ...baseProps, floatedCards: ["Phelia"] }),
+    );
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "SYNC_PICKS",
+        pickedCardNames: ["Lightning Bolt", "Counterspell", "Phelia"],
+      }),
+    );
+  });
+
+  it("includes queued cards in SYNC_PICKS dispatch", () => {
+    renderHook(() =>
+      useDeckBuilderSync({ ...baseProps, queuedCardNames: ["Ragavan"] }),
+    );
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "SYNC_PICKS",
+        pickedCardNames: ["Lightning Bolt", "Counterspell", "Ragavan"],
+      }),
+    );
+  });
+
+  it("dispatches REMOVE_CARDS when a card is unfloated", () => {
+    const { rerender } = renderHook(
+      (props) => useDeckBuilderSync(props),
+      { initialProps: { ...baseProps, floatedCards: ["Phelia"] } },
+    );
+
+    dispatch.mockClear();
+
+    // Unfloat Phelia
+    rerender({ ...baseProps, floatedCards: [] });
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "REMOVE_CARDS",
+        cardNames: ["Phelia"],
+      }),
+    );
+  });
+
+  it("does not remove picked cards when unfloated", () => {
+    // "Lightning Bolt" is in seatCardList AND floatedCards
+    const { rerender } = renderHook(
+      (props) => useDeckBuilderSync(props),
+      { initialProps: { ...baseProps, floatedCards: ["Lightning Bolt"] } },
+    );
+
+    dispatch.mockClear();
+
+    // Unfloat Lightning Bolt — but it's still picked, so no REMOVE_CARDS
+    rerender({ ...baseProps, floatedCards: [] });
+
+    expect(dispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "REMOVE_CARDS" }),
     );
   });
 });

@@ -171,6 +171,10 @@ export type DeckAction =
       type: "SYNC_PICKS";
       pickedCardNames: string[];
       scryfallData: Map<string, ScryCard>;
+    }
+  | {
+      type: "REMOVE_CARDS";
+      cardNames: string[];
     };
 
 /** Reducer for deck builder state. */
@@ -290,6 +294,22 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
       }
 
       return changed && next ? next : state;
+    }
+
+    case "REMOVE_CARDS": {
+      const toRemove = new Set(action.cardNames);
+      const next = structuredClone(state);
+      let changed = false;
+      for (const zone of ["deck", "sideboard"] as const) {
+        for (const [col, cards] of Object.entries(next.zones[zone])) {
+          const filtered = cards.filter((name) => !toRemove.has(name));
+          if (filtered.length !== cards.length) {
+            next.zones[zone][col] = filtered;
+            changed = true;
+          }
+        }
+      }
+      return changed ? next : state;
     }
 
     case "REORDER_CARD": {

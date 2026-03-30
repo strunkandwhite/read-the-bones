@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import type { DeckState, ScryCard } from "@/core/types";
 import type { DeckAction } from "@/core/deckBuilder";
 
@@ -11,6 +11,8 @@ interface UseDeckBuilderSyncProps {
   activeDraft: string | null;
   selectedSeat: number | null;
   ready: boolean;
+  floatedCards: string[];
+  queuedCardNames: string[];
 }
 
 /**
@@ -21,6 +23,7 @@ interface UseDeckBuilderSyncProps {
  *   if the deck builder zones are empty.
  * - On subsequent data refreshes: dispatches SYNC_PICKS to reconcile
  *   new picks into the existing deck state.
+ * - Auto-removes cards that were floated/queued but are no longer.
  */
 export function useDeckBuilderSync({
   deckBuilderActive,
@@ -31,17 +34,24 @@ export function useDeckBuilderSync({
   activeDraft,
   selectedSeat,
   ready,
+  floatedCards,
+  queuedCardNames,
 }: UseDeckBuilderSyncProps): void {
+  const allCardNames = useMemo(() => {
+    const picks = seatCardList ?? [];
+    return [...picks, ...floatedCards, ...queuedCardNames];
+  }, [seatCardList, floatedCards, queuedCardNames]);
+
   // Initialize deck builder from seat picks when first opened
   const deckBuilderInitialized = useRef(false);
   useEffect(() => {
-    if (deckBuilderActive && ready && seatCardList && seatCardList.length > 0 && !deckBuilderInitialized.current) {
+    if (deckBuilderActive && ready && allCardNames.length > 0 && !deckBuilderInitialized.current) {
       const isEmpty = Object.values(deckBuilderState.zones.deck).flat().length === 0
         && Object.values(deckBuilderState.zones.sideboard).flat().length === 0;
       if (isEmpty) {
         dispatch({
           type: "INIT_FROM_PICKS",
-          picks: seatCardList!,
+          picks: allCardNames,
           scryfallData: scryfallDataMap,
           draftId: activeDraft ?? "",
           seat: selectedSeat ?? 0,
@@ -52,15 +62,41 @@ export function useDeckBuilderSync({
     if (!deckBuilderActive) {
       deckBuilderInitialized.current = false;
     }
-  }, [deckBuilderActive, seatCardList, ready]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [deckBuilderActive, allCardNames, ready]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reconcile picked cards with deck builder state on every data refresh
   useEffect(() => {
-    if (!deckBuilderActive || !ready || !seatCardList || seatCardList.length === 0) return;
+    if (!deckBuilderActive || !ready || allCardNames.length === 0) return;
     dispatch({
       type: "SYNC_PICKS",
-      pickedCardNames: seatCardList,
+      pickedCardNames: allCardNames,
       scryfallData: scryfallDataMap,
     });
-  }, [seatCardList, deckBuilderActive, ready]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [allCardNames, deckBuilderActive, ready]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-remove cards that were floated/queued but are no longer
+  const prevSpeculativeRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (!deckBuilderActive || !ready) return;
+
+    const pickedSet = new Set(seatCardList ?? []);
+    const currentSpeculative = new Set([
+      ...floatedCards.filter((c) => !pickedSet.has(c)),
+      ...queuedCardNames.filter((c) => !pickedSet.has(c)),
+    ]);
+
+    const removed: string[] = [];
+    for (const card of prevSpeculativeRef.current) {
+      if (!currentSpeculative.has(card) && !pickedSet.has(card)) {
+        removed.push(card);
+      }
+    }
+
+    if (removed.length > 0) {
+      dispatch({ type: "REMOVE_CARDS", cardNames: removed });
+    }
+
+    prevSpeculativeRef.current = currentSpeculative;
+  }, [seatCardList, floatedCards, queuedCardNames, deckBuilderActive, ready, dispatch]);
 }

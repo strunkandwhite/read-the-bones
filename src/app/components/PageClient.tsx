@@ -258,6 +258,11 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     setDeckBuilderModalOpen,
   });
 
+  const queuedCardNames = useMemo(
+    () => Array.from(pickQueue.queuedCards.keys()),
+    [pickQueue.queuedCards],
+  );
+
   useDeckBuilderSync({
     deckBuilderActive,
     seatCardList,
@@ -267,6 +272,8 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     activeDraft: draftSelection.activeDraft,
     selectedSeat: draftSelection.selectedSeat,
     ready: deckBuilder.ready,
+    floatedCards,
+    queuedCardNames,
   });
 
   const handleActiveDraftChange = useCallback(
