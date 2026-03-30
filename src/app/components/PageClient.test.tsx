@@ -4,6 +4,10 @@ import { render, screen, act, cleanup } from "@testing-library/react";
 import { PageClient, type PageClientProps } from "./PageClient";
 import type { CardStatsResponse } from "@/core/getCards";
 import type { DraftStatsResponse } from "@/core/getDraftStats";
+import { useDraftStore, _resetPollingState } from "../stores/draftStore";
+import { useCardStore, EMPTY_CARD_DATA, EMPTY_DRAFT_STATS, _resetSearchState } from "../stores/cardStore";
+import { useLiveStore, _resetDeckState } from "../stores/liveStore";
+import { createEmptyDeckState } from "@/core/deckBuilder";
 
 // Mock child components to simplify rendering
 vi.mock("./CardTable", () => ({
@@ -26,19 +30,6 @@ vi.mock("./StatsModal", () => ({
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
-}));
-
-let mockSyncStatus = {
-  lastSyncedAt: "0",
-  syncInProgress: false,
-  activeDrafts: [] as Array<{ id: string; numSeats: number }>,
-  triggerSync: async () => {},
-  manualSyncInFlight: false,
-  dataChanged: false,
-};
-
-vi.mock("../hooks/useSyncStatus", () => ({
-  useSyncStatus: () => mockSyncStatus,
 }));
 
 const defaultDraftStats: DraftStatsResponse = {
@@ -93,14 +84,67 @@ describe("PageClient", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     delete (globalThis as Record<string, unknown>).__settingsOnDraftsChange;
-    mockSyncStatus = {
-      lastSyncedAt: "0",
-      syncInProgress: false,
-      activeDrafts: [],
-      triggerSync: async () => {},
+
+    // Reset store state between tests
+    _resetPollingState();
+    _resetSearchState();
+    _resetDeckState();
+    useDraftStore.setState({
+      selectedDrafts: new Set(),
+      activeDraft: null,
+      selectedSeat: null,
+      hideTaken: true,
+      completedDraftIds: [],
+      hydrated: false,
+      dataVersion: 0,
+      liveDraftStatus: null,
+      board: null,
+      poolAsOfDraft: null,
+      syncStatus: { lastSyncedAt: "0", syncInProgress: false, activeDrafts: [] },
       manualSyncInFlight: false,
-      dataChanged: false,
-    };
+    });
+    useCardStore.setState({
+      cardData: EMPTY_CARD_DATA,
+      draftStats: EMPTY_DRAFT_STATS,
+      isLoading: false,
+      searchQuery: "",
+      colorFilter: [],
+      colorFilterMode: "inclusive",
+      scryfallMatchNames: null,
+      selectedCard: null,
+      cardStatsDetail: null,
+      cardStatsLoading: false,
+      scryfallDataMap: new Map(),
+      cardStatsMap: new Map(),
+      takenCardNamesSet: undefined,
+      takenCardCounts: undefined,
+      seatCardNames: undefined,
+      seatCardList: undefined,
+      bannedCardNamesSet: undefined,
+      displayCards: [],
+      searchFilteredCards: [],
+      availableCount: 0,
+      drafts: [],
+    });
+    useLiveStore.setState({
+      seatToken: null,
+      mySeat: null,
+      autoPick: true,
+      autoPickMode: "resilient",
+      displayName: null,
+      queue: [],
+      queuedCards: new Map(),
+      queueLoading: false,
+      queueError: null,
+      floatedCards: [],
+      pickError: null,
+      isMyTurn: false,
+      consecutivePicks: 0,
+      deckState: createEmptyDeckState("", 0),
+      deckReady: false,
+      deckSaveStatus: "idle",
+      deckBuilderActive: false,
+    });
   });
 
   it("shows precomputed data with default selection", () => {
@@ -146,13 +190,10 @@ describe("PageClient", () => {
     expect(urls.some((u: string) => u.includes("/api/draft-stats?"))).toBe(true);
   });
 
-  it("logs error when fetch fails after custom draft selection", async () => {
+  it("logs error when fetch throws after custom draft selection", async () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-    });
+    global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
 
     render(<PageClient {...makeTestProps()} />);
 
@@ -228,10 +269,6 @@ describe("PageClient", () => {
   });
 
   it("filters out banned cards from display when active draft is selected", () => {
-    mockSyncStatus = {
-      ...mockSyncStatus,
-      activeDrafts: [{ id: "draft-c", numSeats: 10 }],
-    };
     localStorage.setItem("activeDraft", "draft-c");
 
     const props = makeTestProps({
