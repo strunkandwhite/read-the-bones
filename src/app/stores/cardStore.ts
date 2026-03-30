@@ -49,12 +49,16 @@ function classifyQueryType(query: string): string {
 // Module-scoped debounce state
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
+// Module-scoped in-flight guard to prevent duplicate fetchCardData calls
+let fetchInFlight = false;
+
 /** Exported for tests to clear debounce state between runs. */
 export function _resetSearchState() {
   if (searchTimeout) {
     clearTimeout(searchTimeout);
     searchTimeout = null;
   }
+  fetchInFlight = false;
 }
 
 // ---------------------------------------------------------------------------
@@ -286,6 +290,9 @@ export const useCardStore = create<CardStoreState>()(
     },
 
     fetchCardData: async () => {
+      if (fetchInFlight) return;
+      fetchInFlight = true;
+
       const { selectedDrafts, activeDraft, poolAsOfDraft } =
         useDraftStore.getState();
       const effectivePool = activeDraft ?? poolAsOfDraft;
@@ -300,6 +307,7 @@ export const useCardStore = create<CardStoreState>()(
           },
         }));
         recompute();
+        fetchInFlight = false;
         return;
       }
 
@@ -328,6 +336,7 @@ export const useCardStore = create<CardStoreState>()(
         console.error("Failed to fetch card data:", error);
       } finally {
         set({ isLoading: false });
+        fetchInFlight = false;
       }
     },
 

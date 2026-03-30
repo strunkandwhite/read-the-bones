@@ -183,9 +183,9 @@ describe("cardStore — fetchCardData", () => {
       poolAsOfDraft: "d2",
     });
 
-    // Wait for any subscription-triggered fetches to settle
+    // Wait for any subscription-triggered fetches to fully settle (including in-flight guard release)
     await vi.waitFor(() =>
-      expect(fetchSpy.mock.calls.length).toBeGreaterThanOrEqual(0),
+      expect(useCardStore.getState().isLoading).toBe(false),
     );
     fetchSpy.mockClear();
 
