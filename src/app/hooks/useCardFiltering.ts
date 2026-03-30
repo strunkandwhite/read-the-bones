@@ -30,8 +30,21 @@ export function useCardFiltering({
 }: UseCardFilteringProps): UseCardFilteringReturn {
   const takenCardNamesSet = useMemo(() => {
     if (!activeDraft || !cardData.takenCards) return undefined;
-    return new Set(cardData.takenCards.map((c) => c.name));
-  }, [activeDraft, cardData.takenCards]);
+    // Count how many times each card has been taken
+    const takenCounts = new Map<string, number>();
+    for (const c of cardData.takenCards) {
+      takenCounts.set(c.name, (takenCounts.get(c.name) ?? 0) + 1);
+    }
+    // Only include cards where all copies are taken
+    const fullyTaken = new Set<string>();
+    for (const [name, count] of takenCounts) {
+      const totalCopies = cardData.cubeCopies[name] ?? 1;
+      if (count >= totalCopies) {
+        fullyTaken.add(name);
+      }
+    }
+    return fullyTaken;
+  }, [activeDraft, cardData.takenCards, cardData.cubeCopies]);
 
   const seatCardList = useMemo(() => {
     if (!activeDraft || !cardData.takenCards || selectedSeat === null)

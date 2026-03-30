@@ -243,4 +243,55 @@ describe("useCardFiltering", () => {
 
     expect(result.current.seatCardNames).toBeUndefined();
   });
+
+  it("does not treat partially-taken multi-copy card as taken", () => {
+    const cardData = makeCardData({
+      takenCards: [{ name: "Lightning Bolt", seat: 1 }],
+      cubeCopies: { "Lightning Bolt": 2 },
+    });
+
+    const { result } = renderHook(() =>
+      useCardFiltering({
+        cardData,
+        activeDraft: "draft-1",
+        hideTaken: true,
+        selectedSeat: null,
+        searchQuery: "",
+        scryfallMatchNames: null,
+      })
+    );
+
+    const names = result.current.displayCards.map((c) => c.cardName);
+    // 2 copies, only 1 taken — should still be visible
+    expect(names).toContain("Lightning Bolt");
+    // Should NOT be in takenCardNamesSet
+    expect(result.current.takenCardNamesSet?.has("Lightning Bolt")).toBe(false);
+  });
+
+  it("treats fully-taken multi-copy card as taken", () => {
+    const cardData = makeCardData({
+      takenCards: [
+        { name: "Lightning Bolt", seat: 1 },
+        { name: "Lightning Bolt", seat: 2 },
+      ],
+      cubeCopies: { "Lightning Bolt": 2 },
+    });
+
+    const { result } = renderHook(() =>
+      useCardFiltering({
+        cardData,
+        activeDraft: "draft-1",
+        hideTaken: true,
+        selectedSeat: null,
+        searchQuery: "",
+        scryfallMatchNames: null,
+      })
+    );
+
+    const names = result.current.displayCards.map((c) => c.cardName);
+    // 2 copies, 2 taken — should be hidden
+    expect(names).not.toContain("Lightning Bolt");
+    // Should be in takenCardNamesSet
+    expect(result.current.takenCardNamesSet?.has("Lightning Bolt")).toBe(true);
+  });
 });
