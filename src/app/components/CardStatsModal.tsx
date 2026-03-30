@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useCallback, useState } from "react";
+import { useEffect, useMemo, useCallback, useState, useRef } from "react";
 import { useCardStore } from "@/app/stores/cardStore";
 import { useDraftStore } from "@/app/stores/draftStore";
 import { useLiveStore } from "@/app/stores/liveStore";
@@ -66,48 +66,67 @@ export function CardStatsModal() {
   const cardStatus: CardStatus = cardStatusResult?.status ?? "none";
   const queuePosition = cardStatusResult?.queuePosition;
 
-  // After any action, disable all buttons until the card's status changes
-  // (confirmed by optimistic update or server response).
+  // Disable buttons briefly after any action to prevent double-clicks.
+  // Re-enables after the server confirms (cardStatus changes) or 600ms, whichever is later.
   const [actionPending, setActionPending] = useState(false);
+  const actionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const minimumElapsedRef = useRef(false);
 
+  // When cardStatus changes AND minimum time has elapsed, re-enable
   useEffect(() => {
-    if (actionPending) setActionPending(false);
+    if (actionPending && minimumElapsedRef.current) {
+      setActionPending(false);
+      minimumElapsedRef.current = false;
+    }
   }, [cardStatus, queuePosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setActionPending(false);
+    minimumElapsedRef.current = false;
+    if (actionTimerRef.current) clearTimeout(actionTimerRef.current);
   }, [selectedCard]);
+
+  const startAction = useCallback(() => {
+    setActionPending(true);
+    minimumElapsedRef.current = false;
+    if (actionTimerRef.current) clearTimeout(actionTimerRef.current);
+    actionTimerRef.current = setTimeout(() => {
+      minimumElapsedRef.current = true;
+      // If cardStatus already changed while we were waiting, re-enable now
+      setActionPending(false);
+    }, 600);
+  }, []);
 
   const handlePick = useCallback(async () => {
     if (!selectedCard) return;
-    setActionPending(true);
+    startAction();
     await submitPick(selectedCard);
     clearSelectedCard();
-  }, [selectedCard, submitPick, clearSelectedCard]);
+  }, [selectedCard, submitPick, clearSelectedCard, startAction]);
 
   const handleQueue = useCallback(() => {
     if (!selectedCard) return;
-    setActionPending(true);
+    startAction();
     addToQueue(selectedCard);
-  }, [selectedCard, addToQueue]);
+  }, [selectedCard, addToQueue, startAction]);
 
   const handleUnqueue = useCallback(() => {
     if (!selectedCard) return;
-    setActionPending(true);
+    startAction();
     removeFromQueue(selectedCard);
-  }, [selectedCard, removeFromQueue]);
+  }, [selectedCard, removeFromQueue, startAction]);
 
   const handleFloat = useCallback(() => {
     if (!selectedCard) return;
-    setActionPending(true);
+    startAction();
     addFloat(selectedCard);
-  }, [selectedCard, addFloat]);
+  }, [selectedCard, addFloat, startAction]);
 
   const handleUnfloat = useCallback(() => {
     if (!selectedCard) return;
-    setActionPending(true);
+    startAction();
     removeFloat(selectedCard);
-  }, [selectedCard, removeFloat]);
+  }, [selectedCard, removeFloat, startAction]);
 
   // Escape key handler
   useEffect(() => {
