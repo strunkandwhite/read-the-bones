@@ -15,6 +15,10 @@ export async function PUT(
 
     const body = await request.json();
 
+    if (body.display_name !== undefined && body.display_name !== null && typeof body.display_name !== "string") {
+      return NextResponse.json({ error: "display_name must be a string" }, { status: 400 });
+    }
+
     if (body.display_name !== undefined && typeof body.display_name === "string" && body.display_name.length > 50) {
       return NextResponse.json({ error: "display_name must be 50 characters or fewer" }, { status: 400 });
     }
