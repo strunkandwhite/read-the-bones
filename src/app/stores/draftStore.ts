@@ -169,7 +169,9 @@ function applyPollResults(
       bannedCards: liveData.bannedCards as string[],
     };
 
-    // Detect pick changes (skip first poll via prevPickN === -1 guard)
+    // Detect pick changes. prevPickN === -1 means "first poll, no previous data" —
+    // skip the version bump to avoid double-fetching card data (SSR hydration already
+    // provided initial data). Subsequent changes (including 0→1) correctly bump.
     if ((status.latestPickN as number) !== prevPickN) {
       if (prevPickN !== -1) versionBump = true;
       prevPickN = status.latestPickN;

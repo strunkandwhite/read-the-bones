@@ -611,15 +611,25 @@ async function triggerAutoPick() {
   if (autoPickInFlight) return;
   autoPickInFlight = true;
   try {
+    // Re-check server-side settings before auto-picking (cautious mode may have disabled it)
     await useLiveStore.getState().refreshSettings();
-    const { autoPick, queuedCards } = useLiveStore.getState();
-    if (!autoPick || queuedCards.size === 0) return;
+    const { autoPick } = useLiveStore.getState();
+    if (!autoPick) return;
 
-    // Pick the highest-priority (lowest number) card from queue
+    // Re-fetch queue to get latest state (a queued card may have been picked by someone else)
+    await useLiveStore.getState().fetchQueue();
     const { queue } = useLiveStore.getState();
+    if (queue.length === 0) return;
+
+    // Try each queued card in priority order — if the top card was already taken,
+    // handlePick suppresses the "already been picked" error, so try the next card.
     const sorted = [...queue].sort((a, b) => a.priority - b.priority);
-    if (sorted.length > 0) {
-      await useLiveStore.getState().handlePick(sorted[0].cardName);
+    for (const entry of sorted) {
+      const { pickError } = useLiveStore.getState();
+      if (pickError) break; // real error, stop trying
+      await useLiveStore.getState().handlePick(entry.cardName);
+      // If no error, the pick succeeded — stop
+      if (!useLiveStore.getState().pickError) break;
     }
   } finally {
     autoPickInFlight = false;

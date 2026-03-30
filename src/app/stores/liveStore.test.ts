@@ -38,6 +38,7 @@ function resetStores() {
     queueLoading: false,
     queueError: null,
     floatedCards: [],
+    floatedCardsSet: new Set<string>(),
     pickError: null,
     isMyTurn: false,
     consecutivePicks: 0,
