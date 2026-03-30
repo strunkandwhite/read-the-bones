@@ -234,8 +234,9 @@ describe("draftStore — polling", () => {
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.getState().startPolling();
 
-    // Wait for the initial fetch
-    await vi.advanceTimersByTimeAsync(0);
+    // Advance through 3 full poll cycles so the 3rd cycle (syncPollCounter % 3 === 0)
+    // triggers the sync-status fetch (poll interval is 10s, so 20_001ms covers cycles 2+3)
+    await vi.advanceTimersByTimeAsync(20_001);
 
     const urls = fetchSpy.mock.calls.map((c) => {
       const input = c[0];
@@ -316,6 +317,9 @@ describe("draftStore — polling", () => {
     const fetchSpy = mockFetchResponses(baseLiveData, baseSyncData);
 
     useDraftStore.setState({ activeDraft: "draft-1" });
+    // Calls 1–3 (counter 1→3): the 3rd call fetches sync-status and establishes prevSyncedAt
+    await useDraftStore.getState().refreshNow();
+    await useDraftStore.getState().refreshNow();
     await useDraftStore.getState().refreshNow();
     const v1 = useDraftStore.getState().dataVersion;
 
@@ -330,6 +334,10 @@ describe("draftStore — polling", () => {
       );
     });
 
+    // Calls 4–6 (counter 4→6): the 6th call fetches sync-status with the new timestamp,
+    // detects the change, and triggers a version bump
+    await useDraftStore.getState().refreshNow();
+    await useDraftStore.getState().refreshNow();
     await useDraftStore.getState().refreshNow();
     expect(useDraftStore.getState().dataVersion).toBe(v1 + 1);
   });

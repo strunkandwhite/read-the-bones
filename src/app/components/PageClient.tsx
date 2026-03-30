@@ -73,10 +73,9 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
 
   const isAuthed = useIsAuthed();
+  const deckBuilderActive = useLiveStore((s) => s.deckBuilderActive);
 
   const {
-    deckBuilderActive,
-    setDeckBuilderActive: setDeckBuilderActiveModal,
     deckBuilderModalOpen,
     setDeckBuilderModalOpen,
     draftBoardOpen,
@@ -128,10 +127,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     setActiveDraft,
     setSelectedSeat,
     dispatch: dispatchDeck,
-    setDeckBuilderActive: (active: boolean) => {
-      setDeckBuilderActive(active);
-      setDeckBuilderActiveModal(active);
-    },
+    setDeckBuilderActive,
     setDeckBuilderModalOpen,
   });
 
@@ -281,7 +277,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                   const wasOpen = deckBuilderModalOpen;
                   if (!deckBuilderActive) {
                     setDeckBuilderActive(true);
-                    setDeckBuilderActiveModal(true);
                   }
                   setDeckBuilderModalOpen(!wasOpen);
                   if (!wasOpen && activeDraft && selectedSeat !== null) {

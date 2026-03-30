@@ -2,11 +2,14 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useModalManagement } from "./useModalManagement";
+import { useLiveStore, _resetDeckState } from "../stores/liveStore";
 
 describe("useModalManagement", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     localStorage.clear();
+    _resetDeckState();
+    useLiveStore.setState({ deckBuilderActive: false });
   });
 
   it("initializes with all modals closed", () => {
@@ -14,7 +17,7 @@ describe("useModalManagement", () => {
       useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 }),
     );
 
-    expect(result.current.deckBuilderActive).toBe(false);
+    expect(useLiveStore.getState().deckBuilderActive).toBe(false);
     expect(result.current.deckBuilderModalOpen).toBe(false);
     expect(result.current.draftBoardOpen).toBe(false);
   });
@@ -26,7 +29,7 @@ describe("useModalManagement", () => {
       useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 }),
     );
 
-    expect(result.current.deckBuilderActive).toBe(true);
+    expect(useLiveStore.getState().deckBuilderActive).toBe(true);
     expect(result.current.deckBuilderModalOpen).toBe(true);
   });
 
@@ -37,7 +40,7 @@ describe("useModalManagement", () => {
       useModalManagement({ activeDraft: null, selectedSeat: null }),
     );
 
-    expect(result.current.deckBuilderActive).toBe(false);
+    expect(useLiveStore.getState().deckBuilderActive).toBe(false);
     expect(result.current.deckBuilderModalOpen).toBe(false);
   });
 
@@ -66,15 +69,15 @@ describe("useModalManagement", () => {
     );
 
     act(() => {
-      result.current.setDeckBuilderActive(true);
+      useLiveStore.getState().setDeckBuilderActive(true);
       result.current.setDeckBuilderModalOpen(true);
     });
 
-    expect(result.current.deckBuilderActive).toBe(true);
+    expect(useLiveStore.getState().deckBuilderActive).toBe(true);
 
     rerender({ activeDraft: null, selectedSeat: null });
 
-    expect(result.current.deckBuilderActive).toBe(false);
+    expect(useLiveStore.getState().deckBuilderActive).toBe(false);
     expect(result.current.deckBuilderModalOpen).toBe(false);
   });
 

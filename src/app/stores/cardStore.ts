@@ -52,6 +52,11 @@ let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 // Module-scoped in-flight guard to prevent duplicate fetchCardData calls
 let fetchInFlight = false;
 
+// Module-scoped cache for recompute map rebuilds
+let lastCardDataRef: CardStatsResponse | null = null;
+let cachedScryfallDataMap = new Map<string, ScryCard>();
+let cachedCardStatsMap = new Map<string, EnrichedCardStats>();
+
 /** Exported for tests to clear debounce state between runs. */
 export function _resetSearchState() {
   if (searchTimeout) {
@@ -59,6 +64,9 @@ export function _resetSearchState() {
     searchTimeout = null;
   }
   fetchInFlight = false;
+  lastCardDataRef = null;
+  cachedScryfallDataMap = new Map();
+  cachedCardStatsMap = new Map();
 }
 
 // ---------------------------------------------------------------------------
@@ -132,17 +140,19 @@ function recompute() {
   const { cardData, searchQuery, scryfallMatchNames } = state;
   const { activeDraft, hideTaken, selectedSeat } = useDraftStore.getState();
 
-  // scryfallDataMap
-  const scryfallDataMap = new Map<string, ScryCard>();
-  for (const card of cardData.cards) {
-    if (card.scryfall) scryfallDataMap.set(card.cardName, card.scryfall);
+  // Only rebuild maps when cardData reference changes
+  if (cardData !== lastCardDataRef) {
+    lastCardDataRef = cardData;
+    cachedScryfallDataMap = new Map<string, ScryCard>();
+    cachedCardStatsMap = new Map<string, EnrichedCardStats>();
+    for (const card of cardData.cards) {
+      if (card.scryfall) cachedScryfallDataMap.set(card.cardName, card.scryfall);
+      cachedCardStatsMap.set(card.cardName, card);
+    }
   }
 
-  // cardStatsMap
-  const cardStatsMap = new Map<string, EnrichedCardStats>();
-  for (const card of cardData.cards) {
-    cardStatsMap.set(card.cardName, card);
-  }
+  const scryfallDataMap = cachedScryfallDataMap;
+  const cardStatsMap = cachedCardStatsMap;
 
   // takenCardCounts
   let takenCardCounts: Map<string, number> | undefined;
@@ -422,6 +432,12 @@ export const useCardStore = create<CardStoreState>()(
 // ---------------------------------------------------------------------------
 // Cross-store subscriptions: refetch when draftStore changes
 // ---------------------------------------------------------------------------
+
+// Refetch when selectedDrafts changes
+useDraftStore.subscribe(
+  (state) => state.selectedDrafts,
+  () => useCardStore.getState().fetchCardData(),
+);
 
 // Refetch when dataVersion changes (sync completed, live draft picks)
 useDraftStore.subscribe(

@@ -93,12 +93,14 @@ let pollInterval: ReturnType<typeof setInterval> | null = null;
 let prevPickN = -1; // -1 = no previous data (first poll)
 let prevSeatNamesKey = "";
 let prevSyncedAt = "0";
+let syncPollCounter = 0;
 
 /** Reset module-scoped polling state (for tests). */
 export function _resetPollingState() {
   prevPickN = -1;
   prevSeatNamesKey = "";
   prevSyncedAt = "0";
+  syncPollCounter = 0;
   if (pollInterval) {
     clearInterval(pollInterval);
     pollInterval = null;
@@ -122,10 +124,17 @@ function getStoredSeat(draftId: string | null): number | null {
 // ---------------------------------------------------------------------------
 
 async function fetchPollData(draftId: string) {
-  const [liveRes, syncRes] = await Promise.all([
+  // Only fetch sync-status every 3rd poll cycle (~30s) since it rarely changes
+  syncPollCounter++;
+  const shouldFetchSync = syncPollCounter % 3 === 0;
+
+  const fetches: [Promise<Response>, Promise<Response> | null] = [
     fetch(`/api/drafts/${draftId}/live`),
-    fetch("/api/sync-status"),
-  ]);
+    shouldFetchSync ? fetch("/api/sync-status") : null,
+  ];
+
+  const liveRes = await fetches[0];
+  const syncRes = fetches[1] ? await fetches[1] : null;
 
   let liveData = null;
   let syncData: SyncStatusData | null = null;
@@ -133,7 +142,7 @@ async function fetchPollData(draftId: string) {
   if (liveRes.ok) {
     liveData = await liveRes.json();
   }
-  if (syncRes.ok) {
+  if (syncRes?.ok) {
     syncData = await syncRes.json();
   }
 

@@ -2,9 +2,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { useLiveStore, recomputePicking, _resetDeckState } from "./liveStore";
 import { useDraftStore, _resetPollingState } from "./draftStore";
+import { _resetSearchState } from "./cardStore";
 import { createEmptyDeckState } from "@/core/deckBuilder";
 
 vi.mock("@vercel/analytics/react", () => ({ track: vi.fn() }));
+vi.mock("@/core/isLocal", () => ({ isLocalClient: () => false }));
+vi.mock("@/core/localSearch", () => ({
+  searchLocalCards: vi.fn(() => []),
+}));
+vi.mock("@/core/searchUtils", () => ({
+  hasScryfallOperators: vi.fn(() => false),
+}));
 vi.mock("@/core/snakeDraft", () => ({
   derivePickSeat: vi.fn((pickN: number) => ({ seat: pickN <= 2 ? 1 : 2, round: 1 })),
   getTotalPicks: vi.fn(() => 10),
@@ -13,6 +21,7 @@ vi.mock("@/core/snakeDraft", () => ({
 function resetStores() {
   _resetPollingState();
   _resetDeckState();
+  _resetSearchState();
   useDraftStore.setState({
     selectedDrafts: new Set(),
     activeDraft: null,
@@ -155,7 +164,7 @@ describe("liveStore — fetchMySeat", () => {
   });
 
   it("sets mySeat, autoPick, displayName, autoPickMode from response", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({ seat: 5, autoPick: false, displayName: "Bob", autoPickMode: "cautious" }),
         { status: 200 },
@@ -410,7 +419,7 @@ describe("liveStore — refreshSettings", () => {
   });
 
   it("fetches /api/drafts/{id}/me and updates autoPick + autoPickMode", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({ seat: 3, autoPick: false, autoPickMode: "cautious", displayName: "X" }),
         { status: 200 },
@@ -555,7 +564,7 @@ describe("liveStore — fetchQueue", () => {
   });
 
   it("sets queue and queuedCards from response", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           queue: [
@@ -809,7 +818,7 @@ describe("liveStore — queuedCards derived from queue", () => {
   });
 
   it("recomputes queuedCards after fetchQueue", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
           queue: [
@@ -847,7 +856,7 @@ describe("liveStore — fetchFloatedCards", () => {
   });
 
   it("loads floated cards from API", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({ cards: ["Bolt", "Counterspell"] }),
         { status: 200 },
@@ -1365,7 +1374,7 @@ describe("liveStore — fetchDeckState", () => {
     const snapshot = createEmptyDeckState("draft-1", 2);
     snapshot.zones.deck["mv-3"] = ["Counterspell"];
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(JSON.stringify(snapshot), { status: 200 }),
     );
 

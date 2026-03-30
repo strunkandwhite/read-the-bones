@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLiveStore } from "../stores/liveStore";
 
 interface UseModalManagementProps {
   activeDraft: string | null;
@@ -6,8 +7,6 @@ interface UseModalManagementProps {
 }
 
 interface UseModalManagementReturn {
-  deckBuilderActive: boolean;
-  setDeckBuilderActive: (active: boolean) => void;
   deckBuilderModalOpen: boolean;
   setDeckBuilderModalOpen: (open: boolean) => void;
   draftBoardOpen: boolean;
@@ -18,9 +17,10 @@ export function useModalManagement({
   activeDraft,
   selectedSeat,
 }: UseModalManagementProps): UseModalManagementReturn {
-  const [deckBuilderActive, setDeckBuilderActive] = useState(false);
   const [deckBuilderModalOpen, setDeckBuilderModalOpen] = useState(false);
   const [draftBoardOpen, setDraftBoardOpen] = useState(false);
+
+  const setDeckBuilderActive = useLiveStore((s) => s.setDeckBuilderActive);
 
   // Restore modal open state from localStorage on mount
   /* eslint-disable react-hooks/set-state-in-effect -- syncing from external storage (localStorage) */
@@ -45,7 +45,7 @@ export function useModalManagement({
       setDeckBuilderActive(false);
       setDeckBuilderModalOpen(false);
     }
-  }, [activeDraft, selectedSeat]);
+  }, [activeDraft, selectedSeat, setDeckBuilderActive]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Close modal on Escape key
@@ -65,8 +65,6 @@ export function useModalManagement({
   }, [deckBuilderModalOpen, draftBoardOpen]);
 
   return {
-    deckBuilderActive,
-    setDeckBuilderActive,
     deckBuilderModalOpen,
     setDeckBuilderModalOpen,
     draftBoardOpen,

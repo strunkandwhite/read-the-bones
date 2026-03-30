@@ -144,6 +144,8 @@ let justHydrated = false;
 const DECK_SAVE_DEBOUNCE_MS = 1000;
 const DECK_SAVE_STATUS_RESET_MS = 2000;
 
+let syncDeckTimer: ReturnType<typeof setTimeout> | null = null;
+
 export function _resetDeckState() {
   deckDirty = false;
   deckInFlight = false;
@@ -152,6 +154,10 @@ export function _resetDeckState() {
   if (deckSaveTimer) {
     clearTimeout(deckSaveTimer);
     deckSaveTimer = null;
+  }
+  if (syncDeckTimer) {
+    clearTimeout(syncDeckTimer);
+    syncDeckTimer = null;
   }
 }
 
@@ -761,10 +767,15 @@ function syncDeckWithPicks() {
   });
 }
 
+function debouncedSyncDeckWithPicks() {
+  if (syncDeckTimer) clearTimeout(syncDeckTimer);
+  syncDeckTimer = setTimeout(syncDeckWithPicks, 50);
+}
+
 // Sync deck with picks when card data changes
 useCardStore.subscribe(
   (state) => state.seatCardList,
-  () => syncDeckWithPicks(),
+  () => debouncedSyncDeckWithPicks(),
 );
 
 // Rebuild deck when deck builder is activated
@@ -772,7 +783,7 @@ useLiveStore.subscribe(
   (state) => state.deckBuilderActive,
   (active) => {
     if (active) {
-      syncDeckWithPicks();
+      debouncedSyncDeckWithPicks();
     }
   },
 );
@@ -780,11 +791,11 @@ useLiveStore.subscribe(
 // Rebuild deck when float state changes
 useLiveStore.subscribe(
   (state) => state.floatedCards,
-  () => syncDeckWithPicks(),
+  () => debouncedSyncDeckWithPicks(),
 );
 
 // Rebuild deck when queue changes
 useLiveStore.subscribe(
   (state) => state.queue,
-  () => syncDeckWithPicks(),
+  () => debouncedSyncDeckWithPicks(),
 );

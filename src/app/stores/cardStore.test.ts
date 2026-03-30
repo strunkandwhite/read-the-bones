@@ -202,6 +202,10 @@ describe("cardStore — fetchCardData", () => {
   it("sets isLoading during fetch", async () => {
     useDraftStore.setState({ selectedDrafts: new Set(["d1"]) });
 
+    // Wait for the subscription-triggered fetch to settle before subscribing
+    await vi.waitFor(() => expect(useCardStore.getState().isLoading).toBe(false));
+    fetchSpy.mockClear();
+
     const loadingStates: boolean[] = [];
     const unsub = useCardStore.subscribe(
       (state) => state.isLoading,
@@ -255,7 +259,8 @@ describe("cardStore — fetchCardData", () => {
   it("updates cardData and draftStats on successful fetch", async () => {
     useDraftStore.setState({ selectedDrafts: new Set(["d1"]) });
 
-    await useCardStore.getState().fetchCardData();
+    // Wait for the subscription-triggered fetch to settle
+    await vi.waitFor(() => expect(useCardStore.getState().isLoading).toBe(false));
 
     const state = useCardStore.getState();
     expect(state.cardData.cards).toEqual([{ cardName: "Bolt" }]);
@@ -264,8 +269,14 @@ describe("cardStore — fetchCardData", () => {
   });
 
   it("handles fetch error gracefully", async () => {
-    fetchSpy.mockRejectedValue(new Error("Network error"));
     useDraftStore.setState({ selectedDrafts: new Set(["d1"]) });
+
+    // Wait for the subscription-triggered fetch (with the valid mock) to settle
+    await vi.waitFor(() => expect(useCardStore.getState().isLoading).toBe(false));
+
+    // Now swap in the failing mock and trigger a fresh fetch
+    fetchSpy.mockRejectedValue(new Error("Network error"));
+    fetchSpy.mockClear();
 
     const consoleSpy = vi
       .spyOn(console, "error")

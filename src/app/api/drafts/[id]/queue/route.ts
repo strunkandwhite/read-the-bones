@@ -3,7 +3,6 @@ import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
 import { getQueue, setQueue } from "@/core/db/queries/pickQueue";
 import { resolveCardIds } from "@/core/db/queries/cards";
-import { addFloatedCard } from "@/core/db/queries/floatedCards";
 import { AppError } from "@/core/errors";
 
 export async function GET(
@@ -62,10 +61,14 @@ export async function PUT(
 
     // Auto-float any cards that were removed from the queue
     const newCardNameSet = new Set(cardNames);
-    for (const oldName of oldCardNames) {
-      if (!newCardNameSet.has(oldName)) {
-        await addFloatedCard(client, draftId, seat, oldName);
-      }
+    const removedCardNames = oldCardNames.filter((name) => !newCardNameSet.has(name));
+    if (removedCardNames.length > 0) {
+      await client.batch(
+        removedCardNames.map((name) => ({
+          sql: "INSERT OR IGNORE INTO floated_cards (draft_id, seat, card_name) VALUES (?, ?, ?)",
+          args: [draftId, seat, name],
+        }))
+      );
     }
 
     const queue = await getQueue(client, draftId, seat);

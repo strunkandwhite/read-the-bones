@@ -26,7 +26,6 @@ export function Settings() {
   // Card store
   const drafts = useCardStore((s) => s.drafts);
   const isLoading = useCardStore((s) => s.isLoading);
-  const fetchCardData = useCardStore((s) => s.fetchCardData);
 
   // Live store
   const mySeat = useLiveStore((s) => s.mySeat);
@@ -82,10 +81,9 @@ export function Settings() {
     [setPoolAsOfDraft]
   );
 
-  const onDraftsChange = useCallback(async (newSelection: Set<string>) => {
+  const onDraftsChange = useCallback((newSelection: Set<string>) => {
     setSelectedDrafts(newSelection);
-    await fetchCardData();
-  }, [setSelectedDrafts, fetchCardData]);
+  }, [setSelectedDrafts]);
 
   // Close modal when clicking outside
   useEffect(() => {
