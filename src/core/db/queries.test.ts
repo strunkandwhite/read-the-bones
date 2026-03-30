@@ -1158,6 +1158,8 @@ describe("getCardPickStats", () => {
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([{ draft_id: "draft1", cube_snapshot_id: 1 }])
     );
+    // Banned cards check (none)
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Picks of this card
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([{ draft_id: "draft1", pick_n: 5, seat: 1 }])
@@ -1194,6 +1196,8 @@ describe("getCardPickStats", () => {
         { draft_id: "draft3", cube_snapshot_id: 1 },
       ])
     );
+    // Banned cards check (none)
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Picks - positions 5, 10, 20
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
@@ -1229,6 +1233,8 @@ describe("getCardPickStats", () => {
         { draft_id: "draft2", cube_snapshot_id: 1 },
       ])
     );
+    // Banned cards check (none)
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Picks
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
@@ -1268,6 +1274,8 @@ describe("getCardPickStats", () => {
         { draft_id: "draft1", cube_snapshot_id: 1 },
       ])
     );
+    // Banned cards check (none)
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Picks: seat 1 picked at 5, seat 2 (opted out) picked at 50
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([

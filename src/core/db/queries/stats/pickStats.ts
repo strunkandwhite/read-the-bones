@@ -4,6 +4,7 @@
 
 import { getClient } from "../../client";
 import { resolveCard } from "../cards";
+import { parseBannedCards } from "../helpers";
 import { calculatePickWeight, round3, weightedGeometricMean } from "../../../utils";
 import { DEFAULT_POOL_SIZE } from "../../../types";
 
@@ -97,7 +98,37 @@ export async function getCardPickStats(
     };
   }
 
-  const draftIds = draftsWithCardResult.rows.map((r) => r.draft_id as string);
+  const allDraftIds = draftsWithCardResult.rows.map((r) => r.draft_id as string);
+
+  // Exclude drafts where this card is banned
+  const banPlaceholders = allDraftIds.map(() => "?").join(", ");
+  const bannedResult = await client.execute({
+    sql: `SELECT draft_id, banned_cards FROM drafts
+          WHERE draft_id IN (${banPlaceholders})
+            AND banned_cards IS NOT NULL`,
+    args: allDraftIds,
+  });
+
+  const bannedInDrafts = new Set<string>();
+  for (const row of bannedResult.rows) {
+    const bannedSet = parseBannedCards(row.banned_cards as string | null);
+    if (bannedSet.has(card_name.toLowerCase())) {
+      bannedInDrafts.add(row.draft_id as string);
+    }
+  }
+
+  const draftIds = allDraftIds.filter((id) => !bannedInDrafts.has(id));
+
+  if (draftIds.length === 0) {
+    return {
+      card_name: card_name,
+      drafts_seen: 0,
+      times_picked: 0,
+      avg_pick_n: 0,
+      median_pick_n: 0,
+      weighted_geomean: 0,
+    };
+  }
 
   // Get all picks of this card across those drafts
   const placeholders = draftIds.map(() => "?").join(", ");

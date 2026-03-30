@@ -65,20 +65,16 @@ export async function getPickHistory(
     args,
   });
 
-  if (result.rows.length === 0) {
-    return {
-      pickHistory: [],
-      pickDistribution: Array(DISTRIBUTION_BUCKET_COUNT).fill(0),
-      timesBanned: 0,
-    };
-  }
-
   const pickHistory: PickHistoryEntry[] = [];
   const distribution = Array(DISTRIBUTION_BUCKET_COUNT).fill(0);
   const cardNameLower = cardName.toLowerCase();
   let timesBanned = 0;
 
+  const draftIdsAlreadySeen = new Set<string>();
+
   for (const row of result.rows) {
+    draftIdsAlreadySeen.add(row.draft_id as string);
+
     // Skip drafts where this card was banned
     const bannedSet = parseBannedCards(row.banned_cards as string | null);
     if (bannedSet.has(cardNameLower)) {
@@ -101,6 +97,29 @@ export async function getPickHistory(
 
     const bucket = getDistributionBucket(pickPosition);
     distribution[bucket]++;
+  }
+
+  // Count bans from drafts where card wasn't in the cube snapshot
+  // (These drafts were missed by the main query's JOIN through cube_snapshot_cards)
+  const filterArgs: string[] = [];
+  if (draftId) filterArgs.push(draftId);
+  if (excludeDraftId) filterArgs.push(excludeDraftId);
+
+  const allDraftsResult = await client.execute({
+    sql: `SELECT d.draft_id, d.banned_cards
+          FROM drafts d
+          WHERE d.phase = 'complete'
+            AND d.banned_cards IS NOT NULL
+            ${draftFilter} ${excludeFilter}`,
+    args: filterArgs,
+  });
+
+  for (const row of allDraftsResult.rows) {
+    if (draftIdsAlreadySeen.has(row.draft_id as string)) continue;
+    const bannedSet = parseBannedCards(row.banned_cards as string | null);
+    if (bannedSet.has(cardNameLower)) {
+      timesBanned++;
+    }
   }
 
   return { pickHistory, pickDistribution: distribution, timesBanned };

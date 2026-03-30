@@ -23,6 +23,7 @@ describe("getPickHistory", () => {
         { draft_id: "d2", draft_name: "Innistrad", draft_date: "2026-02-01", num_seats: 10, pick_n: 5, pool_size: 540 },
       ],
     });
+    client.execute.mockResolvedValueOnce({ rows: [] });
 
     const result = await getPickHistory(client, "Lightning Bolt");
     expect(result.pickHistory).toEqual([
@@ -37,6 +38,7 @@ describe("getPickHistory", () => {
         { draft_id: "d1", draft_name: "Tarkir", draft_date: "2026-01-15", num_seats: 10, pick_n: null, pool_size: 540 },
       ],
     });
+    client.execute.mockResolvedValueOnce({ rows: [] });
 
     const result = await getPickHistory(client, "Unplayed Card");
     expect(result.pickHistory[0].picked).toBe(false);
@@ -51,6 +53,7 @@ describe("getPickHistory", () => {
         { draft_id: "d3", draft_name: "C", draft_date: "2026-01-03", num_seats: 10, pick_n: 8, pool_size: 540 },
       ],
     });
+    client.execute.mockResolvedValueOnce({ rows: [] });
 
     const result = await getPickHistory(client, "Some Card");
     expect(result.pickDistribution).toHaveLength(15);
@@ -62,12 +65,14 @@ describe("getPickHistory", () => {
 
   it("returns empty results for card with no history", async () => {
     client.execute.mockResolvedValueOnce({ rows: [] });
+    client.execute.mockResolvedValueOnce({ rows: [] });
     const result = await getPickHistory(client, "Unknown Card");
     expect(result.pickHistory).toEqual([]);
     expect(result.pickDistribution).toEqual(Array(15).fill(0));
   });
 
   it("accepts optional draftId filter", async () => {
+    client.execute.mockResolvedValueOnce({ rows: [] });
     client.execute.mockResolvedValueOnce({ rows: [] });
 
     await getPickHistory(client, "Lightning Bolt", "draft-1");
@@ -83,6 +88,7 @@ describe("getPickHistory", () => {
         { draft_id: "d1", draft_name: "A", draft_date: "2026-01-01", num_seats: 10, pick_n: null, pool_size: 540 },
       ],
     });
+    client.execute.mockResolvedValueOnce({ rows: [] });
 
     const result = await getPickHistory(client, "Unpicked Card");
     // Unpicked: pickPosition = 540, bucket = floor((540-1)/30) = 17, clamped to 14
