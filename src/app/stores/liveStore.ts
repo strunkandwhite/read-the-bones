@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { useDraftStore } from "./draftStore";
+import { useCardStore } from "./cardStore";
 import { derivePickSeat, getTotalPicks } from "@/core/snakeDraft";
 import {
   deckReducer,
@@ -37,6 +38,7 @@ interface LiveStoreState {
 
   // Float
   floatedCards: string[];
+  floatedCardsSet: Set<string>;
 
   // Picking
   pickError: string | null;
@@ -135,6 +137,8 @@ let deckInFlight = false;
 let deckPendingSave = false;
 let deckSaveTimer: ReturnType<typeof setTimeout> | null = null;
 let justHydrated = false;
+let deckBuilderInitialized = false;
+let prevSpeculativeCards = new Set<string>();
 
 const DECK_SAVE_DEBOUNCE_MS = 1000;
 const DECK_SAVE_STATUS_RESET_MS = 2000;
@@ -144,6 +148,8 @@ export function _resetDeckState() {
   deckInFlight = false;
   deckPendingSave = false;
   justHydrated = false;
+  deckBuilderInitialized = false;
+  prevSpeculativeCards = new Set<string>();
   if (deckSaveTimer) {
     clearTimeout(deckSaveTimer);
     deckSaveTimer = null;
@@ -221,6 +227,7 @@ export const useLiveStore = create<LiveStoreState>()(
 
     // Float state
     floatedCards: [],
+    floatedCardsSet: new Set<string>(),
 
     // Picking state
     pickError: null,
@@ -431,7 +438,7 @@ export const useLiveStore = create<LiveStoreState>()(
         });
         if (res.ok) {
           const data = await res.json();
-          if (data?.cards) set({ floatedCards: data.cards });
+          if (data?.cards) set({ floatedCards: data.cards, floatedCardsSet: new Set(data.cards) });
         }
       } catch {
         // ignore
@@ -443,7 +450,8 @@ export const useLiveStore = create<LiveStoreState>()(
       const activeDraft = useDraftStore.getState().activeDraft;
       if (!seatToken || !activeDraft) return;
 
-      set({ floatedCards: [...previous, cardName] });
+      const next = [...previous, cardName];
+      set({ floatedCards: next, floatedCardsSet: new Set(next) });
       try {
         const res = await fetch(`/api/drafts/${activeDraft}/float`, {
           method: "PUT",
@@ -453,9 +461,9 @@ export const useLiveStore = create<LiveStoreState>()(
           },
           body: JSON.stringify({ card_name: cardName }),
         });
-        if (!res.ok) set({ floatedCards: previous });
+        if (!res.ok) set({ floatedCards: previous, floatedCardsSet: new Set(previous) });
       } catch {
-        set({ floatedCards: previous });
+        set({ floatedCards: previous, floatedCardsSet: new Set(previous) });
       }
     },
 
@@ -464,7 +472,8 @@ export const useLiveStore = create<LiveStoreState>()(
       const activeDraft = useDraftStore.getState().activeDraft;
       if (!seatToken || !activeDraft) return;
 
-      set({ floatedCards: previous.filter((c) => c !== cardName) });
+      const next = previous.filter((c) => c !== cardName);
+      set({ floatedCards: next, floatedCardsSet: new Set(next) });
       try {
         const res = await fetch(`/api/drafts/${activeDraft}/float`, {
           method: "DELETE",
@@ -474,9 +483,9 @@ export const useLiveStore = create<LiveStoreState>()(
           },
           body: JSON.stringify({ card_name: cardName }),
         });
-        if (!res.ok) set({ floatedCards: previous });
+        if (!res.ok) set({ floatedCards: previous, floatedCardsSet: new Set(previous) });
       } catch {
-        set({ floatedCards: previous });
+        set({ floatedCards: previous, floatedCardsSet: new Set(previous) });
       }
     },
 
@@ -652,6 +661,7 @@ useDraftStore.subscribe(
         queueLoading: false,
         queueError: null,
         floatedCards: [],
+        floatedCardsSet: new Set<string>(),
         pickError: null,
         isMyTurn: false,
         consecutivePicks: 0,
@@ -678,4 +688,84 @@ useDraftStore.subscribe(
 useDraftStore.subscribe(
   (state) => state.liveDraftStatus?.nextSeat,
   () => recomputePicking(),
+);
+
+// ---------------------------------------------------------------------------
+// Deck builder sync (absorbed from useDeckBuilderSync hook)
+// ---------------------------------------------------------------------------
+
+function syncDeckWithPicks() {
+  const { deckBuilderActive, deckReady, deckState, floatedCards, queue, dispatchDeck, mySeat } = useLiveStore.getState();
+  const { seatCardList, scryfallDataMap } = useCardStore.getState();
+  const { activeDraft, selectedSeat } = useDraftStore.getState();
+  const isAuthed = mySeat !== null && mySeat === selectedSeat;
+
+  if (!deckBuilderActive || !deckReady) return;
+
+  const picks = seatCardList ?? [];
+  const authFloated = isAuthed ? floatedCards : [];
+  const authQueued = isAuthed ? [...queue].map((e) => e.cardName) : [];
+  const allCardNames = [...picks, ...authFloated, ...authQueued];
+
+  if (allCardNames.length === 0) return;
+
+  // INIT_FROM_PICKS on first activation with empty zones
+  if (!deckBuilderInitialized) {
+    const isEmpty =
+      Object.values(deckState.zones.deck).flat().length === 0 &&
+      Object.values(deckState.zones.sideboard).flat().length === 0;
+    if (isEmpty) {
+      dispatchDeck({
+        type: "INIT_FROM_PICKS",
+        picks: allCardNames,
+        scryfallData: scryfallDataMap,
+        draftId: activeDraft ?? "",
+        seat: selectedSeat ?? 0,
+      });
+    }
+    deckBuilderInitialized = true;
+  }
+
+  // SYNC_PICKS
+  dispatchDeck({
+    type: "SYNC_PICKS",
+    pickedCardNames: allCardNames,
+    scryfallData: scryfallDataMap,
+  });
+
+  // REMOVE_CARDS for speculative cards that are no longer speculative
+  const pickedSet = new Set(picks);
+  const currentSpeculative = new Set([
+    ...authFloated.filter((c) => !pickedSet.has(c)),
+    ...authQueued.filter((c) => !pickedSet.has(c)),
+  ]);
+
+  const removed: string[] = [];
+  for (const card of prevSpeculativeCards) {
+    if (!currentSpeculative.has(card) && !pickedSet.has(card)) {
+      removed.push(card);
+    }
+  }
+  if (removed.length > 0) {
+    dispatchDeck({ type: "REMOVE_CARDS", cardNames: removed });
+  }
+  prevSpeculativeCards = currentSpeculative;
+}
+
+// Sync deck with picks when card data changes
+useCardStore.subscribe(
+  (state) => state.seatCardList,
+  () => syncDeckWithPicks(),
+);
+
+// Reset deck init tracking when deck builder is deactivated
+useLiveStore.subscribe(
+  (state) => state.deckBuilderActive,
+  (active) => {
+    if (!active) {
+      deckBuilderInitialized = false;
+    } else {
+      syncDeckWithPicks();
+    }
+  },
 );

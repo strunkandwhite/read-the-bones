@@ -169,11 +169,7 @@ function applyPollResults(
       bannedCards: liveData.bannedCards as string[],
     };
 
-    // Check for changes
-    if ((status.latestPickN as number) > prevPickN && prevPickN > 0) {
-      versionBump = true;
-    }
-    // Always update prevPickN (including first load)
+    // Detect pick changes (skip first load via prevPickN > 0 guard)
     if ((status.latestPickN as number) !== prevPickN) {
       if (prevPickN > 0) versionBump = true;
       prevPickN = status.latestPickN;

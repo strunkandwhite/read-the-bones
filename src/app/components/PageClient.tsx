@@ -2,7 +2,6 @@
 
 import { useMemo, useEffect, useState, useCallback, useRef } from "react";
 import { useSharedDeckLoader } from "../hooks/useSharedDeckLoader";
-import { useDeckBuilderSync } from "../hooks/useDeckBuilderSync";
 import { useModalManagement } from "../hooks/useModalManagement";
 import { track } from "@vercel/analytics/react";
 import { CardTable } from "./CardTable";
@@ -235,19 +234,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     ]);
     return searchFilteredCards.filter((c) => myCards.has(c.cardName));
   }, [deckFilterActive, isAuthed, searchFilteredCards, seatCardList, floatedCards, queuedCardNames]);
-
-  useDeckBuilderSync({
-    deckBuilderActive,
-    seatCardList,
-    deckBuilderState: deckState,
-    dispatch: dispatchDeck,
-    scryfallDataMap,
-    activeDraft,
-    selectedSeat,
-    ready: useLiveStore.getState().deckReady,
-    floatedCards: isAuthed ? floatedCards : [],
-    queuedCardNames: isAuthed ? queuedCardNames : [],
-  });
 
   const handleActiveDraftChange = useCallback(
     (draftId: string | null) => {

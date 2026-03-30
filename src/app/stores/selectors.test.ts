@@ -57,6 +57,7 @@ function resetStores() {
     queueLoading: false,
     queueError: null,
     floatedCards: [],
+    floatedCardsSet: new Set<string>(),
     pickError: null,
     isMyTurn: false,
     consecutivePicks: 0,
@@ -98,6 +99,7 @@ describe("getCardStatus", () => {
     useLiveStore.setState({
       mySeat: 3,
       floatedCards: ["Dark Ritual"],
+      floatedCardsSet: new Set(["Dark Ritual"]),
     });
     expect(getCardStatus("Dark Ritual")).toEqual({ status: "floated" });
   });
@@ -125,6 +127,7 @@ describe("getCardStatus", () => {
     useLiveStore.setState({
       mySeat: null,
       floatedCards: ["Ponder"],
+      floatedCardsSet: new Set(["Ponder"]),
     });
     expect(getCardStatus("Ponder")).toEqual({ status: "none" });
   });
