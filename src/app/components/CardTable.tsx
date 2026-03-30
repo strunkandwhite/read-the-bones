@@ -28,6 +28,7 @@ export interface CardTableProps {
   colorFilterMode: ColorFilterMode;
   currentCubeCopies: Record<string, number>;
   takenCardNames?: Set<string>;
+  takenCardCounts?: Map<string, number>;
   seatCardNames?: Set<string>;
   onCardClick?: (cardName: string) => void;
   getCardStatus?: (cardName: string) => CardStatusResult;
@@ -48,6 +49,7 @@ export function CardTable({
   colorFilterMode,
   currentCubeCopies,
   takenCardNames,
+  takenCardCounts,
   seatCardNames,
   onCardClick,
   getCardStatus,
@@ -95,6 +97,11 @@ export function CardTable({
     getCardStatusRef.current = getCardStatus;
   }, [getCardStatus]);
 
+  const takenCardCountsRef = useRef(takenCardCounts);
+  useEffect(() => {
+    takenCardCountsRef.current = takenCardCounts;
+  }, [takenCardCounts]);
+
   const handleSortingChange = useCallback((updater: SortingState | ((prev: SortingState) => SortingState)) => {
     setSorting((prev) => {
       const next = typeof updater === "function" ? updater(prev) : updater;
@@ -120,6 +127,12 @@ export function CardTable({
             <CardNameCell
               card={row.original}
               cubeCopies={currentCubeCopies[row.original.cardName]}
+              remainingCopies={
+                takenCardCountsRef.current
+                  ? (currentCubeCopies[row.original.cardName] ?? 1) -
+                    (takenCardCountsRef.current.get(row.original.cardName) ?? 0)
+                  : undefined
+              }
               cardStatus={cs?.status === "taken" ? "none" : cs?.status ?? "none"}
               queuePosition={cs?.queuePosition}
             />

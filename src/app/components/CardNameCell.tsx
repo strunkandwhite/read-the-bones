@@ -7,12 +7,13 @@ import { CardStatusIcon, type CardStatus } from "./CardStatusIcon";
 interface CardNameCellProps {
   card: EnrichedCardStats;
   cubeCopies?: number;
+  remainingCopies?: number;
   cardStatus: CardStatus;
   queuePosition?: number;
 }
 
 export function CardNameCell({
-  card, cubeCopies, cardStatus, queuePosition,
+  card, cubeCopies, remainingCopies, cardStatus, queuePosition,
 }: CardNameCellProps) {
   const imageUri = card.scryfall?.imageUri;
 
@@ -40,10 +41,22 @@ export function CardNameCell({
         )}
         {(cubeCopies ?? 1) >= 2 && (
           <span
-            className="shrink-0 rounded bg-purple-100 px-1 py-0.5 text-[10px] leading-none text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
-            title={`${cubeCopies} copies in the cube`}
+            className={`shrink-0 rounded px-1 py-0.5 text-[10px] leading-none ${
+              remainingCopies !== undefined
+                ? remainingCopies > 0
+                  ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+                  : "bg-zinc-200 text-zinc-500 dark:bg-zinc-700/40 dark:text-zinc-500"
+                : "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-300"
+            }`}
+            title={
+              remainingCopies !== undefined
+                ? `${remainingCopies} of ${cubeCopies} copies remaining`
+                : `${cubeCopies} copies in the cube`
+            }
           >
-            ×{cubeCopies}
+            {remainingCopies !== undefined
+              ? `${remainingCopies}/${cubeCopies}`
+              : `×${cubeCopies}`}
           </span>
         )}
         {/* Status icon */}

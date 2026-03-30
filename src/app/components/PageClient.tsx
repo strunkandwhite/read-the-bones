@@ -350,6 +350,15 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     }).length;
   }, [draftSelection.activeDraft, cardData.cards, cardData.bannedCardNames, takenCardNamesSet]);
 
+  const takenCardCounts = useMemo(() => {
+    if (!cardData.takenCards) return undefined;
+    const counts = new Map<string, number>();
+    for (const c of cardData.takenCards) {
+      counts.set(c.name, (counts.get(c.name) ?? 0) + 1);
+    }
+    return counts;
+  }, [cardData.takenCards]);
+
   const displayedCubeCopies = cardData.cubeCopies;
 
   return (
@@ -537,6 +546,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
             colorFilterMode={search.colorFilterMode}
             currentCubeCopies={displayedCubeCopies}
             takenCardNames={takenCardNamesSet}
+            takenCardCounts={takenCardCounts}
             seatCardNames={seatCardNames}
             onCardClick={setSelectedCard}
             getCardStatus={getCardStatus}
