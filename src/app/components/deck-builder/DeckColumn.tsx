@@ -17,6 +17,7 @@ interface DeckColumnProps {
   scryfallData: Map<string, ScryCard>;
   cardStats: Map<string, CardStats>;
   floatedIndices: Set<string>;
+  queuedIndices: Set<string>;
   onRemoveFloat?: (cardName: string) => void;
 }
 
@@ -28,6 +29,7 @@ export function DeckColumn({
   scryfallData,
   cardStats,
   floatedIndices,
+  queuedIndices,
   onRemoveFloat,
 }: DeckColumnProps) {
   const droppableId = `${zone}:${columnKey}`;
@@ -70,6 +72,7 @@ export function DeckColumn({
                 cardName={name}
                 imageUri={imageUri}
                 isFloated={floatedIndices.has(`${columnKey}:${idx}`)}
+                isQueued={queuedIndices.has(`${columnKey}:${idx}`)}
                 isLast={idx === cardNames.length - 1}
                 onRemoveFloat={onRemoveFloat}
                 pickScore={stats?.weightedGeomean}

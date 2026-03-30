@@ -1,7 +1,12 @@
 "use client";
 
-import { useEffect } from "react";
-import { useCardStats } from "@/app/hooks/useCardStats";
+import { useEffect, useMemo, useCallback, useState, useRef } from "react";
+import { useCardStore } from "@/app/stores/cardStore";
+import { useDraftStore } from "@/app/stores/draftStore";
+import { useLiveStore } from "@/app/stores/liveStore";
+import { getCardStatus, getImageUrl, useIsAuthed } from "@/app/stores/selectors";
+import { isLocalClient } from "@/core/isLocal";
+import type { CardStatsData } from "@/app/stores/cardStore";
 import { HoldToPickButton } from "./HoldToPickButton";
 import { DistributionHistogram } from "./DistributionHistogram";
 import { Sparkline } from "./Sparkline";
@@ -10,50 +15,140 @@ import type { DraftScore } from "@/core/types";
 
 import type { CardStatus } from "@/core/cardStatus";
 
-type CardStatsModalProps = {
-  cardName: string | null;
-  scryfallImageUrl?: string;
-  isOpen: boolean;
-  onClose: () => void;
-  draftId?: string;
-  // Live draft action props (all optional — absent means stats-only)
-  isLiveDraft?: boolean;
-  isMyTurn?: boolean;
-  cardStatus?: CardStatus;
-  queuePosition?: number;
-  onPick?: () => void;
-  onQueue?: () => void;
-  onUnqueue?: () => void;
-  onFloat?: () => void;
-  onUnfloat?: () => void;
-  isLocal?: boolean;
-  excludeDraftId?: string;
-};
+export function CardStatsModal() {
+  // Card store
+  const selectedCard = useCardStore((s) => s.selectedCard);
+  const clearSelectedCard = useCardStore((s) => s.clearSelectedCard);
+  const data = useCardStore((s) => s.cardStatsDetail);
+  const loading = useCardStore((s) => s.cardStatsLoading);
 
-export function CardStatsModal(props: CardStatsModalProps) {
-  const { cardName, isOpen, onClose, draftId, isLocal, excludeDraftId } = props;
-  const { data, loading } = useCardStats(isOpen ? cardName : null, draftId, excludeDraftId);
+  // Draft store
+  const activeDraft = useDraftStore((s) => s.activeDraft);
+  const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
+
+  // Live store
+  const isMyTurn = useLiveStore((s) => s.isMyTurn);
+  const queue = useLiveStore((s) => s.queue);
+  const autoPick = useLiveStore((s) => s.autoPick);
+  const submitPick = useLiveStore((s) => s.handlePick);
+  const addToQueue = useLiveStore((s) => s.addToQueue);
+  const removeFromQueue = useLiveStore((s) => s.removeFromQueue);
+  const addFloat = useLiveStore((s) => s.addFloat);
+  const removeFloat = useLiveStore((s) => s.removeFloat);
+
+  const isAuthed = useIsAuthed();
+  const isOpen = !!selectedCard;
+  const isLocal = useMemo(() => isLocalClient(), []);
+  const isLiveDraft = !!activeDraft && liveDraftStatus?.phase === "drafting";
+
+  const scryfallImageUrl = useMemo(
+    () => getImageUrl(selectedCard),
+    [selectedCard]
+  );
+
+  // Subscribe to the store values that getCardStatus reads internally,
+  // so the status recomputes when queue/float state changes
+  const queuedCards = useLiveStore((s) => s.queuedCards);
+  const floatedCardsSet = useLiveStore((s) => s.floatedCardsSet);
+  const seatCardNames = useCardStore((s) => s.seatCardNames);
+  const takenCardNamesSet = useCardStore((s) => s.takenCardNamesSet);
+
+  // getCardStatus reads from stores imperatively — these subscriptions
+  // ensure the memo recomputes when the underlying data changes
+  const cardStatusResult = useMemo(
+    () => selectedCard ? getCardStatus(selectedCard) : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedCard, isAuthed, queuedCards, floatedCardsSet, seatCardNames, takenCardNamesSet]
+  );
+
+  const cardStatus: CardStatus = cardStatusResult?.status ?? "none";
+  const queuePosition = cardStatusResult?.queuePosition;
+
+  // Disable buttons briefly after any action to prevent double-clicks.
+  // Re-enables after the server confirms (cardStatus changes) or 600ms, whichever is later.
+  const [actionPending, setActionPending] = useState(false);
+  const actionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const minimumElapsedRef = useRef(false);
+
+  // When cardStatus changes AND minimum time has elapsed, re-enable
+  useEffect(() => {
+    if (actionPending && minimumElapsedRef.current) {
+      setActionPending(false);
+      minimumElapsedRef.current = false;
+    }
+  }, [cardStatus, queuePosition]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    setActionPending(false);
+    minimumElapsedRef.current = false;
+    if (actionTimerRef.current) clearTimeout(actionTimerRef.current);
+  }, [selectedCard]);
+
+  const startAction = useCallback(() => {
+    setActionPending(true);
+    minimumElapsedRef.current = false;
+    if (actionTimerRef.current) clearTimeout(actionTimerRef.current);
+    actionTimerRef.current = setTimeout(() => {
+      minimumElapsedRef.current = true;
+      // If cardStatus already changed while we were waiting, re-enable now
+      setActionPending(false);
+    }, 600);
+  }, []);
+
+  const handlePick = useCallback(async () => {
+    if (!selectedCard) return;
+    startAction();
+    await submitPick(selectedCard);
+    clearSelectedCard();
+  }, [selectedCard, submitPick, clearSelectedCard, startAction]);
+
+  const handleQueue = useCallback(() => {
+    if (!selectedCard) return;
+    startAction();
+    addToQueue(selectedCard);
+  }, [selectedCard, addToQueue, startAction]);
+
+  const handleUnqueue = useCallback(() => {
+    if (!selectedCard) return;
+    startAction();
+    removeFromQueue(selectedCard);
+  }, [selectedCard, removeFromQueue, startAction]);
+
+  const handleFloat = useCallback(() => {
+    if (!selectedCard) return;
+    startAction();
+    addFloat(selectedCard);
+  }, [selectedCard, addFloat, startAction]);
+
+  const handleUnfloat = useCallback(() => {
+    if (!selectedCard) return;
+    startAction();
+    removeFloat(selectedCard);
+  }, [selectedCard, removeFloat, startAction]);
 
   // Escape key handler
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") clearSelectedCard();
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [isOpen, onClose]);
+  }, [isOpen, clearSelectedCard]);
 
-  if (!isOpen || !cardName) return null;
+  if (!isOpen || !selectedCard) return null;
 
   // Determine which action buttons to show
   const showActions =
-    props.isLiveDraft && props.cardStatus !== "taken" && props.cardStatus !== "picked";
+    isLiveDraft && cardStatus !== "taken" && cardStatus !== "picked";
+
+  // Whether queue button should be available
+  const canQueue = isAuthed && !(isMyTurn && queue.length === 0 && autoPick);
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      onClick={onClose}
+      onClick={clearSelectedCard}
     >
       <div
         className="mx-4 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-zinc-800 shadow-2xl"
@@ -63,10 +158,10 @@ export function CardStatsModal(props: CardStatsModalProps) {
         <div className="flex flex-col gap-5 p-5 sm:flex-row">
           {/* Left / Top: Card image + actions */}
           <div className="shrink-0 sm:w-[220px]">
-            {props.scryfallImageUrl && (
+            {scryfallImageUrl && (
               <img
-                src={props.scryfallImageUrl}
-                alt={cardName}
+                src={scryfallImageUrl}
+                alt={selectedCard}
                 width={220}
                 height={308}
                 className="mx-auto w-[180px] rounded-lg sm:w-[220px]"
@@ -74,7 +169,17 @@ export function CardStatsModal(props: CardStatsModalProps) {
             )}
             {showActions && (
               <div className="mt-3 flex flex-col gap-2">
-                <ActionButtons {...props} />
+                <ActionButtons
+                  cardStatus={cardStatus}
+                  isMyTurn={isAuthed && isMyTurn}
+                  queuePosition={queuePosition}
+                  disabled={actionPending}
+                  onPick={isAuthed ? handlePick : undefined}
+                  onQueue={canQueue ? handleQueue : undefined}
+                  onUnqueue={isAuthed ? handleUnqueue : undefined}
+                  onFloat={isAuthed ? handleFloat : undefined}
+                  onUnfloat={isAuthed ? handleUnfloat : undefined}
+                />
               </div>
             )}
           </div>
@@ -161,7 +266,7 @@ function aggregateByDate(
 
 // --- Stats content ---
 
-type StatsData = NonNullable<ReturnType<typeof useCardStats>["data"]>;
+type StatsData = CardStatsData;
 
 function StatsContent({ data, isLocal }: { data: StatsData; isLocal?: boolean }) {
   const { pick, wins, pick_history, pick_distribution, times_banned, color_pair_breakdown } = data;
@@ -240,27 +345,36 @@ function StatRow({ label, value, annotation }: { label: string; value: string; a
 
 // --- Action buttons per card state ---
 
-function ActionButtons(props: CardStatsModalProps) {
-  const { cardStatus, isMyTurn } = props;
+interface ActionButtonsProps {
+  cardStatus?: CardStatus;
+  isMyTurn?: boolean;
+  queuePosition?: number;
+  disabled?: boolean;
+  onPick?: () => void;
+  onQueue?: () => void;
+  onUnqueue?: () => void;
+  onFloat?: () => void;
+  onUnfloat?: () => void;
+}
+
+function ActionButtons(props: ActionButtonsProps) {
+  const { cardStatus, isMyTurn, disabled } = props;
+
+  const queueBtn = "w-full cursor-pointer rounded-lg bg-amber-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed";
+  const secondaryBtn = "w-full cursor-pointer rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed";
 
   switch (cardStatus) {
     case "none":
       return (
         <>
-          {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} />}
+          {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} disabled={disabled} />}
           {props.onQueue && (
-            <button
-              className="w-full cursor-pointer rounded-lg bg-amber-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-600"
-              onClick={props.onQueue}
-            >
+            <button className={queueBtn} onClick={props.onQueue} disabled={disabled}>
               Queue
             </button>
           )}
           {props.onFloat && (
-            <button
-              className="w-full cursor-pointer rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600"
-              onClick={props.onFloat}
-            >
+            <button className={secondaryBtn} onClick={props.onFloat} disabled={disabled}>
               Float
             </button>
           )}
@@ -270,12 +384,9 @@ function ActionButtons(props: CardStatsModalProps) {
     case "queued":
       return (
         <>
-          {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} />}
+          {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} disabled={disabled} />}
           {props.onUnqueue && (
-            <button
-              className="w-full cursor-pointer rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600"
-              onClick={props.onUnqueue}
-            >
+            <button className={secondaryBtn} onClick={props.onUnqueue} disabled={disabled}>
               Unqueue{props.queuePosition != null ? ` (#${props.queuePosition})` : ""}
             </button>
           )}
@@ -285,20 +396,14 @@ function ActionButtons(props: CardStatsModalProps) {
     case "floated":
       return (
         <>
-          {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} />}
+          {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} disabled={disabled} />}
           {props.onQueue && (
-            <button
-              className="w-full cursor-pointer rounded-lg bg-amber-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-600"
-              onClick={props.onQueue}
-            >
+            <button className={queueBtn} onClick={props.onQueue} disabled={disabled}>
               Queue
             </button>
           )}
           {props.onUnfloat && (
-            <button
-              className="w-full cursor-pointer rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600"
-              onClick={props.onUnfloat}
-            >
+            <button className={secondaryBtn} onClick={props.onUnfloat} disabled={disabled}>
               Unfloat
             </button>
           )}

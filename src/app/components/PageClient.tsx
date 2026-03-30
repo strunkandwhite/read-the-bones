@@ -1,9 +1,7 @@
 "use client";
 
 import { useMemo, useEffect, useState, useCallback, useRef } from "react";
-import { useLiveDraftPicking } from "../hooks/useLiveDraftPicking";
 import { useSharedDeckLoader } from "../hooks/useSharedDeckLoader";
-import { useDeckBuilderSync } from "../hooks/useDeckBuilderSync";
 import { useModalManagement } from "../hooks/useModalManagement";
 import { track } from "@vercel/analytics/react";
 import { CardTable } from "./CardTable";
@@ -11,26 +9,17 @@ import { CardStatsModal } from "./CardStatsModal";
 import { ColorFilter } from "./ColorFilter";
 import { Settings } from "./Settings";
 import { StatsModal } from "./StatsModal";
-import { useSyncStatus } from "../hooks/useSyncStatus";
-import { useDraftSelection } from "../hooks/useDraftSelection";
-import { useCardData } from "../hooks/useCardData";
-import { useCardSearch } from "../hooks/useCardSearch";
-import { useCardFiltering } from "../hooks/useCardFiltering";
-import { useFloatedCards } from "../hooks/useFloatedCards";
-import { isLocalClient } from "@/core/isLocal";
 import type { CardStatsResponse } from "@/core/getCards";
 import type { DraftStatsResponse } from "@/core/getDraftStats";
-import type { ScryCard, CardStats } from "@/core/types";
 import { DeckBuilderPanel } from "./deck-builder/DeckBuilderPanel";
-import { useDeckBuilder } from "../hooks/useDeckBuilder";
 import { useScrollLock } from "@/app/hooks/useScrollLock";
-import { useLiveDraftStatus, useDraftBoard } from "../hooks/useLiveDraftStatus";
-import { useSeatToken } from "../hooks/useSeatToken";
-import { usePickQueue } from "../hooks/usePickQueue";
 import { DraftBoardModal } from "./draft-board/DraftBoardModal";
-import { useMySeat } from "../hooks/useMySeat";
-import { getFrontFace } from "@/core/cardNames";
-import type { CardStatusResult } from "@/core/cardStatus";
+
+import { useHydration } from "../stores/hydration";
+import { useDraftStore } from "../stores/draftStore";
+import { useCardStore } from "../stores/cardStore";
+import { useLiveStore } from "../stores/liveStore";
+import { useIsAuthed } from "../stores/selectors";
 
 
 export interface PageClientProps {
@@ -40,41 +29,63 @@ export interface PageClientProps {
 }
 
 /**
- * Client-side page component with state management.
+ * Client-side page component — layout shell.
  *
- * Handles:
- * - Search query filtering
- * - Color filter selection
- * - Draft selection (fetches recalculated stats from API)
+ * Child components subscribe to Zustand stores directly.
+ * PageClient handles hydration, modal orchestration, and layout.
  */
 export function PageClient({ initialCardData, initialDraftStats, initialDraftId }: PageClientProps) {
-  const draftSelection = useDraftSelection({
+  // Hydrate stores from SSR props
+  useHydration({
+    cardData: initialCardData,
+    draftStats: initialDraftStats,
     completedDraftIds: initialCardData.completedDraftIds,
     initialDraftId,
   });
 
-  const [poolAsOfDraft, setPoolAsOfDraft] = useState<string | null>(null);
+  // Minimal store reads needed for layout decisions
+  const activeDraft = useDraftStore((s) => s.activeDraft);
+  const selectedSeat = useDraftStore((s) => s.selectedSeat);
+  const setActiveDraft = useDraftStore((s) => s.setActiveDraft);
+  const setSelectedSeat = useDraftStore((s) => s.setSelectedSeat);
 
-  // When an active draft is selected, lock the pool to that draft
-  const effectivePoolAsOfDraft = draftSelection.activeDraft ?? poolAsOfDraft;
+  const cardData = useCardStore((s) => s.cardData);
+  const searchQuery = useCardStore((s) => s.searchQuery);
+  const setSearchQuery = useCardStore((s) => s.setSearchQuery);
+  const clearSearch = useCardStore((s) => s.clearSearch);
+  const setColorFilter = useCardStore((s) => s.setColorFilter);
+  const searchFilteredCards = useCardStore((s) => s.searchFilteredCards);
+  const displayCards = useCardStore((s) => s.displayCards);
+  const scryfallMatchNames = useCardStore((s) => s.scryfallMatchNames);
+  const selectedDrafts = useDraftStore((s) => s.selectedDrafts);
+  const isLoading = useCardStore((s) => s.isLoading);
+  const selectCard = useCardStore((s) => s.selectCard);
+  const seatCardList = useCardStore((s) => s.seatCardList);
 
-  const syncStatus = useSyncStatus(draftSelection.activeDraft !== null, draftSelection.activeDraft);
+  const mySeat = useLiveStore((s) => s.mySeat);
+  const isMyTurn = useLiveStore((s) => s.isMyTurn);
+  const pickError = useLiveStore((s) => s.pickError);
+  const setPickError = useLiveStore((s) => s.setPickError);
+  const queuedCards = useLiveStore((s) => s.queuedCards);
+  const floatedCards = useLiveStore((s) => s.floatedCards);
+  const dispatchDeck = useLiveStore((s) => s.dispatchDeck);
+  const setDeckBuilderActive = useLiveStore((s) => s.setDeckBuilderActive);
+  const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
 
-  // Live draft polling (must be before useCardData so dataChanged can flow to it)
-  const liveDraftStatus = useLiveDraftStatus(
-    draftSelection.activeDraft,
-    draftSelection.activeDraft !== null,
-  );
+  const isAuthed = useIsAuthed();
+  const deckBuilderActive = useLiveStore((s) => s.deckBuilderActive);
 
-  const { cardData, draftStats, isLoading, handleDraftsChange } = useCardData({
-    initialCardData,
-    initialDraftStats,
-    selectedDrafts: draftSelection.selectedDrafts,
-    activeDraft: draftSelection.activeDraft,
-    poolAsOfDraft: effectivePoolAsOfDraft,
-    syncDataChanged: syncStatus.dataChanged,
-    liveDraftDataChanged: liveDraftStatus.dataChanged,
+  const {
+    deckBuilderModalOpen,
+    setDeckBuilderModalOpen,
+    draftBoardOpen,
+    setDraftBoardOpen,
+  } = useModalManagement({
+    activeDraft,
+    selectedSeat,
   });
+
+  useScrollLock(deckBuilderModalOpen);
 
   const searchHelpTrackedRef = useRef(false);
 
@@ -91,183 +102,45 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     }
   }, [cardData.cards.length]);
 
-  const search = useCardSearch({ cards: cardData.cards });
-
-  // Clear color filter when viewport drops below sm (color filter icons hidden)
-  const clearColorFilter = search.setColorFilter;
+  // Clear color filter when viewport drops below lg (color filter icons hidden)
   useEffect(() => {
     if (typeof window.matchMedia !== "function") return;
     const mq = window.matchMedia("(min-width: 1024px)");
     const handler = (e: MediaQueryListEvent) => {
-      if (!e.matches) clearColorFilter([]);
+      if (!e.matches) setColorFilter([]);
     };
     mq.addEventListener("change", handler);
     return () => mq.removeEventListener("change", handler);
-  }, [clearColorFilter]);
-
-  const { displayCards, searchFilteredCards, takenCardNamesSet, seatCardNames, seatCardList } =
-    useCardFiltering({
-      cardData,
-      activeDraft: draftSelection.activeDraft,
-      hideTaken: draftSelection.hideTaken,
-      selectedSeat: draftSelection.selectedSeat,
-      searchQuery: search.searchQuery,
-      scryfallMatchNames: search.scryfallMatchNames,
-    });
-
-  const {
-    deckBuilderActive,
-    setDeckBuilderActive,
-    deckBuilderModalOpen,
-    setDeckBuilderModalOpen,
-    draftBoardOpen,
-    setDraftBoardOpen,
-  } = useModalManagement({
-    activeDraft: draftSelection.activeDraft,
-    selectedSeat: draftSelection.selectedSeat,
-  });
-
-  useScrollLock(deckBuilderModalOpen);
+  }, [setColorFilter]);
 
   // Mobile deck filter: shows only picked/queued/floated cards in card table
   const [deckFilterActive, setDeckFilterActive] = useState(false);
 
-  // Build Scryfall data map for the deck builder
-  const scryfallDataMap = useMemo(() => {
-    const map = new Map<string, ScryCard>();
-    for (const card of cardData.cards) {
-      if (card.scryfall) {
-        map.set(card.cardName, card.scryfall);
-      }
-    }
-    return map;
-  }, [cardData.cards]);
-
-  // Build card stats map for deck builder hover previews
-  const cardStatsMap = useMemo(() => {
-    const map = new Map<string, CardStats>();
-    for (const card of cardData.cards) {
-      map.set(card.cardName, card);
-    }
-    return map;
-  }, [cardData.cards]);
-
-  // Live draft hooks
-  const seatToken = useSeatToken(draftSelection.activeDraft);
-
-  // Deck builder hook
-  const deckBuilder = useDeckBuilder({
-    draftId: draftSelection.activeDraft ?? "",
-    seat: draftSelection.selectedSeat ?? 0,
-    token: seatToken.token,
-  });
-
-  const draftBoard = useDraftBoard(
-    draftSelection.activeDraft,
-    liveDraftStatus.dataChanged,
-  );
-  const pickQueue = usePickQueue(
-    draftSelection.activeDraft,
-    seatToken.token,
-    liveDraftStatus.dataChanged,
-  );
-
-  const { mySeat, autoPick, autoPickMode, toggleAutoPick, updateDisplayName, updateAutoPickMode, refreshSettings } = useMySeat(draftSelection.activeDraft, seatToken.token);
-
-  // Float state (server-side speculative cards)
-  const { floatedCards, addFloat, removeFloat } = useFloatedCards(
-    draftSelection.activeDraft,
-    seatToken.token,
-  );
-
-  // Card stats modal
-  const [selectedCard, setSelectedCard] = useState<string | null>(null);
-
-  const isLocal = useMemo(() => isLocalClient(), []);
-
-  const { handlePick: submitPick, pickError, setPickError, isMyTurn } = useLiveDraftPicking({
-    activeDraft: draftSelection.activeDraft,
-    token: seatToken.token,
-    mySeat,
-    liveDraftStatus: liveDraftStatus.status,
-    refreshDraftStatus: liveDraftStatus.refresh,
-    autoPick,
-    queuedCards: pickQueue.queuedCards,
-    refreshSettings,
-  });
-
-  const isAuthed = mySeat !== null && mySeat === draftSelection.selectedSeat;
-
-  const floatedCardsSet = useMemo(() => new Set(floatedCards), [floatedCards]);
-
-  // Card status helper: determines whether a card is picked, queued, floated, taken, or none
-  const getCardStatus = useCallback(
-    (cardName: string): CardStatusResult => {
-      // Picked by the current seat
-      if (seatCardNames?.has(cardName)) {
-        return { status: "picked" };
-      }
-      // Queue/float status only visible to authenticated seat owner
-      if (isAuthed) {
-        const queuePriority = pickQueue.queuedCards.get(cardName);
-        if (queuePriority != null) {
-          return { status: "queued", queuePosition: queuePriority };
-        }
-        if (floatedCardsSet.has(cardName)) {
-          return { status: "floated" };
-        }
-      }
-      // Taken by someone else
-      if (takenCardNamesSet?.has(cardName)) {
-        return { status: "taken" };
-      }
-      return { status: "none" };
-    },
-    [seatCardNames, pickQueue.queuedCards, floatedCardsSet, takenCardNamesSet, isAuthed],
-  );
-
-  // Get Scryfall image URL for a card
-  const getImageUrl = useCallback(
-    (cardName: string | null): string | undefined => {
-      if (!cardName) return undefined;
-      return scryfallDataMap.get(cardName)?.imageUri;
-    },
-    [scryfallDataMap],
-  );
-
-  const selectedCardStatus = useMemo(
-    () => selectedCard ? getCardStatus(selectedCard) : null,
-    [selectedCard, getCardStatus],
-  );
-
-  // Wrap submitPick to also close the card stats modal after a successful pick
-  const handlePick = useCallback(
-    async (cardName: string) => {
-      await submitPick(cardName);
-      setSelectedCard(null);
-    },
-    [submitPick],
-  );
-
   // When mySeat resolves from token auth, auto-select that seat
   useEffect(() => {
-    if (mySeat !== null && draftSelection.selectedSeat === null) {
-      draftSelection.setSelectedSeat(mySeat);
+    if (mySeat !== null && selectedSeat === null) {
+      setSelectedSeat(mySeat);
     }
-  }, [mySeat, draftSelection.selectedSeat]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mySeat, selectedSeat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useSharedDeckLoader({
-    setActiveDraft: draftSelection.setActiveDraft,
-    setSelectedSeat: draftSelection.setSelectedSeat,
-    dispatch: deckBuilder.dispatch,
+    setActiveDraft,
+    setSelectedSeat,
+    dispatch: dispatchDeck,
     setDeckBuilderActive,
     setDeckBuilderModalOpen,
   });
 
   const queuedCardNames = useMemo(
-    () => Array.from(pickQueue.queuedCards.keys()),
-    [pickQueue.queuedCards],
+    () => Array.from(queuedCards.keys()),
+    [queuedCards],
   );
+
+  // Handle card click — opens card stats modal
+  const handleCardClick = useCallback((cardName: string) => {
+    const excludeId = liveDraftStatus?.phase === "drafting" ? activeDraft ?? undefined : undefined;
+    selectCard(cardName, excludeId);
+  }, [liveDraftStatus?.phase, activeDraft, selectCard]);
 
   // When deck filter is active (mobile), show only picked/queued/floated cards
   // Automatically deactivates when not authed (e.g., switching seats)
@@ -280,106 +153,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     ]);
     return searchFilteredCards.filter((c) => myCards.has(c.cardName));
   }, [deckFilterActive, isAuthed, searchFilteredCards, seatCardList, floatedCards, queuedCardNames]);
-
-  useDeckBuilderSync({
-    deckBuilderActive,
-    seatCardList,
-    deckBuilderState: deckBuilder.state,
-    dispatch: deckBuilder.dispatch,
-    scryfallDataMap,
-    activeDraft: draftSelection.activeDraft,
-    selectedSeat: draftSelection.selectedSeat,
-    ready: deckBuilder.ready,
-    floatedCards: isAuthed ? floatedCards : [],
-    queuedCardNames: isAuthed ? queuedCardNames : [],
-  });
-
-  const handleActiveDraftChange = useCallback(
-    (draftId: string | null) => {
-      draftSelection.setActiveDraft(draftId);
-      setDeckFilterActive(false);
-      if (draftId) {
-        track("active_draft_set", { draft: draftId });
-      }
-    },
-    [draftSelection]
-  );
-
-  const handleSeatChange = useCallback(
-    (seat: number | null) => {
-      draftSelection.setSelectedSeat(seat);
-      setDeckFilterActive(false);
-      if (seat !== null && draftSelection.activeDraft) {
-        track("seat_selected", { draft: draftSelection.activeDraft, seat });
-      }
-    },
-    [draftSelection]
-  );
-
-  const handlePoolAsOfChange = useCallback(
-    (draftId: string | null) => {
-      setPoolAsOfDraft(draftId);
-      if (draftId) {
-        track("pool_as_of_changed", { draft: draftId });
-      }
-    },
-    []
-  );
-
-  const handleUpdateDisplayName = useCallback(async (name: string) => {
-    if (mySeat !== null) draftBoard.patchSeatName(mySeat, name || `Seat ${mySeat}`);
-    await updateDisplayName(name);
-    draftBoard.refresh();
-  }, [updateDisplayName, draftBoard, mySeat]);
-
-  // Compose draft selection change with data fetching
-  const onDraftsChange = async (newSelection: Set<string>) => {
-    draftSelection.setSelectedDrafts(newSelection);
-    await handleDraftsChange(newSelection);
-  };
-
-  // Build drafts array for selector
-  const completedSet = useMemo(() => new Set(cardData.completedDraftIds), [cardData.completedDraftIds]);
-
-  const drafts = useMemo(
-    () =>
-      cardData.draftIds.map((id) => ({
-        id,
-        name: cardData.draftMetadata[id]?.name || id,
-        date: cardData.draftMetadata[id]?.date || "1970-01-01",
-        isComplete: completedSet.has(id),
-        numDrafters: cardData.draftMetadata[id]?.numDrafters || 10,
-      })),
-    [cardData.draftIds, cardData.draftMetadata, completedSet]
-  );
-
-  const activeDraftNumSeats = useMemo(() => {
-    if (!draftSelection.activeDraft) return 0;
-    const draft = drafts.find((d) => d.id === draftSelection.activeDraft);
-    return draft?.numDrafters ?? 10;
-  }, [draftSelection.activeDraft, drafts]);
-
-  const availableCount = useMemo(() => {
-    if (!draftSelection.activeDraft || !takenCardNamesSet) return 0;
-    const bannedSet = new Set(cardData.bannedCardNames ?? []);
-    return cardData.cards.filter((c) => {
-      if (takenCardNamesSet.has(c.cardName)) return false;
-      if (bannedSet.has(c.cardName)) return false;
-      const frontFace = getFrontFace(c.cardName);
-      return frontFace ? !bannedSet.has(frontFace) : true;
-    }).length;
-  }, [draftSelection.activeDraft, cardData.cards, cardData.bannedCardNames, takenCardNamesSet]);
-
-  const takenCardCounts = useMemo(() => {
-    if (!cardData.takenCards) return undefined;
-    const counts = new Map<string, number>();
-    for (const c of cardData.takenCards) {
-      counts.set(c.name, (counts.get(c.name) ?? 0) + 1);
-    }
-    return counts;
-  }, [cardData.takenCards]);
-
-  const displayedCubeCopies = cardData.cubeCopies;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -408,14 +181,14 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
               id="search"
               type="text"
               placeholder="Search cards..."
-              value={search.searchQuery}
-              onChange={(e) => search.setSearchQuery(e.target.value)}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full rounded-lg border border-zinc-300 bg-white py-1.5 pl-3 pr-8 text-sm text-zinc-900 placeholder-zinc-500 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder-zinc-400"
             />
-            {search.searchQuery && (
+            {searchQuery && (
               <button
                 type="button"
-                onClick={search.clearSearch}
+                onClick={clearSearch}
                 className="absolute top-1/2 right-2 -translate-y-1/2 rounded p-0.5 text-zinc-400 hover:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:text-zinc-500 dark:hover:text-zinc-300"
                 aria-label="Clear search"
               >
@@ -465,12 +238,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
 
           {/* Color Filter — hidden below lg */}
           <div className="hidden shrink-0 lg:block">
-            <ColorFilter
-              selected={search.colorFilter}
-              onChange={search.setColorFilter}
-              mode={search.colorFilterMode}
-              onModeChange={search.setColorFilterMode}
-            />
+            <ColorFilter />
           </div>
 
           {/* Divider — visible when color filters are */}
@@ -478,7 +246,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
 
           {/* Action Buttons */}
           <div className="flex shrink-0 items-center gap-1">
-            {draftSelection.activeDraft && draftSelection.selectedSeat !== null && (
+            {activeDraft && selectedSeat !== null && (
               <button
                 onClick={() => setDraftBoardOpen(!draftBoardOpen)}
                 className={`cursor-pointer rounded-md p-2 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
@@ -486,8 +254,8 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                     ? "text-emerald-400 animate-pulse"
                     : "text-zinc-500 dark:text-zinc-400"
                 }`}
-                title={isMyTurn ? "Your Pick!" : `${draftSelection.activeDraft}, Seat ${draftSelection.selectedSeat}`}
-                aria-label={isMyTurn ? "Your Pick!" : `Pod View — ${draftSelection.activeDraft}, Seat ${draftSelection.selectedSeat}`}
+                title={isMyTurn ? "Your Pick!" : `${activeDraft}, Seat ${selectedSeat}`}
+                aria-label={isMyTurn ? "Your Pick!" : `Pod View — ${activeDraft}, Seat ${selectedSeat}`}
               >
                 <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                   <rect x="1" y="1" width="6" height="6" rx="1" />
@@ -497,7 +265,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                 </svg>
               </button>
             )}
-            {isAuthed && draftSelection.activeDraft && draftSelection.selectedSeat !== null && (
+            {isAuthed && activeDraft && selectedSeat !== null && (
               <button
                 onClick={() => {
                   // On mobile (< 640px), toggle card table filter instead of modal
@@ -507,12 +275,14 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                     return;
                   }
                   const wasOpen = deckBuilderModalOpen;
-                  if (!deckBuilderActive) setDeckBuilderActive(true);
+                  if (!deckBuilderActive) {
+                    setDeckBuilderActive(true);
+                  }
                   setDeckBuilderModalOpen(!wasOpen);
-                  if (!wasOpen && draftSelection.activeDraft && draftSelection.selectedSeat !== null) {
+                  if (!wasOpen && activeDraft && selectedSeat !== null) {
                     track("deck_builder_open", {
-                      draft: draftSelection.activeDraft,
-                      seat: draftSelection.selectedSeat,
+                      draft: activeDraft,
+                      seat: selectedSeat,
                     });
                   }
                 }}
@@ -531,27 +301,8 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                 </svg>
               </button>
             )}
-            <StatsModal data={draftStats} />
-            <Settings
-              drafts={drafts}
-              selectedDrafts={draftSelection.selectedDrafts}
-              onDraftsChange={onDraftsChange}
-              isLoading={isLoading}
-              activeDrafts={syncStatus.activeDrafts}
-              activeDraft={draftSelection.activeDraft}
-              onActiveDraftChange={handleActiveDraftChange}
-              hideTaken={draftSelection.hideTaken}
-              onHideTakenChange={draftSelection.setHideTaken}
-              poolAsOfDraft={effectivePoolAsOfDraft}
-              onPoolAsOfDraftChange={handlePoolAsOfChange}
-              poolLockedByActiveDraft={draftSelection.activeDraft !== null}
-              selectedSeat={draftSelection.selectedSeat}
-              onSelectedSeatChange={handleSeatChange}
-              activeDraftNumSeats={activeDraftNumSeats}
-              isAuthed={isAuthed}
-              mySeat={mySeat}
-              seatNames={draftBoard.board?.seatNames}
-            />
+            <StatsModal />
+            <Settings />
           </div>
         </div>
 
@@ -571,21 +322,14 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
         {deckFilteredCards.length > 0 ? (
           <CardTable
             cards={deckFilteredCards}
-            colorFilter={search.colorFilter}
-            colorFilterMode={search.colorFilterMode}
-            currentCubeCopies={displayedCubeCopies}
-            takenCardNames={takenCardNamesSet}
-            takenCardCounts={takenCardCounts}
-            seatCardNames={seatCardNames}
-            onCardClick={setSelectedCard}
-            getCardStatus={getCardStatus}
+            onCardClick={handleCardClick}
           />
         ) : (
           <div className="rounded-lg border border-zinc-200 bg-white p-12 text-center dark:border-zinc-700 dark:bg-zinc-900">
             <p className="text-zinc-500 dark:text-zinc-400">
-              {draftSelection.selectedDrafts.size === 0
+              {selectedDrafts.size === 0
                 ? "No drafts selected. Open Settings to select drafts."
-                : search.scryfallMatchNames
+                : scryfallMatchNames
                   ? "No cards in your pool match that search."
                   : displayCards.length === 0
                     ? "No card data available."
@@ -624,35 +368,17 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
       </div>
 
       {/* Draft Board Modal */}
-      {draftBoardOpen && draftSelection.activeDraft && (
+      {draftBoardOpen && activeDraft && (
         <DraftBoardModal
-          board={draftBoard.board}
-          status={liveDraftStatus.status}
-          mySeat={mySeat}
-          token={seatToken.token}
-          draftId={draftSelection.activeDraft}
-          draftName={cardData.draftMetadata[draftSelection.activeDraft]?.name}
-          availableCount={availableCount}
-          bannedCardNames={cardData.bannedCardNames}
+          draftId={activeDraft}
+          draftName={cardData.draftMetadata[activeDraft]?.name}
           isOpen={draftBoardOpen}
           onClose={() => setDraftBoardOpen(false)}
-          onMatchReported={() => draftBoard.refresh()}
-          onUpdateDisplayName={handleUpdateDisplayName}
-          pickQueue={pickQueue.queue.map((e) => ({ cardName: e.cardName, position: e.priority }))}
-          autoPick={autoPick}
-          autoPickMode={autoPickMode}
-          onQueueReorder={pickQueue.reorderQueue}
-          onQueueRemove={pickQueue.removeFromQueue}
-          onToggleAutoPick={toggleAutoPick}
-          onChangeAutoPickMode={updateAutoPickMode}
-          handlePick={isAuthed ? submitPick : undefined}
-          isMyTurn={isAuthed && isMyTurn}
-          pickError={pickError}
         />
       )}
 
       {/* Deck Builder Modal */}
-      {deckBuilderModalOpen && draftSelection.activeDraft && draftSelection.selectedSeat !== null && (
+      {deckBuilderModalOpen && activeDraft && selectedSeat !== null && (
         <div
           className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-[2px] sm:items-center"
           onClick={(e) => {
@@ -661,39 +387,15 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
         >
           <div className="flex max-h-[95vh] w-full max-w-7xl flex-col rounded-t-xl shadow-[0_0_60px_-12px_rgba(0,0,0,0.8)] sm:mx-3 sm:rounded-xl">
             <DeckBuilderPanel
-              state={deckBuilder.state}
-              dispatch={deckBuilder.dispatch}
-              scryfallData={scryfallDataMap}
-              cardStats={cardStatsMap}
-              draftName={cardData.draftMetadata[draftSelection.activeDraft]?.name ?? draftSelection.activeDraft}
+              draftName={cardData.draftMetadata[activeDraft]?.name ?? activeDraft}
               onClose={() => setDeckBuilderModalOpen(false)}
-              floatedCards={isAuthed ? floatedCards : []}
-              onRemoveFloat={isAuthed ? removeFloat : undefined}
-              saveStatus={deckBuilder.saveStatus}
             />
           </div>
         </div>
       )}
 
       {/* Card Stats Modal */}
-      <CardStatsModal
-        cardName={selectedCard}
-        scryfallImageUrl={getImageUrl(selectedCard)}
-        isOpen={!!selectedCard}
-        onClose={() => setSelectedCard(null)}
-        draftId={draftSelection.activeDraft && liveDraftStatus.status?.phase !== "drafting" ? draftSelection.activeDraft : undefined}
-        isLiveDraft={!!draftSelection.activeDraft && liveDraftStatus.status?.phase === "drafting"}
-        isMyTurn={isAuthed && isMyTurn}
-        cardStatus={selectedCardStatus?.status ?? "none"}
-        queuePosition={selectedCardStatus?.queuePosition}
-        onPick={isAuthed && selectedCard ? () => handlePick(selectedCard) : undefined}
-        onQueue={isAuthed && selectedCard && !(isMyTurn && pickQueue.queue.length === 0 && autoPick) ? () => pickQueue.addToQueue(selectedCard) : undefined}
-        onUnqueue={isAuthed && selectedCard ? () => pickQueue.removeFromQueue(selectedCard) : undefined}
-        onFloat={isAuthed && selectedCard ? () => addFloat(selectedCard) : undefined}
-        onUnfloat={isAuthed && selectedCard ? () => removeFloat(selectedCard) : undefined}
-        isLocal={isLocal}
-        excludeDraftId={liveDraftStatus.status?.phase === "drafting" ? draftSelection.activeDraft ?? undefined : undefined}
-      />
+      <CardStatsModal />
     </div>
   );
 }

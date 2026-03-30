@@ -40,15 +40,29 @@ export async function getPickHistory(
   cardName: string,
   draftId?: string,
   excludeDraftId?: string,
+  cardId?: number,
 ): Promise<PickHistoryResult> {
   const draftFilter = draftId ? "AND d.draft_id = ?" : "";
   const excludeFilter = excludeDraftId ? "AND d.draft_id != ?" : "";
-  const args: string[] = [cardName];
+
+  // When card_id is provided, query directly by ID (skips the name→id lookup join).
+  // Otherwise fall back to joining through cards by name.
+  const useCardId = cardId !== undefined;
+  const cardJoin = useCardId
+    ? ""
+    : "JOIN cards c ON c.name = ?";
+  const csCardIdExpr = useCardId ? "?" : "c.card_id";
+  const peCardIdExpr = useCardId ? "?" : "c.card_id";
+
+  const args: (string | number)[] = [];
+  if (!useCardId) args.push(cardName);
+  if (useCardId) args.push(cardId); // for cs.card_id = ?
+  if (useCardId) args.push(cardId); // for pe.card_id = ?
   if (draftId) args.push(draftId);
   if (excludeDraftId) args.push(excludeDraftId);
 
   // Left join pick_events to include drafts where card was in pool but not picked.
-  // cube_snapshot_cards uses card_id (FK to cards), so we join through cards for name matching.
+  // When card_id is provided we use it directly; otherwise join through cards for name matching.
   const result = await client.execute({
     sql: `SELECT d.draft_id, d.draft_name, d.draft_date, d.num_seats,
                  d.banned_cards,
@@ -56,10 +70,10 @@ export async function getPickHistory(
                  (SELECT COUNT(*) FROM cube_snapshot_cards cs2
                   WHERE cs2.cube_snapshot_id = d.cube_snapshot_id) AS pool_size
           FROM drafts d
-          JOIN cards c ON c.name = ?
+          ${cardJoin}
           JOIN cube_snapshot_cards cs ON cs.cube_snapshot_id = d.cube_snapshot_id
-            AND cs.card_id = c.card_id
-          LEFT JOIN pick_events pe ON pe.draft_id = d.draft_id AND pe.card_id = c.card_id
+            AND cs.card_id = ${csCardIdExpr}
+          LEFT JOIN pick_events pe ON pe.draft_id = d.draft_id AND pe.card_id = ${peCardIdExpr}
           WHERE d.phase = 'complete' ${draftFilter} ${excludeFilter}
           ORDER BY d.draft_date ASC`,
     args,

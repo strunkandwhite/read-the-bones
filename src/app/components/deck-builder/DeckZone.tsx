@@ -23,6 +23,7 @@ interface DeckZoneProps {
   scryfallData: Map<string, ScryCard>;
   cardStats: Map<string, CardStats>;
   floatedCards: string[];
+  queuedCardNames: string[];
   onRemoveFloat?: (cardName: string) => void;
 }
 
@@ -32,6 +33,7 @@ export function DeckZone({
   scryfallData,
   cardStats,
   floatedCards,
+  queuedCardNames,
   onRemoveFloat,
 }: DeckZoneProps) {
   const totalCards = Object.values(columns).reduce(
@@ -54,12 +56,13 @@ export function DeckZone({
   }, [columns, scryfallData]);
 
   // Compute which specific card instances are floated.
-  // For each name, the last N copies (in column order) are floated,
-  // where N = count of that name in floatedCards.
+  // Cards that are both floated AND queued show as queued (stronger intent).
+  const queuedSet = useMemo(() => new Set(queuedCardNames), [queuedCardNames]);
+
   const { floatedIndices, floatedCount } = useMemo(() => {
-    // Count floated copies per name
     const specCountByName = new Map<string, number>();
     for (const name of floatedCards) {
+      if (queuedSet.has(name)) continue; // queued takes priority
       specCountByName.set(name, (specCountByName.get(name) || 0) + 1);
     }
 
@@ -88,9 +91,39 @@ export function DeckZone({
     }
 
     return { floatedIndices: indices, floatedCount: indices.size };
-  }, [columns, floatedCards]);
+  }, [columns, floatedCards, queuedSet]);
 
-  const pickedCount = totalCards - floatedCount;
+  // Compute queued card indices using the same pattern as floated
+  const queuedIndices = useMemo(() => {
+    const specCountByName = new Map<string, number>();
+    for (const name of queuedCardNames) {
+      specCountByName.set(name, (specCountByName.get(name) || 0) + 1);
+    }
+
+    const allInstances: Array<{ key: string; idx: number; name: string }> = [];
+    for (const key of COLUMN_KEYS) {
+      for (let idx = 0; idx < (columns[key]?.length ?? 0); idx++) {
+        allInstances.push({ key, idx, name: columns[key][idx] });
+      }
+    }
+
+    const indices = new Set<string>();
+    const nameGroups = new Map<string, Array<{ key: string; idx: number }>>();
+    for (const inst of allInstances) {
+      if (!nameGroups.has(inst.name)) nameGroups.set(inst.name, []);
+      nameGroups.get(inst.name)!.push({ key: inst.key, idx: inst.idx });
+    }
+    for (const [name, instances] of nameGroups) {
+      const specCount = specCountByName.get(name) ?? 0;
+      for (let i = instances.length - specCount; i < instances.length; i++) {
+        if (i >= 0) indices.add(`${instances[i].key}:${instances[i].idx}`);
+      }
+    }
+
+    return indices;
+  }, [columns, queuedCardNames]);
+
+  const pickedCount = totalCards - floatedCount - queuedIndices.size;
 
   return (
     <div>
@@ -105,6 +138,9 @@ export function DeckZone({
           {pickedCount} picked
           {floatedCount > 0 && (
             <> · <span className="text-amber-500/80">{floatedCount} floated</span></>
+          )}
+          {queuedIndices.size > 0 && (
+            <> · <span className="text-orange-400/80">{queuedIndices.size} queued</span></>
           )}
         </span>
         {totalCards > 0 && (
@@ -124,6 +160,7 @@ export function DeckZone({
             scryfallData={scryfallData}
             cardStats={cardStats}
             floatedIndices={floatedIndices}
+            queuedIndices={queuedIndices}
             onRemoveFloat={onRemoveFloat}
           />
         ))}

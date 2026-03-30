@@ -3,13 +3,10 @@
 import { useState, useRef, useEffect } from "react";
 import { track } from "@vercel/analytics/react";
 import { DraftStats } from "./DraftStats";
-import type { DraftStatsResponse } from "@/core/getDraftStats";
+import { useCardStore } from "../stores/cardStore";
 
-interface StatsModalProps {
-  data: DraftStatsResponse;
-}
-
-export function StatsModal({ data }: StatsModalProps) {
+export function StatsModal() {
+  const data = useCardStore((s) => s.draftStats);
   const [isOpen, setIsOpen] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 

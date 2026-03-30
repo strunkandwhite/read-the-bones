@@ -2,9 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { AppError } from "@/core/errors";
 import { getNextPick } from "@/core/snakeDraft";
-import { getLatestPickNumber, getRecentPicks } from "@/core/db/queries/picks";
+import { getLatestPickNumber, getRecentPicks, getPicksWithCardDetails } from "@/core/db/queries/picks";
 import { getSeatDisplayNames } from "@/core/db/queries/seatTokens";
 import { getMatchCount } from "@/core/db/queries/matches";
+import { parseBannedCardNames } from "@/core/db/queries/helpers";
 
 export async function GET(
   _request: NextRequest,
@@ -14,48 +15,54 @@ export async function GET(
     const { id: draftId } = await params;
     const client = await getClient();
 
-    // Draft metadata still fetched inline — it returns multiple columns
-    // specific to this route's response shape
     const draft = await client.execute({
-      sql: "SELECT phase, num_seats, picks_per_player FROM drafts WHERE draft_id = ?",
+      sql: "SELECT phase, num_seats, picks_per_player, banned_cards FROM drafts WHERE draft_id = ?",
       args: [draftId],
     });
     if (draft.rows.length === 0) {
       return NextResponse.json({ error: "Draft not found" }, { status: 404 });
     }
-    const { phase, num_seats: numSeats, picks_per_player: picksPerPlayer } = draft.rows[0];
 
-    const [latestPickN, recentPicks, seatNames, matchCount] = await Promise.all([
+    const {
+      phase,
+      num_seats: numSeats,
+      picks_per_player: picksPerPlayer,
+      banned_cards: bannedCardsRaw,
+    } = draft.rows[0];
+
+    const [latestPickN, recentPicks, seatNames, matchCount, picks] = await Promise.all([
       getLatestPickNumber(client, draftId),
       getRecentPicks(client, draftId, 10),
       getSeatDisplayNames(client, draftId),
       getMatchCount(client, draftId),
+      getPicksWithCardDetails(client, draftId),
     ]);
+
     const next = picksPerPlayer
       ? getNextPick(latestPickN, numSeats as number, picksPerPlayer as number)
       : null;
-
     const ns = numSeats as number;
     const totalMatches = (ns * (ns - 1)) / 2;
+    const bannedCards = parseBannedCardNames(bannedCardsRaw as string | null);
 
     return NextResponse.json({
       phase,
-      latestPickN,
-      nextSeat: next?.seat ?? null,
       numSeats,
       picksPerPlayer,
+      latestPickN,
+      nextSeat: next?.seat ?? null,
       recentPicks,
       seatNames,
       matchCount,
       totalMatches,
-    }, {
-      headers: { "Cache-Control": "no-cache" },
-    });
+      picks,
+      bannedCards,
+    }, { headers: { "Cache-Control": "no-cache" } });
   } catch (error) {
     if (error instanceof AppError) {
       return NextResponse.json({ error: error.message }, { status: error.statusCode });
     }
-    console.error("[/api/drafts/[id]/status] Error:", error);
-    return NextResponse.json({ error: "Failed to load status" }, { status: 500 });
+    console.error("[/api/drafts/[id]/live] Error:", error);
+    return NextResponse.json({ error: "Failed to load live data" }, { status: 500 });
   }
 }

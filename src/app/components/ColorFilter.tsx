@@ -2,23 +2,19 @@
 
 import { track } from "@vercel/analytics/react";
 import { MTG_COLORS } from "../../core/colors";
-import type { ColorFilterMode } from "@/core/colorFilter";
+import { useCardStore } from "../stores/cardStore";
 
-export type { ColorFilterMode };
+export function ColorFilter() {
+  const selected = useCardStore((s) => s.colorFilter);
+  const setColorFilter = useCardStore((s) => s.setColorFilter);
+  const mode = useCardStore((s) => s.colorFilterMode);
+  const setColorFilterMode = useCardStore((s) => s.setColorFilterMode);
 
-export interface ColorFilterProps {
-  selected: string[];
-  onChange: (colors: string[]) => void;
-  mode: ColorFilterMode;
-  onModeChange: (mode: ColorFilterMode) => void;
-}
-
-export function ColorFilter({ selected, onChange, mode, onModeChange }: ColorFilterProps) {
   const toggleColor = (code: string) => {
     const newColors = selected.includes(code)
       ? selected.filter((c) => c !== code)
       : [...selected, code];
-    onChange(newColors);
+    setColorFilter(newColors);
     if (newColors.length > 0) {
       track("color_filter", { colors: newColors.join(""), mode });
     }
@@ -49,7 +45,7 @@ export function ColorFilter({ selected, onChange, mode, onModeChange }: ColorFil
       {selected.length > 0 && (
         <>
           <button
-            onClick={() => onModeChange(mode === "inclusive" ? "exclusive" : "inclusive")}
+            onClick={() => setColorFilterMode(mode === "inclusive" ? "exclusive" : "inclusive")}
             className="cursor-pointer rounded-md bg-zinc-100 px-3 py-1.5 text-sm font-medium text-zinc-600 transition-colors hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"
             title={
               mode === "inclusive"
@@ -60,7 +56,7 @@ export function ColorFilter({ selected, onChange, mode, onModeChange }: ColorFil
             {mode === "inclusive" ? "Any" : "Only"}
           </button>
           <button
-            onClick={() => onChange([])}
+            onClick={() => setColorFilter([])}
             className="cursor-pointer rounded-md px-3 py-1.5 text-sm font-medium text-zinc-500 transition-colors hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-200"
           >
             Clear

@@ -8,10 +8,13 @@
  */
 
 import type { CardPick, MatchResult } from "./types";
-import { getFrontFace } from "./cardNames";
+import { normalizeCardName } from "./cardNames";
 
 // Re-export types so consumers can import from either location
 export type { CardPick, MatchResult } from "./types";
+
+// Re-export for backwards compatibility
+export { normalizeCardName, cardNameKey } from "./cardNames";
 
 /**
  * Parsed picks result with metadata about the draft.
@@ -22,23 +25,6 @@ export interface ParsedPicks {
   drafterNames: string[];
   isComplete: boolean;
   doublePickStartsAfterRound: number | null;
-}
-
-/**
- * Strips numeric suffix from card names (e.g., "Scalding Tarn 2" -> "Scalding Tarn")
- */
-export function normalizeCardName(cardName: string): string {
-  return cardName.trim().replace(/\s+\d+$/, "");
-}
-
-/**
- * Returns a lowercase key for case-insensitive card name matching.
- * DFC names are normalized to front face (e.g., "Brazen Borrower // Petty Theft" → "brazen borrower").
- */
-export function cardNameKey(cardName: string): string {
-  const normalized = normalizeCardName(cardName);
-  const frontFace = getFrontFace(normalized);
-  return (frontFace ?? normalized).toLowerCase();
 }
 
 /**

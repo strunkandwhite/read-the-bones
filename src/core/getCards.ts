@@ -16,8 +16,9 @@ import {
 import { calculateCardStats } from "./calculateStats";
 import { getClient, type Client } from "./db/client";
 import { computeIngestionHash } from "./db/sync/domains";
-import { transformScryfallJson, parseBannedCardNames } from "./db/queries/helpers";
-import { cardNameKey } from "./parseSheetRows";
+import { transformScryfallJson, parseBannedCardNames, placeholders } from "./db/queries/helpers";
+import { cardNameKey } from "./cardNames";
+import { DEFAULT_NUM_SEATS } from "./constants";
 
 // --- Internal types for extracted subfunctions ---
 
@@ -115,7 +116,7 @@ async function loadDraftMetadata(client: Client): Promise<DraftMetadataResult | 
       draftId,
       name: row.draft_name as string,
       date: row.draft_date as string,
-      numDrafters: (row.num_seats as number) || 10,
+      numDrafters: (row.num_seats as number) || DEFAULT_NUM_SEATS,
     });
     draftCubeSnapshots.set(draftId, cubeSnapshotId);
 
@@ -159,11 +160,10 @@ async function getCubePoolSizes(
 ): Promise<Map<number, number>> {
   if (uniqueCubeSnapshots.length === 0) return new Map();
 
-  const placeholders = uniqueCubeSnapshots.map(() => "?").join(", ");
   const cubeSizesResult = await client.execute({
     sql: `SELECT cube_snapshot_id, SUM(qty) as pool_size
           FROM cube_snapshot_cards
-          WHERE cube_snapshot_id IN (${placeholders})
+          WHERE cube_snapshot_id IN (${placeholders(uniqueCubeSnapshots.length)})
           GROUP BY cube_snapshot_id`,
     args: [...uniqueCubeSnapshots],
   });
@@ -179,14 +179,19 @@ async function getCubePoolSizes(
  * Step 3: Load all pick events with Scryfall data.
  * Builds scryfallDataMap (card key -> ScryCard) and picksByDraftAndCard (draftId -> cardKey -> CardPick[]).
  */
-async function loadPickEvents(client: Client): Promise<PickEventsResult> {
+async function loadPickEvents(client: Client, draftIds: string[]): Promise<PickEventsResult> {
+  if (draftIds.length === 0) {
+    return { scryfallDataMap: new Map(), picksByDraftAndCard: new Map() };
+  }
+
   const picksResult = await client.execute({
     sql: `SELECT pe.draft_id, pe.pick_n, pe.seat,
                  c.name as card_name, c.scryfall_json
           FROM pick_events pe
           JOIN cards c ON pe.card_id = c.card_id
+          WHERE pe.draft_id IN (${placeholders(draftIds.length)})
           ORDER BY pe.draft_id, pe.pick_n`,
-    args: [],
+    args: [...draftIds],
   });
 
   const scryfallDataMap = new Map<string, ScryCard>();
@@ -244,13 +249,12 @@ async function loadCubeCards(
 ): Promise<Map<number, Map<number, CubeCardInfo>>> {
   if (uniqueCubeSnapshots.length === 0) return new Map();
 
-  const placeholders = uniqueCubeSnapshots.map(() => "?").join(", ");
   const cubeCardsResult = await client.execute({
     sql: `SELECT csc.cube_snapshot_id, csc.card_id, csc.qty,
                  c.name as card_name, c.scryfall_json
           FROM cube_snapshot_cards csc
           JOIN cards c ON csc.card_id = c.card_id
-          WHERE csc.cube_snapshot_id IN (${placeholders})`,
+          WHERE csc.cube_snapshot_id IN (${placeholders(uniqueCubeSnapshots.length)})`,
     args: [...uniqueCubeSnapshots],
   });
 
@@ -453,18 +457,30 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
     mostRecentCubeSnapshotId, bannedCardsByDraft, bannedCardNamesByDraft, ingestionHash,
   } = draftMeta;
 
+  const completedDraftIdSet = new Set(completedDraftIds);
   const selectedDraftIds: string[] = params.draftIds
-    ? params.draftIds.filter((id) => new Set(completedDraftIds).has(id))
+    ? params.draftIds.filter((id) => completedDraftIdSet.has(id))
     : completedDraftIds;
 
   const selectedDraftSet = new Set(selectedDraftIds);
 
-  // 2. Get pool sizes for each cube snapshot
-  const uniqueCubeSnapshots = [...new Set(draftCubeSnapshots.values())];
+  // 2. Collect cube snapshots needed for selected drafts + display snapshot
+  const selectedSnapshotIds = new Set<number>();
+  for (const id of selectedDraftIds) {
+    const snap = draftCubeSnapshots.get(id);
+    if (snap !== undefined) selectedSnapshotIds.add(snap);
+  }
+  // Ensure display snapshot is included (for pool filtering / cube display)
+  const displayCubeSnapshotId = params.poolAsOfDraft
+    ? draftCubeSnapshots.get(params.poolAsOfDraft) ?? mostRecentCubeSnapshotId
+    : mostRecentCubeSnapshotId;
+  if (displayCubeSnapshotId !== null) selectedSnapshotIds.add(displayCubeSnapshotId);
+
+  const uniqueCubeSnapshots = [...selectedSnapshotIds];
   const poolSizes = await getCubePoolSizes(client, uniqueCubeSnapshots);
 
-  // 3. Load all picks with card names and Scryfall data
-  const { scryfallDataMap, picksByDraftAndCard } = await loadPickEvents(client);
+  // 3. Load picks scoped to selected drafts
+  const { scryfallDataMap, picksByDraftAndCard } = await loadPickEvents(client, selectedDraftIds);
 
   // 4. Load cube snapshot cards to find unpicked cards
   const cubeCardsBySnapshot = await loadCubeCards(client, uniqueCubeSnapshots);
@@ -476,11 +492,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
     bannedCardsByDraft, scryfallDataMap,
   );
 
-  // 6. Load cube cards for the selected pool snapshot
-  const displayCubeSnapshotId = params.poolAsOfDraft
-    ? draftCubeSnapshots.get(params.poolAsOfDraft) ?? mostRecentCubeSnapshotId
-    : mostRecentCubeSnapshotId;
-
+  // 6. Build cube display data from the selected pool snapshot
   const { cubeCopies, currentCubeSet, currentCubeKeySet } = buildCubeDisplayData(
     displayCubeSnapshotId, cubeCardsBySnapshot, scryfallDataMap,
   );

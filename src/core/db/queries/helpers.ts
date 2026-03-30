@@ -5,6 +5,13 @@
 import { getClient } from "../client";
 
 /**
+ * Build a SQL placeholder string for n parameters (e.g., "?, ?, ?").
+ */
+export function placeholders(n: number): string {
+  return Array.from({ length: n }, () => "?").join(", ");
+}
+
+/**
  * Parse banned cards JSON from database column.
  * Returns a lowercase Set for O(1) lookups, or an empty Set on null/malformed input.
  */
@@ -35,17 +42,39 @@ import type { ScryCard } from "../../types";
 import { inferDeckColor } from "../../inferDeckColor";
 import { SCRYFALL_API_BASE, transformApiResponse, type ScryfallApiResponse } from "../../scryfallApi";
 
+import type { Client } from "@libsql/client";
+
 /**
- * Get opted-out seats for a draft.
+ * Fetch privacy opt-outs for a set of drafts, returned as "draftId:seat" pairs.
+ * Handles both single-draft and multi-draft use cases.
+ */
+export async function fetchOptOuts(client: Client, draftIds: string[]): Promise<Set<string>> {
+  if (draftIds.length === 0) return new Set();
+  const ph = draftIds.map(() => "?").join(", ");
+  const result = await client.execute({
+    sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${ph})`,
+    args: draftIds,
+  });
+  const optedOut = new Set<string>();
+  for (const row of result.rows) {
+    optedOut.add(`${row.draft_id}:${row.seat}`);
+  }
+  return optedOut;
+}
+
+/**
+ * Get opted-out seats for a single draft.
  * Returns a Set of seat numbers that should be redacted.
  */
 export async function getOptedOutSeats(draftId: string): Promise<Set<number>> {
   const client = await getClient();
-  const result = await client.execute({
-    sql: `SELECT seat FROM privacy_opt_outs WHERE draft_id = ?`,
-    args: [draftId],
-  });
-  return new Set(result.rows.map((row) => row.seat as number));
+  const multiResult = await fetchOptOuts(client, [draftId]);
+  const seats = new Set<number>();
+  for (const key of multiResult) {
+    const [d, s] = key.split(":");
+    if (d === draftId) seats.add(Number(s));
+  }
+  return seats;
 }
 
 export function rowToCard(row: Record<string, unknown>): Card {
@@ -86,26 +115,23 @@ export function matchesColorFilter(colorIdentity: string[], filterColor: string)
 
 /**
  * Infer deck colors for each seat from maindecked cards' color identity.
- * Returns a Set of "draftId:seat" keys for seats whose inferred colors
- * contain all the requested colors.
+ * Returns a Map from "draftId:seat" to the inferred color string (e.g. "UB").
  *
  * Uses the 30% threshold from inferDeckColor: top 1-2 colors where the
  * 2nd must be >= 30% as frequent as the 1st.
  */
-export async function getSeatsMatchingColors(
-  draftIds: string[],
-  deckColors: string
-): Promise<Set<string>> {
-  if (draftIds.length === 0) return new Set();
+export async function inferSeatColors(
+  draftIds: string[]
+): Promise<Map<string, string>> {
+  if (draftIds.length === 0) return new Map();
 
   const client = await getClient();
-  const placeholders = draftIds.map(() => "?").join(", ");
 
   const result = await client.execute({
     sql: `SELECT dc.draft_id, dc.seat, c.scryfall_json
           FROM deck_cards dc
           JOIN cards c ON dc.card_id = c.card_id
-          WHERE dc.zone = 'deck' AND dc.draft_id IN (${placeholders})`,
+          WHERE dc.zone = 'deck' AND dc.draft_id IN (${placeholders(draftIds.length)})`,
     args: draftIds,
   });
 
@@ -126,12 +152,28 @@ export async function getSeatsMatchingColors(
     }
   }
 
-  // Infer top 1-2 colors per seat and filter
+  // Infer top 1-2 colors per seat
+  const seatToColor = new Map<string, string>();
+  for (const [key, counts] of seatColors) {
+    seatToColor.set(key, inferDeckColor(counts));
+  }
+
+  return seatToColor;
+}
+
+/**
+ * Find seats whose inferred deck color contains all the requested colors.
+ * Convenience wrapper around inferSeatColors for filtering use cases.
+ */
+export async function getSeatsMatchingColors(
+  draftIds: string[],
+  deckColors: string
+): Promise<Set<string>> {
+  const seatToColor = await inferSeatColors(draftIds);
   const requestedColors = deckColors.toUpperCase().split("");
   const matchingSeats = new Set<string>();
 
-  for (const [key, counts] of seatColors) {
-    const inferred = inferDeckColor(counts);
+  for (const [key, inferred] of seatToColor) {
     if (requestedColors.every((c) => inferred.includes(c))) {
       matchingSeats.add(key);
     }

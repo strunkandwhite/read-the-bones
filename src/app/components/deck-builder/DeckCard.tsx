@@ -9,13 +9,14 @@ interface DeckCardProps {
   cardName: string;
   imageUri?: string;
   isFloated: boolean;
+  isQueued: boolean;
   isLast: boolean;
   id: string; // unique drag ID: "zone:column:index:cardName"
   onRemoveFloat?: (cardName: string) => void;
   pickScore?: number;
 }
 
-export function DeckCard({ cardName, imageUri, isFloated, isLast, id, onRemoveFloat, pickScore }: DeckCardProps) {
+export function DeckCard({ cardName, imageUri, isFloated, isQueued, isLast, id, onRemoveFloat, pickScore }: DeckCardProps) {
   const {
     attributes,
     listeners,
@@ -42,7 +43,7 @@ export function DeckCard({ cardName, imageUri, isFloated, isLast, id, onRemoveFl
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
-    opacity: isDragging ? 0.3 : isFloated ? 0.35 : 1,
+    opacity: isDragging ? 0.3 : isFloated ? 0.35 : isQueued ? 0.7 : 1,
   };
 
   // Show only the name bar (~28px) for stacked cards, full image for the last card
@@ -57,7 +58,9 @@ export function DeckCard({ cardName, imageUri, isFloated, isLast, id, onRemoveFl
       className={`group/card relative cursor-grab active:cursor-grabbing rounded overflow-hidden ${
         isFloated
           ? "border border-dashed border-zinc-500/70"
-          : "border border-zinc-700/50"
+          : isQueued
+            ? "border-2 border-dashed border-orange-500/70"
+            : "border border-zinc-700/50"
       } ${!isLast ? "h-[28px]" : ""}`}
     >
       {imageUri ? (

@@ -4,8 +4,9 @@ import { NextRequest } from "next/server";
 import { AuthError } from "@/core/errors";
 
 const mockExecute = vi.fn();
+const mockBatch = vi.fn();
 vi.mock("@/core/db/client", () => ({
-  getClient: vi.fn(() => Promise.resolve({ execute: mockExecute })),
+  getClient: vi.fn(() => Promise.resolve({ execute: mockExecute, batch: mockBatch })),
 }));
 
 const mockAuthenticateSeat = vi.fn();
@@ -20,10 +21,6 @@ vi.mock("@/core/db/queries/pickQueue", () => ({
   setQueue: (...args: unknown[]) => mockSetQueue(...args),
 }));
 
-const mockAddFloatedCard = vi.fn();
-vi.mock("@/core/db/queries/floatedCards", () => ({
-  addFloatedCard: (...args: unknown[]) => mockAddFloatedCard(...args),
-}));
 
 function makeGetRequest(token = "test-token") {
   return new NextRequest(
@@ -146,7 +143,7 @@ describe("PUT /api/drafts/[id]/queue", () => {
       { priority: 2, cardId: 20, cardName: "Counterspell" },
     ]);
     mockSetQueue.mockResolvedValueOnce(undefined);
-    mockAddFloatedCard.mockResolvedValue(undefined);
+    mockBatch.mockResolvedValue(undefined);
     // New queue only has Counterspell
     mockGetQueue.mockResolvedValueOnce([
       { priority: 1, cardId: 20, cardName: "Counterspell" },
@@ -158,13 +155,13 @@ describe("PUT /api/drafts/[id]/queue", () => {
     );
 
     expect(res.status).toBe(200);
-    // Lightning Bolt was removed, so it should be auto-floated
-    expect(mockAddFloatedCard).toHaveBeenCalledTimes(1);
-    expect(mockAddFloatedCard).toHaveBeenCalledWith(
-      expect.anything(), // client
-      "test", // draftId
-      1, // seat
-      "Lightning Bolt", // cardName
-    );
+    // Lightning Bolt was removed, so it should be auto-floated via batch
+    expect(mockBatch).toHaveBeenCalledTimes(1);
+    expect(mockBatch).toHaveBeenCalledWith([
+      {
+        sql: "INSERT OR IGNORE INTO floated_cards (draft_id, seat, card_name) VALUES (?, ?, ?)",
+        args: ["test", 1, "Lightning Bolt"],
+      },
+    ]);
   });
 });

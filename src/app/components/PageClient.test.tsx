@@ -4,6 +4,10 @@ import { render, screen, act, cleanup } from "@testing-library/react";
 import { PageClient, type PageClientProps } from "./PageClient";
 import type { CardStatsResponse } from "@/core/getCards";
 import type { DraftStatsResponse } from "@/core/getDraftStats";
+import { useDraftStore, _resetPollingState } from "../stores/draftStore";
+import { useCardStore, EMPTY_CARD_DATA, EMPTY_DRAFT_STATS, _resetSearchState } from "../stores/cardStore";
+import { useLiveStore, _resetDeckState } from "../stores/liveStore";
+import { createEmptyDeckState } from "@/core/deckBuilder";
 
 // Mock child components to simplify rendering
 vi.mock("./CardTable", () => ({
@@ -13,12 +17,7 @@ vi.mock("./ColorFilter", () => ({
   ColorFilter: () => <div data-testid="color-filter" />,
 }));
 vi.mock("./Settings", () => ({
-  Settings: (props: { onDraftsChange: (s: Set<string>) => void }) => {
-    // Expose onDraftsChange so tests can trigger draft selection changes
-    (globalThis as Record<string, unknown>).__settingsOnDraftsChange =
-      props.onDraftsChange;
-    return <div data-testid="settings" />;
-  },
+  Settings: () => <div data-testid="settings" />,
 }));
 vi.mock("./StatsModal", () => ({
   StatsModal: () => <div data-testid="stats-modal" />,
@@ -26,19 +25,6 @@ vi.mock("./StatsModal", () => ({
 
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
-}));
-
-let mockSyncStatus = {
-  lastSyncedAt: "0",
-  syncInProgress: false,
-  activeDrafts: [] as Array<{ id: string; numSeats: number }>,
-  triggerSync: async () => {},
-  manualSyncInFlight: false,
-  dataChanged: false,
-};
-
-vi.mock("../hooks/useSyncStatus", () => ({
-  useSyncStatus: () => mockSyncStatus,
 }));
 
 const defaultDraftStats: DraftStatsResponse = {
@@ -76,6 +62,12 @@ function makeTestProps(overrides?: Partial<CardStatsResponse>): PageClientProps 
   };
 }
 
+/** Helper to simulate draft selection change (previously done via Settings prop) */
+async function changeDraftSelection(newSelection: Set<string>) {
+  useDraftStore.getState().setSelectedDrafts(newSelection);
+  await useCardStore.getState().fetchCardData();
+}
+
 describe("PageClient", () => {
   afterEach(() => {
     cleanup();
@@ -92,15 +84,67 @@ describe("PageClient", () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
-    delete (globalThis as Record<string, unknown>).__settingsOnDraftsChange;
-    mockSyncStatus = {
-      lastSyncedAt: "0",
-      syncInProgress: false,
-      activeDrafts: [],
-      triggerSync: async () => {},
+
+    // Reset store state between tests
+    _resetPollingState();
+    _resetSearchState();
+    _resetDeckState();
+    useDraftStore.setState({
+      selectedDrafts: new Set(),
+      activeDraft: null,
+      selectedSeat: null,
+      hideTaken: true,
+      completedDraftIds: [],
+      hydrated: false,
+      dataVersion: 0,
+      liveDraftStatus: null,
+      board: null,
+      poolAsOfDraft: null,
+      syncStatus: { lastSyncedAt: "0", syncInProgress: false, activeDrafts: [] },
       manualSyncInFlight: false,
-      dataChanged: false,
-    };
+    });
+    useCardStore.setState({
+      cardData: EMPTY_CARD_DATA,
+      draftStats: EMPTY_DRAFT_STATS,
+      isLoading: false,
+      searchQuery: "",
+      colorFilter: [],
+      colorFilterMode: "inclusive",
+      scryfallMatchNames: null,
+      selectedCard: null,
+      cardStatsDetail: null,
+      cardStatsLoading: false,
+      scryfallDataMap: new Map(),
+      cardStatsMap: new Map(),
+      takenCardNamesSet: undefined,
+      takenCardCounts: undefined,
+      seatCardNames: undefined,
+      seatCardList: undefined,
+      bannedCardNamesSet: undefined,
+      displayCards: [],
+      searchFilteredCards: [],
+      availableCount: 0,
+      drafts: [],
+    });
+    useLiveStore.setState({
+      seatToken: null,
+      mySeat: null,
+      autoPick: true,
+      autoPickMode: "resilient",
+      displayName: null,
+      queue: [],
+      queuedCards: new Map(),
+      queueLoading: false,
+      queueError: null,
+      floatedCards: [],
+      pickError: null,
+      isMyTurn: false,
+      consecutivePicks: 0,
+      deckState: createEmptyDeckState("", 0),
+      deckReady: false,
+      deckSaveStatus: "idle",
+      deckBuilderActive: false,
+    });
   });
 
   it("shows precomputed data with default selection", () => {
@@ -108,13 +152,20 @@ describe("PageClient", () => {
     expect(screen.getByText(/Read the Bones/)).toBeDefined();
   });
 
-  it("does not fetch on initial render with default selection", () => {
-    const fetchSpy = vi.fn();
-    global.fetch = fetchSpy;
+  it("shows SSR data on initial render with default selection", async () => {
+    // The selectedDrafts subscription auto-triggers a background fetch on hydration.
+    // Mock fetch so it resolves cleanly without errors.
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(makeTestProps().initialCardData),
+    });
 
-    render(<PageClient {...makeTestProps()} />);
+    await act(async () => {
+      render(<PageClient {...makeTestProps()} />);
+    });
 
-    expect(fetchSpy).not.toHaveBeenCalled();
+    // SSR data is visible immediately (title is always present)
+    expect(screen.getByText(/Read the Bones/)).toBeDefined();
   });
 
   it("fetches card data when custom draft selection is made", async () => {
@@ -132,12 +183,9 @@ describe("PageClient", () => {
 
     render(<PageClient {...makeTestProps()} />);
 
-    const onDraftsChange = (globalThis as Record<string, unknown>)
-      .__settingsOnDraftsChange as (s: Set<string>) => Promise<void>;
-
-    // Select only draft-a (non-default selection triggers fetch)
+    // Call store actions directly (Settings now reads from stores)
     await act(async () => {
-      await onDraftsChange(new Set(["draft-a"]));
+      await changeDraftSelection(new Set(["draft-a"]));
     });
 
     expect(global.fetch).toHaveBeenCalledTimes(2);
@@ -146,22 +194,16 @@ describe("PageClient", () => {
     expect(urls.some((u: string) => u.includes("/api/draft-stats?"))).toBe(true);
   });
 
-  it("logs error when fetch fails after custom draft selection", async () => {
+  it("logs error when fetch throws after custom draft selection", async () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-    });
+    global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
 
     render(<PageClient {...makeTestProps()} />);
 
-    const onDraftsChange = (globalThis as Record<string, unknown>)
-      .__settingsOnDraftsChange as (s: Set<string>) => Promise<void>;
-
-    // Select only draft-a (non-default selection triggers fetch)
+    // Call store actions directly
     await act(async () => {
-      await onDraftsChange(new Set(["draft-a"]));
+      await changeDraftSelection(new Set(["draft-a"]));
     });
 
     expect(consoleSpy).toHaveBeenCalledWith(
@@ -180,13 +222,19 @@ describe("PageClient", () => {
   });
 
   it("shows 'No drafts selected' when selection is empty", async () => {
-    render(<PageClient {...makeTestProps()} />);
-
-    const onDraftsChange = (globalThis as Record<string, unknown>)
-      .__settingsOnDraftsChange as (s: Set<string>) => Promise<void>;
+    // Mock fetch to handle the background subscription-triggered fetch from hydration
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(makeTestProps().initialCardData),
+    });
 
     await act(async () => {
-      await onDraftsChange(new Set());
+      render(<PageClient {...makeTestProps()} />);
+    });
+
+    // Call store actions directly
+    await act(async () => {
+      await changeDraftSelection(new Set());
     });
 
     expect(screen.getByText(/No drafts selected/)).toBeDefined();
@@ -203,12 +251,9 @@ describe("PageClient", () => {
 
     render(<PageClient {...makeTestProps()} />);
 
-    const onDraftsChange = (globalThis as Record<string, unknown>)
-      .__settingsOnDraftsChange as (s: Set<string>) => Promise<void>;
-
     // Trigger fetch failure with custom selection
     await act(async () => {
-      await onDraftsChange(new Set(["draft-a"]));
+      await changeDraftSelection(new Set(["draft-a"]));
     });
 
     // Now set up a successful response for returning to default
@@ -220,24 +265,30 @@ describe("PageClient", () => {
 
     // Return to default selection (all completed drafts)
     await act(async () => {
-      await onDraftsChange(new Set(["draft-a", "draft-b"]));
+      await changeDraftSelection(new Set(["draft-a", "draft-b"]));
     });
 
     expect(screen.getByText(/Read the Bones/)).toBeDefined();
     consoleSpy.mockRestore();
   });
 
-  it("filters out banned cards from display when active draft is selected", () => {
-    mockSyncStatus = {
-      ...mockSyncStatus,
-      activeDrafts: [{ id: "draft-c", numSeats: 10 }],
-    };
+  it("filters out banned cards from display when active draft is selected", async () => {
     localStorage.setItem("activeDraft", "draft-c");
 
     const props = makeTestProps({
       bannedCardNames: ["Lightning Bolt"],
     });
-    render(<PageClient {...props} />);
+
+    // Mock fetch to return the same card data (with banned cards) when
+    // the activeDraft subscription triggers fetchCardData
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve(props.initialCardData),
+    });
+
+    await act(async () => {
+      render(<PageClient {...props} />);
+    });
 
     // The only card is banned + filtered, so we should see the empty state
     const emptyState = screen.queryAllByText("No card data available.");

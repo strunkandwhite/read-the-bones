@@ -8,8 +8,7 @@
 
 import { getClient } from "./db/client";
 import { computeIngestionHash } from "./db/sync/domains";
-import { parseScryfallJson } from "./db/queries/helpers";
-import { inferDeckColor } from "./inferDeckColor";
+import { inferSeatColors } from "./db/queries/helpers";
 import { wilsonInterval } from "./wilsonInterval";
 
 export type SeatWinRate = {
@@ -101,38 +100,8 @@ async function computeWinRateByColor(
 
   const placeholders = draftIds.map(() => "?").join(", ");
 
-  // Get maindecked cards with their color identity for selected drafts
-  const deckResult = await client.execute({
-    sql: `
-      SELECT dc.draft_id, dc.seat, c.scryfall_json
-      FROM deck_cards dc
-      JOIN cards c ON dc.card_id = c.card_id
-      WHERE dc.zone = 'deck' AND dc.draft_id IN (${placeholders})
-    `,
-    args: draftIds,
-  });
-
-  // Build color counts per (draft_id, seat)
-  const seatColors = new Map<string, Map<string, number>>();
-  for (const row of deckResult.rows) {
-    const key = `${row.draft_id}:${row.seat}`;
-    const scryfall = parseScryfallJson(row.scryfall_json as string | null);
-    const colors: string[] = scryfall?.color_identity ?? [];
-
-    if (!seatColors.has(key)) {
-      seatColors.set(key, new Map());
-    }
-    const counts = seatColors.get(key)!;
-    for (const color of colors) {
-      counts.set(color, (counts.get(color) || 0) + 1);
-    }
-  }
-
-  // Infer color per seat
-  const seatToColor = new Map<string, string>();
-  for (const [key, counts] of seatColors) {
-    seatToColor.set(key, inferDeckColor(counts));
-  }
+  // Infer deck colors per seat from maindecked cards
+  const seatToColor = await inferSeatColors(draftIds);
 
   // Get match results for selected drafts
   const matchResult = await client.execute({
@@ -212,10 +181,9 @@ export async function getDraftStats(
     (r) => r.draft_id as string
   );
 
+  const completedDraftIdSet = new Set(completedDraftIds);
   const selectedDraftIds = params.draftIds
-    ? params.draftIds.filter((id) =>
-        completedDraftIds.includes(id)
-      )
+    ? params.draftIds.filter((id) => completedDraftIdSet.has(id))
     : completedDraftIds;
 
   // Compute cache fingerprint from per-domain hashes

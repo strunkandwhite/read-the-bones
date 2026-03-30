@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { derivePickSeat, getTotalPicks } from './snakeDraft';
+import { derivePickSeat, getTotalPicks, getNextPick, buildPickMatrix } from './snakeDraft';
 
 describe('derivePickSeat', () => {
   describe('single-pick region (4 seats, 6 picks each)', () => {
@@ -149,5 +149,97 @@ describe('getTotalPicks', () => {
     expect(getTotalPicks(10, 45)).toBe(450);
     expect(getTotalPicks(4, 6)).toBe(24);
     expect(getTotalPicks(8, 40)).toBe(320);
+  });
+});
+
+describe('getNextPick', () => {
+  it('returns pick 1, seat 1 when no picks have been made', () => {
+    const result = getNextPick(0, 4, 6);
+    expect(result).toEqual({ pickNumber: 1, seat: 1 });
+  });
+
+  it('returns correct next pick mid-round', () => {
+    // 4 seats, 6 picks each. After 2 picks, next is pick 3, seat 3.
+    const result = getNextPick(2, 4, 6);
+    expect(result).not.toBeNull();
+    expect(result!.pickNumber).toBe(3);
+    expect(result!.seat).toBe(3);
+  });
+
+  it('snakes direction in round 2', () => {
+    // After 4 picks (round 1 complete), pick 5 = round 2 reverse, seat 4
+    const result = getNextPick(4, 4, 6);
+    expect(result).not.toBeNull();
+    expect(result!.pickNumber).toBe(5);
+    expect(result!.seat).toBe(4);
+  });
+
+  it('returns null when all picks are made', () => {
+    const total = getTotalPicks(4, 6);
+    const result = getNextPick(total, 4, 6);
+    expect(result).toBeNull();
+  });
+
+  it('returns null when currentPickCount exceeds total', () => {
+    const result = getNextPick(100, 4, 6);
+    expect(result).toBeNull();
+  });
+
+  it('handles pick 0 boundary (first pick of small draft)', () => {
+    const result = getNextPick(0, 2, 2);
+    expect(result).toEqual({ pickNumber: 1, seat: 1 });
+  });
+
+  it('handles last pick boundary', () => {
+    const total = getTotalPicks(4, 6);
+    const result = getNextPick(total - 1, 4, 6);
+    expect(result).not.toBeNull();
+    expect(result!.pickNumber).toBe(total);
+  });
+});
+
+describe('buildPickMatrix', () => {
+  it('returns correct grid for a 2-seat, 2-pick draft', () => {
+    const matrix = buildPickMatrix(2, 2);
+    // 2 seats * 2 picks = 4 total picks, 2 rounds
+    expect(matrix).toHaveLength(2);
+
+    // Round 1: forward (seats 1, 2)
+    expect(matrix[0].round).toBe(1);
+    expect(matrix[0].isForward).toBe(true);
+    expect(matrix[0].seats).toEqual([1, 2]);
+
+    // Round 2: backward (seats 2, 1)
+    expect(matrix[1].round).toBe(2);
+    expect(matrix[1].isForward).toBe(false);
+    expect(matrix[1].seats).toEqual([2, 1]);
+  });
+
+  it('returns empty array for 0 picks per player', () => {
+    const matrix = buildPickMatrix(4, 0);
+    expect(matrix).toEqual([]);
+  });
+
+  it('all seats appear in each single-pick round', () => {
+    const matrix = buildPickMatrix(4, 6);
+    for (const round of matrix) {
+      if (!round.isDoublePick) {
+        const uniqueSeats = new Set(round.seats);
+        expect(uniqueSeats.size).toBe(4);
+      }
+    }
+  });
+
+  it('total picks across all rounds equals numSeats * picksPerPlayer', () => {
+    const matrix = buildPickMatrix(4, 8);
+    const totalPicks = matrix.reduce((sum, round) => sum + round.seats.length, 0);
+    expect(totalPicks).toBe(4 * 8);
+  });
+
+  it('rounds are sorted in ascending order', () => {
+    const matrix = buildPickMatrix(4, 6);
+    for (let i = 1; i < matrix.length; i++) {
+      expect(matrix[i].round).toBeGreaterThan(matrix[i - 1].round);
+    }
   });
 });

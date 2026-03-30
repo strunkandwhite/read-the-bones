@@ -5,6 +5,7 @@
 import type { Client } from "@libsql/client";
 import { getClient } from "../client";
 import { getOptedOutSeats, parseScryfallJson, matchesColorFilter, parseBannedCards, transformScryfallJson } from "./helpers";
+import { aggregateMatchRecords } from "./matches";
 import { getFrontFace } from "../../cardNames";
 
 export interface GetPicksParams {
@@ -13,6 +14,7 @@ export interface GetPicksParams {
   pick_n_min?: number;
   pick_n_max?: number;
   card_name?: string;
+  optedOutSeats?: Set<number>;
 }
 
 export interface PicksResult {
@@ -33,7 +35,7 @@ export interface PicksResult {
  */
 export async function getPicks(params: GetPicksParams): Promise<PicksResult> {
   const client = await getClient();
-  const optedOutSeats = await getOptedOutSeats(params.draft_id);
+  const optedOutSeats = params.optedOutSeats ?? await getOptedOutSeats(params.draft_id);
 
   // If requesting a specific opted-out seat, return empty with redaction notice
   if (params.seat !== undefined && optedOutSeats.has(params.seat)) {
@@ -263,13 +265,13 @@ export interface StandingsResult {
  * Computes wins/losses from match_events table.
  * Redacts seat numbers for players who have opted out.
  */
-export async function getStandings(draftId: string): Promise<StandingsResult> {
+export async function getStandings(draftId: string, optedOutSeats?: Set<number>): Promise<StandingsResult> {
   const client = await getClient();
-  const optedOutSeats = await getOptedOutSeats(draftId);
+  const resolvedOptedOutSeats = optedOutSeats ?? await getOptedOutSeats(draftId);
 
   // Get all match events for this draft
   const result = await client.execute({
-    sql: `SELECT seat1, seat2, seat1_wins, seat2_wins
+    sql: `SELECT draft_id, seat1, seat2, seat1_wins, seat2_wins
           FROM match_events
           WHERE draft_id = ?`,
     args: [draftId],
@@ -282,45 +284,12 @@ export async function getStandings(draftId: string): Promise<StandingsResult> {
     seat2Wins: row.seat2_wins as number,
   }));
 
-  // Aggregate stats per seat
-  const stats = new Map<
-    number,
-    { matchWins: number; matchLosses: number; gameWins: number; gameLosses: number }
-  >();
-
-  const getOrCreate = (seat: number) => {
-    let entry = stats.get(seat);
-    if (!entry) {
-      entry = { matchWins: 0, matchLosses: 0, gameWins: 0, gameLosses: 0 };
-      stats.set(seat, entry);
-    }
-    return entry;
-  };
-
-  for (const row of result.rows) {
-    const seat1 = row.seat1 as number;
-    const seat2 = row.seat2 as number;
-    const seat1Wins = row.seat1_wins as number;
-    const seat2Wins = row.seat2_wins as number;
-
-    const s1Stats = getOrCreate(seat1);
-    const s2Stats = getOrCreate(seat2);
-
-    // Game wins/losses
-    s1Stats.gameWins += seat1Wins;
-    s1Stats.gameLosses += seat2Wins;
-    s2Stats.gameWins += seat2Wins;
-    s2Stats.gameLosses += seat1Wins;
-
-    // Match wins/losses (whoever won more games wins the match)
-    if (seat1Wins > seat2Wins) {
-      s1Stats.matchWins += 1;
-      s2Stats.matchLosses += 1;
-    } else if (seat2Wins > seat1Wins) {
-      s2Stats.matchWins += 1;
-      s1Stats.matchLosses += 1;
-    }
-    // Draws don't count as wins or losses
+  // Aggregate stats per seat using shared helper
+  const aggregated = aggregateMatchRecords(result.rows);
+  const stats = new Map<number, { matchWins: number; matchLosses: number; gameWins: number; gameLosses: number }>();
+  for (const [key, rec] of aggregated) {
+    const seat = Number(key.split(":")[1]);
+    stats.set(seat, rec);
   }
 
   // Convert to array and sort by match wins descending
@@ -328,7 +297,7 @@ export async function getStandings(draftId: string): Promise<StandingsResult> {
   const standings: StandingsEntry[] = [];
 
   for (const [seat, s] of stats) {
-    const isRedacted = optedOutSeats.has(seat);
+    const isRedacted = resolvedOptedOutSeats.has(seat);
     if (isRedacted) {
       redactedSeatsInResult.add(seat);
     }

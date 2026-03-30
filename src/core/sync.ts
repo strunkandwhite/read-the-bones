@@ -6,10 +6,10 @@
 import type { Client } from "@libsql/client";
 import type { CardPick } from "./types";
 import type { ParsedPicks } from "./parseSheetRows";
-import { normalizeCardName } from "./parseSheetRows";
+import { normalizeCardName, getFrontFace } from "./cardNames";
 import { fetchCard, fetchCardFuzzy } from "./scryfallApi";
-import { getFrontFace } from "./cardNames";
 import { sleep } from "./utils";
+import { DEFAULT_NUM_SEATS } from "./constants";
 
 /**
  * Given all picks parsed from CSV and the current max pick_n in the database,
@@ -363,6 +363,6 @@ export async function getActiveDraftInfo(
   });
   return result.rows.map((row) => ({
     id: row.draft_id as string,
-    numSeats: (row.num_seats as number) || 10,
+    numSeats: (row.num_seats as number) || DEFAULT_NUM_SEATS,
   }));
 }

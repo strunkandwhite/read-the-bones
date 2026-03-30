@@ -100,14 +100,27 @@ export async function getCardPickStats(
 
   const allDraftIds = draftsWithCardResult.rows.map((r) => r.draft_id as string);
 
-  // Exclude drafts where this card is banned
+  // Exclude drafts where this card is banned. Cube sizes depend only on
+  // draftsWithCardResult, so run that query in parallel with the ban lookup.
   const banPlaceholders = allDraftIds.map(() => "?").join(", ");
-  const bannedResult = await client.execute({
-    sql: `SELECT draft_id, banned_cards FROM drafts
-          WHERE draft_id IN (${banPlaceholders})
-            AND banned_cards IS NOT NULL`,
-    args: allDraftIds,
-  });
+  const cubeSnapshotIds = draftsWithCardResult.rows.map((r) => r.cube_snapshot_id as number);
+  const cubeSnapshotPlaceholders = cubeSnapshotIds.map(() => "?").join(", ");
+
+  const [bannedResult, cubeSizesResult] = await Promise.all([
+    client.execute({
+      sql: `SELECT draft_id, banned_cards FROM drafts
+            WHERE draft_id IN (${banPlaceholders})
+              AND banned_cards IS NOT NULL`,
+      args: allDraftIds,
+    }),
+    client.execute({
+      sql: `SELECT cube_snapshot_id, SUM(qty) as total_cards
+            FROM cube_snapshot_cards
+            WHERE cube_snapshot_id IN (${cubeSnapshotPlaceholders})
+            GROUP BY cube_snapshot_id`,
+      args: [...cubeSnapshotIds],
+    }),
+  ]);
 
   const bannedInDrafts = new Set<string>();
   for (const row of bannedResult.rows) {
@@ -130,28 +143,6 @@ export async function getCardPickStats(
     };
   }
 
-  // Get all picks of this card across those drafts
-  const placeholders = draftIds.map(() => "?").join(", ");
-  const picksResult = await client.execute({
-    sql: `SELECT pe.draft_id, pe.pick_n, pe.seat
-          FROM pick_events pe
-          WHERE pe.card_id = ? AND pe.draft_id IN (${placeholders})
-          ORDER BY pe.draft_id, pe.pick_n`,
-    args: [card_id, ...draftIds],
-  });
-
-  // Get cube sizes for each draft
-  const cubeSnapshotIds = draftsWithCardResult.rows.map((r) => r.cube_snapshot_id as number);
-  const cubeSnapshotPlaceholders = cubeSnapshotIds.map(() => "?").join(", ");
-
-  const cubeSizesResult = await client.execute({
-    sql: `SELECT cube_snapshot_id, SUM(qty) as total_cards
-          FROM cube_snapshot_cards
-          WHERE cube_snapshot_id IN (${cubeSnapshotPlaceholders})
-          GROUP BY cube_snapshot_id`,
-    args: [...cubeSnapshotIds],
-  });
-
   const cubeSizes = new Map<number, number>();
   for (const row of cubeSizesResult.rows) {
     cubeSizes.set(row.cube_snapshot_id as number, row.total_cards as number);
@@ -163,12 +154,27 @@ export async function getCardPickStats(
     draftCubeSnapshots.set(row.draft_id as string, row.cube_snapshot_id as number);
   }
 
-  // Load opt-outs for relevant drafts
-  const optOutPlaceholders = draftIds.map(() => "?").join(", ");
-  const optOutResult = await client.execute({
-    sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${optOutPlaceholders})`,
-    args: draftIds,
-  });
+  // picks, opt-outs, and deck_cards all depend on draftIds — run in parallel
+  const placeholders = draftIds.map(() => "?").join(", ");
+  const [picksResult, optOutResult, deckCardsResult] = await Promise.all([
+    client.execute({
+      sql: `SELECT pe.draft_id, pe.pick_n, pe.seat
+            FROM pick_events pe
+            WHERE pe.card_id = ? AND pe.draft_id IN (${placeholders})
+            ORDER BY pe.draft_id, pe.pick_n`,
+      args: [card_id, ...draftIds],
+    }),
+    client.execute({
+      sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${placeholders})`,
+      args: draftIds,
+    }),
+    client.execute({
+      sql: `SELECT dc.draft_id, dc.seat, dc.zone
+            FROM deck_cards dc
+            WHERE dc.card_id = ? AND dc.draft_id IN (${placeholders})`,
+      args: [card_id, ...draftIds],
+    }),
+  ]);
 
   const optedOut = new Set<string>();
   for (const row of optOutResult.rows) {
@@ -255,14 +261,6 @@ export async function getCardPickStats(
   }
 
   const weighted_geomean = weightedGeometricMean(weightedItems);
-
-  // Query play rate data from deck_cards if any exist for this card
-  const deckCardsResult = await client.execute({
-    sql: `SELECT dc.draft_id, dc.seat, dc.zone
-          FROM deck_cards dc
-          WHERE dc.card_id = ? AND dc.draft_id IN (${placeholders})`,
-    args: [card_id, ...draftIds],
-  });
 
   const result: CardPickStatsResult = {
     card_name: card_name,

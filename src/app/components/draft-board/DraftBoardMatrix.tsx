@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useEffect } from "react";
 import { buildPickMatrix } from "@/core/snakeDraft";
-import type { BoardData } from "@/app/hooks/useLiveDraftStatus";
+import type { BoardData } from "@/app/stores/draftStore";
 import { DraftBoardCell } from "./DraftBoardCell";
 import { InlineEditableName } from "./InlineEditableName";
 

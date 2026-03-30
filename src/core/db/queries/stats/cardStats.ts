@@ -4,15 +4,14 @@
 
 import { parseScryfallJson } from "../helpers";
 import { resolveCard } from "../cards";
-import { getCardPlayStats, getCardWinStats } from "../decklists";
+import { getCardPlayStats } from "../playStats";
+import { getCardWinStats } from "../winStats";
 import { wilsonInterval } from "../../../wilsonInterval";
 import { getCardPickStats } from "./pickStats";
 import { getPickHistory, type PickHistoryEntry } from "./pickHistory";
 import { getColorPairBreakdown, type ColorPairEntry } from "./colorPairBreakdown";
 import { getClient } from "../../client";
-
-/** Minimum number of match results needed for confident win rate statistics. */
-const MIN_SAMPLE_SIZE = 5;
+import { MIN_SAMPLE_SIZE } from "../../../constants";
 
 /** @public Used by API routes */
 export interface GetCardStatsParams {
@@ -109,8 +108,8 @@ export async function getCardStats(
       exclude_draft_id: params.exclude_draft_id,
       deck_colors: params.deck_colors,
     }),
-    getPickHistory(client, card.name, params.draft_id, params.exclude_draft_id),
-    getColorPairBreakdown(client, card.name, params.draft_id, params.exclude_draft_id),
+    getPickHistory(client, card.name, params.draft_id, params.exclude_draft_id, cardId),
+    getColorPairBreakdown(client, card.name, params.draft_id, params.exclude_draft_id, cardId),
   ]);
 
   // Build play stats

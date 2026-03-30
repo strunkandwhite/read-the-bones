@@ -1,37 +1,21 @@
 "use client";
 
-import { useEffect, useRef, type KeyboardEvent } from "react";
-import type { BoardData, LiveDraftStatus } from "@/app/hooks/useLiveDraftStatus";
+import { useEffect, useRef, useCallback, type KeyboardEvent } from "react";
+import { useDraftStore } from "@/app/stores/draftStore";
+import { useLiveStore } from "@/app/stores/liveStore";
+import { useCardStore } from "@/app/stores/cardStore";
+import { useIsAuthed } from "@/app/stores/selectors";
 import { useScrollLock } from "@/app/hooks/useScrollLock";
 import { getNextPick } from "@/core/snakeDraft";
 import { DraftBoardMatrix } from "./DraftBoardMatrix";
 import { QueuePanel } from "./QueuePanel";
-import type { QueueItem } from "./QueuePanel";
 import { StandingsSection } from "./StandingsSection";
 
 interface DraftBoardModalProps {
-  board: BoardData | null;
-  status: LiveDraftStatus | null;
-  mySeat: number | null;
-  token: string | null;
   draftId: string;
   draftName?: string;
-  availableCount?: number;
-  bannedCardNames?: string[];
   isOpen: boolean;
   onClose: () => void;
-  onMatchReported: () => void;
-  onUpdateDisplayName?: (name: string) => Promise<void>;
-  pickQueue?: QueueItem[];
-  autoPick?: boolean;
-  autoPickMode?: "resilient" | "cautious";
-  onQueueReorder?: (queue: string[]) => void;
-  onQueueRemove?: (cardName: string) => void;
-  onToggleAutoPick?: () => void;
-  onChangeAutoPickMode?: (mode: "resilient" | "cautious") => void;
-  handlePick?: (cardName: string) => Promise<void>;
-  isMyTurn?: boolean;
-  pickError?: string | null;
 }
 
 const PHASE_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
@@ -41,29 +25,36 @@ const PHASE_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
 };
 
 export function DraftBoardModal({
-  board,
-  status,
-  mySeat,
-  token,
   draftId,
   draftName,
-  availableCount,
-  bannedCardNames,
   isOpen,
   onClose,
-  onMatchReported,
-  onUpdateDisplayName,
-  pickQueue = [],
-  autoPick = false,
-  autoPickMode = "resilient",
-  onQueueReorder,
-  onQueueRemove,
-  onToggleAutoPick,
-  onChangeAutoPickMode,
-  handlePick,
-  isMyTurn = false,
-  pickError = null,
 }: DraftBoardModalProps) {
+  // Draft store
+  const board = useDraftStore((s) => s.board);
+  const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
+  const patchSeatName = useDraftStore((s) => s.patchSeatName);
+
+  // Card store
+  const availableCount = useCardStore((s) => s.availableCount);
+  const bannedCardNames = useCardStore((s) => s.cardData).bannedCardNames;
+
+  // Live store
+  const mySeat = useLiveStore((s) => s.mySeat);
+  const seatToken = useLiveStore((s) => s.seatToken);
+  const autoPick = useLiveStore((s) => s.autoPick);
+  const autoPickMode = useLiveStore((s) => s.autoPickMode);
+  const queue = useLiveStore((s) => s.queue);
+  const isMyTurn = useLiveStore((s) => s.isMyTurn);
+  const pickError = useLiveStore((s) => s.pickError);
+  const submitPick = useLiveStore((s) => s.handlePick);
+  const reorderQueue = useLiveStore((s) => s.reorderQueue);
+  const removeFromQueue = useLiveStore((s) => s.removeFromQueue);
+  const toggleAutoPick = useLiveStore((s) => s.toggleAutoPick);
+  const updateAutoPickMode = useLiveStore((s) => s.updateAutoPickMode);
+
+  const isAuthed = useIsAuthed();
+
   useScrollLock(isOpen);
 
   const backdropRef = useRef<HTMLDivElement>(null);
@@ -73,7 +64,15 @@ export function DraftBoardModal({
     if (isOpen) backdropRef.current?.focus();
   }, [isOpen]);
 
-  const phase = board?.phase ?? status?.phase ?? "unknown";
+  const handleUpdateDisplayName = useCallback(async (name: string) => {
+    if (mySeat !== null) patchSeatName(mySeat, name || `Seat ${mySeat}`);
+    await useLiveStore.getState().updateDisplayName(name);
+    await useDraftStore.getState().refreshNow();
+  }, [mySeat, patchSeatName]);
+
+  const pickQueue = queue.map((e) => ({ cardName: e.cardName, position: e.priority }));
+
+  const phase = board?.phase ?? liveDraftStatus?.phase ?? "unknown";
   const badgeColors = PHASE_BADGE_COLORS[phase] ?? { bg: "bg-zinc-700", text: "text-zinc-400" };
 
   const nextPick =
@@ -139,9 +138,9 @@ export function DraftBoardModal({
                   board={board}
                   mySeat={mySeat}
                   nextPickN={nextPick?.pickNumber ?? null}
-                  onUpdateDisplayName={onUpdateDisplayName}
-                  handlePick={handlePick}
-                  isMyTurn={isMyTurn}
+                  onUpdateDisplayName={handleUpdateDisplayName}
+                  handlePick={isAuthed ? submitPick : undefined}
+                  isMyTurn={isAuthed && isMyTurn}
                   draftId={draftId}
                   pickError={pickError}
                 />
@@ -149,21 +148,21 @@ export function DraftBoardModal({
               <div className="shrink-0">
                 <StandingsSection
                   board={board}
-                  status={status}
+                  status={liveDraftStatus}
                   draftId={draftId}
                   mySeat={mySeat}
-                  token={token}
-                  onMatchReported={onMatchReported}
+                  token={seatToken}
+                  onMatchReported={() => useDraftStore.getState().refreshNow()}
                 />
-                {token !== null && (
+                {seatToken !== null && (
                   <QueuePanel
                     queue={pickQueue}
                     autoPick={autoPick}
                     autoPickMode={autoPickMode}
-                    onReorder={onQueueReorder ?? (() => {})}
-                    onRemove={onQueueRemove ?? (() => {})}
-                    onToggleAutoPick={onToggleAutoPick ?? (() => {})}
-                    onChangeAutoPickMode={onChangeAutoPickMode ?? (() => {})}
+                    onReorder={reorderQueue}
+                    onRemove={removeFromQueue}
+                    onToggleAutoPick={toggleAutoPick}
+                    onChangeAutoPickMode={updateAutoPickMode}
                   />
                 )}
               </div>
