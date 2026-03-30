@@ -55,8 +55,11 @@ export function CardStatsModal() {
   const seatCardNames = useCardStore((s) => s.seatCardNames);
   const takenCardNamesSet = useCardStore((s) => s.takenCardNamesSet);
 
+  // getCardStatus reads from stores imperatively — these subscriptions
+  // ensure the memo recomputes when the underlying data changes
   const cardStatusResult = useMemo(
     () => selectedCard ? getCardStatus(selectedCard) : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [selectedCard, isAuthed, queuedCards, floatedCardsSet, seatCardNames, takenCardNamesSet]
   );
 
@@ -68,12 +71,10 @@ export function CardStatsModal() {
   const [actionPending, setActionPending] = useState(false);
   const dataVersion = useDraftStore((s) => s.dataVersion);
 
-  // Re-enable buttons when dataVersion changes (poll confirmed new state)
   useEffect(() => {
     if (actionPending) setActionPending(false);
   }, [dataVersion]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Also re-enable when the selected card changes (opened a new card)
   useEffect(() => {
     setActionPending(false);
   }, [selectedCard]);
