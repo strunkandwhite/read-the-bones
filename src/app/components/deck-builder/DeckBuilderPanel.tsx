@@ -49,6 +49,7 @@ export function DeckBuilderPanel({
   const state = useLiveStore((s) => s.deckState);
   const dispatch = useLiveStore((s) => s.dispatchDeck);
   const floatedCards = useLiveStore((s) => s.floatedCards);
+  const queue = useLiveStore((s) => s.queue);
   const removeFloat = useLiveStore((s) => s.removeFloat);
   const saveStatus = useLiveStore((s) => s.deckSaveStatus);
   const mySeat = useLiveStore((s) => s.mySeat);
@@ -62,6 +63,7 @@ export function DeckBuilderPanel({
 
   const isAuthed = mySeat !== null && mySeat === selectedSeat;
   const effectiveFloatedCards = isAuthed ? floatedCards : [];
+  const effectiveQueuedCardNames = isAuthed ? queue.map((e) => e.cardName) : [];
 
   const [showBasicLands, setShowBasicLands] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -285,6 +287,7 @@ export function DeckBuilderPanel({
             scryfallData={scryfallData}
             cardStats={cardStats}
             floatedCards={effectiveFloatedCards}
+            queuedCardNames={effectiveQueuedCardNames}
             onRemoveFloat={handleRemoveFloat}
           />
           <div className="border-t border-zinc-700/30" />
@@ -294,6 +297,7 @@ export function DeckBuilderPanel({
             scryfallData={scryfallData}
             cardStats={cardStats}
             floatedCards={effectiveFloatedCards}
+            queuedCardNames={effectiveQueuedCardNames}
             onRemoveFloat={handleRemoveFloat}
           />
         </div>
