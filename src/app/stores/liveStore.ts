@@ -510,6 +510,12 @@ export const useLiveStore = create<LiveStoreState>()(
 
         if (res.ok) {
           set({ pickError: null });
+          // Remove picked card from floats (client-side cleanup)
+          const { floatedCards } = get();
+          if (floatedCards.includes(cardName)) {
+            const updated = floatedCards.filter((c) => c !== cardName);
+            set({ floatedCards: updated, floatedCardsSet: new Set(updated) });
+          }
           await useDraftStore.getState().refreshNow();
         } else {
           const data = await res.json().catch(() => ({ error: "Pick failed" }));

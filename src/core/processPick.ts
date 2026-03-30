@@ -1,6 +1,7 @@
 import type { Client } from '@libsql/client';
 import { getNextPick, getTotalPicks } from './snakeDraft';
 import { removeCardFromAllQueues, getAutoPickCandidate, getQueuesContainingCard } from './db/queries/pickQueue';
+import { removeFloatedCardByCardId } from './db/queries/floatedCards';
 import { getAllSeatSettings, updateAutoPick } from './db/queries/seatTokens';
 import { parseBannedCards } from './db/queries/helpers';
 import { NotFoundError, ValidationError, ConflictError } from './errors';
@@ -147,6 +148,7 @@ export async function processPick(
       );
 
       await removeCardFromAllQueues(client, input.draftId, currentCardId);
+      await removeFloatedCardByCardId(client, input.draftId, currentCardId);
     }
 
     // Check if draft is complete

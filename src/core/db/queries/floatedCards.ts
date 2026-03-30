@@ -39,3 +39,17 @@ export async function removeFloatedCard(
     args: [draftId, seat, cardName],
   });
 }
+
+export async function removeFloatedCardByCardId(
+  client: Client,
+  draftId: string,
+  cardId: number,
+): Promise<void> {
+  await client.execute({
+    sql: `DELETE FROM floated_cards
+          WHERE draft_id = ? AND card_name = (
+            SELECT name FROM cards WHERE card_id = ?
+          )`,
+    args: [draftId, cardId],
+  });
+}
