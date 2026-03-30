@@ -180,7 +180,11 @@ async function flushDeckSave() {
       }, DECK_SAVE_STATUS_RESET_MS);
     }
   } catch {
-    // Save failed — will retry on next dispatch
+    useLiveStore.setState({ deckSaveStatus: "idle" });
+    // Retry in 5s if still dirty
+    setTimeout(() => {
+      if (deckDirty) flushDeckSave();
+    }, 5000);
   }
 
   deckInFlight = false;
