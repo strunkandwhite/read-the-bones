@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { useDraftStore } from "./draftStore";
+import { derivePickSeat, getTotalPicks } from "@/core/snakeDraft";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -29,6 +30,11 @@ interface LiveStoreState {
   // Float
   floatedCards: string[];
 
+  // Picking
+  pickError: string | null;
+  isMyTurn: boolean;
+  consecutivePicks: number;
+
   // Actions
   hydrateToken: (draftId: string) => void;
   fetchMySeat: () => Promise<void>;
@@ -47,6 +53,10 @@ interface LiveStoreState {
   fetchFloatedCards: () => Promise<void>;
   addFloat: (cardName: string) => Promise<void>;
   removeFloat: (cardName: string) => Promise<void>;
+
+  // Pick actions
+  handlePick: (cardName: string) => Promise<void>;
+  setPickError: (error: string | null) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -118,6 +128,11 @@ export const useLiveStore = create<LiveStoreState>()(
 
     // Float state
     floatedCards: [],
+
+    // Picking state
+    pickError: null,
+    isMyTurn: false,
+    consecutivePicks: 0,
 
     // -----------------------------------------------------------------------
     // hydrateToken — reads token from URL then localStorage
@@ -365,8 +380,105 @@ export const useLiveStore = create<LiveStoreState>()(
         set({ floatedCards: previous });
       }
     },
+
+    // -----------------------------------------------------------------------
+    // handlePick — submit a pick to the server
+    // -----------------------------------------------------------------------
+    handlePick: async (cardName: string) => {
+      const { seatToken, autoPick } = get();
+      const activeDraft = useDraftStore.getState().activeDraft;
+      if (!seatToken || !activeDraft) return;
+
+      try {
+        const res = await fetch(`/api/drafts/${activeDraft}/pick`, {
+          method: "POST",
+          headers: {
+            "X-Seat-Token": seatToken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ card_name: cardName }),
+        });
+
+        if (res.ok) {
+          set({ pickError: null });
+          await useDraftStore.getState().refreshNow();
+        } else {
+          const data = await res.json().catch(() => ({ error: "Pick failed" }));
+          const errorMsg = data.error || "Pick failed";
+
+          if (autoPick && errorMsg.includes("already been picked")) {
+            // Suppress error when auto-picking — card was taken, refresh will trigger next pick
+            set({ pickError: null });
+            await useDraftStore.getState().refreshNow();
+          } else {
+            set({ pickError: errorMsg });
+          }
+        }
+      } catch {
+        set({ pickError: "Network error — pick may not have been submitted" });
+      }
+    },
+
+    // -----------------------------------------------------------------------
+    // setPickError
+    // -----------------------------------------------------------------------
+    setPickError: (error: string | null) => {
+      set({ pickError: error });
+    },
   })),
 );
+
+// ---------------------------------------------------------------------------
+// Derived picking state
+// ---------------------------------------------------------------------------
+
+let autoPickInFlight = false;
+
+async function triggerAutoPick() {
+  if (autoPickInFlight) return;
+  autoPickInFlight = true;
+  try {
+    await useLiveStore.getState().refreshSettings();
+    const { autoPick, queuedCards } = useLiveStore.getState();
+    if (!autoPick || queuedCards.size === 0) return;
+
+    // Pick the highest-priority (lowest number) card from queue
+    const { queue } = useLiveStore.getState();
+    const sorted = [...queue].sort((a, b) => a.priority - b.priority);
+    if (sorted.length > 0) {
+      await useLiveStore.getState().handlePick(sorted[0].cardName);
+    }
+  } finally {
+    autoPickInFlight = false;
+  }
+}
+
+export function recomputePicking() {
+  const { mySeat, autoPick, queuedCards } = useLiveStore.getState();
+  const { liveDraftStatus } = useDraftStore.getState();
+
+  const isMyTurn = mySeat !== null && liveDraftStatus?.nextSeat === mySeat;
+
+  let consecutivePicks = 0;
+  if (isMyTurn && liveDraftStatus && mySeat !== null) {
+    const { latestPickN, numSeats, picksPerPlayer } = liveDraftStatus;
+    const totalPicks = getTotalPicks(numSeats, picksPerPlayer);
+    let pickN = latestPickN + 1;
+    while (pickN <= totalPicks) {
+      const { seat } = derivePickSeat(pickN, { numSeats, picksPerPlayer });
+      if (seat !== mySeat) break;
+      consecutivePicks++;
+      pickN++;
+    }
+  }
+
+  useLiveStore.setState({ isMyTurn, consecutivePicks });
+
+  // Auto-pick trigger
+  if (isMyTurn && autoPick && queuedCards.size > 0) {
+    triggerAutoPick();
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Cross-store subscription: react to activeDraft changes
@@ -392,6 +504,9 @@ useDraftStore.subscribe(
         queueLoading: false,
         queueError: null,
         floatedCards: [],
+        pickError: null,
+        isMyTurn: false,
+        consecutivePicks: 0,
       });
     }
   },
@@ -405,4 +520,10 @@ useDraftStore.subscribe(
       useLiveStore.getState().fetchQueue();
     }
   },
+);
+
+// Recompute picking state when nextSeat changes
+useDraftStore.subscribe(
+  (state) => state.liveDraftStatus?.nextSeat,
+  () => recomputePicking(),
 );

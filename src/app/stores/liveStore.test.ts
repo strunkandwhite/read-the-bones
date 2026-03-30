@@ -1,9 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { useLiveStore } from "./liveStore";
+import { useLiveStore, recomputePicking } from "./liveStore";
 import { useDraftStore, _resetPollingState } from "./draftStore";
 
 vi.mock("@vercel/analytics/react", () => ({ track: vi.fn() }));
+vi.mock("@/core/snakeDraft", () => ({
+  derivePickSeat: vi.fn((pickN: number) => ({ seat: pickN <= 2 ? 1 : 2, round: 1 })),
+  getTotalPicks: vi.fn(() => 10),
+}));
 
 function resetStores() {
   _resetPollingState();
@@ -32,6 +36,9 @@ function resetStores() {
     queueLoading: false,
     queueError: null,
     floatedCards: [],
+    pickError: null,
+    isMyTurn: false,
+    consecutivePicks: 0,
   });
 }
 
@@ -976,5 +983,277 @@ describe("liveStore — removeFloat", () => {
     await useLiveStore.getState().removeFloat("Bolt");
 
     expect(useLiveStore.getState().floatedCards).toEqual(["Bolt", "Counterspell"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// handlePick
+// ---------------------------------------------------------------------------
+describe("liveStore — handlePick", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("POSTs to /api/drafts/{id}/pick with card_name and X-Seat-Token", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    await useLiveStore.getState().handlePick("Lightning Bolt");
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/drafts/draft-1/pick",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "X-Seat-Token": "tok-abc",
+          "Content-Type": "application/json",
+        }),
+        body: JSON.stringify({ card_name: "Lightning Bolt" }),
+      }),
+    );
+  });
+
+  it("refreshes on success", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc", pickError: "old error" });
+
+    const refreshSpy = vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
+
+    await useLiveStore.getState().handlePick("Lightning Bolt");
+
+    expect(useLiveStore.getState().pickError).toBeNull();
+    expect(refreshSpy).toHaveBeenCalled();
+  });
+
+  it("sets pickError on non-ok response", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "Card not in pool" }), { status: 400 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    await useLiveStore.getState().handlePick("Fake Card");
+
+    expect(useLiveStore.getState().pickError).toBe("Card not in pool");
+  });
+
+  it("suppresses 'already been picked' when autoPick is on", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: "Card has already been picked" }),
+        { status: 409 },
+      ),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc", autoPick: true });
+
+    const refreshSpy = vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
+
+    await useLiveStore.getState().handlePick("Taken Card");
+
+    expect(useLiveStore.getState().pickError).toBeNull();
+    expect(refreshSpy).toHaveBeenCalled();
+  });
+
+  it("does not suppress 'already been picked' when autoPick is off", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: "Card has already been picked" }),
+        { status: 409 },
+      ),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc", autoPick: false });
+
+    await useLiveStore.getState().handlePick("Taken Card");
+
+    expect(useLiveStore.getState().pickError).toBe("Card has already been picked");
+  });
+
+  it("sets network error on fetch failure", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network error"));
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    await useLiveStore.getState().handlePick("Lightning Bolt");
+
+    expect(useLiveStore.getState().pickError).toBe(
+      "Network error — pick may not have been submitted",
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// setPickError
+// ---------------------------------------------------------------------------
+describe("liveStore — setPickError", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("updates pickError", () => {
+    useLiveStore.getState().setPickError("Something went wrong");
+    expect(useLiveStore.getState().pickError).toBe("Something went wrong");
+
+    useLiveStore.getState().setPickError(null);
+    expect(useLiveStore.getState().pickError).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isMyTurn derived state
+// ---------------------------------------------------------------------------
+describe("liveStore — isMyTurn", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("is true when mySeat matches liveDraftStatus.nextSeat", () => {
+    useLiveStore.setState({ mySeat: 3 });
+    useDraftStore.setState({
+      liveDraftStatus: {
+        phase: "drafting",
+        latestPickN: 5,
+        nextSeat: 3,
+        recentPicks: [],
+        seatNames: {},
+        numSeats: 10,
+        picksPerPlayer: 45,
+        matchCount: 0,
+        totalMatches: 0,
+      },
+    });
+
+    recomputePicking();
+
+    expect(useLiveStore.getState().isMyTurn).toBe(true);
+  });
+
+  it("is false when mySeat does not match nextSeat", () => {
+    useLiveStore.setState({ mySeat: 3 });
+    useDraftStore.setState({
+      liveDraftStatus: {
+        phase: "drafting",
+        latestPickN: 5,
+        nextSeat: 5,
+        recentPicks: [],
+        seatNames: {},
+        numSeats: 10,
+        picksPerPlayer: 45,
+        matchCount: 0,
+        totalMatches: 0,
+      },
+    });
+
+    recomputePicking();
+
+    expect(useLiveStore.getState().isMyTurn).toBe(false);
+  });
+
+  it("is false when mySeat is null", () => {
+    useLiveStore.setState({ mySeat: null });
+    useDraftStore.setState({
+      liveDraftStatus: {
+        phase: "drafting",
+        latestPickN: 5,
+        nextSeat: 3,
+        recentPicks: [],
+        seatNames: {},
+        numSeats: 10,
+        picksPerPlayer: 45,
+        matchCount: 0,
+        totalMatches: 0,
+      },
+    });
+
+    recomputePicking();
+
+    expect(useLiveStore.getState().isMyTurn).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// consecutivePicks derived state
+// ---------------------------------------------------------------------------
+describe("liveStore — consecutivePicks", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("counts consecutive picks at snake turning point", async () => {
+    // With the mock: derivePickSeat returns seat 1 for pickN <= 2, seat 2 otherwise
+    // If latestPickN = 0 and mySeat = 1, then picks 1 and 2 are for seat 1
+    useLiveStore.setState({ mySeat: 1 });
+    useDraftStore.setState({
+      liveDraftStatus: {
+        phase: "drafting",
+        latestPickN: 0,
+        nextSeat: 1,
+        recentPicks: [],
+        seatNames: {},
+        numSeats: 2,
+        picksPerPlayer: 5,
+        matchCount: 0,
+        totalMatches: 0,
+      },
+    });
+
+    recomputePicking();
+
+    // Pick 1 → seat 1, Pick 2 → seat 1, Pick 3 → seat 2 (stops)
+    expect(useLiveStore.getState().consecutivePicks).toBe(2);
+  });
+
+  it("is 0 when it is not my turn", async () => {
+    useLiveStore.setState({ mySeat: 2 });
+    useDraftStore.setState({
+      liveDraftStatus: {
+        phase: "drafting",
+        latestPickN: 0,
+        nextSeat: 1,
+        recentPicks: [],
+        seatNames: {},
+        numSeats: 2,
+        picksPerPlayer: 5,
+        matchCount: 0,
+        totalMatches: 0,
+      },
+    });
+
+    recomputePicking();
+
+    expect(useLiveStore.getState().consecutivePicks).toBe(0);
   });
 });
