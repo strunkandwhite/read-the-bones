@@ -149,8 +149,10 @@ export async function processPick(
           })
       );
 
-      await removeCardFromAllQueues(client, input.draftId, currentCardId);
-      await removeFloatedCardByCardId(client, input.draftId, currentCardId);
+      await Promise.all([
+        removeCardFromAllQueues(client, input.draftId, currentCardId),
+        removeFloatedCardByCardId(client, input.draftId, currentCardId),
+      ]);
     }
 
     // Check if draft is complete
