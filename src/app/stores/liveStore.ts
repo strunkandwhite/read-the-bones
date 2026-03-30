@@ -277,6 +277,7 @@ export const useLiveStore = create<LiveStoreState>()(
           displayName: data.displayName,
           autoPickMode: data.autoPickMode || "resilient",
         });
+        recomputePicking();
       } catch {
         // Token invalid or network error — remain as spectator
       }
