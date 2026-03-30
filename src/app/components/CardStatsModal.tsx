@@ -66,14 +66,13 @@ export function CardStatsModal() {
   const cardStatus: CardStatus = cardStatusResult?.status ?? "none";
   const queuePosition = cardStatusResult?.queuePosition;
 
-  // After any action, disable all buttons until the next poll cycle
-  // confirms server state via a dataVersion bump.
+  // After any action, disable all buttons until the card's status changes
+  // (confirmed by optimistic update or server response).
   const [actionPending, setActionPending] = useState(false);
-  const dataVersion = useDraftStore((s) => s.dataVersion);
 
   useEffect(() => {
     if (actionPending) setActionPending(false);
-  }, [dataVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [cardStatus, queuePosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setActionPending(false);
