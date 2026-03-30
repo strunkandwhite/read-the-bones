@@ -22,10 +22,21 @@ export async function getColorPairBreakdown(
   cardName: string,
   draftId?: string,
   excludeDraftId?: string,
+  cardId?: number,
 ): Promise<ColorPairEntry[]> {
   const draftFilter = draftId ? "AND dc.draft_id = ?" : "";
   const excludeFilter = excludeDraftId ? "AND dc.draft_id != ?" : "";
-  const args: (string | number)[] = [cardName];
+
+  // When card_id is provided, filter deck_cards directly by ID (skips the name→id join).
+  const useCardId = cardId !== undefined;
+  const cardFilter = useCardId
+    ? "dc.card_id = ?"
+    : "c.name = ?";
+  const cardJoin = useCardId
+    ? ""
+    : "JOIN cards c ON c.card_id = dc.card_id";
+
+  const args: (string | number)[] = [useCardId ? cardId : cardName];
   if (draftId) args.push(draftId);
   if (excludeDraftId) args.push(excludeDraftId);
 
@@ -34,11 +45,11 @@ export async function getColorPairBreakdown(
   const result = await client.execute({
     sql: `SELECT dc2.draft_id, dc2.seat, c2.scryfall_json
           FROM deck_cards dc
-          JOIN cards c ON c.card_id = dc.card_id
+          ${cardJoin}
           JOIN deck_cards dc2 ON dc2.draft_id = dc.draft_id AND dc2.seat = dc.seat
             AND dc2.zone = 'deck'
           JOIN cards c2 ON c2.card_id = dc2.card_id
-          WHERE c.name = ? AND dc.zone = 'deck' ${draftFilter} ${excludeFilter}`,
+          WHERE ${cardFilter} AND dc.zone = 'deck' ${draftFilter} ${excludeFilter}`,
     args,
   });
 

@@ -109,8 +109,8 @@ export async function getCardStats(
       exclude_draft_id: params.exclude_draft_id,
       deck_colors: params.deck_colors,
     }),
-    getPickHistory(client, card.name, params.draft_id, params.exclude_draft_id),
-    getColorPairBreakdown(client, card.name, params.draft_id, params.exclude_draft_id),
+    getPickHistory(client, card.name, params.draft_id, params.exclude_draft_id, cardId),
+    getColorPairBreakdown(client, card.name, params.draft_id, params.exclude_draft_id, cardId),
   ]);
 
   // Build play stats

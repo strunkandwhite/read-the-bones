@@ -2,11 +2,30 @@
  * Decklist queries (getDeck, getCardPlayStats, getCardWinStats, getWinningDecksByColor).
  */
 
+import type { Client } from "@libsql/client";
 import { getClient } from "../client";
 import { getOptedOutSeats, getSeatsMatchingColors, parseScryfallJson } from "./helpers";
 import { resolveCard } from "./cards";
 import { inferDeckColor } from "../../inferDeckColor";
 import { round3 } from "../../utils";
+
+/**
+ * Fetch privacy opt-outs for a set of drafts, returned as "draftId:seat" pairs.
+ * Extracted so callers can pre-fetch once and share across getCardPlayStats / getCardWinStats.
+ */
+export async function fetchOptOuts(client: Client, draftIds: string[]): Promise<Set<string>> {
+  if (draftIds.length === 0) return new Set();
+  const placeholders = draftIds.map(() => "?").join(", ");
+  const result = await client.execute({
+    sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${placeholders})`,
+    args: draftIds,
+  });
+  const optedOut = new Set<string>();
+  for (const row of result.rows) {
+    optedOut.add(`${row.draft_id}:${row.seat}`);
+  }
+  return optedOut;
+}
 
 export interface GetDeckParams {
   draft_id: string;
@@ -75,6 +94,8 @@ export interface GetCardPlayStatsParams {
   draft_id?: string;
   exclude_draft_id?: string;
   deck_colors?: string;
+  /** Pre-fetched opt-outs as "draftId:seat" pairs. When provided, skips the internal opt-outs query. */
+  optedOutByDraft?: Set<string>;
 }
 
 export interface CardPlayStatsResult {
@@ -131,18 +152,9 @@ export async function getCardPlayStats(
     };
   }
 
-  // Load opt-outs for relevant drafts
+  // Load opt-outs for relevant drafts (skip if caller already fetched them)
   const draftIds = [...new Set(result.rows.map((r) => r.draft_id as string))];
-  const optOutPlaceholders = draftIds.map(() => "?").join(", ");
-  const optOutResult = await client.execute({
-    sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${optOutPlaceholders})`,
-    args: draftIds,
-  });
-
-  const optedOut = new Set<string>();
-  for (const row of optOutResult.rows) {
-    optedOut.add(`${row.draft_id}:${row.seat}`);
-  }
+  const optedOut = params.optedOutByDraft ?? await fetchOptOuts(client, draftIds);
 
   // If deck_colors filter is set, determine which seats match
   let matchingSeats: Set<string> | null = null;
@@ -191,6 +203,8 @@ export interface GetCardWinStatsParams {
   draft_id?: string;
   exclude_draft_id?: string;
   deck_colors?: string;
+  /** Pre-fetched opt-outs as "draftId:seat" pairs. When provided, skips the internal opt-outs query. */
+  optedOutByDraft?: Set<string>;
 }
 
 export interface CardWinStatsResult {
@@ -257,18 +271,9 @@ export async function getCardWinStats(
     };
   }
 
-  // Get opt-outs and optional color filter for all relevant drafts
+  // Get opt-outs and optional color filter for all relevant drafts (skip if caller already fetched them)
   const draftIds = [...new Set(result.rows.map((r) => r.draft_id as string))];
-  const optOutPlaceholders = draftIds.map(() => "?").join(", ");
-  const optOutResult = await client.execute({
-    sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${optOutPlaceholders})`,
-    args: draftIds,
-  });
-
-  const optedOut = new Set<string>();
-  for (const row of optOutResult.rows) {
-    optedOut.add(`${row.draft_id}:${row.seat}`);
-  }
+  const optedOut = params.optedOutByDraft ?? await fetchOptOuts(client, draftIds);
 
   // If deck_colors filter is set, determine which seats match
   let matchingSeats: Set<string> | null = null;
