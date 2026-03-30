@@ -182,11 +182,8 @@ function StatsContent({ data, isLocal }: { data: StatsData; isLocal?: boolean })
         {isLocal && wins && (
           <StatRow
             label="GPWR"
-            value={
-              wins.low_sample
-                ? `${(wins.win_rate * 100).toFixed(0)}%*`
-                : `${(wins.win_rate * 100).toFixed(0)}%`
-            }
+            value={`${(wins.win_rate * 100).toFixed(0)}%${wins.low_sample ? '*' : ''}`}
+            annotation={`\u00b1${Math.round((wins.win_rate_ci.upper - wins.win_rate_ci.lower) * 50)}%`}
           />
         )}
       </div>
