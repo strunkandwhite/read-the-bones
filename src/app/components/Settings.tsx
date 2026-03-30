@@ -4,7 +4,7 @@ import { useState, useRef, useEffect, useMemo } from "react";
 import { track } from "@vercel/analytics/react";
 import { DraftSelector } from "./DraftSelector";
 import { PoolSelector } from "./PoolSelector";
-import type { ActiveDraftInfo } from "../hooks/useSyncStatus";
+import type { ActiveDraftInfo } from "../stores/draftStore";
 
 export interface SettingsProps {
   drafts: Array<{ id: string; name: string; date: string; numDrafters: number }>;

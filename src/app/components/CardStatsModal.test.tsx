@@ -1,22 +1,33 @@
 // @vitest-environment jsdom
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { CardStatsModal } from "./CardStatsModal";
+import { useCardStore } from "@/app/stores/cardStore";
 
-// Mock the hooks
-vi.mock("@/app/hooks/useCardStats", () => ({
-  useCardStats: vi.fn(() => ({
-    data: {
-      pick: { drafts_in_pool: 5, times_picked: 4, avg_pick: 10.2, median_pick: 9, geomean_pick: 12.4 },
-      pick_history: [],
-      pick_distribution: Array(15).fill(0),
-      times_banned: 0,
-      color_pair_breakdown: [{ colorPair: "RW", percentage: 55, deckCount: 3 }],
-    },
-    loading: false,
-    error: null,
-  })),
-}));
+// Mock the Zustand store
+vi.mock("@/app/stores/cardStore", () => {
+  const store = vi.fn();
+  return { useCardStore: store };
+});
+
+const mockCardStatsData = {
+  pick: { drafts_in_pool: 5, times_picked: 4, avg_pick: 10.2, median_pick: 9, geomean_pick: 12.4 },
+  pick_history: [],
+  pick_distribution: Array(15).fill(0),
+  times_banned: 0,
+  color_pair_breakdown: [{ colorPair: "RW", percentage: 55, deckCount: 3 }],
+};
+
+beforeEach(() => {
+  // useCardStore is called with a selector; return mock data based on selector
+  (useCardStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+    (selector: (state: Record<string, unknown>) => unknown) =>
+      selector({
+        cardStatsDetail: mockCardStatsData,
+        cardStatsLoading: false,
+      }),
+  );
+});
 
 afterEach(() => {
   cleanup();

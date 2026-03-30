@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, type KeyboardEvent } from "react";
-import type { BoardData, LiveDraftStatus } from "@/app/hooks/useLiveDraftStatus";
+import type { BoardData, LiveDraftStatus } from "@/app/stores/draftStore";
 import { useScrollLock } from "@/app/hooks/useScrollLock";
 import { getNextPick } from "@/core/snakeDraft";
 import { DraftBoardMatrix } from "./DraftBoardMatrix";

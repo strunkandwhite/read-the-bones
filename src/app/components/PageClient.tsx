@@ -605,7 +605,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
         scryfallImageUrl={getImageUrlCb(selectedCard)}
         isOpen={!!selectedCard}
         onClose={clearSelectedCard}
-        draftId={activeDraft && liveDraftStatus?.phase !== "drafting" ? activeDraft : undefined}
         isLiveDraft={!!activeDraft && liveDraftStatus?.phase === "drafting"}
         isMyTurn={isAuthed && isMyTurn}
         cardStatus={selectedCardStatus?.status ?? "none"}
@@ -616,7 +615,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
         onFloat={isAuthed && selectedCard ? () => addFloat(selectedCard) : undefined}
         onUnfloat={isAuthed && selectedCard ? () => removeFloat(selectedCard) : undefined}
         isLocal={isLocal}
-        excludeDraftId={liveDraftStatus?.phase === "drafting" ? activeDraft ?? undefined : undefined}
       />
     </div>
   );

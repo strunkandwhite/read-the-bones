@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import type { BoardData, LiveDraftStatus } from "@/app/hooks/useLiveDraftStatus";
+import type { BoardData, LiveDraftStatus } from "@/app/stores/draftStore";
 import { MatchReporting } from "./MatchReporting";
 
 interface StandingsSectionProps {

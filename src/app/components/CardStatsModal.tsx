@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { useCardStats } from "@/app/hooks/useCardStats";
+import { useCardStore } from "@/app/stores/cardStore";
+import type { CardStatsData } from "@/app/stores/cardStore";
 import { HoldToPickButton } from "./HoldToPickButton";
 import { DistributionHistogram } from "./DistributionHistogram";
 import { Sparkline } from "./Sparkline";
@@ -15,7 +16,6 @@ type CardStatsModalProps = {
   scryfallImageUrl?: string;
   isOpen: boolean;
   onClose: () => void;
-  draftId?: string;
   // Live draft action props (all optional — absent means stats-only)
   isLiveDraft?: boolean;
   isMyTurn?: boolean;
@@ -27,12 +27,12 @@ type CardStatsModalProps = {
   onFloat?: () => void;
   onUnfloat?: () => void;
   isLocal?: boolean;
-  excludeDraftId?: string;
 };
 
 export function CardStatsModal(props: CardStatsModalProps) {
-  const { cardName, isOpen, onClose, draftId, isLocal, excludeDraftId } = props;
-  const { data, loading } = useCardStats(isOpen ? cardName : null, draftId, excludeDraftId);
+  const { cardName, isOpen, onClose, isLocal } = props;
+  const data = useCardStore((s) => s.cardStatsDetail);
+  const loading = useCardStore((s) => s.cardStatsLoading);
 
   // Escape key handler
   useEffect(() => {
@@ -161,7 +161,7 @@ function aggregateByDate(
 
 // --- Stats content ---
 
-type StatsData = NonNullable<ReturnType<typeof useCardStats>["data"]>;
+type StatsData = CardStatsData;
 
 function StatsContent({ data, isLocal }: { data: StatsData; isLocal?: boolean }) {
   const { pick, wins, pick_history, pick_distribution, times_banned, color_pair_breakdown } = data;
