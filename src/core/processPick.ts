@@ -143,6 +143,8 @@ export async function processPick(
             const settings = allSeatSettings.get(affectedSeat);
             if (settings?.autoPickMode === 'cautious') {
               await updateAutoPick(client, input.draftId, affectedSeat, false);
+              // Update the batch map so the cascade check below sees the paused state
+              allSeatSettings.set(affectedSeat, { ...settings, autoPick: false });
             }
           })
       );
