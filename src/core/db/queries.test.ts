@@ -762,7 +762,7 @@ describe("getPicks", () => {
 
   it("should redact seats for opted-out players", async () => {
     // Mock opt-outs query (seat 2 opted out)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ seat: 2 }]));
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ draft_id: "draft1", seat: 2 }]));
     // Mock picks query
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
@@ -780,7 +780,7 @@ describe("getPicks", () => {
 
   it("should return empty when querying opted-out seat directly", async () => {
     // Mock opt-outs query (seat 2 opted out)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ seat: 2 }]));
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ draft_id: "draft1", seat: 2 }]));
 
     const result = await getPicks({ draft_id: "draft1", seat: 2 });
 
@@ -1011,9 +1011,9 @@ describe("getStandings", () => {
     // Mock match events
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
-        { seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 1 },
-        { seat1: 1, seat2: 3, seat1_wins: 2, seat2_wins: 0 },
-        { seat1: 2, seat2: 3, seat1_wins: 1, seat2_wins: 2 },
+        { draft_id: "draft1", seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 1 },
+        { draft_id: "draft1", seat1: 1, seat2: 3, seat1_wins: 2, seat2_wins: 0 },
+        { draft_id: "draft1", seat1: 2, seat2: 3, seat1_wins: 1, seat2_wins: 2 },
       ])
     );
 
@@ -1036,7 +1036,7 @@ describe("getStandings", () => {
     // Mock match events
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
-        { seat1: 1, seat2: 2, seat1_wins: 1, seat2_wins: 1 },
+        { draft_id: "draft1", seat1: 1, seat2: 2, seat1_wins: 1, seat2_wins: 1 },
       ])
     );
 
@@ -1071,9 +1071,9 @@ describe("getStandings", () => {
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
         // Seat 1: 1-0, 2-1 games (66% game winrate)
-        { seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 1 },
+        { draft_id: "draft1", seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 1 },
         // Seat 3: 1-0, 2-0 games (100% game winrate)
-        { seat1: 3, seat2: 4, seat1_wins: 2, seat2_wins: 0 },
+        { draft_id: "draft1", seat1: 3, seat2: 4, seat1_wins: 2, seat2_wins: 0 },
       ])
     );
 
@@ -1086,11 +1086,11 @@ describe("getStandings", () => {
 
   it("should redact opted-out seats in standings", async () => {
     // Mock opt-outs query (seat 2 opted out)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ seat: 2 }]));
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ draft_id: "draft1", seat: 2 }]));
     // Mock match events
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
-        { seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 1 },
+        { draft_id: "draft1", seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 1 },
       ])
     );
 
@@ -1420,7 +1420,7 @@ describe("getDraftPool", () => {
 
   it("should redact opted-out seats when include_draft_results is true", async () => {
     // Mock opt-outs query (seat 2 opted out)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ seat: 2 }]));
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ draft_id: "draft1", seat: 2 }]));
     // Mock pool query
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
@@ -1491,7 +1491,7 @@ describe("getDraftPool", () => {
 
   it("should not expose seat info when include_draft_results is false", async () => {
     // Mock opt-outs query (seat 1 opted out)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ seat: 1 }]));
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ draft_id: "draft1", seat: 1 }]));
     // Mock pool query
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([

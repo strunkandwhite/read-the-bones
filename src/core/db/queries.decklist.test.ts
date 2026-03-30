@@ -45,7 +45,7 @@ describe("getDeck", () => {
 
   it("should return redacted for opted-out seat", async () => {
     // Mock opt-outs (seat 1 opted out)
-    mockExecute.mockResolvedValueOnce({ rows: [{ seat: 1 }] });
+    mockExecute.mockResolvedValueOnce({ rows: [{ draft_id: "tarkir", seat: 1 }] });
 
     const result = await getDeck({ draft_id: "tarkir", seat: 1 });
 

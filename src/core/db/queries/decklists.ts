@@ -2,30 +2,12 @@
  * Decklist queries (getDeck, getCardPlayStats, getCardWinStats, getWinningDecksByColor).
  */
 
-import type { Client } from "@libsql/client";
 import { getClient } from "../client";
-import { getOptedOutSeats, getSeatsMatchingColors, parseScryfallJson } from "./helpers";
+import { fetchOptOuts, getOptedOutSeats, getSeatsMatchingColors, inferSeatColors } from "./helpers";
 import { resolveCard } from "./cards";
-import { inferDeckColor } from "../../inferDeckColor";
+import { aggregateMatchRecords } from "./matches";
 import { round3 } from "../../utils";
 
-/**
- * Fetch privacy opt-outs for a set of drafts, returned as "draftId:seat" pairs.
- * Extracted so callers can pre-fetch once and share across getCardPlayStats / getCardWinStats.
- */
-export async function fetchOptOuts(client: Client, draftIds: string[]): Promise<Set<string>> {
-  if (draftIds.length === 0) return new Set();
-  const placeholders = draftIds.map(() => "?").join(", ");
-  const result = await client.execute({
-    sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${placeholders})`,
-    args: draftIds,
-  });
-  const optedOut = new Set<string>();
-  for (const row of result.rows) {
-    optedOut.add(`${row.draft_id}:${row.seat}`);
-  }
-  return optedOut;
-}
 
 export interface GetDeckParams {
   draft_id: string;
@@ -383,42 +365,22 @@ export async function getWinningDecksByColor(
 
   // 2. Get opt-outs for all relevant drafts
   const allDraftIds = [...new Set(deckResult.rows.map((r) => r.draft_id as string))];
-  const optOutPlaceholders = allDraftIds.map(() => "?").join(", ");
-  const optOutResult = await client.execute({
-    sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${optOutPlaceholders})`,
-    args: allDraftIds,
-  });
-  const optedOut = new Set<string>();
-  for (const row of optOutResult.rows) {
-    optedOut.add(`${row.draft_id}:${row.seat}`);
-  }
+  const optedOut = await fetchOptOuts(client, allDraftIds);
 
-  // 3. Group cards by seat, infer colors, collect card names
-  const seatColors = new Map<string, Map<string, number>>();
+  // 3. Collect card names per seat (excluding opted-out seats)
   const seatCards = new Map<string, string[]>();
-
   for (const row of deckResult.rows) {
     const key = `${row.draft_id}:${row.seat}`;
     if (optedOut.has(key)) continue;
-
-    const scryfall = parseScryfallJson(row.scryfall_json as string | null);
-    const colors = scryfall?.color_identity ?? [];
-
-    if (!seatColors.has(key)) {
-      seatColors.set(key, new Map());
-      seatCards.set(key, []);
-    }
-    const counts = seatColors.get(key)!;
-    for (const color of colors) {
-      counts.set(color, (counts.get(color) || 0) + 1);
-    }
+    if (!seatCards.has(key)) seatCards.set(key, []);
     seatCards.get(key)!.push(row.card_name as string);
   }
 
-  // 4. Filter to seats matching the requested color pair exactly
+  // 4. Infer deck colors and filter to seats matching the requested color pair exactly
+  const seatToColor = await inferSeatColors(allDraftIds);
   const matchingSeats: string[] = [];
-  for (const [key, counts] of seatColors) {
-    const inferred = inferDeckColor(counts);
+  for (const key of seatCards.keys()) {
+    const inferred = seatToColor.get(key);
     if (inferred === colorPair) {
       matchingSeats.push(key);
     }
@@ -439,33 +401,7 @@ export async function getWinningDecksByColor(
   });
 
   // Aggregate match records per seat
-  const seatRecords = new Map<string, { matchWins: number; matchLosses: number; gameWins: number; gameLosses: number }>();
-  for (const row of matchResult.rows) {
-    const draftId = row.draft_id as string;
-    const seat1 = row.seat1 as number;
-    const seat2 = row.seat2 as number;
-    const s1Wins = row.seat1_wins as number;
-    const s2Wins = row.seat2_wins as number;
-
-    for (const seat of [seat1, seat2]) {
-      const key = `${draftId}:${seat}`;
-      if (!seatRecords.has(key)) {
-        seatRecords.set(key, { matchWins: 0, matchLosses: 0, gameWins: 0, gameLosses: 0 });
-      }
-      const rec = seatRecords.get(key)!;
-      if (seat === seat1) {
-        rec.gameWins += s1Wins;
-        rec.gameLosses += s2Wins;
-        if (s1Wins > s2Wins) rec.matchWins++;
-        else if (s2Wins > s1Wins) rec.matchLosses++;
-      } else {
-        rec.gameWins += s2Wins;
-        rec.gameLosses += s1Wins;
-        if (s2Wins > s1Wins) rec.matchWins++;
-        else if (s1Wins > s2Wins) rec.matchLosses++;
-      }
-    }
-  }
+  const seatRecords = aggregateMatchRecords(matchResult.rows);
 
   // Get draft names
   const draftNamePlaceholders = matchDraftIds.map(() => "?").join(", ");
