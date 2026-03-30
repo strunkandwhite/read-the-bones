@@ -113,7 +113,13 @@ Deploy to Vercel production with `vercel --prod`. The Vercel CLI must be install
 
 ## Querying Turso
 
-When you need to inspect the database directly, use the Turso CLI (`turso db shell`), not ad-hoc scripts. Log in first with `turso auth login` if needed.
+Use the Turso CLI to inspect the database directly:
+
+```bash
+turso db shell read-the-bones
+```
+
+Log in first with `turso auth login` if needed. Prefer this over ad-hoc scripts — it's faster, avoids import/require issues, and works for both quick checks and multi-statement exploration. The database name is `read-the-bones`.
 
 ## Important: Process Management
 
