@@ -6,6 +6,12 @@ import { useDraftStore } from "./draftStore";
 // Types
 // ---------------------------------------------------------------------------
 
+export interface QueueEntry {
+  priority: number;
+  cardId: number;
+  cardName: string;
+}
+
 interface LiveStoreState {
   // Auth
   seatToken: string | null;
@@ -14,6 +20,15 @@ interface LiveStoreState {
   autoPickMode: "resilient" | "cautious";
   displayName: string | null;
 
+  // Queue
+  queue: QueueEntry[];
+  queuedCards: Map<string, number>;
+  queueLoading: boolean;
+  queueError: string | null;
+
+  // Float
+  floatedCards: string[];
+
   // Actions
   hydrateToken: (draftId: string) => void;
   fetchMySeat: () => Promise<void>;
@@ -21,6 +36,65 @@ interface LiveStoreState {
   updateDisplayName: (name: string) => Promise<void>;
   updateAutoPickMode: (mode: "resilient" | "cautious") => Promise<void>;
   refreshSettings: () => Promise<void>;
+
+  // Queue actions
+  fetchQueue: () => Promise<void>;
+  addToQueue: (cardName: string) => void;
+  removeFromQueue: (cardName: string) => void;
+  reorderQueue: (cardNames: string[]) => void;
+
+  // Float actions
+  fetchFloatedCards: () => Promise<void>;
+  addFloat: (cardName: string) => Promise<void>;
+  removeFloat: (cardName: string) => Promise<void>;
+}
+
+// ---------------------------------------------------------------------------
+// Internal helper: sync queue to server with optimistic revert
+// ---------------------------------------------------------------------------
+
+type SetState = (partial: Partial<LiveStoreState>) => void;
+type GetState = () => LiveStoreState;
+
+async function syncQueue(set: SetState, get: GetState, cardNames: string[]) {
+  const { seatToken, queue: previousQueue } = get();
+  const activeDraft = useDraftStore.getState().activeDraft;
+  if (!seatToken || !activeDraft) return;
+
+  set({ queueLoading: true });
+  try {
+    const body = cardNames.map((card_name) => ({ card_name }));
+    const res = await fetch(`/api/drafts/${activeDraft}/queue`, {
+      method: "PUT",
+      headers: {
+        "X-Seat-Token": seatToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const queue: QueueEntry[] = data.queue;
+      set({
+        queue,
+        queuedCards: new Map(queue.map((e) => [e.cardName, e.priority])),
+        queueError: null,
+      });
+    } else {
+      set({
+        queue: previousQueue,
+        queuedCards: new Map(previousQueue.map((e) => [e.cardName, e.priority])),
+        queueError: "Failed to sync queue",
+      });
+    }
+  } catch {
+    set({
+      queue: previousQueue,
+      queuedCards: new Map(previousQueue.map((e) => [e.cardName, e.priority])),
+      queueError: "Failed to sync queue",
+    });
+  }
+  set({ queueLoading: false });
 }
 
 // ---------------------------------------------------------------------------
@@ -35,6 +109,15 @@ export const useLiveStore = create<LiveStoreState>()(
     autoPick: true,
     autoPickMode: "resilient",
     displayName: null,
+
+    // Queue state
+    queue: [],
+    queuedCards: new Map(),
+    queueLoading: false,
+    queueError: null,
+
+    // Float state
+    floatedCards: [],
 
     // -----------------------------------------------------------------------
     // hydrateToken — reads token from URL then localStorage
@@ -175,6 +258,113 @@ export const useLiveStore = create<LiveStoreState>()(
         // ignore
       }
     },
+
+    // -----------------------------------------------------------------------
+    // Queue actions
+    // -----------------------------------------------------------------------
+    fetchQueue: async () => {
+      const { seatToken } = get();
+      const activeDraft = useDraftStore.getState().activeDraft;
+      if (!seatToken || !activeDraft) return;
+
+      set({ queueLoading: true });
+      try {
+        const res = await fetch(`/api/drafts/${activeDraft}/queue`, {
+          headers: { "X-Seat-Token": seatToken },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const queue: QueueEntry[] = data.queue;
+          set({
+            queue,
+            queuedCards: new Map(queue.map((e) => [e.cardName, e.priority])),
+            queueError: null,
+          });
+        }
+      } catch {
+        set({ queueError: "Failed to load queue" });
+      }
+      set({ queueLoading: false });
+    },
+
+    addToQueue: (cardName: string) => {
+      const { queue } = get();
+      const newNames = [...queue.map((e) => e.cardName), cardName];
+      syncQueue(set, get, newNames);
+    },
+
+    removeFromQueue: (cardName: string) => {
+      const { queue } = get();
+      const newNames = queue.filter((e) => e.cardName !== cardName).map((e) => e.cardName);
+      syncQueue(set, get, newNames);
+    },
+
+    reorderQueue: (cardNames: string[]) => {
+      syncQueue(set, get, cardNames);
+    },
+
+    // -----------------------------------------------------------------------
+    // Float actions
+    // -----------------------------------------------------------------------
+    fetchFloatedCards: async () => {
+      const { seatToken } = get();
+      const activeDraft = useDraftStore.getState().activeDraft;
+      if (!seatToken || !activeDraft) return;
+
+      try {
+        const res = await fetch(`/api/drafts/${activeDraft}/float`, {
+          headers: { "X-Seat-Token": seatToken },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.cards) set({ floatedCards: data.cards });
+        }
+      } catch {
+        // ignore
+      }
+    },
+
+    addFloat: async (cardName: string) => {
+      const { seatToken, floatedCards: previous } = get();
+      const activeDraft = useDraftStore.getState().activeDraft;
+      if (!seatToken || !activeDraft) return;
+
+      set({ floatedCards: [...previous, cardName] });
+      try {
+        const res = await fetch(`/api/drafts/${activeDraft}/float`, {
+          method: "PUT",
+          headers: {
+            "X-Seat-Token": seatToken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ card_name: cardName }),
+        });
+        if (!res.ok) set({ floatedCards: previous });
+      } catch {
+        set({ floatedCards: previous });
+      }
+    },
+
+    removeFloat: async (cardName: string) => {
+      const { seatToken, floatedCards: previous } = get();
+      const activeDraft = useDraftStore.getState().activeDraft;
+      if (!seatToken || !activeDraft) return;
+
+      set({ floatedCards: previous.filter((c) => c !== cardName) });
+      try {
+        const res = await fetch(`/api/drafts/${activeDraft}/float`, {
+          method: "DELETE",
+          headers: {
+            "X-Seat-Token": seatToken,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ card_name: cardName }),
+        });
+        if (!res.ok) set({ floatedCards: previous });
+      } catch {
+        set({ floatedCards: previous });
+      }
+    },
   })),
 );
 
@@ -188,6 +378,8 @@ useDraftStore.subscribe(
     if (activeDraft) {
       useLiveStore.getState().hydrateToken(activeDraft);
       useLiveStore.getState().fetchMySeat();
+      useLiveStore.getState().fetchQueue();
+      useLiveStore.getState().fetchFloatedCards();
     } else {
       useLiveStore.setState({
         seatToken: null,
@@ -195,7 +387,22 @@ useDraftStore.subscribe(
         autoPick: true,
         autoPickMode: "resilient",
         displayName: null,
+        queue: [],
+        queuedCards: new Map(),
+        queueLoading: false,
+        queueError: null,
+        floatedCards: [],
       });
+    }
+  },
+);
+
+// Refetch queue when dataVersion changes (new picks arrived)
+useDraftStore.subscribe(
+  (state) => state.dataVersion,
+  (dataVersion) => {
+    if (dataVersion > 0) {
+      useLiveStore.getState().fetchQueue();
     }
   },
 );

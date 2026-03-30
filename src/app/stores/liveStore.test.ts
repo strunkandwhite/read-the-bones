@@ -27,6 +27,11 @@ function resetStores() {
     autoPick: true,
     autoPickMode: "resilient",
     displayName: null,
+    queue: [],
+    queuedCards: new Map(),
+    queueLoading: false,
+    queueError: null,
+    floatedCards: [],
   });
 }
 
@@ -496,5 +501,480 @@ describe("liveStore — cross-store subscription", () => {
     expect(s.autoPick).toBe(true);
     expect(s.autoPickMode).toBe("resilient");
     expect(s.displayName).toBeNull();
+    expect(s.queue).toEqual([]);
+    expect(s.floatedCards).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchQueue
+// ---------------------------------------------------------------------------
+describe("liveStore — fetchQueue", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("calls GET /api/drafts/{id}/queue with token", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ queue: [{ priority: 1, cardId: 10, cardName: "Bolt" }] }),
+        { status: 200 },
+      ),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    await useLiveStore.getState().fetchQueue();
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/drafts/draft-1/queue",
+      expect.objectContaining({
+        headers: { "X-Seat-Token": "tok-abc" },
+      }),
+    );
+  });
+
+  it("sets queue and queuedCards from response", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          queue: [
+            { priority: 1, cardId: 10, cardName: "Bolt" },
+            { priority: 2, cardId: 20, cardName: "Counterspell" },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    await useLiveStore.getState().fetchQueue();
+
+    const s = useLiveStore.getState();
+    expect(s.queue).toHaveLength(2);
+    expect(s.queue[0].cardName).toBe("Bolt");
+    expect(s.queuedCards.get("Bolt")).toBe(1);
+    expect(s.queuedCards.get("Counterspell")).toBe(2);
+    expect(s.queueError).toBeNull();
+  });
+
+  it("does nothing without token", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    await new Promise((r) => setTimeout(r, 0));
+    fetchSpy.mockClear();
+
+    useLiveStore.setState({ seatToken: null });
+
+    await useLiveStore.getState().fetchQueue();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// addToQueue
+// ---------------------------------------------------------------------------
+describe("liveStore — addToQueue", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("appends card and syncs to API", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          queue: [
+            { priority: 1, cardId: 10, cardName: "Bolt" },
+            { priority: 2, cardId: 20, cardName: "Counterspell" },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      queue: [{ priority: 1, cardId: 10, cardName: "Bolt" }],
+      queuedCards: new Map([["Bolt", 1]]),
+    });
+
+    useLiveStore.getState().addToQueue("Counterspell");
+
+    // Wait for async syncQueue
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/drafts/draft-1/queue",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify([{ card_name: "Bolt" }, { card_name: "Counterspell" }]),
+      }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// removeFromQueue
+// ---------------------------------------------------------------------------
+describe("liveStore — removeFromQueue", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("filters card and syncs to API", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          queue: [{ priority: 1, cardId: 20, cardName: "Counterspell" }],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      queue: [
+        { priority: 1, cardId: 10, cardName: "Bolt" },
+        { priority: 2, cardId: 20, cardName: "Counterspell" },
+      ],
+      queuedCards: new Map([["Bolt", 1], ["Counterspell", 2]]),
+    });
+
+    useLiveStore.getState().removeFromQueue("Bolt");
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/drafts/draft-1/queue",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify([{ card_name: "Counterspell" }]),
+      }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reorderQueue
+// ---------------------------------------------------------------------------
+describe("liveStore — reorderQueue", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("sends new order to API", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          queue: [
+            { priority: 1, cardId: 20, cardName: "Counterspell" },
+            { priority: 2, cardId: 10, cardName: "Bolt" },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      queue: [
+        { priority: 1, cardId: 10, cardName: "Bolt" },
+        { priority: 2, cardId: 20, cardName: "Counterspell" },
+      ],
+    });
+
+    useLiveStore.getState().reorderQueue(["Counterspell", "Bolt"]);
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/drafts/draft-1/queue",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify([{ card_name: "Counterspell" }, { card_name: "Bolt" }]),
+      }),
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// syncQueue reverts on failure
+// ---------------------------------------------------------------------------
+describe("liveStore — syncQueue reverts on failure", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("reverts queue on API failure", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("error", { status: 500 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      queue: [{ priority: 1, cardId: 10, cardName: "Bolt" }],
+      queuedCards: new Map([["Bolt", 1]]),
+    });
+
+    useLiveStore.getState().addToQueue("Counterspell");
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    const s = useLiveStore.getState();
+    expect(s.queue).toEqual([{ priority: 1, cardId: 10, cardName: "Bolt" }]);
+    expect(s.queuedCards.get("Bolt")).toBe(1);
+    expect(s.queuedCards.has("Counterspell")).toBe(false);
+    expect(s.queueError).toBe("Failed to sync queue");
+  });
+
+  it("reverts queue on network error", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network error"));
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      queue: [{ priority: 1, cardId: 10, cardName: "Bolt" }],
+      queuedCards: new Map([["Bolt", 1]]),
+    });
+
+    useLiveStore.getState().addToQueue("Counterspell");
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    const s = useLiveStore.getState();
+    expect(s.queue).toEqual([{ priority: 1, cardId: 10, cardName: "Bolt" }]);
+    expect(s.queueError).toBe("Failed to sync queue");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// queuedCards derived
+// ---------------------------------------------------------------------------
+describe("liveStore — queuedCards derived from queue", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("recomputes queuedCards after fetchQueue", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          queue: [
+            { priority: 1, cardId: 10, cardName: "Bolt" },
+            { priority: 2, cardId: 20, cardName: "Swords" },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    await useLiveStore.getState().fetchQueue();
+
+    const qc = useLiveStore.getState().queuedCards;
+    expect(qc.size).toBe(2);
+    expect(qc.get("Bolt")).toBe(1);
+    expect(qc.get("Swords")).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchFloatedCards
+// ---------------------------------------------------------------------------
+describe("liveStore — fetchFloatedCards", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("loads floated cards from API", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ cards: ["Bolt", "Counterspell"] }),
+        { status: 200 },
+      ),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    await useLiveStore.getState().fetchFloatedCards();
+
+    expect(useLiveStore.getState().floatedCards).toEqual(["Bolt", "Counterspell"]);
+  });
+
+  it("does nothing without token", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    await new Promise((r) => setTimeout(r, 0));
+    fetchSpy.mockClear();
+
+    useLiveStore.setState({ seatToken: null });
+
+    await useLiveStore.getState().fetchFloatedCards();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// addFloat
+// ---------------------------------------------------------------------------
+describe("liveStore — addFloat", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("optimistically adds and PUTs to API", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc", floatedCards: ["Bolt"] });
+
+    await useLiveStore.getState().addFloat("Counterspell");
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/drafts/draft-1/float",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ card_name: "Counterspell" }),
+      }),
+    );
+    expect(useLiveStore.getState().floatedCards).toEqual(["Bolt", "Counterspell"]);
+  });
+
+  it("reverts on failure", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("error", { status: 500 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc", floatedCards: ["Bolt"] });
+
+    await useLiveStore.getState().addFloat("Counterspell");
+
+    expect(useLiveStore.getState().floatedCards).toEqual(["Bolt"]);
+  });
+
+  it("reverts on network error", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network error"));
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc", floatedCards: ["Bolt"] });
+
+    await useLiveStore.getState().addFloat("Counterspell");
+
+    expect(useLiveStore.getState().floatedCards).toEqual(["Bolt"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// removeFloat
+// ---------------------------------------------------------------------------
+describe("liveStore — removeFloat", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("optimistically removes and DELETEs from API", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc", floatedCards: ["Bolt", "Counterspell"] });
+
+    await useLiveStore.getState().removeFloat("Bolt");
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/drafts/draft-1/float",
+      expect.objectContaining({
+        method: "DELETE",
+        body: JSON.stringify({ card_name: "Bolt" }),
+      }),
+    );
+    expect(useLiveStore.getState().floatedCards).toEqual(["Counterspell"]);
+  });
+
+  it("reverts on failure", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("error", { status: 500 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc", floatedCards: ["Bolt", "Counterspell"] });
+
+    await useLiveStore.getState().removeFloat("Bolt");
+
+    expect(useLiveStore.getState().floatedCards).toEqual(["Bolt", "Counterspell"]);
+  });
+
+  it("reverts on network error", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network error"));
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc", floatedCards: ["Bolt", "Counterspell"] });
+
+    await useLiveStore.getState().removeFloat("Bolt");
+
+    expect(useLiveStore.getState().floatedCards).toEqual(["Bolt", "Counterspell"]);
   });
 });
