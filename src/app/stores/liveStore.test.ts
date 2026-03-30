@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { useLiveStore, recomputePicking } from "./liveStore";
+import { useLiveStore, recomputePicking, _resetDeckState } from "./liveStore";
 import { useDraftStore, _resetPollingState } from "./draftStore";
+import { createEmptyDeckState } from "@/core/deckBuilder";
 
 vi.mock("@vercel/analytics/react", () => ({ track: vi.fn() }));
 vi.mock("@/core/snakeDraft", () => ({
@@ -11,6 +12,7 @@ vi.mock("@/core/snakeDraft", () => ({
 
 function resetStores() {
   _resetPollingState();
+  _resetDeckState();
   useDraftStore.setState({
     selectedDrafts: new Set(),
     activeDraft: null,
@@ -39,6 +41,10 @@ function resetStores() {
     pickError: null,
     isMyTurn: false,
     consecutivePicks: 0,
+    deckState: createEmptyDeckState("", 0),
+    deckReady: false,
+    deckSaveStatus: "idle",
+    deckBuilderActive: false,
   });
 }
 
@@ -1255,5 +1261,243 @@ describe("liveStore — consecutivePicks", () => {
     recomputePicking();
 
     expect(useLiveStore.getState().consecutivePicks).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Deck builder: dispatchDeck
+// ---------------------------------------------------------------------------
+describe("liveStore — dispatchDeck", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("applies action to deckState via deckReducer", () => {
+    const snapshot = createEmptyDeckState("draft-1", 1);
+    snapshot.zones.deck["mv-2"] = ["Lightning Bolt"];
+
+    useLiveStore.getState().dispatchDeck({
+      type: "INIT_FROM_SNAPSHOT",
+      snapshot,
+    });
+
+    const s = useLiveStore.getState();
+    expect(s.deckState.draftId).toBe("draft-1");
+    expect(s.deckState.seat).toBe(1);
+    expect(s.deckState.zones.deck["mv-2"]).toEqual(["Lightning Bolt"]);
+  });
+
+  it("schedules a save after non-hydration dispatches", () => {
+    vi.useFakeTimers();
+
+    // Mock fetch to prevent real calls
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    // REMOVE_CARDS is a non-hydration action
+    useLiveStore.getState().dispatchDeck({
+      type: "REMOVE_CARDS",
+      cardNames: ["NonExistent"],
+    });
+
+    // Save should be scheduled (debounced 1s)
+    vi.advanceTimersByTime(1000);
+
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "/api/drafts/draft-1/deck-state",
+      expect.objectContaining({ method: "PUT" }),
+    );
+
+    vi.useRealTimers();
+  });
+
+  it("does not schedule save for INIT_FROM_SNAPSHOT", () => {
+    vi.useFakeTimers();
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    useLiveStore.getState().dispatchDeck({
+      type: "INIT_FROM_SNAPSHOT",
+      snapshot: createEmptyDeckState("draft-1", 1),
+    });
+
+    vi.advanceTimersByTime(2000);
+
+    expect(globalThis.fetch).not.toHaveBeenCalledWith(
+      "/api/drafts/draft-1/deck-state",
+      expect.objectContaining({ method: "PUT" }),
+    );
+
+    vi.useRealTimers();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Deck builder: fetchDeckState
+// ---------------------------------------------------------------------------
+describe("liveStore — fetchDeckState", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("loads from API and dispatches INIT_FROM_SNAPSHOT", async () => {
+    const snapshot = createEmptyDeckState("draft-1", 2);
+    snapshot.zones.deck["mv-3"] = ["Counterspell"];
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(snapshot), { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    await useLiveStore.getState().fetchDeckState();
+
+    const s = useLiveStore.getState();
+    expect(s.deckState.draftId).toBe("draft-1");
+    expect(s.deckState.zones.deck["mv-3"]).toEqual(["Counterspell"]);
+  });
+
+  it("marks deckReady true after fetch", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify(createEmptyDeckState("draft-1", 1)), { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    expect(useLiveStore.getState().deckReady).toBe(false);
+
+    await useLiveStore.getState().fetchDeckState();
+
+    expect(useLiveStore.getState().deckReady).toBe(true);
+  });
+
+  it("handles 404 — stays with empty state and marks ready", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("Not found", { status: 404 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    await useLiveStore.getState().fetchDeckState();
+
+    const s = useLiveStore.getState();
+    expect(s.deckReady).toBe(true);
+    // deckState remains empty
+    expect(s.deckState.draftId).toBe("");
+  });
+
+  it("handles network error — stays with empty state and marks ready", async () => {
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network error"));
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    await useLiveStore.getState().fetchDeckState();
+
+    const s = useLiveStore.getState();
+    expect(s.deckReady).toBe(true);
+    expect(s.deckState.draftId).toBe("");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Deck builder: setDeckBuilderActive
+// ---------------------------------------------------------------------------
+describe("liveStore — setDeckBuilderActive", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("toggles deckBuilderActive state", () => {
+    expect(useLiveStore.getState().deckBuilderActive).toBe(false);
+
+    useLiveStore.getState().setDeckBuilderActive(true);
+    expect(useLiveStore.getState().deckBuilderActive).toBe(true);
+
+    useLiveStore.getState().setDeckBuilderActive(false);
+    expect(useLiveStore.getState().deckBuilderActive).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Deck builder: flushSave PUTs to /api/drafts/{id}/deck-state
+// ---------------------------------------------------------------------------
+describe("liveStore — deck save", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("flushSave PUTs to /api/drafts/{id}/deck-state", async () => {
+    vi.useFakeTimers();
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    // Dispatch a non-hydration action to trigger save scheduling
+    useLiveStore.getState().dispatchDeck({
+      type: "REMOVE_CARDS",
+      cardNames: [],
+    });
+
+    // Advance past debounce
+    vi.advanceTimersByTime(1000);
+
+    // Let the flush promise resolve
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/drafts/draft-1/deck-state",
+      expect.objectContaining({
+        method: "PUT",
+        headers: expect.objectContaining({
+          "X-Seat-Token": "tok-abc",
+          "Content-Type": "application/json",
+        }),
+      }),
+    );
+
+    // Should transition to "saved" then back to "idle"
+    expect(useLiveStore.getState().deckSaveStatus).toBe("saved");
+
+    vi.advanceTimersByTime(2000);
+    expect(useLiveStore.getState().deckSaveStatus).toBe("idle");
+
+    vi.useRealTimers();
   });
 });

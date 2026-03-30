@@ -2,6 +2,14 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { useDraftStore } from "./draftStore";
 import { derivePickSeat, getTotalPicks } from "@/core/snakeDraft";
+import {
+  deckReducer,
+  createEmptyDeckState,
+  type DeckAction,
+} from "@/core/deckBuilder";
+import type { DeckState } from "@/core/types";
+
+export type { DeckAction };
 
 // ---------------------------------------------------------------------------
 // Types
@@ -35,6 +43,12 @@ interface LiveStoreState {
   isMyTurn: boolean;
   consecutivePicks: number;
 
+  // Deck builder
+  deckState: DeckState;
+  deckReady: boolean;
+  deckSaveStatus: "idle" | "saving" | "saved";
+  deckBuilderActive: boolean;
+
   // Actions
   hydrateToken: (draftId: string) => void;
   fetchMySeat: () => Promise<void>;
@@ -57,6 +71,11 @@ interface LiveStoreState {
   // Pick actions
   handlePick: (cardName: string) => Promise<void>;
   setPickError: (error: string | null) => void;
+
+  // Deck builder actions
+  dispatchDeck: (action: DeckAction) => void;
+  setDeckBuilderActive: (active: boolean) => void;
+  fetchDeckState: () => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -108,6 +127,80 @@ async function syncQueue(set: SetState, get: GetState, cardNames: string[]) {
 }
 
 // ---------------------------------------------------------------------------
+// Module-scoped refs for deck save debounce
+// ---------------------------------------------------------------------------
+
+let deckDirty = false;
+let deckInFlight = false;
+let deckPendingSave = false;
+let deckSaveTimer: ReturnType<typeof setTimeout> | null = null;
+let justHydrated = false;
+
+const DECK_SAVE_DEBOUNCE_MS = 1000;
+const DECK_SAVE_STATUS_RESET_MS = 2000;
+
+export function _resetDeckState() {
+  deckDirty = false;
+  deckInFlight = false;
+  deckPendingSave = false;
+  justHydrated = false;
+  if (deckSaveTimer) {
+    clearTimeout(deckSaveTimer);
+    deckSaveTimer = null;
+  }
+}
+
+async function flushDeckSave() {
+  const { seatToken, deckState } = useLiveStore.getState();
+  const activeDraft = useDraftStore.getState().activeDraft;
+  if (!seatToken || !activeDraft) return;
+
+  deckInFlight = true;
+  useLiveStore.setState({ deckSaveStatus: "saving" });
+
+  try {
+    const res = await fetch(`/api/drafts/${activeDraft}/deck-state`, {
+      method: "PUT",
+      headers: {
+        "X-Seat-Token": seatToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(deckState),
+    });
+    if (res.ok) {
+      deckDirty = false;
+      useLiveStore.setState({ deckSaveStatus: "saved" });
+      setTimeout(() => {
+        if (useLiveStore.getState().deckSaveStatus === "saved") {
+          useLiveStore.setState({ deckSaveStatus: "idle" });
+        }
+      }, DECK_SAVE_STATUS_RESET_MS);
+    }
+  } catch {
+    // Save failed — will retry on next dispatch
+  }
+
+  deckInFlight = false;
+
+  if (deckPendingSave) {
+    deckPendingSave = false;
+    await flushDeckSave();
+  }
+}
+
+function scheduleDeckSave() {
+  if (deckInFlight) {
+    deckPendingSave = true;
+    return;
+  }
+  if (deckSaveTimer) clearTimeout(deckSaveTimer);
+  deckSaveTimer = setTimeout(() => {
+    deckSaveTimer = null;
+    flushDeckSave();
+  }, DECK_SAVE_DEBOUNCE_MS);
+}
+
+// ---------------------------------------------------------------------------
 // Store
 // ---------------------------------------------------------------------------
 
@@ -133,6 +226,12 @@ export const useLiveStore = create<LiveStoreState>()(
     pickError: null,
     isMyTurn: false,
     consecutivePicks: 0,
+
+    // Deck builder state
+    deckState: createEmptyDeckState("", 0),
+    deckReady: false,
+    deckSaveStatus: "idle",
+    deckBuilderActive: false,
 
     // -----------------------------------------------------------------------
     // hydrateToken — reads token from URL then localStorage
@@ -425,6 +524,53 @@ export const useLiveStore = create<LiveStoreState>()(
     setPickError: (error: string | null) => {
       set({ pickError: error });
     },
+
+    // -----------------------------------------------------------------------
+    // Deck builder actions
+    // -----------------------------------------------------------------------
+    dispatchDeck: (action: DeckAction) => {
+      const next = deckReducer(get().deckState, action);
+      set({ deckState: next });
+
+      // INIT_FROM_SNAPSHOT comes from hydration — don't trigger a save
+      if (action.type === "INIT_FROM_SNAPSHOT") {
+        justHydrated = true;
+        return;
+      }
+
+      if (justHydrated) {
+        justHydrated = false;
+      }
+
+      deckDirty = true;
+      scheduleDeckSave();
+    },
+
+    setDeckBuilderActive: (active: boolean) => {
+      set({ deckBuilderActive: active });
+    },
+
+    fetchDeckState: async () => {
+      const { seatToken } = get();
+      const activeDraft = useDraftStore.getState().activeDraft;
+      if (!seatToken || !activeDraft) return;
+
+      try {
+        const res = await fetch(`/api/drafts/${activeDraft}/deck-state`, {
+          headers: { "X-Seat-Token": seatToken },
+        });
+        if (res.ok) {
+          const snapshot = await res.json();
+          get().dispatchDeck({ type: "INIT_FROM_SNAPSHOT", snapshot });
+        }
+        // 404 = no saved state, stay with empty deck
+      } catch {
+        // Network error — stay with empty state
+      }
+
+      deckDirty = false;
+      set({ deckReady: true });
+    },
   })),
 );
 
@@ -492,7 +638,9 @@ useDraftStore.subscribe(
       useLiveStore.getState().fetchMySeat();
       useLiveStore.getState().fetchQueue();
       useLiveStore.getState().fetchFloatedCards();
+      useLiveStore.getState().fetchDeckState();
     } else {
+      _resetDeckState();
       useLiveStore.setState({
         seatToken: null,
         mySeat: null,
@@ -507,6 +655,10 @@ useDraftStore.subscribe(
         pickError: null,
         isMyTurn: false,
         consecutivePicks: 0,
+        deckState: createEmptyDeckState("", 0),
+        deckReady: false,
+        deckSaveStatus: "idle",
+        deckBuilderActive: false,
       });
     }
   },
