@@ -343,8 +343,8 @@ interface ActionButtonsProps {
 function ActionButtons(props: ActionButtonsProps) {
   const { cardStatus, isMyTurn, disabled } = props;
 
-  const queueBtn = "w-full rounded-lg bg-amber-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed";
-  const secondaryBtn = "w-full rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed";
+  const queueBtn = "w-full cursor-pointer rounded-lg bg-amber-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed";
+  const secondaryBtn = "w-full cursor-pointer rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed";
 
   switch (cardStatus) {
     case "none":
