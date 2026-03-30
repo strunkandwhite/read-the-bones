@@ -1,9 +1,15 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
+import { track } from "@vercel/analytics/react";
 import { useDraftStore } from "./draftStore";
 import type { CardStatsResponse } from "@/core/getCards";
 import type { DraftStatsResponse } from "@/core/getDraftStats";
+import type { ScryCard, EnrichedCardStats } from "@/core/types";
+import type { ColorFilterMode } from "@/core/colorFilter";
 import { isLocalClient } from "@/core/isLocal";
+import { getFrontFace } from "@/core/cardNames";
+import { searchLocalCards } from "@/core/localSearch";
+import { hasScryfallOperators } from "@/core/searchUtils";
 
 // ---------------------------------------------------------------------------
 // Empty defaults
@@ -26,16 +32,200 @@ export const EMPTY_DRAFT_STATS: DraftStatsResponse = {
 };
 
 // ---------------------------------------------------------------------------
+// Search helpers
+// ---------------------------------------------------------------------------
+
+function classifyQueryType(query: string): string {
+  const prefixes = ["t:", "o:", "c:", "mv", "cmc"];
+  const found = prefixes.filter((p) => query.includes(p));
+  if (found.length > 1) return "multi";
+  if (found[0] === "t:") return "type";
+  if (found[0] === "o:") return "oracle";
+  if (found[0] === "c:") return "color";
+  if (found[0] === "mv" || found[0] === "cmc") return "mv";
+  return "unknown";
+}
+
+// Module-scoped debounce state
+let searchTimeout: ReturnType<typeof setTimeout> | null = null;
+
+/** Exported for tests to clear debounce state between runs. */
+export function _resetSearchState() {
+  if (searchTimeout) {
+    clearTimeout(searchTimeout);
+    searchTimeout = null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
+
+interface DraftListItem {
+  id: string;
+  name: string;
+  date: string;
+  isComplete: boolean;
+  numDrafters: number;
+}
 
 interface CardStoreState {
   cardData: CardStatsResponse;
   draftStats: DraftStatsResponse;
   isLoading: boolean;
 
+  // Search state
+  searchQuery: string;
+  colorFilter: string[];
+  colorFilterMode: ColorFilterMode;
+  scryfallMatchNames: Set<string> | null;
+
+  // Derived state
+  scryfallDataMap: Map<string, ScryCard>;
+  cardStatsMap: Map<string, EnrichedCardStats>;
+  takenCardNamesSet: Set<string> | undefined;
+  takenCardCounts: Map<string, number> | undefined;
+  seatCardNames: Set<string> | undefined;
+  seatCardList: string[] | undefined;
+  bannedCardNamesSet: Set<string> | undefined;
+  displayCards: EnrichedCardStats[];
+  searchFilteredCards: EnrichedCardStats[];
+  availableCount: number;
+  drafts: DraftListItem[];
+
+  // Actions
   fetchCardData: () => Promise<void>;
   hydrate: (initial: CardStatsResponse, draftStats: DraftStatsResponse) => void;
+  setSearchQuery: (query: string) => void;
+  setColorFilter: (colors: string[]) => void;
+  setColorFilterMode: (mode: ColorFilterMode) => void;
+  clearSearch: () => void;
+}
+
+// ---------------------------------------------------------------------------
+// Recompute — derives all computed state from current inputs
+// ---------------------------------------------------------------------------
+
+function recompute() {
+  const state = useCardStore.getState();
+  const { cardData, searchQuery, scryfallMatchNames } = state;
+  const { activeDraft, hideTaken, selectedSeat } = useDraftStore.getState();
+
+  // scryfallDataMap
+  const scryfallDataMap = new Map<string, ScryCard>();
+  for (const card of cardData.cards) {
+    if (card.scryfall) scryfallDataMap.set(card.cardName, card.scryfall);
+  }
+
+  // cardStatsMap
+  const cardStatsMap = new Map<string, EnrichedCardStats>();
+  for (const card of cardData.cards) {
+    cardStatsMap.set(card.cardName, card);
+  }
+
+  // takenCardCounts
+  let takenCardCounts: Map<string, number> | undefined;
+  if (cardData.takenCards) {
+    takenCardCounts = new Map<string, number>();
+    for (const c of cardData.takenCards) {
+      takenCardCounts.set(c.name, (takenCardCounts.get(c.name) ?? 0) + 1);
+    }
+  }
+
+  // takenCardNamesSet — only cards where ALL copies are taken
+  let takenCardNamesSet: Set<string> | undefined;
+  if (takenCardCounts) {
+    takenCardNamesSet = new Set<string>();
+    for (const [name, count] of takenCardCounts) {
+      if (count >= (cardData.cubeCopies[name] ?? 1)) {
+        takenCardNamesSet.add(name);
+      }
+    }
+  }
+
+  // seatCardNames + seatCardList
+  let seatCardNames: Set<string> | undefined;
+  let seatCardList: string[] | undefined;
+  if (cardData.takenCards && selectedSeat != null) {
+    const seatPicks = cardData.takenCards.filter(
+      (c) => c.seat === selectedSeat,
+    );
+    seatCardList = seatPicks.map((c) => c.name);
+    seatCardNames = new Set(seatCardList);
+  }
+
+  // bannedCardNamesSet
+  let bannedCardNamesSet: Set<string> | undefined;
+  if (activeDraft && cardData.bannedCardNames) {
+    bannedCardNamesSet = new Set(cardData.bannedCardNames);
+  }
+
+  // displayCards
+  let displayCards = cardData.cards;
+  if (bannedCardNamesSet) {
+    displayCards = displayCards.filter((c) => {
+      if (bannedCardNamesSet!.has(c.cardName)) return false;
+      const frontFace = getFrontFace(c.cardName);
+      return frontFace ? !bannedCardNamesSet!.has(frontFace) : true;
+    });
+  }
+  if (hideTaken && takenCardNamesSet) {
+    displayCards = displayCards.filter((c) => {
+      if (seatCardNames?.has(c.cardName)) return true;
+      return !takenCardNamesSet!.has(c.cardName);
+    });
+  }
+
+  // searchFilteredCards
+  let searchFilteredCards: EnrichedCardStats[];
+  if (scryfallMatchNames) {
+    searchFilteredCards = displayCards.filter((c) =>
+      scryfallMatchNames.has(c.cardName),
+    );
+  } else if (searchQuery.trim()) {
+    const q = searchQuery.trim().toLowerCase();
+    searchFilteredCards = displayCards.filter((c) =>
+      c.cardName.toLowerCase().includes(q),
+    );
+  } else {
+    searchFilteredCards = displayCards;
+  }
+
+  // availableCount
+  let availableCount = 0;
+  if (activeDraft && takenCardNamesSet) {
+    const bannedSet = new Set(cardData.bannedCardNames ?? []);
+    availableCount = cardData.cards.filter((c) => {
+      if (takenCardNamesSet!.has(c.cardName)) return false;
+      if (bannedSet.has(c.cardName)) return false;
+      const frontFace = getFrontFace(c.cardName);
+      return frontFace ? !bannedSet.has(frontFace) : true;
+    }).length;
+  }
+
+  // drafts
+  const completedSet = new Set(cardData.completedDraftIds);
+  const drafts: DraftListItem[] = cardData.draftIds.map((id) => ({
+    id,
+    name: cardData.draftMetadata[id]?.name || id,
+    date: cardData.draftMetadata[id]?.date || "1970-01-01",
+    isComplete: completedSet.has(id),
+    numDrafters: cardData.draftMetadata[id]?.numDrafters || 10,
+  }));
+
+  useCardStore.setState({
+    scryfallDataMap,
+    cardStatsMap,
+    takenCardNamesSet,
+    takenCardCounts,
+    seatCardNames,
+    seatCardList,
+    bannedCardNamesSet,
+    displayCards,
+    searchFilteredCards,
+    availableCount,
+    drafts,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -48,18 +238,46 @@ export const useCardStore = create<CardStoreState>()(
     draftStats: EMPTY_DRAFT_STATS,
     isLoading: false,
 
+    // Search state
+    searchQuery: "",
+    colorFilter: [],
+    colorFilterMode: "inclusive" as ColorFilterMode,
+    scryfallMatchNames: null,
+
+    // Derived state (initial empty values)
+    scryfallDataMap: new Map(),
+    cardStatsMap: new Map(),
+    takenCardNamesSet: undefined,
+    takenCardCounts: undefined,
+    seatCardNames: undefined,
+    seatCardList: undefined,
+    bannedCardNamesSet: undefined,
+    displayCards: [],
+    searchFilteredCards: [],
+    availableCount: 0,
+    drafts: [],
+
+    // Actions
     hydrate: (initial, draftStats) => {
       set({ cardData: initial, draftStats });
+      recompute();
     },
 
     fetchCardData: async () => {
-      const { selectedDrafts, activeDraft, poolAsOfDraft } = useDraftStore.getState();
+      const { selectedDrafts, activeDraft, poolAsOfDraft } =
+        useDraftStore.getState();
       const effectivePool = activeDraft ?? poolAsOfDraft;
 
       if (selectedDrafts.size === 0) {
         set((s) => ({
-          cardData: { ...s.cardData, cards: [], draftCount: 0, cubeCopies: {} },
+          cardData: {
+            ...s.cardData,
+            cards: [],
+            draftCount: 0,
+            cubeCopies: {},
+          },
         }));
+        recompute();
         return;
       }
 
@@ -83,11 +301,72 @@ export const useCardStore = create<CardStoreState>()(
 
         if (cardsRes.ok) set({ cardData: await cardsRes.json() });
         if (statsRes.ok) set({ draftStats: await statsRes.json() });
+        recompute();
       } catch (error) {
         console.error("Failed to fetch card data:", error);
       } finally {
         set({ isLoading: false });
       }
+    },
+
+    setSearchQuery: (query: string) => {
+      set({ searchQuery: query });
+      if (searchTimeout) clearTimeout(searchTimeout);
+
+      const trimmed = query.trim();
+      if (!trimmed) {
+        set({ scryfallMatchNames: null });
+        recompute();
+        return;
+      }
+
+      if (!hasScryfallOperators(trimmed)) {
+        set({ scryfallMatchNames: null });
+        recompute();
+        setTimeout(() => {
+          track("search", { query_type: "name", result_count: -1 });
+        }, 500);
+        return;
+      }
+
+      searchTimeout = setTimeout(() => {
+        const scryfallCards = get()
+          .cardData.cards.map((c) => c.scryfall)
+          .filter(Boolean) as ScryCard[];
+        const results = searchLocalCards(trimmed, scryfallCards);
+        const names = new Set<string>();
+        for (const card of results) {
+          names.add(card.name);
+          const frontFace = getFrontFace(card.name);
+          if (frontFace) names.add(frontFace);
+        }
+        set({ scryfallMatchNames: names });
+        recompute();
+        track("search", {
+          query_type: classifyQueryType(trimmed),
+          result_count: results.length,
+        });
+      }, 500);
+    },
+
+    setColorFilter: (colors: string[]) => {
+      set({ colorFilter: colors });
+      recompute();
+    },
+
+    setColorFilterMode: (mode: ColorFilterMode) => {
+      set({ colorFilterMode: mode });
+      recompute();
+    },
+
+    clearSearch: () => {
+      if (searchTimeout) {
+        clearTimeout(searchTimeout);
+        searchTimeout = null;
+      }
+      set({ searchQuery: "", scryfallMatchNames: null });
+      recompute();
+      track("search_cleared");
     },
   })),
 );
@@ -106,4 +385,14 @@ useDraftStore.subscribe(
 useDraftStore.subscribe(
   (state) => state.poolAsOfDraft,
   () => useCardStore.getState().fetchCardData(),
+);
+
+// Recompute derived state when display-affecting draftStore state changes
+useDraftStore.subscribe(
+  (state) =>
+    [state.activeDraft, state.hideTaken, state.selectedSeat] as const,
+  () => recompute(),
+  {
+    equalityFn: (a, b) => a[0] === b[0] && a[1] === b[1] && a[2] === b[2],
+  },
 );
