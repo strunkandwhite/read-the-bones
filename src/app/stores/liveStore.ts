@@ -153,7 +153,7 @@ export function _resetDeckState() {
 async function flushDeckSave() {
   const { seatToken, deckState } = useLiveStore.getState();
   const activeDraft = useDraftStore.getState().activeDraft;
-  if (!seatToken || !activeDraft) return;
+  if (!seatToken || !activeDraft || !deckDirty || deckInFlight) return;
 
   deckInFlight = true;
   useLiveStore.setState({ deckSaveStatus: "saving" });
