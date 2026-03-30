@@ -4,7 +4,7 @@ import { useEffect, useMemo, useCallback, useState, useRef } from "react";
 import { useCardStore } from "@/app/stores/cardStore";
 import { useDraftStore } from "@/app/stores/draftStore";
 import { useLiveStore } from "@/app/stores/liveStore";
-import { getCardStatus, getImageUrl } from "@/app/stores/selectors";
+import { getCardStatus, getImageUrl, useIsAuthed } from "@/app/stores/selectors";
 import { isLocalClient } from "@/core/isLocal";
 import type { CardStatsData } from "@/app/stores/cardStore";
 import { HoldToPickButton } from "./HoldToPickButton";
@@ -25,10 +25,8 @@ export function CardStatsModal() {
   // Draft store
   const activeDraft = useDraftStore((s) => s.activeDraft);
   const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
-  const selectedSeat = useDraftStore((s) => s.selectedSeat);
 
   // Live store
-  const mySeat = useLiveStore((s) => s.mySeat);
   const isMyTurn = useLiveStore((s) => s.isMyTurn);
   const queue = useLiveStore((s) => s.queue);
   const autoPick = useLiveStore((s) => s.autoPick);
@@ -38,7 +36,7 @@ export function CardStatsModal() {
   const addFloat = useLiveStore((s) => s.addFloat);
   const removeFloat = useLiveStore((s) => s.removeFloat);
 
-  const isAuthed = mySeat !== null && mySeat === selectedSeat;
+  const isAuthed = useIsAuthed();
   const isOpen = !!selectedCard;
   const isLocal = useMemo(() => isLocalClient(), []);
   const isLiveDraft = !!activeDraft && liveDraftStatus?.phase === "drafting";

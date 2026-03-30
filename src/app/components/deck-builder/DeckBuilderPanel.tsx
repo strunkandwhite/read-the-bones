@@ -22,7 +22,7 @@ import { formatDecklistText } from "@/core/deckBuilder";
 import { useSlowRenderTracking } from "../../hooks/useSlowRenderTracking";
 import { useLiveStore } from "../../stores/liveStore";
 import { useCardStore } from "../../stores/cardStore";
-import { useDraftStore } from "../../stores/draftStore";
+import { useIsAuthed } from "../../stores/selectors";
 
 interface DeckBuilderPanelProps {
   draftName: string;
@@ -52,16 +52,11 @@ export function DeckBuilderPanel({
   const queue = useLiveStore((s) => s.queue);
   const removeFloat = useLiveStore((s) => s.removeFloat);
   const saveStatus = useLiveStore((s) => s.deckSaveStatus);
-  const mySeat = useLiveStore((s) => s.mySeat);
-
   // Card store
   const scryfallData = useCardStore((s) => s.scryfallDataMap);
   const cardStats = useCardStore((s) => s.cardStatsMap);
 
-  // Draft store
-  const selectedSeat = useDraftStore((s) => s.selectedSeat);
-
-  const isAuthed = mySeat !== null && mySeat === selectedSeat;
+  const isAuthed = useIsAuthed();
   const effectiveFloatedCards = isAuthed ? floatedCards : [];
   const effectiveQueuedCardNames = isAuthed ? queue.map((e) => e.cardName) : [];
 

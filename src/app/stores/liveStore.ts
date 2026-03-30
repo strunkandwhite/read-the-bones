@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { useDraftStore } from "./draftStore";
 import { useCardStore } from "./cardStore";
+import { getIsAuthed } from "./selectors";
 import { derivePickSeat, getTotalPicks } from "@/core/snakeDraft";
 import {
   deckReducer,
@@ -727,10 +728,9 @@ useDraftStore.subscribe(
 // ---------------------------------------------------------------------------
 
 function syncDeckWithPicks() {
-  const { deckBuilderActive, deckReady, floatedCards, queue, dispatchDeck, mySeat } = useLiveStore.getState();
+  const { deckBuilderActive, deckReady, floatedCards, queue, dispatchDeck } = useLiveStore.getState();
   const { seatCardList, scryfallDataMap } = useCardStore.getState();
-  const { selectedSeat } = useDraftStore.getState();
-  const isAuthed = mySeat !== null && mySeat === selectedSeat;
+  const isAuthed = getIsAuthed();
 
   if (!deckBuilderActive || !deckReady) return;
 

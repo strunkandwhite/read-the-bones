@@ -7,6 +7,7 @@ import { PoolSelector } from "./PoolSelector";
 import { useDraftStore } from "../stores/draftStore";
 import { useCardStore } from "../stores/cardStore";
 import { useLiveStore } from "../stores/liveStore";
+import { useIsAuthed } from "../stores/selectors";
 
 export function Settings() {
   // Draft store
@@ -31,7 +32,7 @@ export function Settings() {
   const mySeat = useLiveStore((s) => s.mySeat);
 
   const activeDrafts = syncStatus.activeDrafts;
-  const isAuthed = mySeat !== null && mySeat === selectedSeat;
+  const isAuthed = useIsAuthed();
   const seatNames = board?.seatNames;
 
   // effectivePoolAsOfDraft: when an active draft is selected, lock the pool to that draft

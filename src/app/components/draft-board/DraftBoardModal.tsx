@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback, type KeyboardEvent } from "react";
 import { useDraftStore } from "@/app/stores/draftStore";
 import { useLiveStore } from "@/app/stores/liveStore";
 import { useCardStore } from "@/app/stores/cardStore";
+import { useIsAuthed } from "@/app/stores/selectors";
 import { useScrollLock } from "@/app/hooks/useScrollLock";
 import { getNextPick } from "@/core/snakeDraft";
 import { DraftBoardMatrix } from "./DraftBoardMatrix";
@@ -32,7 +33,6 @@ export function DraftBoardModal({
   // Draft store
   const board = useDraftStore((s) => s.board);
   const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
-  const selectedSeat = useDraftStore((s) => s.selectedSeat);
   const patchSeatName = useDraftStore((s) => s.patchSeatName);
 
   // Card store
@@ -53,7 +53,7 @@ export function DraftBoardModal({
   const toggleAutoPick = useLiveStore((s) => s.toggleAutoPick);
   const updateAutoPickMode = useLiveStore((s) => s.updateAutoPickMode);
 
-  const isAuthed = mySeat !== null && mySeat === selectedSeat;
+  const isAuthed = useIsAuthed();
 
   useScrollLock(isOpen);
 

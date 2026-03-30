@@ -19,6 +19,7 @@ import { useHydration } from "../stores/hydration";
 import { useDraftStore } from "../stores/draftStore";
 import { useCardStore } from "../stores/cardStore";
 import { useLiveStore } from "../stores/liveStore";
+import { useIsAuthed } from "../stores/selectors";
 
 
 export interface PageClientProps {
@@ -71,7 +72,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   const setDeckBuilderActive = useLiveStore((s) => s.setDeckBuilderActive);
   const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
 
-  const isAuthed = mySeat !== null && mySeat === selectedSeat;
+  const isAuthed = useIsAuthed();
 
   const {
     deckBuilderActive,

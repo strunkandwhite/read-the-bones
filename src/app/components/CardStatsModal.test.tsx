@@ -43,6 +43,7 @@ vi.mock("@/app/stores/selectors", () => ({
   getImageUrl: vi.fn((name: string | null) =>
     name ? "https://cards.scryfall.io/normal/front/bolt.jpg" : undefined,
   ),
+  useIsAuthed: vi.fn(() => false),
 }));
 
 vi.mock("@/core/isLocal", () => ({
@@ -158,8 +159,9 @@ describe("CardStatsModal", () => {
   });
 
   it("shows action buttons during live draft when it is user's turn", async () => {
-    const { getCardStatus } = await import("@/app/stores/selectors");
+    const { getCardStatus, useIsAuthed } = await import("@/app/stores/selectors");
     (getCardStatus as ReturnType<typeof vi.fn>).mockReturnValue({ status: "none" });
+    (useIsAuthed as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
     setupStoreMocks({
       activeDraft: "test-draft",
