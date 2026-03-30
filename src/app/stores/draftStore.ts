@@ -383,3 +383,17 @@ export const useDraftStore = create<DraftState>()(
     },
   })),
 );
+
+// ---------------------------------------------------------------------------
+// Auto-manage polling on activeDraft changes
+// ---------------------------------------------------------------------------
+
+useDraftStore.subscribe(
+  (state) => state.activeDraft,
+  (activeDraft) => {
+    useDraftStore.getState().stopPolling();
+    prevPickN = 0;
+    prevSeatNamesKey = "";
+    if (activeDraft) useDraftStore.getState().startPolling();
+  },
+);

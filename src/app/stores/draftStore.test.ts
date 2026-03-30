@@ -344,6 +344,35 @@ describe("draftStore — polling", () => {
     await useDraftStore.getState().refreshNow();
     expect(useDraftStore.getState().dataVersion).toBe(v1);
   });
+
+  it("starts polling when activeDraft is set via setActiveDraft", async () => {
+    const fetchSpy = mockFetchResponses(baseLiveData, baseSyncData);
+
+    useDraftStore.getState().setActiveDraft("draft-1");
+
+    // Wait for the subscription and initial fetch to fire
+    await vi.advanceTimersByTimeAsync(0);
+
+    const urls = fetchSpy.mock.calls.map((c) => {
+      const input = c[0];
+      return typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+    });
+    expect(urls).toContain("/api/drafts/draft-1/live");
+  });
+
+  it("stops polling when activeDraft is cleared", async () => {
+    mockFetchResponses(baseLiveData, baseSyncData);
+
+    useDraftStore.getState().setActiveDraft("draft-1");
+    await vi.advanceTimersByTimeAsync(0);
+
+    useDraftStore.getState().setActiveDraft(null);
+    const callCountAfterStop = vi.mocked(globalThis.fetch).mock.calls.length;
+
+    // Advance well past the poll interval — no new fetches should occur
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(vi.mocked(globalThis.fetch).mock.calls.length).toBe(callCountAfterStop);
+  });
 });
 
 // ---------------------------------------------------------------------------
