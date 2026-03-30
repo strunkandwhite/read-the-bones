@@ -40,7 +40,8 @@
     "google-spreadsheet": "^5.0.2",
     "next": "16.1.1",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "zustand": "^5.0.12"
   },
   "devDependencies": {
     "@playwright/test": "^1.57.0",
