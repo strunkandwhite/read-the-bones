@@ -5,7 +5,7 @@
 
 import type { CardPick, CardStats } from "./types";
 import { groupBy, calculatePickWeight, weightedGeometricMean } from "./utils";
-import { cardNameKey } from "./parseSheetRows";
+import { cardNameKey } from "./cardNames";
 
 /**
  * Number of buckets for pick distribution histogram.

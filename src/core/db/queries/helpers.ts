@@ -5,6 +5,13 @@
 import { getClient } from "../client";
 
 /**
+ * Build a SQL placeholder string for n parameters (e.g., "?, ?, ?").
+ */
+export function placeholders(n: number): string {
+  return Array.from({ length: n }, () => "?").join(", ");
+}
+
+/**
  * Parse banned cards JSON from database column.
  * Returns a lowercase Set for O(1) lookups, or an empty Set on null/malformed input.
  */
@@ -99,13 +106,12 @@ export async function getSeatsMatchingColors(
   if (draftIds.length === 0) return new Set();
 
   const client = await getClient();
-  const placeholders = draftIds.map(() => "?").join(", ");
 
   const result = await client.execute({
     sql: `SELECT dc.draft_id, dc.seat, c.scryfall_json
           FROM deck_cards dc
           JOIN cards c ON dc.card_id = c.card_id
-          WHERE dc.zone = 'deck' AND dc.draft_id IN (${placeholders})`,
+          WHERE dc.zone = 'deck' AND dc.draft_id IN (${placeholders(draftIds.length)})`,
     args: draftIds,
   });
 

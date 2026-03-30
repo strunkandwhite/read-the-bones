@@ -6,7 +6,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
 import { dirname } from "path";
 import type { ScryCard } from "../core/types";
-import { cardNameKey } from "../core/parseSheetRows";
+import { cardNameKey } from "../core/cardNames";
 
 /**
  * Load cached card data from a JSON file.

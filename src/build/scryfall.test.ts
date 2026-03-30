@@ -8,7 +8,7 @@ vi.mock("fs", async () => {
 
 import { loadCache, saveCache } from "./scryfall";
 import type { ScryCard } from "../core/types";
-import { cardNameKey } from "../core/parseSheetRows";
+import { cardNameKey } from "../core/cardNames";
 
 const TEST_CACHE_DIR = "/cache/test";
 const TEST_CACHE_PATH = `${TEST_CACHE_DIR}/scryfall-test.json`;

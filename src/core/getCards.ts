@@ -16,8 +16,9 @@ import {
 import { calculateCardStats } from "./calculateStats";
 import { getClient, type Client } from "./db/client";
 import { computeIngestionHash } from "./db/sync/domains";
-import { transformScryfallJson, parseBannedCardNames } from "./db/queries/helpers";
-import { cardNameKey } from "./parseSheetRows";
+import { transformScryfallJson, parseBannedCardNames, placeholders } from "./db/queries/helpers";
+import { cardNameKey } from "./cardNames";
+import { DEFAULT_NUM_SEATS } from "./constants";
 
 // --- Internal types for extracted subfunctions ---
 
@@ -115,7 +116,7 @@ async function loadDraftMetadata(client: Client): Promise<DraftMetadataResult | 
       draftId,
       name: row.draft_name as string,
       date: row.draft_date as string,
-      numDrafters: (row.num_seats as number) || 10,
+      numDrafters: (row.num_seats as number) || DEFAULT_NUM_SEATS,
     });
     draftCubeSnapshots.set(draftId, cubeSnapshotId);
 
@@ -159,11 +160,10 @@ async function getCubePoolSizes(
 ): Promise<Map<number, number>> {
   if (uniqueCubeSnapshots.length === 0) return new Map();
 
-  const placeholders = uniqueCubeSnapshots.map(() => "?").join(", ");
   const cubeSizesResult = await client.execute({
     sql: `SELECT cube_snapshot_id, SUM(qty) as pool_size
           FROM cube_snapshot_cards
-          WHERE cube_snapshot_id IN (${placeholders})
+          WHERE cube_snapshot_id IN (${placeholders(uniqueCubeSnapshots.length)})
           GROUP BY cube_snapshot_id`,
     args: [...uniqueCubeSnapshots],
   });
@@ -244,13 +244,12 @@ async function loadCubeCards(
 ): Promise<Map<number, Map<number, CubeCardInfo>>> {
   if (uniqueCubeSnapshots.length === 0) return new Map();
 
-  const placeholders = uniqueCubeSnapshots.map(() => "?").join(", ");
   const cubeCardsResult = await client.execute({
     sql: `SELECT csc.cube_snapshot_id, csc.card_id, csc.qty,
                  c.name as card_name, c.scryfall_json
           FROM cube_snapshot_cards csc
           JOIN cards c ON csc.card_id = c.card_id
-          WHERE csc.cube_snapshot_id IN (${placeholders})`,
+          WHERE csc.cube_snapshot_id IN (${placeholders(uniqueCubeSnapshots.length)})`,
     args: [...uniqueCubeSnapshots],
   });
 

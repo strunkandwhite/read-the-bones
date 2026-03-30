@@ -3,14 +3,12 @@
  */
 
 import { getClient } from "../../client";
-import { getSeatsMatchingColors } from "../helpers";
+import { getSeatsMatchingColors, placeholders } from "../helpers";
 import { getAvailableCards } from "../picks";
 import { calculatePickWeight, round3, weightedGeometricMean } from "../../../utils";
 import { wilsonInterval } from "../../../wilsonInterval";
 import { DEFAULT_POOL_SIZE } from "../../../types";
-
-/** Minimum number of match results needed for confident win rate statistics. */
-const MIN_SAMPLE_SIZE = 5;
+import { MIN_SAMPLE_SIZE } from "../../../constants";
 
 export interface RankAvailableCardsParams {
   draft_id: string;
@@ -77,9 +75,8 @@ export async function rankAvailableCards(
 
   // Step 2: Batch resolve all card IDs
   const client = await getClient();
-  const namePlaceholders = cardNames.map(() => "?").join(", ");
   const cardsResult = await client.execute({
-    sql: `SELECT card_id, name FROM cards WHERE name IN (${namePlaceholders})`,
+    sql: `SELECT card_id, name FROM cards WHERE name IN (${placeholders(cardNames.length)})`,
     args: cardNames,
   });
 
@@ -102,7 +99,7 @@ export async function rankAvailableCards(
     };
   }
 
-  const idPlaceholders = cardIds.map(() => "?").join(", ");
+  const idPlaceholderStr = placeholders(cardIds.length);
 
   // Step 3: Batch pick stats — get all drafts where these cards appear
   const [draftsResult, picksResult, cubeSizesResult] = await Promise.all([
@@ -110,13 +107,13 @@ export async function rankAvailableCards(
       sql: `SELECT DISTINCT d.draft_id, d.cube_snapshot_id, csc.card_id
             FROM drafts d
             JOIN cube_snapshot_cards csc ON d.cube_snapshot_id = csc.cube_snapshot_id
-            WHERE csc.card_id IN (${idPlaceholders})`,
+            WHERE csc.card_id IN (${idPlaceholderStr})`,
       args: cardIds,
     }),
     client.execute({
       sql: `SELECT pe.card_id, pe.draft_id, pe.pick_n
             FROM pick_events pe
-            WHERE pe.card_id IN (${idPlaceholders})`,
+            WHERE pe.card_id IN (${idPlaceholderStr})`,
       args: cardIds,
     }),
     client.execute({
@@ -125,7 +122,7 @@ export async function rankAvailableCards(
             WHERE cube_snapshot_id IN (
               SELECT DISTINCT d.cube_snapshot_id FROM drafts d
               JOIN cube_snapshot_cards csc ON d.cube_snapshot_id = csc.cube_snapshot_id
-              WHERE csc.card_id IN (${idPlaceholders})
+              WHERE csc.card_id IN (${idPlaceholderStr})
             )
             GROUP BY cube_snapshot_id`,
       args: cardIds,
@@ -165,7 +162,7 @@ export async function rankAvailableCards(
     client.execute({
       sql: `SELECT dc.card_id, dc.draft_id, dc.seat, dc.zone
             FROM deck_cards dc
-            WHERE dc.card_id IN (${idPlaceholders})`,
+            WHERE dc.card_id IN (${idPlaceholderStr})`,
       args: cardIds,
     }),
     client.execute({
@@ -179,7 +176,7 @@ export async function rankAvailableCards(
             FROM deck_cards dc
             JOIN match_events me ON me.draft_id = dc.draft_id
               AND (me.seat1 = dc.seat OR me.seat2 = dc.seat)
-            WHERE dc.card_id IN (${idPlaceholders}) AND dc.zone = 'deck'
+            WHERE dc.card_id IN (${idPlaceholderStr}) AND dc.zone = 'deck'
             GROUP BY dc.card_id, dc.draft_id, dc.seat`,
       args: cardIds,
     }),
@@ -193,10 +190,10 @@ export async function rankAvailableCards(
   // Get opt-outs for all relevant drafts
   const optedOut = new Set<string>();
   if (allDraftIds.size > 0) {
-    const optOutPlaceholders = [...allDraftIds].map(() => "?").join(", ");
+    const allDraftIdArr = [...allDraftIds];
     const optOutResult = await client.execute({
-      sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${optOutPlaceholders})`,
-      args: [...allDraftIds],
+      sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${placeholders(allDraftIdArr.length)})`,
+      args: allDraftIdArr,
     });
     for (const row of optOutResult.rows) {
       optedOut.add(`${row.draft_id}:${row.seat}`);

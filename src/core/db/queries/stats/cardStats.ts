@@ -10,9 +10,7 @@ import { getCardPickStats } from "./pickStats";
 import { getPickHistory, type PickHistoryEntry } from "./pickHistory";
 import { getColorPairBreakdown, type ColorPairEntry } from "./colorPairBreakdown";
 import { getClient } from "../../client";
-
-/** Minimum number of match results needed for confident win rate statistics. */
-const MIN_SAMPLE_SIZE = 5;
+import { MIN_SAMPLE_SIZE } from "../../../constants";
 
 /** @public Used by API routes */
 export interface GetCardStatsParams {
