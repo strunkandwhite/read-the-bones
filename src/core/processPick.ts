@@ -55,13 +55,21 @@ export async function processPick(
   if (bannedCards.has(input.cardName.toLowerCase())) {
     throw new ValidationError(`${input.cardName} is banned`);
   }
-  const alreadyPicked = await client.execute({
-    sql: `SELECT 1 FROM pick_events
-          WHERE draft_id = ? AND card_id = ?`,
+  const availCheck = await client.execute({
+    sql: `SELECT COUNT(pe.pick_n) as picked_count, csc.qty
+          FROM cube_snapshot_cards csc
+          JOIN drafts d ON d.cube_snapshot_id = csc.cube_snapshot_id
+          LEFT JOIN pick_events pe ON pe.card_id = csc.card_id AND pe.draft_id = d.draft_id
+          WHERE d.draft_id = ? AND csc.card_id = ?
+          GROUP BY csc.card_id, csc.qty`,
     args: [input.draftId, input.cardId],
   });
-  if (alreadyPicked.rows.length > 0) {
-    throw new ValidationError(`${input.cardName} has already been picked`);
+  if (availCheck.rows.length > 0) {
+    const pickedCount = availCheck.rows[0].picked_count as number;
+    const qty = availCheck.rows[0].qty as number;
+    if (pickedCount >= qty) {
+      throw new ValidationError(`${input.cardName} has already been picked`);
+    }
   }
 
   // 4. Insert with optimistic concurrency + cascade
@@ -96,21 +104,49 @@ export async function processPick(
       cardName: currentCardName,
     });
 
-    // Detect affected seats for cautious auto-pick mode (BEFORE removing from queues)
-    const affectedSeats = await getQueuesContainingCard(client, input.draftId, currentCardId);
-    await Promise.all(
-      affectedSeats
-        .filter(({ seat: s }) => s !== currentSeat)
-        .map(async ({ seat: affectedSeat }) => {
-          const settings = await getSeatSettings(client, input.draftId, affectedSeat);
-          if (settings?.autoPickMode === 'cautious') {
-            await updateAutoPick(client, input.draftId, affectedSeat, false);
-          }
-        })
-    );
+    // Determine if this was the last available copy
+    let isLastCopy: boolean;
+    if (cascadeDepth === 0) {
+      // Initial pick: reuse the validation query result
+      const prevPickedCount = availCheck.rows.length > 0
+        ? (availCheck.rows[0].picked_count as number)
+        : 0;
+      const totalQty = availCheck.rows.length > 0
+        ? (availCheck.rows[0].qty as number)
+        : 1;
+      isLastCopy = prevPickedCount + 1 >= totalQty;
+    } else {
+      // Cascade pick: check the count now
+      const copyCheck = await client.execute({
+        sql: `SELECT COUNT(pe.pick_n) as picked_count, csc.qty
+              FROM cube_snapshot_cards csc
+              JOIN drafts d ON d.cube_snapshot_id = csc.cube_snapshot_id
+              LEFT JOIN pick_events pe ON pe.card_id = csc.card_id AND pe.draft_id = d.draft_id
+              WHERE d.draft_id = ? AND csc.card_id = ?
+              GROUP BY csc.card_id, csc.qty`,
+        args: [input.draftId, currentCardId],
+      });
+      const pickedNow = copyCheck.rows.length > 0 ? (copyCheck.rows[0].picked_count as number) : 1;
+      const totalQty = copyCheck.rows.length > 0 ? (copyCheck.rows[0].qty as number) : 1;
+      isLastCopy = pickedNow >= totalQty;
+    }
 
-    // Remove from all queues
-    await removeCardFromAllQueues(client, input.draftId, currentCardId);
+    // Only pause cautious-mode players and remove from queues when last copy taken
+    if (isLastCopy) {
+      const affectedSeats = await getQueuesContainingCard(client, input.draftId, currentCardId);
+      await Promise.all(
+        affectedSeats
+          .filter(({ seat: s }) => s !== currentSeat)
+          .map(async ({ seat: affectedSeat }) => {
+            const settings = await getSeatSettings(client, input.draftId, affectedSeat);
+            if (settings?.autoPickMode === 'cautious') {
+              await updateAutoPick(client, input.draftId, affectedSeat, false);
+            }
+          })
+      );
+
+      await removeCardFromAllQueues(client, input.draftId, currentCardId);
+    }
 
     // Check if draft is complete
     const totalAfter = currentCount + picks.length;
@@ -135,15 +171,18 @@ export async function processPick(
       break;
     }
 
-    // Get available card_ids
+    // Get available card_ids (quantity-aware)
     const available = await client.execute({
       sql: `SELECT csc.card_id
             FROM cube_snapshot_cards csc
             JOIN drafts d ON d.cube_snapshot_id = csc.cube_snapshot_id
+            LEFT JOIN (
+              SELECT card_id, COUNT(*) as cnt
+              FROM pick_events WHERE draft_id = ?
+              GROUP BY card_id
+            ) pe ON csc.card_id = pe.card_id
             WHERE d.draft_id = ?
-            AND csc.card_id NOT IN (
-              SELECT card_id FROM pick_events WHERE draft_id = ?
-            )`,
+            AND COALESCE(pe.cnt, 0) < csc.qty`,
       args: [input.draftId, input.draftId],
     });
     const availableSet = new Set(available.rows.map((r) => r.card_id as number));

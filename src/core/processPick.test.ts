@@ -114,9 +114,9 @@ describe('processPick', () => {
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([{ cnt: 0 }]),
     );
-    // 3. Already-picked check — returns a row (card already taken)
+    // 3. Availability check — picked_count=1, qty=1 (fully taken)
     mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ 1: 1 }]),
+      createQueryResult([{ picked_count: 1, qty: 1 }]),
     );
 
     await expect(
@@ -135,15 +135,15 @@ describe('processPick', () => {
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([{ cnt: 0 }]),
     );
-    // 3. Already-picked check — no rows (card is available)
+    // 3. Availability check — picked_count=0, qty=1 (available)
     mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([]),
+      createQueryResult([{ picked_count: 0, qty: 1 }]),
     );
     // 4. INSERT pick_events — success
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([], 1),
     );
-    // 5. removeCardFromAllQueues is mocked at module level
+    // 5. isLastCopy=true (0+1>=1), so removeCardFromAllQueues is called (mocked)
     // 6. Check next seat for auto_pick — no token found (break cascade)
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([]),
@@ -174,15 +174,15 @@ describe('processPick', () => {
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([{ cnt: 23 }]),
     );
-    // 3. Already-picked check — card is available
+    // 3. Availability check — picked_count=0, qty=1 (available)
     mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([]),
+      createQueryResult([{ picked_count: 0, qty: 1 }]),
     );
     // 4. INSERT — success
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([], 1),
     );
-    // 5. removeCardFromAllQueues is mocked at module level
+    // 5. isLastCopy=true, removeCardFromAllQueues is mocked
     // 6. UPDATE drafts SET phase = 'playing'
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([], 1),
@@ -228,15 +228,15 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([{ cnt: 0 }]),
       );
-      // 3. Already-picked check — card is available
+      // 3. Availability check �� picked_count=0, qty=1 (last copy)
       mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([]),
+        createQueryResult([{ picked_count: 0, qty: 1 }]),
       );
       // 4. INSERT pick_events — success
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([], 1),
       );
-      // 5. getQueuesContainingCard, getSeatSettings, updateAutoPick, removeCardFromAllQueues are mocked
+      // 5. isLastCopy=true → getQueuesContainingCard, getSeatSettings, updateAutoPick, removeCardFromAllQueues are mocked
       // 6. Check next seat for auto_pick — no token found (break cascade)
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([]),
@@ -278,15 +278,16 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([{ cnt: 0 }]),
       );
-      // 3. Already-picked check — card is available
+      // 3. Availability check — picked_count=0, qty=1 (last copy)
       mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([]),
+        createQueryResult([{ picked_count: 0, qty: 1 }]),
       );
       // 4. INSERT pick_events — success
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([], 1),
       );
-      // 5. Check next seat for auto_pick — no token found (break cascade)
+      // 5. isLastCopy=true → queues checked but resilient mode skips pause
+      // 6. Check next seat for auto_pick — no token found (break cascade)
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([]),
       );
@@ -328,15 +329,16 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([{ cnt: 0 }]),
       );
-      // 3. Already-picked check
+      // 3. Availability check — picked_count=0, qty=1 (last copy)
       mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([]),
+        createQueryResult([{ picked_count: 0, qty: 1 }]),
       );
       // 4. INSERT
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([], 1),
       );
-      // 5. Check next seat for auto_pick — break
+      // 5. isLastCopy=true → queues checked
+      // 6. Check next seat for auto_pick — break
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([]),
       );
@@ -347,6 +349,140 @@ describe('processPick', () => {
       expect(getSeatSettings).toHaveBeenCalledTimes(1);
       expect(getSeatSettings).toHaveBeenCalledWith(mockClient, 'draft-1', 3);
       expect(updateAutoPick).toHaveBeenCalledWith(mockClient, 'draft-1', 3, false);
+    });
+  });
+
+  describe('multi-copy cards', () => {
+    it('allows picking a 2-copy card that has been picked once', async () => {
+      // 1. Draft metadata
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([
+          { phase: 'drafting', num_seats: 4, picks_per_player: 6, banned_cards: null },
+        ]),
+      );
+      // 2. Pick count — 1 pick so far (seat 2's turn)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ cnt: 1 }]),
+      );
+      // 3. Availability check — picked_count=1, qty=2 (still available)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ picked_count: 1, qty: 2 }]),
+      );
+      // 4. INSERT pick_events — success
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([], 1),
+      );
+      // 5. isLastCopy=true (1+1>=2) → removeCardFromAllQueues is called (mocked)
+      // 6. Check next seat for auto_pick — break
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([]),
+      );
+
+      const result = await processPick(mockClient as never, {
+        ...baseInput,
+        seat: 2,
+      });
+
+      expect(result.picks).toHaveLength(1);
+      expect(result.picks[0].seat).toBe(2);
+    });
+
+    it('rejects picking a 2-copy card when both copies are taken', async () => {
+      // 1. Draft metadata
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([
+          { phase: 'drafting', num_seats: 4, picks_per_player: 6, banned_cards: null },
+        ]),
+      );
+      // 2. Pick count — 2 picks so far (seat 3's turn)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ cnt: 2 }]),
+      );
+      // 3. Availability check — picked_count=2, qty=2 (fully taken)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ picked_count: 2, qty: 2 }]),
+      );
+
+      await expect(
+        processPick(mockClient as never, { ...baseInput, seat: 3 }),
+      ).rejects.toThrow('Counterspell has already been picked');
+    });
+
+    it('only removes from queues when last copy is taken', async () => {
+      const { removeCardFromAllQueues, getQueuesContainingCard } = await import('./db/queries/pickQueue');
+
+      vi.mocked(getQueuesContainingCard).mockResolvedValueOnce([]);
+
+      // 1. Draft metadata
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([
+          { phase: 'drafting', num_seats: 4, picks_per_player: 6, banned_cards: null },
+        ]),
+      );
+      // 2. Pick count — 0 picks
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ cnt: 0 }]),
+      );
+      // 3. Availability check — picked_count=0, qty=2 (first of 2 copies)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ picked_count: 0, qty: 2 }]),
+      );
+      // 4. INSERT — success
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([], 1),
+      );
+      // 5. isLastCopy=false (0+1<2) → skip queue removal
+      // 6. Check next seat for auto_pick — break
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([]),
+      );
+
+      await processPick(mockClient as never, baseInput);
+
+      // picked_count was 0, qty is 2 → after this pick, 1 < 2 → NOT last copy
+      expect(removeCardFromAllQueues).not.toHaveBeenCalled();
+    });
+
+    it('does not pause cautious auto-pick when copies remain', async () => {
+      const { getQueuesContainingCard } = await import('./db/queries/pickQueue');
+      const { getSeatSettings, updateAutoPick } = await import('./db/queries/seatTokens');
+
+      vi.mocked(getQueuesContainingCard).mockResolvedValueOnce([{ seat: 2 }]);
+      vi.mocked(getSeatSettings).mockResolvedValueOnce({
+        autoPick: true,
+        displayName: null,
+        autoPickMode: 'cautious',
+      });
+
+      // 1. Draft metadata
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([
+          { phase: 'drafting', num_seats: 4, picks_per_player: 6, banned_cards: null },
+        ]),
+      );
+      // 2. Pick count — 0
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ cnt: 0 }]),
+      );
+      // 3. Availability check — picked_count=0, qty=2 (copies remain after pick)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ picked_count: 0, qty: 2 }]),
+      );
+      // 4. INSERT — success
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([], 1),
+      );
+      // 5. isLastCopy=false → skip cautious pause and queue removal
+      // 6. Check next seat for auto_pick — break
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([]),
+      );
+
+      await processPick(mockClient as never, baseInput);
+
+      // Copies remain → no pause, no queue removal
+      expect(getQueuesContainingCard).not.toHaveBeenCalled();
+      expect(updateAutoPick).not.toHaveBeenCalled();
     });
   });
 });
