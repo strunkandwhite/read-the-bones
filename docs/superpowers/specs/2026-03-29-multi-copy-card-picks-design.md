@@ -101,13 +101,21 @@ The component receives a new `remainingCopies` prop. When not in draft mode, fal
 
 Compute remaining copies per card: `cubeCopies[name] - (takenCardCounts.get(name) ?? 0)`. Pass both `cubeCopies` and `remainingCopies` to `CardNameCell`.
 
+### Downstream consumers of `takenCardNamesSet`
+
+The change to `useCardFiltering` (making `takenCardNamesSet` only contain fully-taken card names) implicitly fixes several downstream code paths in `PageClient.tsx` and `CardTable.tsx` that depend on it:
+
+- **`PageClient.tsx` `availableCount`:** Counts available cards using `takenCardNamesSet.has()`. With the change, partially-taken multi-copy cards are no longer subtracted from the available count.
+- **`PageClient.tsx` `getCardStatus`:** Returns `{ status: "taken" }` when `takenCardNamesSet.has(cardName)`. With the change, partially-taken multi-copy cards keep their normal status, so the `CardStatsModal` action buttons (pick, queue, float) remain enabled.
+- **`CardTable.tsx` row dimming:** Dims rows to `opacity: 0.35` when `takenCardNames.has(cardName)`. With the change, partially-taken multi-copy cards are not dimmed.
+
 ### Files to modify
 
 1. **`src/core/processPick.ts`** — Validation query, auto-pick availability query, conditional queue removal, conditional cautious pause
 2. **`src/app/hooks/useCardFiltering.ts`** — Count-based taken logic, add `cubeCopies` prop
 3. **`src/app/components/CardNameCell.tsx`** — Badge format (`R/T` in draft mode, `×N` otherwise)
 4. **`src/app/components/CardTable.tsx`** — Compute remaining copies, pass to CardNameCell
-5. **`src/app/components/PageClient.tsx`** — Pass `cubeCopies` to useCardFiltering
+5. **`src/app/components/PageClient.tsx`** — Pass `cubeCopies` to useCardFiltering (also implicitly affected via `takenCardNamesSet` — see above)
 
 ### Edge cases
 
