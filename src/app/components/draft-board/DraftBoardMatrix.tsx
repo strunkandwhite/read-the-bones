@@ -92,7 +92,7 @@ export function DraftBoardMatrix({
   }, [board.numSeats]);
 
   return (
-    <div className="overflow-x-auto overflow-y-auto max-h-[75vh]">
+    <div className="overflow-x-auto overflow-y-auto">
       <style>{`
         @keyframes pulse-border {
           0%, 100% { border-color: #3b82f6; }

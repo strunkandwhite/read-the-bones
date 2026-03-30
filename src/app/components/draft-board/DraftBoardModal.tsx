@@ -131,38 +131,42 @@ export function DraftBoardModal({
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div className="flex-1 flex flex-col overflow-hidden px-5 py-4 gap-4">
           {board ? (
             <>
-              <DraftBoardMatrix
-                board={board}
-                mySeat={mySeat}
-                nextPickN={nextPick?.pickNumber ?? null}
-                onUpdateDisplayName={onUpdateDisplayName}
-                handlePick={handlePick}
-                isMyTurn={isMyTurn}
-                draftId={draftId}
-                pickError={pickError}
-              />
-              <StandingsSection
-                board={board}
-                status={status}
-                draftId={draftId}
-                mySeat={mySeat}
-                token={token}
-                onMatchReported={onMatchReported}
-              />
-              {token !== null && (
-                <QueuePanel
-                  queue={pickQueue}
-                  autoPick={autoPick}
-                  autoPickMode={autoPickMode}
-                  onReorder={onQueueReorder ?? (() => {})}
-                  onRemove={onQueueRemove ?? (() => {})}
-                  onToggleAutoPick={onToggleAutoPick ?? (() => {})}
-                  onChangeAutoPickMode={onChangeAutoPickMode ?? (() => {})}
+              <div className="flex-1 min-h-0 overflow-auto">
+                <DraftBoardMatrix
+                  board={board}
+                  mySeat={mySeat}
+                  nextPickN={nextPick?.pickNumber ?? null}
+                  onUpdateDisplayName={onUpdateDisplayName}
+                  handlePick={handlePick}
+                  isMyTurn={isMyTurn}
+                  draftId={draftId}
+                  pickError={pickError}
                 />
-              )}
+              </div>
+              <div className="shrink-0">
+                <StandingsSection
+                  board={board}
+                  status={status}
+                  draftId={draftId}
+                  mySeat={mySeat}
+                  token={token}
+                  onMatchReported={onMatchReported}
+                />
+                {token !== null && (
+                  <QueuePanel
+                    queue={pickQueue}
+                    autoPick={autoPick}
+                    autoPickMode={autoPickMode}
+                    onReorder={onQueueReorder ?? (() => {})}
+                    onRemove={onQueueRemove ?? (() => {})}
+                    onToggleAutoPick={onToggleAutoPick ?? (() => {})}
+                    onChangeAutoPickMode={onChangeAutoPickMode ?? (() => {})}
+                  />
+                )}
+              </div>
             </>
           ) : (
             <div
