@@ -51,6 +51,7 @@ interface LiveStoreState {
   deckReady: boolean;
   deckSaveStatus: "idle" | "saving" | "saved";
   deckBuilderActive: boolean;
+  viewingSharedDeck: boolean;
 
   // Actions
   hydrateToken: (draftId: string) => void;
@@ -241,6 +242,7 @@ export const useLiveStore = create<LiveStoreState>()(
     deckReady: false,
     deckSaveStatus: "idle",
     deckBuilderActive: false,
+    viewingSharedDeck: false,
 
     // -----------------------------------------------------------------------
     // hydrateToken — reads token from URL then localStorage
@@ -583,6 +585,7 @@ export const useLiveStore = create<LiveStoreState>()(
     },
 
     fetchDeckState: async () => {
+      if (get().viewingSharedDeck) return;
       const { seatToken } = get();
       const activeDraft = useDraftStore.getState().activeDraft;
       if (!seatToken || !activeDraft) return;
@@ -702,6 +705,7 @@ useDraftStore.subscribe(
         deckReady: false,
         deckSaveStatus: "idle",
         deckBuilderActive: false,
+        viewingSharedDeck: false,
       });
     }
   },
