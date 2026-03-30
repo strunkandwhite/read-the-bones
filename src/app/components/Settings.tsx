@@ -1,60 +1,90 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { track } from "@vercel/analytics/react";
 import { DraftSelector } from "./DraftSelector";
 import { PoolSelector } from "./PoolSelector";
-import type { ActiveDraftInfo } from "../stores/draftStore";
+import { useDraftStore } from "../stores/draftStore";
+import { useCardStore } from "../stores/cardStore";
+import { useLiveStore } from "../stores/liveStore";
 
-export interface SettingsProps {
-  drafts: Array<{ id: string; name: string; date: string; numDrafters: number }>;
-  selectedDrafts: Set<string>;
-  onDraftsChange: (selected: Set<string>) => void;
-  isLoading?: boolean;
-  // Active draft filtering
-  activeDrafts: ActiveDraftInfo[];
-  activeDraft: string | null;
-  onActiveDraftChange: (draftId: string | null) => void;
-  hideTaken: boolean;
-  onHideTakenChange: (hide: boolean) => void;
-  // Seat selection
-  selectedSeat: number | null;
-  onSelectedSeatChange: (seat: number | null) => void;
-  activeDraftNumSeats: number;
-  // Pool as-of filtering
-  poolAsOfDraft: string | null;
-  onPoolAsOfDraftChange: (draftId: string | null) => void;
-  poolLockedByActiveDraft: boolean;
-  // Auth state
-  isAuthed?: boolean;
-  mySeat?: number | null;
-  seatNames?: Record<string, string>;
-}
+export function Settings() {
+  // Draft store
+  const activeDraft = useDraftStore((s) => s.activeDraft);
+  const selectedDrafts = useDraftStore((s) => s.selectedDrafts);
+  const selectedSeat = useDraftStore((s) => s.selectedSeat);
+  const hideTaken = useDraftStore((s) => s.hideTaken);
+  const syncStatus = useDraftStore((s) => s.syncStatus);
+  const board = useDraftStore((s) => s.board);
+  const poolAsOfDraft = useDraftStore((s) => s.poolAsOfDraft);
+  const setActiveDraft = useDraftStore((s) => s.setActiveDraft);
+  const setSelectedDrafts = useDraftStore((s) => s.setSelectedDrafts);
+  const setSelectedSeat = useDraftStore((s) => s.setSelectedSeat);
+  const setHideTaken = useDraftStore((s) => s.setHideTaken);
+  const setPoolAsOfDraft = useDraftStore((s) => s.setPoolAsOfDraft);
+  // Card store
+  const drafts = useCardStore((s) => s.drafts);
+  const isLoading = useCardStore((s) => s.isLoading);
+  const fetchCardData = useCardStore((s) => s.fetchCardData);
 
-export function Settings({
-  drafts,
-  selectedDrafts,
-  onDraftsChange,
-  isLoading = false,
-  activeDrafts,
-  activeDraft,
-  onActiveDraftChange,
-  hideTaken,
-  onHideTakenChange,
-  selectedSeat,
-  onSelectedSeatChange,
-  activeDraftNumSeats,
-  poolAsOfDraft,
-  onPoolAsOfDraftChange,
-  poolLockedByActiveDraft,
-  isAuthed,
-  mySeat,
-  seatNames,
-}: SettingsProps) {
-  const [isOpen, setIsOpen] = useState(false);
-  const modalRef = useRef<HTMLDivElement>(null);
+  // Live store
+  const mySeat = useLiveStore((s) => s.mySeat);
+
+  const activeDrafts = syncStatus.activeDrafts;
+  const isAuthed = mySeat !== null && mySeat === selectedSeat;
+  const seatNames = board?.seatNames;
+
+  // effectivePoolAsOfDraft: when an active draft is selected, lock the pool to that draft
+  const effectivePoolAsOfDraft = activeDraft ?? poolAsOfDraft;
+  const poolLockedByActiveDraft = activeDraft !== null;
+
+  const activeDraftNumSeats = useMemo(() => {
+    if (!activeDraft) return 0;
+    const draft = drafts.find((d) => d.id === activeDraft);
+    return draft?.numDrafters ?? 10;
+  }, [activeDraft, drafts]);
+
   const activeDraftIds = useMemo(() => new Set(activeDrafts.map((d) => d.id)), [activeDrafts]);
   const completedDrafts = useMemo(() => drafts.filter((d) => !activeDraftIds.has(d.id)), [drafts, activeDraftIds]);
+
+  const [isOpen, setIsOpen] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  // Callbacks that compose store actions with side effects
+  const handleActiveDraftChange = useCallback(
+    (draftId: string | null) => {
+      setActiveDraft(draftId);
+      if (draftId) {
+        track("active_draft_set", { draft: draftId });
+      }
+    },
+    [setActiveDraft]
+  );
+
+  const handleSeatChange = useCallback(
+    (seat: number | null) => {
+      setSelectedSeat(seat);
+      if (seat !== null && activeDraft) {
+        track("seat_selected", { draft: activeDraft, seat });
+      }
+    },
+    [setSelectedSeat, activeDraft]
+  );
+
+  const handlePoolAsOfChange = useCallback(
+    (draftId: string | null) => {
+      setPoolAsOfDraft(draftId);
+      if (draftId) {
+        track("pool_as_of_changed", { draft: draftId });
+      }
+    },
+    [setPoolAsOfDraft]
+  );
+
+  const onDraftsChange = useCallback(async (newSelection: Set<string>) => {
+    setSelectedDrafts(newSelection);
+    await fetchCardData();
+  }, [setSelectedDrafts, fetchCardData]);
 
   // Close modal when clicking outside
   useEffect(() => {
@@ -163,7 +193,7 @@ export function Settings({
                   <div className="relative flex-1">
                     <select
                       value={activeDraft ?? ""}
-                      onChange={(e) => onActiveDraftChange(e.target.value || null)}
+                      onChange={(e) => handleActiveDraftChange(e.target.value || null)}
                       className="block w-full appearance-none rounded-lg border border-zinc-300 bg-white py-1.5 pl-3 pr-9 text-sm text-zinc-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
                     >
                       <option value="">None</option>
@@ -197,7 +227,7 @@ export function Settings({
                     <div className="relative flex-1">
                       <select
                         value={selectedSeat ?? ""}
-                        onChange={(e) => onSelectedSeatChange(e.target.value ? Number(e.target.value) : null)}
+                        onChange={(e) => handleSeatChange(e.target.value ? Number(e.target.value) : null)}
                         className="block w-full appearance-none rounded-lg border border-zinc-300 bg-white py-1.5 pl-3 pr-9 text-sm text-zinc-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
                       >
                         <option value="">No seat</option>
@@ -218,7 +248,7 @@ export function Settings({
                       type="checkbox"
                       checked={hideTaken}
                       onChange={(e) => {
-                        onHideTakenChange(e.target.checked);
+                        setHideTaken(e.target.checked);
                         track("hide_taken_toggled", { enabled: e.target.checked });
                       }}
                       className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
@@ -240,8 +270,8 @@ export function Settings({
                 </h3>
                 <PoolSelector
                   drafts={drafts}
-                  selectedDraftId={poolAsOfDraft}
-                  onChange={onPoolAsOfDraftChange}
+                  selectedDraftId={effectivePoolAsOfDraft}
+                  onChange={handlePoolAsOfChange}
                   disabled={isLoading || poolLockedByActiveDraft}
                 />
               </div>

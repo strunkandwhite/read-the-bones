@@ -17,20 +17,16 @@ import { sortableKeyboardCoordinates } from "@dnd-kit/sortable";
 import { DeckZone } from "./DeckZone";
 import { BasicLandsDialog } from "./BasicLandsDialog";
 import { BASIC_LAND_IMAGES } from "./basicLandImages";
-import type { DeckState, ScryCard, CardStats, BasicLandCounts } from "@/core/types";
-import { type DeckAction, formatDecklistText } from "@/core/deckBuilder";
+import type { BasicLandCounts } from "@/core/types";
+import { formatDecklistText } from "@/core/deckBuilder";
 import { useSlowRenderTracking } from "../../hooks/useSlowRenderTracking";
+import { useLiveStore } from "../../stores/liveStore";
+import { useCardStore } from "../../stores/cardStore";
+import { useDraftStore } from "../../stores/draftStore";
 
 interface DeckBuilderPanelProps {
-  state: DeckState;
-  dispatch: (action: DeckAction) => void;
-  scryfallData: Map<string, ScryCard>;
-  cardStats: Map<string, CardStats>;
   draftName: string;
   onClose: () => void;
-  floatedCards?: string[];
-  onRemoveFloat?: (cardName: string) => void;
-  saveStatus?: "idle" | "saving" | "saved";
 }
 
 function parseDragId(id: string) {
@@ -44,17 +40,29 @@ function parseDragId(id: string) {
 }
 
 export function DeckBuilderPanel({
-  state,
-  dispatch,
-  scryfallData,
-  cardStats,
   draftName,
   onClose,
-  floatedCards = [],
-  onRemoveFloat,
-  saveStatus,
 }: DeckBuilderPanelProps) {
   useSlowRenderTracking("deck_builder");
+
+  // Live store
+  const state = useLiveStore((s) => s.deckState);
+  const dispatch = useLiveStore((s) => s.dispatchDeck);
+  const floatedCards = useLiveStore((s) => s.floatedCards);
+  const removeFloat = useLiveStore((s) => s.removeFloat);
+  const saveStatus = useLiveStore((s) => s.deckSaveStatus);
+  const mySeat = useLiveStore((s) => s.mySeat);
+
+  // Card store
+  const scryfallData = useCardStore((s) => s.scryfallDataMap);
+  const cardStats = useCardStore((s) => s.cardStatsMap);
+
+  // Draft store
+  const selectedSeat = useDraftStore((s) => s.selectedSeat);
+
+  const isAuthed = mySeat !== null && mySeat === selectedSeat;
+  const effectiveFloatedCards = isAuthed ? floatedCards : [];
+
   const [showBasicLands, setShowBasicLands] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
 
@@ -191,10 +199,10 @@ export function DeckBuilderPanel({
 
   const handleRemoveFloat = useCallback(
     (cardName: string) => {
-      onRemoveFloat?.(cardName);
+      removeFloat(cardName);
       track("deck_card_removed", { zone: "deck" });
     },
-    [onRemoveFloat],
+    [removeFloat],
   );
 
   const dragOverlayCard = useMemo(() => {
@@ -276,7 +284,7 @@ export function DeckBuilderPanel({
             columns={state.zones.sideboard}
             scryfallData={scryfallData}
             cardStats={cardStats}
-            floatedCards={floatedCards}
+            floatedCards={effectiveFloatedCards}
             onRemoveFloat={handleRemoveFloat}
           />
           <div className="border-t border-zinc-700/30" />
@@ -285,7 +293,7 @@ export function DeckBuilderPanel({
             columns={state.zones.deck}
             scryfallData={scryfallData}
             cardStats={cardStats}
-            floatedCards={floatedCards}
+            floatedCards={effectiveFloatedCards}
             onRemoveFloat={handleRemoveFloat}
           />
         </div>

@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useCallback } from "react";
 import { useCardStore } from "@/app/stores/cardStore";
+import { useDraftStore } from "@/app/stores/draftStore";
+import { useLiveStore } from "@/app/stores/liveStore";
+import { getCardStatus, getImageUrl } from "@/app/stores/selectors";
+import { isLocalClient } from "@/core/isLocal";
 import type { CardStatsData } from "@/app/stores/cardStore";
 import { HoldToPickButton } from "./HoldToPickButton";
 import { DistributionHistogram } from "./DistributionHistogram";
@@ -11,49 +15,93 @@ import type { DraftScore } from "@/core/types";
 
 import type { CardStatus } from "@/core/cardStatus";
 
-type CardStatsModalProps = {
-  cardName: string | null;
-  scryfallImageUrl?: string;
-  isOpen: boolean;
-  onClose: () => void;
-  // Live draft action props (all optional — absent means stats-only)
-  isLiveDraft?: boolean;
-  isMyTurn?: boolean;
-  cardStatus?: CardStatus;
-  queuePosition?: number;
-  onPick?: () => void;
-  onQueue?: () => void;
-  onUnqueue?: () => void;
-  onFloat?: () => void;
-  onUnfloat?: () => void;
-  isLocal?: boolean;
-};
-
-export function CardStatsModal(props: CardStatsModalProps) {
-  const { cardName, isOpen, onClose, isLocal } = props;
+export function CardStatsModal() {
+  // Card store
+  const selectedCard = useCardStore((s) => s.selectedCard);
+  const clearSelectedCard = useCardStore((s) => s.clearSelectedCard);
   const data = useCardStore((s) => s.cardStatsDetail);
   const loading = useCardStore((s) => s.cardStatsLoading);
+
+  // Draft store
+  const activeDraft = useDraftStore((s) => s.activeDraft);
+  const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
+  const selectedSeat = useDraftStore((s) => s.selectedSeat);
+
+  // Live store
+  const mySeat = useLiveStore((s) => s.mySeat);
+  const isMyTurn = useLiveStore((s) => s.isMyTurn);
+  const queue = useLiveStore((s) => s.queue);
+  const autoPick = useLiveStore((s) => s.autoPick);
+  const submitPick = useLiveStore((s) => s.handlePick);
+  const addToQueue = useLiveStore((s) => s.addToQueue);
+  const removeFromQueue = useLiveStore((s) => s.removeFromQueue);
+  const addFloat = useLiveStore((s) => s.addFloat);
+  const removeFloat = useLiveStore((s) => s.removeFloat);
+
+  const isAuthed = mySeat !== null && mySeat === selectedSeat;
+  const isOpen = !!selectedCard;
+  const isLocal = useMemo(() => isLocalClient(), []);
+  const isLiveDraft = !!activeDraft && liveDraftStatus?.phase === "drafting";
+
+  const scryfallImageUrl = useMemo(
+    () => getImageUrl(selectedCard),
+    [selectedCard]
+  );
+
+  const cardStatusResult = useMemo(
+    () => selectedCard ? getCardStatus(selectedCard) : null,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedCard, isAuthed]
+  );
+
+  const cardStatus: CardStatus = cardStatusResult?.status ?? "none";
+  const queuePosition = cardStatusResult?.queuePosition;
+
+  const handlePick = useCallback(async () => {
+    if (!selectedCard) return;
+    await submitPick(selectedCard);
+    clearSelectedCard();
+  }, [selectedCard, submitPick, clearSelectedCard]);
+
+  const handleQueue = useCallback(() => {
+    if (selectedCard) addToQueue(selectedCard);
+  }, [selectedCard, addToQueue]);
+
+  const handleUnqueue = useCallback(() => {
+    if (selectedCard) removeFromQueue(selectedCard);
+  }, [selectedCard, removeFromQueue]);
+
+  const handleFloat = useCallback(() => {
+    if (selectedCard) addFloat(selectedCard);
+  }, [selectedCard, addFloat]);
+
+  const handleUnfloat = useCallback(() => {
+    if (selectedCard) removeFloat(selectedCard);
+  }, [selectedCard, removeFloat]);
 
   // Escape key handler
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") clearSelectedCard();
     };
     document.addEventListener("keydown", handler);
     return () => document.removeEventListener("keydown", handler);
-  }, [isOpen, onClose]);
+  }, [isOpen, clearSelectedCard]);
 
-  if (!isOpen || !cardName) return null;
+  if (!isOpen || !selectedCard) return null;
 
   // Determine which action buttons to show
   const showActions =
-    props.isLiveDraft && props.cardStatus !== "taken" && props.cardStatus !== "picked";
+    isLiveDraft && cardStatus !== "taken" && cardStatus !== "picked";
+
+  // Whether queue button should be available
+  const canQueue = isAuthed && !(isMyTurn && queue.length === 0 && autoPick);
 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      onClick={onClose}
+      onClick={clearSelectedCard}
     >
       <div
         className="mx-4 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-zinc-800 shadow-2xl"
@@ -63,10 +111,10 @@ export function CardStatsModal(props: CardStatsModalProps) {
         <div className="flex flex-col gap-5 p-5 sm:flex-row">
           {/* Left / Top: Card image + actions */}
           <div className="shrink-0 sm:w-[220px]">
-            {props.scryfallImageUrl && (
+            {scryfallImageUrl && (
               <img
-                src={props.scryfallImageUrl}
-                alt={cardName}
+                src={scryfallImageUrl}
+                alt={selectedCard}
                 width={220}
                 height={308}
                 className="mx-auto w-[180px] rounded-lg sm:w-[220px]"
@@ -74,7 +122,16 @@ export function CardStatsModal(props: CardStatsModalProps) {
             )}
             {showActions && (
               <div className="mt-3 flex flex-col gap-2">
-                <ActionButtons {...props} />
+                <ActionButtons
+                  cardStatus={cardStatus}
+                  isMyTurn={isAuthed && isMyTurn}
+                  queuePosition={queuePosition}
+                  onPick={isAuthed ? handlePick : undefined}
+                  onQueue={canQueue ? handleQueue : undefined}
+                  onUnqueue={isAuthed ? handleUnqueue : undefined}
+                  onFloat={isAuthed ? handleFloat : undefined}
+                  onUnfloat={isAuthed ? handleUnfloat : undefined}
+                />
               </div>
             )}
           </div>
@@ -240,7 +297,18 @@ function StatRow({ label, value, annotation }: { label: string; value: string; a
 
 // --- Action buttons per card state ---
 
-function ActionButtons(props: CardStatsModalProps) {
+interface ActionButtonsProps {
+  cardStatus?: CardStatus;
+  isMyTurn?: boolean;
+  queuePosition?: number;
+  onPick?: () => void;
+  onQueue?: () => void;
+  onUnqueue?: () => void;
+  onFloat?: () => void;
+  onUnfloat?: () => void;
+}
+
+function ActionButtons(props: ActionButtonsProps) {
   const { cardStatus, isMyTurn } = props;
 
   switch (cardStatus) {

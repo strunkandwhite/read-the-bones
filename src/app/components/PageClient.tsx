@@ -9,7 +9,6 @@ import { CardStatsModal } from "./CardStatsModal";
 import { ColorFilter } from "./ColorFilter";
 import { Settings } from "./Settings";
 import { StatsModal } from "./StatsModal";
-import { isLocalClient } from "@/core/isLocal";
 import type { CardStatsResponse } from "@/core/getCards";
 import type { DraftStatsResponse } from "@/core/getDraftStats";
 import { DeckBuilderPanel } from "./deck-builder/DeckBuilderPanel";
@@ -20,7 +19,6 @@ import { useHydration } from "../stores/hydration";
 import { useDraftStore } from "../stores/draftStore";
 import { useCardStore } from "../stores/cardStore";
 import { useLiveStore } from "../stores/liveStore";
-import { getCardStatus, getImageUrl } from "../stores/selectors";
 
 
 export interface PageClientProps {
@@ -30,12 +28,10 @@ export interface PageClientProps {
 }
 
 /**
- * Client-side page component with state management.
+ * Client-side page component — layout shell.
  *
- * Handles:
- * - Search query filtering
- * - Color filter selection
- * - Draft selection (fetches recalculated stats from API)
+ * Child components subscribe to Zustand stores directly.
+ * PageClient handles hydration, modal orchestration, and layout.
  */
 export function PageClient({ initialCardData, initialDraftStats, initialDraftId }: PageClientProps) {
   // Hydrate stores from SSR props
@@ -46,78 +42,34 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     initialDraftId,
   });
 
-  // Draft store reads
+  // Minimal store reads needed for layout decisions
   const activeDraft = useDraftStore((s) => s.activeDraft);
-  const selectedDrafts = useDraftStore((s) => s.selectedDrafts);
   const selectedSeat = useDraftStore((s) => s.selectedSeat);
-  const hideTaken = useDraftStore((s) => s.hideTaken);
-  const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
-  const board = useDraftStore((s) => s.board);
-  const syncStatus = useDraftStore((s) => s.syncStatus);
-  const poolAsOfDraft = useDraftStore((s) => s.poolAsOfDraft);
-
-  // Draft store actions
   const setActiveDraft = useDraftStore((s) => s.setActiveDraft);
-  const setSelectedDrafts = useDraftStore((s) => s.setSelectedDrafts);
   const setSelectedSeat = useDraftStore((s) => s.setSelectedSeat);
-  const setHideTaken = useDraftStore((s) => s.setHideTaken);
-  const setPoolAsOfDraft = useDraftStore((s) => s.setPoolAsOfDraft);
-  const patchSeatName = useDraftStore((s) => s.patchSeatName);
 
-  // Card store reads
   const cardData = useCardStore((s) => s.cardData);
-  const draftStats = useCardStore((s) => s.draftStats);
-  const isLoading = useCardStore((s) => s.isLoading);
   const searchQuery = useCardStore((s) => s.searchQuery);
-  const colorFilter = useCardStore((s) => s.colorFilter);
-  const colorFilterMode = useCardStore((s) => s.colorFilterMode);
-  const scryfallMatchNames = useCardStore((s) => s.scryfallMatchNames);
-  const displayCards = useCardStore((s) => s.displayCards);
-  const searchFilteredCards = useCardStore((s) => s.searchFilteredCards);
-  const takenCardNamesSet = useCardStore((s) => s.takenCardNamesSet);
-  const takenCardCounts = useCardStore((s) => s.takenCardCounts);
-  const seatCardNames = useCardStore((s) => s.seatCardNames);
-  const seatCardList = useCardStore((s) => s.seatCardList);
-  const availableCount = useCardStore((s) => s.availableCount);
-  const drafts = useCardStore((s) => s.drafts);
-  const scryfallDataMap = useCardStore((s) => s.scryfallDataMap);
-  const cardStatsMap = useCardStore((s) => s.cardStatsMap);
-  const selectedCard = useCardStore((s) => s.selectedCard);
-
-  // Card store actions
   const setSearchQuery = useCardStore((s) => s.setSearchQuery);
-  const setColorFilter = useCardStore((s) => s.setColorFilter);
-  const setColorFilterMode = useCardStore((s) => s.setColorFilterMode);
   const clearSearch = useCardStore((s) => s.clearSearch);
+  const setColorFilter = useCardStore((s) => s.setColorFilter);
+  const searchFilteredCards = useCardStore((s) => s.searchFilteredCards);
+  const displayCards = useCardStore((s) => s.displayCards);
+  const scryfallMatchNames = useCardStore((s) => s.scryfallMatchNames);
+  const selectedDrafts = useDraftStore((s) => s.selectedDrafts);
+  const isLoading = useCardStore((s) => s.isLoading);
   const selectCard = useCardStore((s) => s.selectCard);
-  const clearSelectedCard = useCardStore((s) => s.clearSelectedCard);
-  const fetchCardData = useCardStore((s) => s.fetchCardData);
+  const seatCardList = useCardStore((s) => s.seatCardList);
 
-  // Live store reads
   const mySeat = useLiveStore((s) => s.mySeat);
-  const autoPick = useLiveStore((s) => s.autoPick);
-  const autoPickMode = useLiveStore((s) => s.autoPickMode);
-  const pickError = useLiveStore((s) => s.pickError);
   const isMyTurn = useLiveStore((s) => s.isMyTurn);
-  const queue = useLiveStore((s) => s.queue);
+  const pickError = useLiveStore((s) => s.pickError);
+  const setPickError = useLiveStore((s) => s.setPickError);
   const queuedCards = useLiveStore((s) => s.queuedCards);
   const floatedCards = useLiveStore((s) => s.floatedCards);
-  const deckState = useLiveStore((s) => s.deckState);
-  const deckSaveStatus = useLiveStore((s) => s.deckSaveStatus);
-  const seatToken = useLiveStore((s) => s.seatToken);
-
-  // Live store actions
-  const submitPick = useLiveStore((s) => s.handlePick);
-  const setPickError = useLiveStore((s) => s.setPickError);
-  const toggleAutoPick = useLiveStore((s) => s.toggleAutoPick);
-  const updateAutoPickMode = useLiveStore((s) => s.updateAutoPickMode);
-  const addToQueue = useLiveStore((s) => s.addToQueue);
-  const removeFromQueue = useLiveStore((s) => s.removeFromQueue);
-  const reorderQueue = useLiveStore((s) => s.reorderQueue);
-  const addFloat = useLiveStore((s) => s.addFloat);
-  const removeFloat = useLiveStore((s) => s.removeFloat);
   const dispatchDeck = useLiveStore((s) => s.dispatchDeck);
   const setDeckBuilderActive = useLiveStore((s) => s.setDeckBuilderActive);
+  const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
 
   const isAuthed = mySeat !== null && mySeat === selectedSeat;
 
@@ -164,8 +116,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   // Mobile deck filter: shows only picked/queued/floated cards in card table
   const [deckFilterActive, setDeckFilterActive] = useState(false);
 
-  const isLocal = useMemo(() => isLocalClient(), []);
-
   // When mySeat resolves from token auth, auto-select that seat
   useEffect(() => {
     if (mySeat !== null && selectedSeat === null) {
@@ -189,34 +139,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     [queuedCards],
   );
 
-  // Card status helper using store selector
-  const getCardStatusCb = useCallback(
-    (cardName: string) => getCardStatus(cardName),
-    // Re-derive when the inputs to getCardStatus change
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [seatCardNames, queuedCards, floatedCards, takenCardNamesSet, isAuthed],
-  );
-
-  // Get Scryfall image URL using store selector
-  const getImageUrlCb = useCallback(
-    (cardName: string | null) => getImageUrl(cardName),
-    [scryfallDataMap], // eslint-disable-line react-hooks/exhaustive-deps
-  );
-
-  const selectedCardStatus = useMemo(
-    () => selectedCard ? getCardStatusCb(selectedCard) : null,
-    [selectedCard, getCardStatusCb],
-  );
-
-  // Wrap submitPick to also close the card stats modal after a successful pick
-  const handlePick = useCallback(
-    async (cardName: string) => {
-      await submitPick(cardName);
-      clearSelectedCard();
-    },
-    [submitPick, clearSelectedCard],
-  );
-
   // Handle card click — opens card stats modal
   const handleCardClick = useCallback((cardName: string) => {
     const excludeId = liveDraftStatus?.phase === "drafting" ? activeDraft ?? undefined : undefined;
@@ -234,59 +156,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     ]);
     return searchFilteredCards.filter((c) => myCards.has(c.cardName));
   }, [deckFilterActive, isAuthed, searchFilteredCards, seatCardList, floatedCards, queuedCardNames]);
-
-  const handleActiveDraftChange = useCallback(
-    (draftId: string | null) => {
-      setActiveDraft(draftId);
-      setDeckFilterActive(false);
-      if (draftId) {
-        track("active_draft_set", { draft: draftId });
-      }
-    },
-    [setActiveDraft]
-  );
-
-  const handleSeatChange = useCallback(
-    (seat: number | null) => {
-      setSelectedSeat(seat);
-      setDeckFilterActive(false);
-      if (seat !== null && activeDraft) {
-        track("seat_selected", { draft: activeDraft, seat });
-      }
-    },
-    [setSelectedSeat, activeDraft]
-  );
-
-  const handlePoolAsOfChange = useCallback(
-    (draftId: string | null) => {
-      setPoolAsOfDraft(draftId);
-      if (draftId) {
-        track("pool_as_of_changed", { draft: draftId });
-      }
-    },
-    [setPoolAsOfDraft]
-  );
-
-  const handleUpdateDisplayName = useCallback(async (name: string) => {
-    if (mySeat !== null) patchSeatName(mySeat, name || `Seat ${mySeat}`);
-    await useLiveStore.getState().updateDisplayName(name);
-    await useDraftStore.getState().refreshNow();
-  }, [mySeat, patchSeatName]);
-
-  // Compose draft selection change with data fetching
-  const onDraftsChange = useCallback(async (newSelection: Set<string>) => {
-    setSelectedDrafts(newSelection);
-    await fetchCardData();
-  }, [setSelectedDrafts, fetchCardData]);
-
-  const activeDraftNumSeats = useMemo(() => {
-    if (!activeDraft) return 0;
-    const draft = drafts.find((d) => d.id === activeDraft);
-    return draft?.numDrafters ?? 10;
-  }, [activeDraft, drafts]);
-
-  // effectivePoolAsOfDraft: when an active draft is selected, lock the pool to that draft
-  const effectivePoolAsOfDraft = activeDraft ?? poolAsOfDraft;
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
@@ -372,12 +241,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
 
           {/* Color Filter — hidden below lg */}
           <div className="hidden shrink-0 lg:block">
-            <ColorFilter
-              selected={colorFilter}
-              onChange={setColorFilter}
-              mode={colorFilterMode}
-              onModeChange={setColorFilterMode}
-            />
+            <ColorFilter />
           </div>
 
           {/* Divider — visible when color filters are */}
@@ -441,27 +305,8 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                 </svg>
               </button>
             )}
-            <StatsModal data={draftStats} />
-            <Settings
-              drafts={drafts}
-              selectedDrafts={selectedDrafts}
-              onDraftsChange={onDraftsChange}
-              isLoading={isLoading}
-              activeDrafts={syncStatus.activeDrafts}
-              activeDraft={activeDraft}
-              onActiveDraftChange={handleActiveDraftChange}
-              hideTaken={hideTaken}
-              onHideTakenChange={setHideTaken}
-              poolAsOfDraft={effectivePoolAsOfDraft}
-              onPoolAsOfDraftChange={handlePoolAsOfChange}
-              poolLockedByActiveDraft={activeDraft !== null}
-              selectedSeat={selectedSeat}
-              onSelectedSeatChange={handleSeatChange}
-              activeDraftNumSeats={activeDraftNumSeats}
-              isAuthed={isAuthed}
-              mySeat={mySeat}
-              seatNames={board?.seatNames}
-            />
+            <StatsModal />
+            <Settings />
           </div>
         </div>
 
@@ -481,14 +326,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
         {deckFilteredCards.length > 0 ? (
           <CardTable
             cards={deckFilteredCards}
-            colorFilter={colorFilter}
-            colorFilterMode={colorFilterMode}
-            currentCubeCopies={cardData.cubeCopies}
-            takenCardNames={takenCardNamesSet}
-            takenCardCounts={takenCardCounts}
-            seatCardNames={seatCardNames}
             onCardClick={handleCardClick}
-            getCardStatus={getCardStatusCb}
           />
         ) : (
           <div className="rounded-lg border border-zinc-200 bg-white p-12 text-center dark:border-zinc-700 dark:bg-zinc-900">
@@ -536,28 +374,10 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
       {/* Draft Board Modal */}
       {draftBoardOpen && activeDraft && (
         <DraftBoardModal
-          board={board}
-          status={liveDraftStatus}
-          mySeat={mySeat}
-          token={seatToken}
           draftId={activeDraft}
           draftName={cardData.draftMetadata[activeDraft]?.name}
-          availableCount={availableCount}
-          bannedCardNames={cardData.bannedCardNames}
           isOpen={draftBoardOpen}
           onClose={() => setDraftBoardOpen(false)}
-          onMatchReported={() => useDraftStore.getState().refreshNow()}
-          onUpdateDisplayName={handleUpdateDisplayName}
-          pickQueue={queue.map((e) => ({ cardName: e.cardName, position: e.priority }))}
-          autoPick={autoPick}
-          autoPickMode={autoPickMode}
-          onQueueReorder={reorderQueue}
-          onQueueRemove={removeFromQueue}
-          onToggleAutoPick={toggleAutoPick}
-          onChangeAutoPickMode={updateAutoPickMode}
-          handlePick={isAuthed ? submitPick : undefined}
-          isMyTurn={isAuthed && isMyTurn}
-          pickError={pickError}
         />
       )}
 
@@ -571,37 +391,15 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
         >
           <div className="flex max-h-[95vh] w-full max-w-7xl flex-col rounded-t-xl shadow-[0_0_60px_-12px_rgba(0,0,0,0.8)] sm:mx-3 sm:rounded-xl">
             <DeckBuilderPanel
-              state={deckState}
-              dispatch={dispatchDeck}
-              scryfallData={scryfallDataMap}
-              cardStats={cardStatsMap}
               draftName={cardData.draftMetadata[activeDraft]?.name ?? activeDraft}
               onClose={() => setDeckBuilderModalOpen(false)}
-              floatedCards={isAuthed ? floatedCards : []}
-              onRemoveFloat={isAuthed ? removeFloat : undefined}
-              saveStatus={deckSaveStatus}
             />
           </div>
         </div>
       )}
 
       {/* Card Stats Modal */}
-      <CardStatsModal
-        cardName={selectedCard}
-        scryfallImageUrl={getImageUrlCb(selectedCard)}
-        isOpen={!!selectedCard}
-        onClose={clearSelectedCard}
-        isLiveDraft={!!activeDraft && liveDraftStatus?.phase === "drafting"}
-        isMyTurn={isAuthed && isMyTurn}
-        cardStatus={selectedCardStatus?.status ?? "none"}
-        queuePosition={selectedCardStatus?.queuePosition}
-        onPick={isAuthed && selectedCard ? () => handlePick(selectedCard) : undefined}
-        onQueue={isAuthed && selectedCard && !(isMyTurn && queue.length === 0 && autoPick) ? () => addToQueue(selectedCard) : undefined}
-        onUnqueue={isAuthed && selectedCard ? () => removeFromQueue(selectedCard) : undefined}
-        onFloat={isAuthed && selectedCard ? () => addFloat(selectedCard) : undefined}
-        onUnfloat={isAuthed && selectedCard ? () => removeFloat(selectedCard) : undefined}
-        isLocal={isLocal}
-      />
+      <CardStatsModal />
     </div>
   );
 }

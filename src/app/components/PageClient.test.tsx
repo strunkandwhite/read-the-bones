@@ -17,12 +17,7 @@ vi.mock("./ColorFilter", () => ({
   ColorFilter: () => <div data-testid="color-filter" />,
 }));
 vi.mock("./Settings", () => ({
-  Settings: (props: { onDraftsChange: (s: Set<string>) => void }) => {
-    // Expose onDraftsChange so tests can trigger draft selection changes
-    (globalThis as Record<string, unknown>).__settingsOnDraftsChange =
-      props.onDraftsChange;
-    return <div data-testid="settings" />;
-  },
+  Settings: () => <div data-testid="settings" />,
 }));
 vi.mock("./StatsModal", () => ({
   StatsModal: () => <div data-testid="stats-modal" />,
@@ -67,6 +62,12 @@ function makeTestProps(overrides?: Partial<CardStatsResponse>): PageClientProps 
   };
 }
 
+/** Helper to simulate draft selection change (previously done via Settings prop) */
+async function changeDraftSelection(newSelection: Set<string>) {
+  useDraftStore.getState().setSelectedDrafts(newSelection);
+  await useCardStore.getState().fetchCardData();
+}
+
 describe("PageClient", () => {
   afterEach(() => {
     cleanup();
@@ -83,7 +84,6 @@ describe("PageClient", () => {
 
   beforeEach(() => {
     vi.restoreAllMocks();
-    delete (globalThis as Record<string, unknown>).__settingsOnDraftsChange;
 
     // Reset store state between tests
     _resetPollingState();
@@ -176,12 +176,9 @@ describe("PageClient", () => {
 
     render(<PageClient {...makeTestProps()} />);
 
-    const onDraftsChange = (globalThis as Record<string, unknown>)
-      .__settingsOnDraftsChange as (s: Set<string>) => Promise<void>;
-
-    // Select only draft-a (non-default selection triggers fetch)
+    // Call store actions directly (Settings now reads from stores)
     await act(async () => {
-      await onDraftsChange(new Set(["draft-a"]));
+      await changeDraftSelection(new Set(["draft-a"]));
     });
 
     expect(global.fetch).toHaveBeenCalledTimes(2);
@@ -197,12 +194,9 @@ describe("PageClient", () => {
 
     render(<PageClient {...makeTestProps()} />);
 
-    const onDraftsChange = (globalThis as Record<string, unknown>)
-      .__settingsOnDraftsChange as (s: Set<string>) => Promise<void>;
-
-    // Select only draft-a (non-default selection triggers fetch)
+    // Call store actions directly
     await act(async () => {
-      await onDraftsChange(new Set(["draft-a"]));
+      await changeDraftSelection(new Set(["draft-a"]));
     });
 
     expect(consoleSpy).toHaveBeenCalledWith(
@@ -223,11 +217,9 @@ describe("PageClient", () => {
   it("shows 'No drafts selected' when selection is empty", async () => {
     render(<PageClient {...makeTestProps()} />);
 
-    const onDraftsChange = (globalThis as Record<string, unknown>)
-      .__settingsOnDraftsChange as (s: Set<string>) => Promise<void>;
-
+    // Call store actions directly
     await act(async () => {
-      await onDraftsChange(new Set());
+      await changeDraftSelection(new Set());
     });
 
     expect(screen.getByText(/No drafts selected/)).toBeDefined();
@@ -244,12 +236,9 @@ describe("PageClient", () => {
 
     render(<PageClient {...makeTestProps()} />);
 
-    const onDraftsChange = (globalThis as Record<string, unknown>)
-      .__settingsOnDraftsChange as (s: Set<string>) => Promise<void>;
-
     // Trigger fetch failure with custom selection
     await act(async () => {
-      await onDraftsChange(new Set(["draft-a"]));
+      await changeDraftSelection(new Set(["draft-a"]));
     });
 
     // Now set up a successful response for returning to default
@@ -261,7 +250,7 @@ describe("PageClient", () => {
 
     // Return to default selection (all completed drafts)
     await act(async () => {
-      await onDraftsChange(new Set(["draft-a", "draft-b"]));
+      await changeDraftSelection(new Set(["draft-a", "draft-b"]));
     });
 
     expect(screen.getByText(/Read the Bones/)).toBeDefined();

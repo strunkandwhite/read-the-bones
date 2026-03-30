@@ -13,25 +13,18 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { EnrichedCardStats } from "@/core/types";
-import type { ColorFilterMode } from "@/core/colorFilter";
-import type { CardStatusResult } from "@/core/cardStatus";
 import { filterCardsByColor } from "@/core/colorFilter";
 import { ManaSymbols, ColorPills } from "./ManaSymbols";
 import { CardNameCell } from "./CardNameCell";
 import { track } from "@vercel/analytics/react";
 import { useSlowRenderTracking } from "../hooks/useSlowRenderTracking";
 import { InfoTooltip } from "./InfoTooltip";
+import { useCardStore } from "../stores/cardStore";
+import { getCardStatus } from "../stores/selectors";
 
 export interface CardTableProps {
   cards: EnrichedCardStats[];
-  colorFilter: string[];
-  colorFilterMode: ColorFilterMode;
-  currentCubeCopies: Record<string, number>;
-  takenCardNames?: Set<string>;
-  takenCardCounts?: Map<string, number>;
-  seatCardNames?: Set<string>;
   onCardClick?: (cardName: string) => void;
-  getCardStatus?: (cardName: string) => CardStatusResult;
 }
 
 const columnHelper = createColumnHelper<EnrichedCardStats>();
@@ -45,16 +38,17 @@ Weighting factors:
 
 export function CardTable({
   cards,
-  colorFilter,
-  colorFilterMode,
-  currentCubeCopies,
-  takenCardNames,
-  takenCardCounts,
-  seatCardNames,
   onCardClick,
-  getCardStatus,
 }: CardTableProps) {
   useSlowRenderTracking("card_table");
+
+  // Read from stores
+  const colorFilter = useCardStore((s) => s.colorFilter);
+  const colorFilterMode = useCardStore((s) => s.colorFilterMode);
+  const currentCubeCopies = useCardStore((s) => s.cardData).cubeCopies;
+  const takenCardNames = useCardStore((s) => s.takenCardNamesSet);
+  const takenCardCounts = useCardStore((s) => s.takenCardCounts);
+  const seatCardNames = useCardStore((s) => s.seatCardNames);
 
   const [sorting, setSorting] = useState<SortingState>([{ id: "pickScore", desc: false }]);
 
@@ -95,7 +89,7 @@ export function CardTable({
   const getCardStatusRef = useRef(getCardStatus);
   useEffect(() => {
     getCardStatusRef.current = getCardStatus;
-  }, [getCardStatus]);
+  }, []);
 
   const takenCardCountsRef = useRef(takenCardCounts);
   useEffect(() => {
