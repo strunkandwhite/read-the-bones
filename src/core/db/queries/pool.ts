@@ -14,6 +14,7 @@ export interface GetDraftPoolParams {
   color?: string;
   type_contains?: string;
   name_contains?: string;
+  optedOutSeats?: Set<number>;
 }
 
 export interface PoolCard {
@@ -140,7 +141,7 @@ export async function getDraftPool(
   const includeDraftResults = params.include_draft_results ?? false;
   const includeCardDetails = params.include_card_details ?? false;
   const groupBy = params.group_by ?? "none";
-  const optedOutSeats = await getOptedOutSeats(params.draft_id);
+  const optedOutSeats = params.optedOutSeats ?? await getOptedOutSeats(params.draft_id);
 
   // Get draft metadata and pool cards with optional pick data
   const result = await client.execute({

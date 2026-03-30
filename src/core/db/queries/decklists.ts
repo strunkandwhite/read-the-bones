@@ -11,6 +11,7 @@ import { round3 } from "../../utils";
 export interface GetDeckParams {
   draft_id: string;
   seat: number;
+  optedOutSeats?: Set<number>;
 }
 
 export interface DeckResult {
@@ -27,7 +28,7 @@ export interface DeckResult {
  */
 export async function getDeck(params: GetDeckParams): Promise<DeckResult> {
   const client = await getClient();
-  const optedOutSeats = await getOptedOutSeats(params.draft_id);
+  const optedOutSeats = params.optedOutSeats ?? await getOptedOutSeats(params.draft_id);
 
   if (optedOutSeats.has(params.seat)) {
     return {

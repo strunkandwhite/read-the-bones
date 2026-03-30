@@ -13,6 +13,7 @@ export interface GetPicksParams {
   pick_n_min?: number;
   pick_n_max?: number;
   card_name?: string;
+  optedOutSeats?: Set<number>;
 }
 
 export interface PicksResult {
@@ -33,7 +34,7 @@ export interface PicksResult {
  */
 export async function getPicks(params: GetPicksParams): Promise<PicksResult> {
   const client = await getClient();
-  const optedOutSeats = await getOptedOutSeats(params.draft_id);
+  const optedOutSeats = params.optedOutSeats ?? await getOptedOutSeats(params.draft_id);
 
   // If requesting a specific opted-out seat, return empty with redaction notice
   if (params.seat !== undefined && optedOutSeats.has(params.seat)) {
@@ -263,9 +264,9 @@ export interface StandingsResult {
  * Computes wins/losses from match_events table.
  * Redacts seat numbers for players who have opted out.
  */
-export async function getStandings(draftId: string): Promise<StandingsResult> {
+export async function getStandings(draftId: string, optedOutSeats?: Set<number>): Promise<StandingsResult> {
   const client = await getClient();
-  const optedOutSeats = await getOptedOutSeats(draftId);
+  const resolvedOptedOutSeats = optedOutSeats ?? await getOptedOutSeats(draftId);
 
   // Get all match events for this draft
   const result = await client.execute({
@@ -328,7 +329,7 @@ export async function getStandings(draftId: string): Promise<StandingsResult> {
   const standings: StandingsEntry[] = [];
 
   for (const [seat, s] of stats) {
-    const isRedacted = optedOutSeats.has(seat);
+    const isRedacted = resolvedOptedOutSeats.has(seat);
     if (isRedacted) {
       redactedSeatsInResult.add(seat);
     }
