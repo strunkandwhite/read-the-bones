@@ -5,7 +5,7 @@
     "scripts/*.ts"
   ],
   "project": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"],
-  "ignore": ["src/core/db/schema.ts"],
+  "ignore": ["src/core/db/schema.ts", "src/core/db/migrate.ts"],
   "ignoreDependencies": [
     "tailwindcss",
     "@tailwindcss/typography"
