@@ -122,7 +122,7 @@ export function DeckZone({
     return indices;
   }, [columns, queuedCardNames]);
 
-  const pickedCount = totalCards - floatedCount;
+  const pickedCount = totalCards - floatedCount - queuedIndices.size;
 
   return (
     <div>

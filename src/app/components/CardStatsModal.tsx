@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useCallback } from "react";
+import { useEffect, useMemo, useCallback, useState } from "react";
 import { useCardStore } from "@/app/stores/cardStore";
 import { useDraftStore } from "@/app/stores/draftStore";
 import { useLiveStore } from "@/app/stores/liveStore";
@@ -63,26 +63,50 @@ export function CardStatsModal() {
   const cardStatus: CardStatus = cardStatusResult?.status ?? "none";
   const queuePosition = cardStatusResult?.queuePosition;
 
+  // After any action, disable all buttons until the next poll cycle
+  // confirms server state via a dataVersion bump.
+  const [actionPending, setActionPending] = useState(false);
+  const dataVersion = useDraftStore((s) => s.dataVersion);
+
+  // Re-enable buttons when dataVersion changes (poll confirmed new state)
+  useEffect(() => {
+    if (actionPending) setActionPending(false);
+  }, [dataVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Also re-enable when the selected card changes (opened a new card)
+  useEffect(() => {
+    setActionPending(false);
+  }, [selectedCard]);
+
   const handlePick = useCallback(async () => {
     if (!selectedCard) return;
+    setActionPending(true);
     await submitPick(selectedCard);
     clearSelectedCard();
   }, [selectedCard, submitPick, clearSelectedCard]);
 
   const handleQueue = useCallback(() => {
-    if (selectedCard) addToQueue(selectedCard);
+    if (!selectedCard) return;
+    setActionPending(true);
+    addToQueue(selectedCard);
   }, [selectedCard, addToQueue]);
 
   const handleUnqueue = useCallback(() => {
-    if (selectedCard) removeFromQueue(selectedCard);
+    if (!selectedCard) return;
+    setActionPending(true);
+    removeFromQueue(selectedCard);
   }, [selectedCard, removeFromQueue]);
 
   const handleFloat = useCallback(() => {
-    if (selectedCard) addFloat(selectedCard);
+    if (!selectedCard) return;
+    setActionPending(true);
+    addFloat(selectedCard);
   }, [selectedCard, addFloat]);
 
   const handleUnfloat = useCallback(() => {
-    if (selectedCard) removeFloat(selectedCard);
+    if (!selectedCard) return;
+    setActionPending(true);
+    removeFloat(selectedCard);
   }, [selectedCard, removeFloat]);
 
   // Escape key handler
@@ -132,6 +156,7 @@ export function CardStatsModal() {
                   cardStatus={cardStatus}
                   isMyTurn={isAuthed && isMyTurn}
                   queuePosition={queuePosition}
+                  disabled={actionPending}
                   onPick={isAuthed ? handlePick : undefined}
                   onQueue={canQueue ? handleQueue : undefined}
                   onUnqueue={isAuthed ? handleUnqueue : undefined}
@@ -307,6 +332,7 @@ interface ActionButtonsProps {
   cardStatus?: CardStatus;
   isMyTurn?: boolean;
   queuePosition?: number;
+  disabled?: boolean;
   onPick?: () => void;
   onQueue?: () => void;
   onUnqueue?: () => void;
@@ -315,26 +341,23 @@ interface ActionButtonsProps {
 }
 
 function ActionButtons(props: ActionButtonsProps) {
-  const { cardStatus, isMyTurn } = props;
+  const { cardStatus, isMyTurn, disabled } = props;
+
+  const queueBtn = "w-full rounded-lg bg-amber-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed";
+  const secondaryBtn = "w-full rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed";
 
   switch (cardStatus) {
     case "none":
       return (
         <>
-          {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} />}
+          {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} disabled={disabled} />}
           {props.onQueue && (
-            <button
-              className="w-full cursor-pointer rounded-lg bg-amber-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-600"
-              onClick={props.onQueue}
-            >
+            <button className={queueBtn} onClick={props.onQueue} disabled={disabled}>
               Queue
             </button>
           )}
           {props.onFloat && (
-            <button
-              className="w-full cursor-pointer rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600"
-              onClick={props.onFloat}
-            >
+            <button className={secondaryBtn} onClick={props.onFloat} disabled={disabled}>
               Float
             </button>
           )}
@@ -344,12 +367,9 @@ function ActionButtons(props: ActionButtonsProps) {
     case "queued":
       return (
         <>
-          {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} />}
+          {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} disabled={disabled} />}
           {props.onUnqueue && (
-            <button
-              className="w-full cursor-pointer rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600"
-              onClick={props.onUnqueue}
-            >
+            <button className={secondaryBtn} onClick={props.onUnqueue} disabled={disabled}>
               Unqueue{props.queuePosition != null ? ` (#${props.queuePosition})` : ""}
             </button>
           )}
@@ -359,20 +379,14 @@ function ActionButtons(props: ActionButtonsProps) {
     case "floated":
       return (
         <>
-          {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} />}
+          {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} disabled={disabled} />}
           {props.onQueue && (
-            <button
-              className="w-full cursor-pointer rounded-lg bg-amber-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-600"
-              onClick={props.onQueue}
-            >
+            <button className={queueBtn} onClick={props.onQueue} disabled={disabled}>
               Queue
             </button>
           )}
           {props.onUnfloat && (
-            <button
-              className="w-full cursor-pointer rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600"
-              onClick={props.onUnfloat}
-            >
+            <button className={secondaryBtn} onClick={props.onUnfloat} disabled={disabled}>
               Unfloat
             </button>
           )}
