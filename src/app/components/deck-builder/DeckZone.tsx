@@ -56,12 +56,13 @@ export function DeckZone({
   }, [columns, scryfallData]);
 
   // Compute which specific card instances are floated.
-  // For each name, the last N copies (in column order) are floated,
-  // where N = count of that name in floatedCards.
+  // Cards that are both floated AND queued show as queued (stronger intent).
+  const queuedSet = useMemo(() => new Set(queuedCardNames), [queuedCardNames]);
+
   const { floatedIndices, floatedCount } = useMemo(() => {
-    // Count floated copies per name
     const specCountByName = new Map<string, number>();
     for (const name of floatedCards) {
+      if (queuedSet.has(name)) continue; // queued takes priority
       specCountByName.set(name, (specCountByName.get(name) || 0) + 1);
     }
 
@@ -90,7 +91,7 @@ export function DeckZone({
     }
 
     return { floatedIndices: indices, floatedCount: indices.size };
-  }, [columns, floatedCards]);
+  }, [columns, floatedCards, queuedSet]);
 
   // Compute queued card indices using the same pattern as floated
   const queuedIndices = useMemo(() => {

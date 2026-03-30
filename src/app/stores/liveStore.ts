@@ -723,7 +723,18 @@ function syncDeckWithPicks() {
   const picks = seatCardList ?? [];
   const authFloated = isAuthed ? floatedCards : [];
   const authQueued = isAuthed ? [...queue].map((e) => e.cardName) : [];
-  const canonicalCards = [...picks, ...authFloated, ...authQueued];
+  // Deduplicate speculative cards: if a card is both floated and queued, count it once.
+  // Picks are authoritative; speculative cards add on top of picks but not on top of each other.
+  const pickedSet = new Set(picks);
+  const seen = new Set(pickedSet);
+  const speculative: string[] = [];
+  for (const name of [...authQueued, ...authFloated]) {
+    if (!seen.has(name)) {
+      seen.add(name);
+      speculative.push(name);
+    }
+  }
+  const canonicalCards = [...picks, ...speculative];
 
   dispatchDeck({
     type: "REBUILD",
