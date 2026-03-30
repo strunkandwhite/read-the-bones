@@ -212,10 +212,9 @@ export async function getDraftStats(
     (r) => r.draft_id as string
   );
 
+  const completedDraftIdSet = new Set(completedDraftIds);
   const selectedDraftIds = params.draftIds
-    ? params.draftIds.filter((id) =>
-        completedDraftIds.includes(id)
-      )
+    ? params.draftIds.filter((id) => completedDraftIdSet.has(id))
     : completedDraftIds;
 
   // Compute cache fingerprint from per-domain hashes

@@ -453,8 +453,9 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
     mostRecentCubeSnapshotId, bannedCardsByDraft, bannedCardNamesByDraft, ingestionHash,
   } = draftMeta;
 
+  const completedDraftIdSet = new Set(completedDraftIds);
   const selectedDraftIds: string[] = params.draftIds
-    ? params.draftIds.filter((id) => new Set(completedDraftIds).has(id))
+    ? params.draftIds.filter((id) => completedDraftIdSet.has(id))
     : completedDraftIds;
 
   const selectedDraftSet = new Set(selectedDraftIds);
