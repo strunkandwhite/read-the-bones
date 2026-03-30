@@ -181,15 +181,13 @@ describe("generateDeckId", () => {
 });
 
 describe("deckReducer", () => {
-  describe("INIT_FROM_PICKS", () => {
-    it("places all picks into deck columns with sideboard empty", () => {
+  describe("REBUILD", () => {
+    it("places all canonical cards into deck columns with sideboard empty", () => {
       const state = createEmptyDeckState("tarkir", 1);
       const result = deckReducer(state, {
-        type: "INIT_FROM_PICKS",
-        picks: ["Lightning Bolt", "Counterspell", "Tundra"],
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt", "Counterspell", "Tundra"],
         scryfallData,
-        draftId: "tarkir",
-        seat: 1,
       });
       expect(result.zones.deck["mv-0-1"]).toEqual(["Lightning Bolt"]);
       expect(result.zones.deck["mv-2"]).toEqual(["Counterspell"]);
@@ -199,17 +197,100 @@ describe("deckReducer", () => {
         expect(result.zones.sideboard[key]).toEqual([]);
       }
     });
+
+    it("adds missing cards to deck", () => {
+      const state = createEmptyDeckState("tarkir", 1);
+      const result = deckReducer(state, {
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt", "Counterspell"],
+        scryfallData,
+      });
+      expect(result.zones.deck["mv-0-1"]).toContain("Lightning Bolt");
+      expect(result.zones.deck["mv-2"]).toContain("Counterspell");
+    });
+
+    it("returns same state reference when nothing changes", () => {
+      let state = createEmptyDeckState("tarkir", 1);
+      state = deckReducer(state, {
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt"],
+        scryfallData,
+      });
+      const result = deckReducer(state, {
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt"],
+        scryfallData,
+      });
+      expect(result).toBe(state);
+    });
+
+    it("removes cards no longer in canonical list", () => {
+      let state = createEmptyDeckState("tarkir", 1);
+      state = deckReducer(state, {
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt", "Counterspell"],
+        scryfallData,
+      });
+      const result = deckReducer(state, {
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt"],
+        scryfallData,
+      });
+      expect(result.zones.deck["mv-0-1"]).toContain("Lightning Bolt");
+      expect(result.zones.deck["mv-2"]).toEqual([]);
+    });
+
+    it("preserves card arrangement when user moved cards to sideboard", () => {
+      let state = createEmptyDeckState("tarkir", 1);
+      state = deckReducer(state, {
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt", "Counterspell"],
+        scryfallData,
+      });
+      // Move Counterspell to sideboard
+      state = deckReducer(state, {
+        type: "MOVE_CARD",
+        cardName: "Counterspell",
+        fromZone: "deck",
+        toZone: "sideboard",
+        fromColumn: "mv-2",
+        toColumn: "mv-2",
+        toIndex: 0,
+      });
+      // Rebuild with same cards — should preserve arrangement
+      const result = deckReducer(state, {
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt", "Counterspell"],
+        scryfallData,
+      });
+      expect(result.zones.sideboard["mv-2"]).toContain("Counterspell");
+      expect(result.zones.deck["mv-0-1"]).toContain("Lightning Bolt");
+    });
+
+    it("preserves basic lands during rebuild", () => {
+      let state = createEmptyDeckState("tarkir", 1);
+      state = deckReducer(state, {
+        type: "SET_BASICS",
+        basics: { Plains: 2, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
+        scryfallData,
+      });
+      const result = deckReducer(state, {
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt"],
+        scryfallData,
+      });
+      expect(result.zones.deck["lands"]).toEqual(["Plains", "Plains"]);
+      expect(result.zones.deck["mv-0-1"]).toContain("Lightning Bolt");
+    });
   });
 
   describe("MOVE_CARD", () => {
     it("moves a card between zones", () => {
       let state = createEmptyDeckState("tarkir", 1);
       state = deckReducer(state, {
-        type: "INIT_FROM_PICKS",
-        picks: ["Lightning Bolt"],
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt"],
         scryfallData,
-        draftId: "tarkir",
-        seat: 1,
       });
       const result = deckReducer(state, {
         type: "MOVE_CARD",
@@ -227,11 +308,9 @@ describe("deckReducer", () => {
     it("moves a card between columns within the same zone", () => {
       let state = createEmptyDeckState("tarkir", 1);
       state = deckReducer(state, {
-        type: "INIT_FROM_PICKS",
-        picks: ["Lightning Bolt"],
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt"],
         scryfallData,
-        draftId: "tarkir",
-        seat: 1,
       });
       const result = deckReducer(state, {
         type: "MOVE_CARD",
@@ -352,11 +431,9 @@ describe("deckReducer", () => {
     it("does not affect basicLands when moving non-basic lands", () => {
       let state = createEmptyDeckState("tarkir", 1);
       state = deckReducer(state, {
-        type: "INIT_FROM_PICKS",
-        picks: ["Tundra"],
+        type: "REBUILD",
+        canonicalCards: ["Tundra"],
         scryfallData,
-        draftId: "tarkir",
-        seat: 1,
       });
       const result = deckReducer(state, {
         type: "MOVE_CARD",
@@ -441,13 +518,11 @@ describe("deckReducer", () => {
 
     it("preserves non-basic lands in the column", () => {
       let state = createEmptyDeckState("tarkir", 1);
-      // Put a non-basic land in the deck (INIT_FROM_PICKS places cards in deck)
+      // Put a non-basic land in the deck (REBUILD places cards in deck)
       state = deckReducer(state, {
-        type: "INIT_FROM_PICKS",
-        picks: ["Tundra"],
+        type: "REBUILD",
+        canonicalCards: ["Tundra"],
         scryfallData,
-        draftId: "tarkir",
-        seat: 1,
       });
       const result = deckReducer(state, {
         type: "SET_BASICS",
@@ -463,11 +538,9 @@ describe("deckReducer", () => {
     it("moves deck cards to sideboard", () => {
       let state = createEmptyDeckState("tarkir", 1);
       state = deckReducer(state, {
-        type: "INIT_FROM_PICKS",
-        picks: ["Lightning Bolt", "Counterspell"],
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt", "Counterspell"],
         scryfallData,
-        draftId: "tarkir",
-        seat: 1,
       });
       const result = deckReducer(state, {
         type: "CLEAR_DECK",
@@ -539,46 +612,13 @@ describe("deckReducer", () => {
     });
   });
 
-  describe("SYNC_PICKS", () => {
-    it("adds missing picked cards to deck", () => {
-      const state = createEmptyDeckState("tarkir", 1);
-      const result = deckReducer(state, {
-        type: "SYNC_PICKS",
-        pickedCardNames: ["Lightning Bolt", "Counterspell"],
-        scryfallData,
-      });
-      expect(result.zones.deck["mv-0-1"]).toContain("Lightning Bolt");
-      expect(result.zones.deck["mv-2"]).toContain("Counterspell");
-    });
-
-    it("returns same state reference when nothing changes", () => {
-      let state = createEmptyDeckState("tarkir", 1);
-      state = deckReducer(state, {
-        type: "INIT_FROM_PICKS",
-        picks: ["Lightning Bolt"],
-        scryfallData,
-        draftId: "tarkir",
-        seat: 1,
-      });
-      const result = deckReducer(state, {
-        type: "SYNC_PICKS",
-        pickedCardNames: ["Lightning Bolt"],
-        scryfallData,
-      });
-      expect(result).toBe(state);
-    });
-
-  });
-
   describe("REORDER_CARD", () => {
     it("reorders a card within a column", () => {
       let state = createEmptyDeckState("tarkir", 1);
       state = deckReducer(state, {
-        type: "INIT_FROM_PICKS",
-        picks: ["Lightning Bolt", "Mox Ruby"],
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt", "Mox Ruby"],
         scryfallData,
-        draftId: "tarkir",
-        seat: 1,
       });
       // Both end up in deck mv-0-1
       expect(state.zones.deck["mv-0-1"]).toEqual([
@@ -603,11 +643,9 @@ describe("deckReducer", () => {
     it("formats a deck with single copies", () => {
       let state = createEmptyDeckState("tarkir", 1);
       state = deckReducer(state, {
-        type: "INIT_FROM_PICKS",
-        picks: ["Lightning Bolt", "Counterspell"],
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt", "Counterspell"],
         scryfallData,
-        draftId: "tarkir",
-        seat: 1,
       });
       const text = formatDecklistText(state);
       expect(text).toContain("Deck");

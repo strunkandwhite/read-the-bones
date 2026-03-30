@@ -132,11 +132,9 @@ export function generateDeckId(): string {
 
 export type DeckAction =
   | {
-      type: "INIT_FROM_PICKS";
-      picks: string[];
+      type: "REBUILD";
+      canonicalCards: string[];
       scryfallData: Map<string, ScryCard>;
-      draftId: string;
-      seat: number;
     }
   | {
       type: "MOVE_CARD";
@@ -166,27 +164,54 @@ export type DeckAction =
       column: string;
       fromIndex: number;
       toIndex: number;
-    }
-  | {
-      type: "SYNC_PICKS";
-      pickedCardNames: string[];
-      scryfallData: Map<string, ScryCard>;
-    }
-  | {
-      type: "REMOVE_CARDS";
-      cardNames: string[];
     };
 
 /** Reducer for deck builder state. */
 export function deckReducer(state: DeckState, action: DeckAction): DeckState {
   switch (action.type) {
-    case "INIT_FROM_PICKS": {
-      const newState = createEmptyDeckState(action.draftId, action.seat);
-      newState.zones.deck = assignCardsToColumns(
-        action.picks,
-        action.scryfallData,
-      );
-      return newState;
+    case "REBUILD": {
+      // Build canonical card counts
+      const canonicalCounts = new Map<string, number>();
+      for (const name of action.canonicalCards) {
+        canonicalCounts.set(name, (canonicalCounts.get(name) || 0) + 1);
+      }
+
+      const next = structuredClone(state);
+
+      // Pass 1: Walk existing zones, keep only canonical cards (respecting counts)
+      const keptCounts = new Map<string, number>();
+      for (const zone of ["deck", "sideboard"] as const) {
+        for (const [col, cards] of Object.entries(next.zones[zone])) {
+          next.zones[zone][col] = cards.filter((name) => {
+            // Always keep basic lands (they're user-added, not from picks)
+            if (BASIC_LAND_NAMES.includes(name as (typeof BASIC_LAND_NAMES)[number])) return true;
+            const kept = keptCounts.get(name) || 0;
+            const needed = canonicalCounts.get(name) || 0;
+            if (kept < needed) {
+              keptCounts.set(name, kept + 1);
+              return true;
+            }
+            return false; // remove — not canonical or excess copy
+          });
+        }
+      }
+
+      // Pass 2: Add missing canonical cards to deck at default column
+      for (const [name, needed] of canonicalCounts) {
+        const kept = keptCounts.get(name) || 0;
+        const toAdd = needed - kept;
+        if (toAdd > 0) {
+          const scry = action.scryfallData.get(name);
+          const col = scry ? getColumnKey(scry) : "mv-0-1";
+          for (let i = 0; i < toAdd; i++) {
+            next.zones.deck[col].push(name);
+          }
+        }
+      }
+
+      // Check if anything actually changed (avoid unnecessary saves)
+      const changed = JSON.stringify(next.zones) !== JSON.stringify(state.zones);
+      return changed ? next : state;
     }
 
     case "MOVE_CARD": {
@@ -256,60 +281,6 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
 
     case "INIT_FROM_SNAPSHOT": {
       return structuredClone(action.snapshot);
-    }
-
-    case "SYNC_PICKS": {
-      // Count existing copies of each card across all zones
-      const existingCounts = new Map<string, number>();
-      for (const zone of ["deck", "sideboard"] as const) {
-        for (const cards of Object.values(state.zones[zone])) {
-          for (const name of cards) {
-            existingCounts.set(name, (existingCounts.get(name) || 0) + 1);
-          }
-        }
-      }
-      let changed = false;
-      let next: DeckState | null = null;
-
-      // Count how many of each picked card we need
-      const pickedCounts = new Map<string, number>();
-      for (const cardName of action.pickedCardNames) {
-        pickedCounts.set(cardName, (pickedCounts.get(cardName) || 0) + 1);
-      }
-
-      for (const [cardName, neededCount] of pickedCounts) {
-        // Add missing copies to deck
-        const currentCount = existingCounts.get(cardName) || 0;
-        const toAdd = neededCount - currentCount;
-        if (toAdd > 0) {
-          if (!next) next = structuredClone(state);
-          const scry = action.scryfallData.get(cardName);
-          const col = scry ? getColumnKey(scry) : "mv-0-1";
-          for (let i = 0; i < toAdd; i++) {
-            next.zones.deck[col].push(cardName);
-          }
-          existingCounts.set(cardName, neededCount);
-          changed = true;
-        }
-      }
-
-      return changed && next ? next : state;
-    }
-
-    case "REMOVE_CARDS": {
-      const toRemove = new Set(action.cardNames);
-      const next = structuredClone(state);
-      let changed = false;
-      for (const zone of ["deck", "sideboard"] as const) {
-        for (const [col, cards] of Object.entries(next.zones[zone])) {
-          const filtered = cards.filter((name) => !toRemove.has(name));
-          if (filtered.length !== cards.length) {
-            next.zones[zone][col] = filtered;
-            changed = true;
-          }
-        }
-      }
-      return changed ? next : state;
     }
 
     case "REORDER_CARD": {

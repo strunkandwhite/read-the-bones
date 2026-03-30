@@ -1303,10 +1303,11 @@ describe("liveStore — dispatchDeck", () => {
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc" });
 
-    // REMOVE_CARDS is a non-hydration action
+    // SET_BASICS is a non-hydration action
     useLiveStore.getState().dispatchDeck({
-      type: "REMOVE_CARDS",
-      cardNames: ["NonExistent"],
+      type: "SET_BASICS",
+      basics: { Plains: 1, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
+      scryfallData: new Map(),
     });
 
     // Save should be scheduled (debounced 1s)
@@ -1471,8 +1472,9 @@ describe("liveStore — deck save", () => {
 
     // Dispatch a non-hydration action to trigger save scheduling
     useLiveStore.getState().dispatchDeck({
-      type: "REMOVE_CARDS",
-      cardNames: [],
+      type: "SET_BASICS",
+      basics: { Plains: 1, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
+      scryfallData: new Map(),
     });
 
     // Advance past debounce
