@@ -87,7 +87,7 @@ export function QueuePanel({
           Queue is empty. Add cards from the card table.
         </div>
       ) : (
-        <ol className="m-0 flex list-none flex-col gap-1 p-0">
+        <ol className="m-0 flex max-h-[30vh] list-none flex-col gap-1 overflow-y-auto p-0">
           {queue.map((item, index) => (
             <li
               key={item.cardName}

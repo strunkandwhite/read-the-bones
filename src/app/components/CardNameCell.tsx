@@ -16,9 +16,10 @@ export function CardNameCell({
   card, cubeCopies, remainingCopies, cardStatus, queuePosition,
 }: CardNameCellProps) {
   const imageUri = card.scryfall?.imageUri;
+  const accentColor = cardStatus === "picked" ? "rgb(16 185 129)" : undefined;
 
   return (
-    <div className="min-w-0">
+    <div className="min-w-0" style={accentColor ? { borderLeft: `4px solid ${accentColor}`, paddingLeft: 8 } : undefined}>
       <div className="flex cursor-pointer items-center gap-2 min-w-0">
         {imageUri && (
           <Image

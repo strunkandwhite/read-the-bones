@@ -186,6 +186,8 @@ async function flushDeckSave() {
           useLiveStore.setState({ deckSaveStatus: "idle" });
         }
       }, DECK_SAVE_STATUS_RESET_MS);
+    } else {
+      useLiveStore.setState({ deckSaveStatus: "idle" });
     }
   } catch {
     useLiveStore.setState({ deckSaveStatus: "idle" });

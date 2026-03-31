@@ -111,7 +111,7 @@ export function CardTable({
 
   const columns = useMemo(
     () => [
-      columnHelper.display({
+      columnHelper.accessor((row) => row.cardName, {
         id: "card",
         header: "Card",
         size: 260,

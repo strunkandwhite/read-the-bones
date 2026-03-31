@@ -130,7 +130,7 @@ export function DraftBoardCell({
       onClick={handleCellClick}
       style={{
         padding: 0,
-        maxWidth: "160px",
+        minWidth: "130px",
         position: "relative",
         backgroundColor: isMyColumn ? "rgba(59,130,246,0.06)" : "transparent",
         border: isActive ? "2px dashed #3b82f6" : "1px solid #333",

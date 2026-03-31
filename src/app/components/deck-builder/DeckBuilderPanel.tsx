@@ -21,6 +21,7 @@ import type { BasicLandCounts } from "@/core/types";
 import { formatDecklistText } from "@/core/deckBuilder";
 import { useSlowRenderTracking } from "../../hooks/useSlowRenderTracking";
 import { useLiveStore } from "../../stores/liveStore";
+import { useDraftStore } from "../../stores/draftStore";
 import { useCardStore } from "../../stores/cardStore";
 import { useIsAuthed } from "../../stores/selectors";
 
@@ -52,6 +53,9 @@ export function DeckBuilderPanel({
   const queue = useLiveStore((s) => s.queue);
   const removeFloat = useLiveStore((s) => s.removeFloat);
   const saveStatus = useLiveStore((s) => s.deckSaveStatus);
+  const mySeat = useLiveStore((s) => s.mySeat);
+  // Draft store
+  const seatNames = useDraftStore((s) => s.board?.seatNames);
   // Card store
   const scryfallData = useCardStore((s) => s.scryfallDataMap);
   const cardStats = useCardStore((s) => s.cardStatsMap);
@@ -224,7 +228,7 @@ export function DeckBuilderPanel({
             {draftName}
           </span>
           <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-400">
-            Seat {state.seat}
+            {(mySeat && seatNames?.[String(mySeat)]) || `Seat ${mySeat ?? state.seat}`}
           </span>
         </div>
         <div className="flex items-center gap-2">

@@ -257,7 +257,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                 title={isMyTurn ? "Your Pick!" : `${activeDraft}, Seat ${selectedSeat}`}
                 aria-label={isMyTurn ? "Your Pick!" : `Pod View — ${activeDraft}, Seat ${selectedSeat}`}
               >
-                <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                <svg className="h-6 w-6" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                   <rect x="1" y="1" width="6" height="6" rx="1" />
                   <rect x="9" y="1" width="6" height="6" rx="1" />
                   <rect x="1" y="9" width="6" height="6" rx="1" />
@@ -296,8 +296,11 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                       : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
                 }`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-6 w-6">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 6.878V6a2.25 2.25 0 0 1 2.25-2.25h7.5A2.25 2.25 0 0 1 18 6v.878m-12 0c.235-.083.487-.128.75-.128h10.5c.263 0 .515.045.75.128m-12 0A2.25 2.25 0 0 0 4.5 9v.878m13.5-3A2.25 2.25 0 0 1 19.5 9v.878m-15 0A2.247 2.247 0 0 0 3 12v6.75A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V12c0-.796-.413-1.496-1.035-1.896" />
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" stroke="none" className="h-6 w-6">
+                  <rect x="3" y="2.5" width="10" height="1.8" rx="0.4" />
+                  <rect x="3.4" y="5.3" width="10" height="1.8" rx="0.4" />
+                  <rect x="3.8" y="8.1" width="10" height="1.8" rx="0.4" />
+                  <rect x="4.2" y="10.9" width="10" height="1.8" rx="0.4" />
                 </svg>
               </button>
             )}

@@ -92,7 +92,7 @@ export function DraftBoardMatrix({
   }, [board.numSeats]);
 
   return (
-    <div className="overflow-x-auto overflow-y-auto">
+    <div>
       <style>{`
         @keyframes pulse-border {
           0%, 100% { border-color: #3b82f6; }
@@ -102,7 +102,7 @@ export function DraftBoardMatrix({
         th:hover .pencil-icon { opacity: 0.5; }
       `}</style>
       <table
-        className="border-collapse text-xs w-full text-zinc-200"
+        className="border-collapse text-xs min-w-full w-max text-zinc-200"
       >
         <thead>
           <tr
