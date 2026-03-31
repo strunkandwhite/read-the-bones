@@ -98,11 +98,11 @@ function InsertionLine() {
   );
 }
 
-// Invisible drop slot between entries (or between cards within a group)
+// Drop slot between items. Has a small physical height so closestCenter can target it.
 function DropSlot({ id, isActive }: { id: string; isActive: boolean }) {
   const { setNodeRef } = useDroppable({ id });
   return (
-    <div ref={setNodeRef} className={isActive ? "py-0" : "py-0"}>
+    <div ref={setNodeRef} className="min-h-[6px] flex items-center">
       {isActive && <InsertionLine />}
     </div>
   );
@@ -465,8 +465,7 @@ export function QueuePanel({
           );
 
           let to = slot.index;
-          if (to > active.entryIndex) to--; // adjust for source shrinking (not removed)
-          // But if source would become empty, it gets removed
+          // Only adjust if source entry was completely removed
           if (newSrcCards.length === 0) {
             newQueue = newQueue.filter((_, i) => i !== active.entryIndex);
             if (active.entryIndex < to) to--;
@@ -600,7 +599,7 @@ export function QueuePanel({
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex max-h-[30vh] flex-col overflow-y-auto">
+          <div className="flex max-h-[30vh] flex-col overflow-y-auto pb-2">
             {queue.map((entry, entryIndex) => (
               <div key={`entry-${entryIndex}`}>
                 <DropSlot
