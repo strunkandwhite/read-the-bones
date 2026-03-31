@@ -194,7 +194,6 @@ function SortableEntry({
                       entryIndex={entryIndex}
                       cardIndex={cardIndex}
                       allEntries={allEntries}
-                      onRemove={onRemove}
                       onReorder={onReorder}
                       isTaken={takenCards.has(card.cardName)}
                     />
@@ -254,7 +253,6 @@ interface SortableGroupCardProps {
   entryIndex: number;
   cardIndex: number;
   allEntries: QueueGroupEntry[];
-  onRemove: (cardName: string) => void;
   onReorder: (queue: QueueGroupEntry[]) => void;
   isTaken: boolean;
 }
@@ -265,7 +263,6 @@ function SortableGroupCard({
   entryIndex,
   cardIndex,
   allEntries,
-  onRemove,
   onReorder,
   isTaken,
 }: SortableGroupCardProps) {
@@ -286,7 +283,6 @@ function SortableGroupCard({
         ? allEntries.filter((_, i) => i !== entryIndex)
         : allEntries.map((e, i) => (i === entryIndex ? { ...e, cards: newCards } : e));
     onReorder(newEntries);
-    onRemove(cardName);
   }
 
   return (
