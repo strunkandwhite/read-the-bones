@@ -47,9 +47,11 @@ function makeCardId(i: number, j: number) { return `card:${i}:${j}`; }
 type ParsedId =
   | { type: "entry"; entryIndex: number }
   | { type: "merge"; entryIndex: number }
-  | { type: "card"; entryIndex: number; cardIndex: number };
+  | { type: "card"; entryIndex: number; cardIndex: number }
+  | { type: "ungroup" };
 
 function parseId(id: string): ParsedId | null {
+  if (id === UNGROUP_ID) return { type: "ungroup" };
   const p = id.split(":");
   if (p[0] === "entry") return { type: "entry", entryIndex: +p[1] };
   if (p[0] === "merge") return { type: "merge", entryIndex: +p[1] };
@@ -63,17 +65,70 @@ function parseId(id: string): ParsedId | null {
 // reorder behavior.
 
 const mergeAwareCollision: CollisionDetection = (args) => {
+  const activeId = String(args.active.id);
+  const activeParsed = parseId(activeId);
+  const isDraggingCard = activeParsed?.type === "card";
+
+  // 1. Check merge zones (pointer must be inside)
   const mergeContainers = args.droppableContainers.filter(
     ({ id }) => String(id).startsWith("merge:"),
   );
   const mergeHits = pointerWithin({ ...args, droppableContainers: mergeContainers });
   if (mergeHits.length > 0) return mergeHits;
 
-  // Fall back to sortable entries + cards (exclude merge: zones)
-  const nonMerge = args.droppableContainers.filter(
-    ({ id }) => !String(id).startsWith("merge:"),
+  // 2. Check sortable entries + cards (exclude merge: and ungroup zones)
+  const sortableContainers = args.droppableContainers.filter(
+    ({ id }) => {
+      const s = String(id);
+      return !s.startsWith("merge:") && s !== UNGROUP_ID;
+    },
   );
-  return closestCenter({ ...args, droppableContainers: nonMerge });
+  const sortableHits = closestCenter({ ...args, droppableContainers: sortableContainers });
+
+  // If dragging a card: check if the closest hit is in the same group.
+  // If so, also check the ungroup zone — if the pointer is inside it but
+  // outside the group's cards, prefer the ungroup zone.
+  if (isDraggingCard && sortableHits.length > 0) {
+    const hitId = String(sortableHits[0].id);
+    const hitParsed = parseId(hitId);
+    const sameGroup =
+      (hitParsed?.type === "card" && hitParsed.entryIndex === activeParsed.entryIndex) ||
+      (hitParsed?.type === "entry" && hitParsed.entryIndex === activeParsed.entryIndex) ||
+      (hitParsed?.type === "merge" && hitParsed.entryIndex === activeParsed.entryIndex);
+
+    if (sameGroup) {
+      // Check if pointer is inside the ungroup zone but outside the group
+      const ungroupContainers = args.droppableContainers.filter(
+        ({ id }) => String(id) === UNGROUP_ID,
+      );
+      const ungroupHits = pointerWithin({ ...args, droppableContainers: ungroupContainers });
+      if (ungroupHits.length > 0) {
+        // Check if pointer is also inside any non-same-group droppable
+        const otherEntryContainers = args.droppableContainers.filter(({ id }) => {
+          const s = String(id);
+          const p = parseId(s);
+          if (!p) return false;
+          if (p.type === "ungroup") return false;
+          if (s.startsWith("merge:")) return false;
+          if (p.type === "card" && p.entryIndex === activeParsed.entryIndex) return false;
+          if (p.type === "entry" && p.entryIndex === activeParsed.entryIndex) return false;
+          return true;
+        });
+        const otherHits = pointerWithin({ ...args, droppableContainers: otherEntryContainers });
+        if (otherHits.length > 0) return otherHits;
+        // Pointer is in the ungroup zone but not over any other entry — ungroup
+        return ungroupHits;
+      }
+    }
+  }
+
+  if (sortableHits.length > 0) return sortableHits;
+
+  // 3. Last resort: ungroup zone
+  const ungroupContainers = args.droppableContainers.filter(
+    ({ id }) => String(id) === UNGROUP_ID,
+  );
+  return pointerWithin({ ...args, droppableContainers: ungroupContainers });
 };
 
 // ─── Insertion Line ──────────────────────────────────────────────────────────
@@ -95,6 +150,20 @@ function MergeZone({ entryIndex, children }: { entryIndex: number; children: Rea
   const { setNodeRef } = useDroppable({
     id: makeMergeId(entryIndex),
     data: { type: "merge", entryIndex },
+  });
+  return <div ref={setNodeRef}>{children}</div>;
+}
+
+// ─── Ungroup Drop Zone ───────────────────────────────────────────────────────
+// Wraps the entire queue list. When a card is dragged outside all other
+// droppables (e.g. when the group is the only entry), this catches the drop.
+
+const UNGROUP_ID = "ungroup-zone";
+
+function UngroupZone({ children }: { children: React.ReactNode }) {
+  const { setNodeRef } = useDroppable({
+    id: UNGROUP_ID,
+    data: { type: "ungroup" },
   });
   return <div ref={setNodeRef}>{children}</div>;
 }
@@ -477,12 +546,23 @@ export function QueuePanel({
         return;
       }
 
+      // ── Card over ungroup zone (dragged outside all entries) ──
+      if (isDraggingCard && overParsed.type === "ungroup") {
+        setCardInsertionInfo(null);
+        updateMergeTarget(null);
+        clearHoverTimer();
+        // Show insertion line at end of queue to indicate ungrouping
+        setInsertionIndex(queue.length);
+        return;
+      }
+
       // Default
       updateMergeTarget(null);
       setInsertionIndex(null);
+      setCardInsertionInfo(null);
       clearHoverTimer();
     },
-    [activeDragId, clearHoverTimer],
+    [activeDragId, clearHoverTimer, queue.length],
   );
 
   const handleDragEnd = useCallback(
@@ -520,6 +600,24 @@ export function QueuePanel({
 
       const overParsed = parseId(over.id as string);
       if (!overParsed) return;
+
+      // ── Card dropped on ungroup zone — ungroup it ──
+      if (activeParsed.type === "card" && overParsed.type === "ungroup") {
+        const srcEntry = queue[activeParsed.entryIndex];
+        if (srcEntry.cards.length <= 1) return;
+        const draggedCard = srcEntry.cards[activeParsed.cardIndex];
+        const newSrcCards = srcEntry.cards.filter((_, i) => i !== activeParsed.cardIndex);
+        const newQueue: QueueGroupEntry[] = queue.map((entry, i) => {
+          if (i !== activeParsed.entryIndex) return entry;
+          return { ...entry, cards: newSrcCards };
+        });
+        const newEntry: QueueGroupEntry = { mode: "pause", cards: [draggedCard] };
+        // Use saved insertion index if available, otherwise insert after the group
+        const targetIdx = savedInsertionIndex ?? activeParsed.entryIndex + 1;
+        newQueue.splice(Math.min(targetIdx, newQueue.length), 0, newEntry);
+        onReorder(newQueue);
+        return;
+      }
 
       // ── Merge: entry into another (hold-to-merge was active) ──
       if (activeParsed.type === "entry" && currentMergeTarget !== null) {
@@ -675,6 +773,7 @@ export function QueuePanel({
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
+          <UngroupZone>
           <SortableContext items={entryIds} strategy={verticalListSortingStrategy}>
             <div className="flex max-h-[30vh] flex-col gap-1 overflow-y-auto">
               {queue.map((entry, entryIndex) => (
@@ -697,6 +796,7 @@ export function QueuePanel({
               {insertionIndex === queue.length && <InsertionLine />}
             </div>
           </SortableContext>
+          </UngroupZone>
 
           <DragOverlay>
             {overlayLabel && (
