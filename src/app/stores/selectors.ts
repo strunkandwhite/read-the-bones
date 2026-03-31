@@ -19,8 +19,6 @@ export function getCardStatus(cardName: string): CardStatusResult {
   const { seatCardNames, takenCardNamesSet, takenCardCounts, cardData } = useCardStore.getState();
   const { queuedCardCounts, floatedCardsSet, queue } = useLiveStore.getState();
 
-  if (seatCardNames?.has(cardName)) return { status: "picked" };
-
   if (getIsAuthed()) {
     const count = queuedCardCounts.get(cardName);
     if (count != null && count > 0) {
@@ -44,6 +42,15 @@ export function getCardStatus(cardName: string): CardStatusResult {
     if (floatedCardsSet.has(cardName)) return { status: "floated" };
   }
 
+  // "picked": in your pool — include remainingCopies so the modal can decide
+  // whether to show pick/queue buttons (multi-copy cards may still have copies).
+  // Must come before takenCardNamesSet so your own pick always shows the green checkmark.
+  if (seatCardNames?.has(cardName)) {
+    const cubeCopies = cardData.cubeCopies[cardName] ?? 1;
+    const takenCount = takenCardCounts?.get(cardName) ?? 0;
+    return { status: "picked", remainingCopies: cubeCopies - takenCount };
+  }
+  // "taken": all copies exhausted globally — no actions possible
   if (takenCardNamesSet?.has(cardName)) return { status: "taken" };
   return { status: "none" };
 }

@@ -143,8 +143,10 @@ export function CardStatsModal() {
   if (!isOpen || !selectedCard) return null;
 
   // Determine which action buttons to show
+  // For multi-copy cards the player already owns, allow actions if copies remain
+  const pickedButCopiesRemain = cardStatus === "picked" && (remainingCopies ?? 0) > 0;
   const showActions =
-    isLiveDraft && cardStatus !== "taken" && cardStatus !== "picked";
+    isLiveDraft && cardStatus !== "taken" && (cardStatus !== "picked" || pickedButCopiesRemain);
 
   // Whether queue button should be available
   const canQueue = isAuthed && !(isMyTurn && queue.length === 0 && autoPick);
@@ -440,6 +442,27 @@ function ActionButtons(props: ActionButtonsProps) {
           )}
         </>
       );
+
+    case "picked":
+      // Multi-copy card — you have one but copies remain; allow pick/queue/float for additional copies
+      if ((props.remainingCopies ?? 0) > 0) {
+        return (
+          <>
+            {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} disabled={disabled} />}
+            {props.onQueue && (
+              <button className={queueBtn} onClick={props.onQueue} disabled={disabled}>
+                Queue
+              </button>
+            )}
+            {props.onFloat && (
+              <button className={secondaryBtn} onClick={props.onFloat} disabled={disabled}>
+                Float
+              </button>
+            )}
+          </>
+        );
+      }
+      return null;
 
     default:
       return null;

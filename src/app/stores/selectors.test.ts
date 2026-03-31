@@ -76,9 +76,23 @@ describe("getCardStatus", () => {
     resetStores();
   });
 
-  it("returns 'picked' when card is in seatCardNames", () => {
+  it("returns 'picked' with remainingCopies when card is in seatCardNames", () => {
     useCardStore.setState({ seatCardNames: new Set(["Lightning Bolt"]) });
-    expect(getCardStatus("Lightning Bolt")).toEqual({ status: "picked" });
+    // cubeCopies defaults to 1, takenCount is 0 → remainingCopies = 1
+    expect(getCardStatus("Lightning Bolt")).toEqual({ status: "picked", remainingCopies: 1 });
+  });
+
+  it("returns 'picked' with remainingCopies=0 when single-copy card is fully taken (Fury case)", () => {
+    useCardStore.setState({
+      seatCardNames: new Set(["Fury"]),
+      cardData: {
+        ...useCardStore.getState().cardData,
+        cubeCopies: { Fury: 1 },
+      },
+      takenCardCounts: new Map([["Fury", 1]]),
+    });
+    // You own Fury, all 1 copy is taken → remainingCopies = 0, no action buttons should show
+    expect(getCardStatus("Fury")).toEqual({ status: "picked", remainingCopies: 0 });
   });
 
   it("returns 'queued' with position when authed and card is in queuedCardCounts", () => {
@@ -135,7 +149,7 @@ describe("getCardStatus", () => {
     expect(getCardStatus("Ponder")).toEqual({ status: "none" });
   });
 
-  it("'picked' takes priority over 'queued'", () => {
+  it("'queued' takes priority over 'picked' (allows queuing a card already in pool)", () => {
     useDraftStore.setState({ selectedSeat: 1 });
     useLiveStore.setState({
       mySeat: 1,
@@ -145,7 +159,8 @@ describe("getCardStatus", () => {
     useCardStore.setState({
       seatCardNames: new Set(["Swords to Plowshares"]),
     });
-    expect(getCardStatus("Swords to Plowshares")).toEqual({ status: "picked" });
+    // "queued" wins so the queue/pick buttons remain available (multi-copy scenario)
+    expect(getCardStatus("Swords to Plowshares")).toMatchObject({ status: "queued" });
   });
 
   it("'queued' takes priority over 'taken'", () => {
