@@ -73,6 +73,7 @@ interface LiveStoreState {
   fetchQueue: () => Promise<void>;
   addToQueue: (cardName: string) => void;
   removeFromQueue: (cardName: string) => void;
+  removeFromQueueByPriority: (cardName: string, priority: number) => void;
   reorderQueue: (cardNames: string[]) => void;
 
   // Float actions
@@ -449,6 +450,20 @@ export const useLiveStore = create<LiveStoreState>()(
       }, null);
       if (targetIndex === null) return;
       const optimisticQueue = original.filter((_, i) => i !== targetIndex);
+      set({
+        queue: optimisticQueue,
+        queuedCardCounts: deriveQueuedCardCounts(optimisticQueue),
+      });
+      const newNames = optimisticQueue.map((e) => e.cardName);
+      syncQueue(set, get, newNames, original);
+    },
+
+    removeFromQueueByPriority: (cardName: string, priority: number) => {
+      const { queue: original } = get();
+      const optimisticQueue = original.filter(
+        (e) => !(e.cardName === cardName && e.priority === priority)
+      );
+      if (optimisticQueue.length === original.length) return; // no match
       set({
         queue: optimisticQueue,
         queuedCardCounts: deriveQueuedCardCounts(optimisticQueue),

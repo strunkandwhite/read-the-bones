@@ -729,6 +729,50 @@ describe("liveStore — removeFromQueue", () => {
 });
 
 // ---------------------------------------------------------------------------
+// removeFromQueueByPriority
+// ---------------------------------------------------------------------------
+describe("liveStore — removeFromQueueByPriority", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("removeFromQueueByPriority removes the entry matching both card name and priority", () => {
+    useLiveStore.setState({
+      seatToken: "tok",
+      queue: [
+        { priority: 1, cardId: 10, cardName: "Bolt" },
+        { priority: 2, cardId: 20, cardName: "Counterspell" },
+        { priority: 3, cardId: 10, cardName: "Bolt" },
+      ],
+      queuedCardCounts: new Map([["Bolt", 2], ["Counterspell", 1]]),
+    });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(JSON.stringify({
+        queue: [
+          { priority: 1, cardId: 10, cardName: "Bolt" },
+          { priority: 2, cardId: 20, cardName: "Counterspell" },
+        ],
+      }))
+    );
+
+    useLiveStore.getState().removeFromQueueByPriority("Bolt", 3);
+
+    // Priority-3 Bolt removed, priority-1 Bolt remains
+    const s = useLiveStore.getState();
+    const bolts = s.queue.filter((e) => e.cardName === "Bolt");
+    expect(bolts).toHaveLength(1);
+    expect(bolts[0].priority).toBe(1);
+    expect(s.queuedCardCounts.get("Bolt")).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // reorderQueue
 // ---------------------------------------------------------------------------
 describe("liveStore — reorderQueue", () => {
