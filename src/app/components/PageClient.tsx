@@ -257,11 +257,11 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                 title={isMyTurn ? "Your Pick!" : `${activeDraft}, Seat ${selectedSeat}`}
                 aria-label={isMyTurn ? "Your Pick!" : `Pod View — ${activeDraft}, Seat ${selectedSeat}`}
               >
-                <svg className="h-6 w-6" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-                  <rect x="1" y="1" width="6" height="6" rx="1" />
-                  <rect x="9" y="1" width="6" height="6" rx="1" />
-                  <rect x="1" y="9" width="6" height="6" rx="1" />
-                  <rect x="9" y="9" width="6" height="6" rx="1" />
+                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <rect x="3" y="3" width="8" height="8" rx="1.5" />
+                  <rect x="13" y="3" width="8" height="8" rx="1.5" />
+                  <rect x="3" y="13" width="8" height="8" rx="1.5" />
+                  <rect x="13" y="13" width="8" height="8" rx="1.5" />
                 </svg>
               </button>
             )}
@@ -296,11 +296,11 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                       : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
                 }`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 16 16" stroke="none" className="h-6 w-6">
-                  <rect x="3" y="2.5" width="10" height="1.8" rx="0.4" />
-                  <rect x="3.4" y="5.3" width="10" height="1.8" rx="0.4" />
-                  <rect x="3.8" y="8.1" width="10" height="1.8" rx="0.4" />
-                  <rect x="4.2" y="10.9" width="10" height="1.8" rx="0.4" />
+                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" stroke="none" className="h-6 w-6">
+                  <rect x="3" y="3" width="18" height="3" rx="0.75" />
+                  <rect x="3.5" y="7.75" width="18" height="3" rx="0.75" />
+                  <rect x="4" y="12.5" width="18" height="3" rx="0.75" />
+                  <rect x="4.5" y="17.25" width="18" height="3" rx="0.75" />
                 </svg>
               </button>
             )}
