@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { track } from "@vercel/analytics/react";
-import { DraftSelector } from "./DraftSelector";
+import { DraftSelector, groupDraftsByDate } from "./DraftSelector";
 import { PoolSelector } from "./PoolSelector";
 import { useDraftStore } from "../stores/draftStore";
 import { useCardStore } from "../stores/cardStore";
@@ -46,6 +46,17 @@ export function Settings() {
 
   const activeDraftIds = useMemo(() => new Set(activeDrafts.map((d) => d.id)), [activeDrafts]);
   const completedDrafts = useMemo(() => drafts.filter((d) => !activeDraftIds.has(d.id)), [drafts, activeDraftIds]);
+
+  // Group drafts by date within Active/Completed sections for the draft view selector
+  const activeDraftGroups = useMemo(() => {
+    const fullActive = [...drafts.filter((d) => activeDraftIds.has(d.id))].sort((a, b) => b.date.localeCompare(a.date));
+    return groupDraftsByDate(fullActive);
+  }, [drafts, activeDraftIds]);
+
+  const completedDraftGroups = useMemo(() => {
+    const sorted = [...completedDrafts].sort((a, b) => b.date.localeCompare(a.date));
+    return groupDraftsByDate(sorted);
+  }, [completedDrafts]);
 
   const [isOpen, setIsOpen] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -196,24 +207,30 @@ export function Settings() {
                       className="block w-full appearance-none rounded-lg border border-zinc-300 bg-white py-1.5 pl-3 pr-9 text-sm text-zinc-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
                     >
                       <option value="">None</option>
-                      {activeDrafts.length > 0 ? (
+                      {activeDraftGroups.length > 0 ? (
                         <>
-                          <optgroup label="Active">
-                            {activeDrafts.map((d) => (
-                              <option key={d.id} value={d.id}>{d.id}</option>
-                            ))}
-                          </optgroup>
-                          {completedDrafts.length > 0 && (
-                            <optgroup label="Completed">
-                              {completedDrafts.map((d) => (
-                                <option key={d.id} value={d.id}>{d.id}</option>
+                          {activeDraftGroups.map((group) => (
+                            <optgroup key={`active-${group.date}`} label={`Active — ${group.date}`}>
+                              {group.drafts.map((d) => (
+                                <option key={d.id} value={d.id}>{d.name}</option>
                               ))}
                             </optgroup>
-                          )}
+                          ))}
+                          {completedDraftGroups.map((group) => (
+                            <optgroup key={`completed-${group.date}`} label={group.date}>
+                              {group.drafts.map((d) => (
+                                <option key={d.id} value={d.id}>{d.name}</option>
+                              ))}
+                            </optgroup>
+                          ))}
                         </>
                       ) : (
-                        drafts.map((d) => (
-                          <option key={d.id} value={d.id}>{d.id}</option>
+                        groupDraftsByDate([...drafts].sort((a, b) => b.date.localeCompare(a.date))).map((group) => (
+                          <optgroup key={group.date} label={group.date}>
+                            {group.drafts.map((d) => (
+                              <option key={d.id} value={d.id}>{d.name}</option>
+                            ))}
+                          </optgroup>
                         ))
                       )}
                     </select>

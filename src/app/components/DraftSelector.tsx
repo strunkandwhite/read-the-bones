@@ -2,11 +2,27 @@
 
 import { track } from "@vercel/analytics/react";
 
+export type DraftInfo = { id: string; name: string; date: string; isComplete?: boolean };
+
 export interface DraftSelectorProps {
-  drafts: Array<{ id: string; name: string; date: string; isComplete?: boolean }>;
+  drafts: DraftInfo[];
   selectedDrafts: Set<string>;
   onChange: (selected: Set<string>) => void;
   disabled?: boolean;
+}
+
+/** Group drafts by date, preserving input order. */
+export function groupDraftsByDate<T extends { date: string }>(drafts: T[]): Array<{ date: string; drafts: T[] }> {
+  const groups: Array<{ date: string; drafts: T[] }> = [];
+  for (const draft of drafts) {
+    const last = groups[groups.length - 1];
+    if (last && last.date === draft.date) {
+      last.drafts.push(draft);
+    } else {
+      groups.push({ date: draft.date, drafts: [draft] });
+    }
+  }
+  return groups;
 }
 
 /**
@@ -43,6 +59,8 @@ export function DraftSelector({
     track("draft_filter_changed", { selected_count: 0, action: "select_none" });
   };
 
+  const groupedDrafts = groupDraftsByDate(sortedDrafts);
+
   return (
     <div className={disabled ? "opacity-50" : ""}>
       <div className="mb-2 flex gap-2">
@@ -63,27 +81,34 @@ export function DraftSelector({
       </div>
 
       <div className="max-h-48 space-y-1 overflow-y-auto">
-        {sortedDrafts.map((draft) => (
-          <label
-            key={draft.id}
-            className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-700"
-          >
-            <input
-              type="checkbox"
-              checked={selectedDrafts.has(draft.id)}
-              onChange={() => toggleDraft(draft.id)}
-              disabled={disabled}
-              className="h-4 w-4 cursor-pointer rounded border-zinc-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
-            />
-            <span className="text-sm text-zinc-700 dark:text-zinc-300">
-              {draft.date}: {draft.name}
-              {draft.isComplete === false && (
-                <span className="ml-1.5 text-xs text-zinc-400 dark:text-zinc-500" title="Draft is still in progress">
-                  (in progress)
+        {groupedDrafts.map((group) => (
+          <div key={group.date}>
+            <div className="px-2 pt-1.5 pb-0.5 text-xs font-medium text-zinc-500 dark:text-zinc-400">
+              {group.date}
+            </div>
+            {group.drafts.map((draft) => (
+              <label
+                key={draft.id}
+                className="flex cursor-pointer items-center gap-2 rounded py-1.5 pl-4 pr-2 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedDrafts.has(draft.id)}
+                  onChange={() => toggleDraft(draft.id)}
+                  disabled={disabled}
+                  className="h-4 w-4 cursor-pointer rounded border-zinc-300 text-blue-600 focus:ring-blue-500 disabled:cursor-not-allowed"
+                />
+                <span className="text-sm text-zinc-700 dark:text-zinc-300">
+                  {draft.name}
+                  {draft.isComplete === false && (
+                    <span className="ml-1.5 text-xs text-zinc-400 dark:text-zinc-500" title="Draft is still in progress">
+                      (in progress)
+                    </span>
+                  )}
                 </span>
-              )}
-            </span>
-          </label>
+              </label>
+            ))}
+          </div>
         ))}
       </div>
 
