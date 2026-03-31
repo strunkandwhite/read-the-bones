@@ -112,13 +112,54 @@ function DropSlot({ id, isActive }: { id: string; isActive: boolean }) {
   );
 }
 
+// ─── Move Buttons ────────────────────────────────────────────────────────────
+
+function MoveButtons({
+  onUp, onDown, disableUp, disableDown,
+}: {
+  onUp: () => void;
+  onDown: () => void;
+  disableUp: boolean;
+  disableDown: boolean;
+}) {
+  return (
+    <div className="flex flex-col">
+      <button
+        onClick={onUp}
+        onPointerDown={(e) => e.stopPropagation()}
+        disabled={disableUp}
+        aria-label="Move up"
+        className={`border-none bg-transparent px-1.5 py-0.5 sm:px-1 sm:py-0 text-base sm:text-xs leading-none transition-colors ${
+          disableUp ? "cursor-default text-zinc-800" : "cursor-pointer text-zinc-500 hover:text-zinc-300"
+        }`}
+      >
+        ▲
+      </button>
+      <button
+        onClick={onDown}
+        onPointerDown={(e) => e.stopPropagation()}
+        disabled={disableDown}
+        aria-label="Move down"
+        className={`border-none bg-transparent px-1.5 py-0.5 sm:px-1 sm:py-0 text-base sm:text-xs leading-none transition-colors ${
+          disableDown ? "cursor-default text-zinc-800" : "cursor-pointer text-zinc-500 hover:text-zinc-300"
+        }`}
+      >
+        ▼
+      </button>
+    </div>
+  );
+}
+
 // ─── Draggable Entry ─────────────────────────────────────────────────────────
 
 interface DraggableEntryProps {
   entry: QueueGroupEntry;
   entryIndex: number;
+  totalEntries: number;
   onRemove: (cardName: string) => void;
   onSetEntryMode: (entryIndex: number, mode: "pause" | "flow-through") => void;
+  onMoveEntry: (fromIndex: number, toIndex: number) => void;
+  onMoveCard: (entryIndex: number, fromCard: number, toCard: number) => void;
   takenCards: Set<string>;
   isMergeTarget: boolean;
   activeSlotId: string | null;
@@ -127,8 +168,11 @@ interface DraggableEntryProps {
 function DraggableEntry({
   entry,
   entryIndex,
+  totalEntries,
   onRemove,
   onSetEntryMode,
+  onMoveEntry,
+  onMoveCard,
   takenCards,
   isMergeTarget,
   activeSlotId,
@@ -146,14 +190,14 @@ function DraggableEntry({
       onClick={() => onSetEntryMode(entryIndex, isPause ? "flow-through" : "pause")}
       onPointerDown={(e) => e.stopPropagation()}
       aria-label={`Mode: ${entry.mode}`}
-      title={isPause ? "Currently set to Pause: stops here if top card taken" : "Currently set to Flow-through: skips taken cards"}
+      title={isPause ? "Currently set to Pause — stops if top card taken" : "Currently set to Flow-through — skips taken cards"}
       className={`rounded px-2.5 py-1.5 sm:px-1.5 sm:py-0.5 text-sm sm:text-[10px] font-semibold leading-none transition-colors cursor-pointer border-none ${
         isPause
           ? "bg-blue-900/50 text-blue-300 hover:bg-blue-800/60"
           : "bg-amber-900/50 text-amber-300 hover:bg-amber-800/60"
       }`}
     >
-      {isPause ? "⏸" : "⏩"}
+      {isPause ? "⏸" : "▶"}
     </button>
   );
 
@@ -178,6 +222,12 @@ function DraggableEntry({
                 Group ({entry.cards.length})
               </span>
               {modeToggle}
+              <MoveButtons
+                onUp={() => onMoveEntry(entryIndex, entryIndex - 1)}
+                onDown={() => onMoveEntry(entryIndex, entryIndex + 1)}
+                disableUp={entryIndex === 0}
+                disableDown={entryIndex === totalEntries - 1}
+              />
             </div>
             <div className="mt-1.5 flex flex-col pl-4">
               {entry.cards.map((card, cardIndex) => (
@@ -190,8 +240,10 @@ function DraggableEntry({
                     cardName={card.cardName}
                     entryIndex={entryIndex}
                     cardIndex={cardIndex}
+                    totalCards={entry.cards.length}
                     isTaken={takenCards.has(card.cardName)}
                     onRemove={onRemove}
+                    onMoveCard={onMoveCard}
                   />
                 </div>
               ))}
@@ -225,6 +277,12 @@ function DraggableEntry({
             {card.cardName}
           </span>
           {modeToggle}
+          <MoveButtons
+            onUp={() => onMoveEntry(entryIndex, entryIndex - 1)}
+            onDown={() => onMoveEntry(entryIndex, entryIndex + 1)}
+            disableUp={entryIndex === 0}
+            disableDown={entryIndex === totalEntries - 1}
+          />
           <button
             onClick={() => onRemove(card.cardName)}
             onPointerDown={(e) => e.stopPropagation()}
@@ -245,16 +303,20 @@ interface DraggableGroupCardProps {
   cardName: string;
   entryIndex: number;
   cardIndex: number;
+  totalCards: number;
   isTaken: boolean;
   onRemove: (cardName: string) => void;
+  onMoveCard: (entryIndex: number, fromCard: number, toCard: number) => void;
 }
 
 function DraggableGroupCard({
   cardName,
   entryIndex,
   cardIndex,
+  totalCards,
   isTaken,
   onRemove,
+  onMoveCard,
 }: DraggableGroupCardProps) {
   const dragId = makeDragCardId(entryIndex, cardIndex);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: dragId });
@@ -273,6 +335,12 @@ function DraggableGroupCard({
       <span className={`flex-1 text-xs ${isTaken ? "text-zinc-600 line-through" : "text-zinc-400"}`}>
         {cardName}
       </span>
+      <MoveButtons
+        onUp={() => onMoveCard(entryIndex, cardIndex, cardIndex - 1)}
+        onDown={() => onMoveCard(entryIndex, cardIndex, cardIndex + 1)}
+        disableUp={cardIndex === 0}
+        disableDown={cardIndex === totalCards - 1}
+      />
       <button
         onClick={() => onRemove(cardName)}
         onPointerDown={(e) => e.stopPropagation()}
@@ -551,6 +619,29 @@ export function QueuePanel({
     [queue, onReorder, clearHoverTimer],
   );
 
+  const handleMoveEntry = useCallback(
+    (from: number, to: number) => {
+      if (to < 0 || to >= queue.length) return;
+      const newQueue = [...queue];
+      const [moved] = newQueue.splice(from, 1);
+      newQueue.splice(to, 0, moved);
+      onReorder(newQueue);
+    },
+    [queue, onReorder],
+  );
+
+  const handleMoveCard = useCallback(
+    (entryIndex: number, from: number, to: number) => {
+      const entry = queue[entryIndex];
+      if (!entry || to < 0 || to >= entry.cards.length) return;
+      const newCards = [...entry.cards];
+      const [moved] = newCards.splice(from, 1);
+      newCards.splice(to, 0, moved);
+      onReorder(queue.map((e, i) => (i === entryIndex ? { ...e, cards: newCards } : e)));
+    },
+    [queue, onReorder],
+  );
+
   // Derive overlay label
   const active = activeDragId ? parseDragId(activeDragId) : null;
   let overlayLabel: string | null = null;
@@ -608,8 +699,11 @@ export function QueuePanel({
                 <DraggableEntry
                   entry={entry}
                   entryIndex={entryIndex}
+                  totalEntries={queue.length}
                   onRemove={onRemove}
                   onSetEntryMode={onSetEntryMode}
+                  onMoveEntry={handleMoveEntry}
+                  onMoveCard={handleMoveCard}
                   takenCards={takenCards}
                   isMergeTarget={mergeTarget === entryIndex}
                   activeSlotId={activeSlotId}

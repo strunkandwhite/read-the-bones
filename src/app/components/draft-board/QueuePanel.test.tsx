@@ -55,8 +55,8 @@ describe("QueuePanel", () => {
     render(<QueuePanel {...defaultProps} />);
     // Lightning Bolt is "pause" → ⏸
     // Counterspell is "flow-through" → ⏩
-    const pauseButtons = screen.getAllByTitle(/Pause:/i);
-    const flowButtons = screen.getAllByTitle(/Flow-through:/i);
+    const pauseButtons = screen.getAllByTitle(/Pause/i);
+    const flowButtons = screen.getAllByTitle(/Flow-through/i);
     expect(pauseButtons.length).toBeGreaterThan(0);
     expect(flowButtons.length).toBeGreaterThan(0);
   });
@@ -65,7 +65,7 @@ describe("QueuePanel", () => {
     const onSetEntryMode = vi.fn();
     render(<QueuePanel {...defaultProps} onSetEntryMode={onSetEntryMode} />);
     // Click the mode toggle on Lightning Bolt (index 0, currently "pause" → toggle to "flow-through")
-    const modeButtons = screen.getAllByTitle(/Pause:/i);
+    const modeButtons = screen.getAllByTitle(/Pause/i);
     fireEvent.click(modeButtons[0]);
     expect(onSetEntryMode).toHaveBeenCalledWith(0, "flow-through");
   });
@@ -122,7 +122,7 @@ describe("QueuePanel", () => {
     const onSetEntryMode = vi.fn();
     render(<QueuePanel {...defaultProps} onSetEntryMode={onSetEntryMode} />);
     // Counterspell is at index 1, currently "flow-through" → toggle to "pause"
-    const flowButtons = screen.getAllByTitle(/Flow-through:/i);
+    const flowButtons = screen.getAllByTitle(/Flow-through/i);
     fireEvent.click(flowButtons[0]);
     expect(onSetEntryMode).toHaveBeenCalledWith(1, "pause");
   });

@@ -3,6 +3,7 @@ import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
 import { getQueue, setQueue, type QueueEntry } from "@/core/db/queries/pickQueue";
 import { resolveCardIds } from "@/core/db/queries/cards";
+import { getRemainingCopies } from "@/core/db/queries/helpers";
 import { AppError } from "@/core/errors";
 
 export async function GET(
@@ -74,6 +75,30 @@ export async function PUT(
         resolvedCards.push({ id, name });
       }
       newEntries.push({ mode, cards: resolvedCards });
+    }
+
+    // Validate queued count per card doesn't exceed remaining copies.
+    // Per-seat check only: other seats' queues are intentionally excluded —
+    // two players can both queue the same card. trimExcessQueueEntries handles
+    // cleanup after each pick reduces availability.
+    const queuedCountById = new Map<number, number>();
+    for (const entry of newEntries) {
+      for (const card of entry.cards) {
+        queuedCountById.set(card.id, (queuedCountById.get(card.id) ?? 0) + 1);
+      }
+    }
+    if (queuedCountById.size > 0) {
+      const remaining = await getRemainingCopies(client, draftId, [...queuedCountById.keys()]);
+      for (const [cardId, count] of queuedCountById) {
+        const avail = remaining.get(cardId) ?? 0;
+        if (count > avail) {
+          const name = [...nameToId.entries()].find(([, id]) => id === cardId)?.[0] ?? "unknown";
+          return NextResponse.json(
+            { error: `Cannot queue ${name} ${count}x — only ${avail} remaining` },
+            { status: 400 },
+          );
+        }
+      }
     }
 
     // Get old queue before replacing, to detect removed cards

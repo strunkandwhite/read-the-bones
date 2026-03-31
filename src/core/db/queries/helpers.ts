@@ -77,6 +77,41 @@ export async function getOptedOutSeats(draftId: string): Promise<Set<number>> {
   return seats;
 }
 
+/**
+ * Get remaining copies for a set of cards in a draft.
+ * remaining = cube_snapshot_cards.qty - COUNT(pick_events)
+ */
+export async function getRemainingCopies(
+  client: Client,
+  draftId: string,
+  cardIds: number[],
+): Promise<Map<number, number>> {
+  if (cardIds.length === 0) return new Map();
+
+  const ph = placeholders(cardIds.length);
+  const result = await client.execute({
+    sql: `SELECT csc.card_id, csc.qty, COALESCE(pe.cnt, 0) AS picked
+          FROM cube_snapshot_cards csc
+          JOIN drafts d ON d.cube_snapshot_id = csc.cube_snapshot_id
+          LEFT JOIN (
+            SELECT card_id, COUNT(*) AS cnt
+            FROM pick_events WHERE draft_id = ?
+            GROUP BY card_id
+          ) pe ON csc.card_id = pe.card_id
+          WHERE d.draft_id = ? AND csc.card_id IN (${ph})`,
+    args: [draftId, draftId, ...cardIds],
+  });
+
+  const remaining = new Map<number, number>();
+  for (const row of result.rows) {
+    remaining.set(
+      row.card_id as number,
+      (row.qty as number) - (row.picked as number),
+    );
+  }
+  return remaining;
+}
+
 export function rowToCard(row: Record<string, unknown>): Card {
   return {
     card_id: row.card_id as number,

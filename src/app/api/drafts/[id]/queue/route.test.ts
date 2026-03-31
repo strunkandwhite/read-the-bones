@@ -21,6 +21,11 @@ vi.mock("@/core/db/queries/pickQueue", () => ({
   setQueue: (...args: unknown[]) => mockSetQueue(...args),
 }));
 
+const mockGetRemainingCopies = vi.fn();
+vi.mock("@/core/db/queries/helpers", () => ({
+  getRemainingCopies: (...args: unknown[]) => mockGetRemainingCopies(...args),
+}));
+
 
 function makeGetRequest(token = "test-token") {
   return new NextRequest(
@@ -77,7 +82,11 @@ describe("GET /api/drafts/[id]/queue", () => {
 });
 
 describe("PUT /api/drafts/[id]/queue", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Default: all cards have ample remaining copies
+    mockGetRemainingCopies.mockResolvedValue(new Map([[10, 4], [20, 4], [30, 4], [99, 4]]));
+  });
 
   it("replaces queue with structured entries and returns updated queue", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
@@ -231,5 +240,64 @@ describe("PUT /api/drafts/[id]/queue", () => {
         args: ["test", 1, "Lightning Bolt"],
       },
     ]);
+  });
+
+  it("returns 400 when queued count exceeds remaining copies", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockExecute.mockResolvedValueOnce({
+      rows: [{ card_id: 10, name: "Lightning Bolt" }],
+    });
+    // Only 1 copy remaining
+    mockGetRemainingCopies.mockResolvedValueOnce(new Map([[10, 1]]));
+
+    const res = await PUT(
+      makePutRequest([
+        { mode: "pause", cards: ["Lightning Bolt"] },
+        { mode: "pause", cards: ["Lightning Bolt"] },
+      ]),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/Lightning Bolt/);
+  });
+
+  it("returns 400 when card is not in the cube (0 remaining)", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockExecute.mockResolvedValueOnce({
+      rows: [{ card_id: 10, name: "Lightning Bolt" }],
+    });
+    // Card not found in cube snapshot — returns empty map
+    mockGetRemainingCopies.mockResolvedValueOnce(new Map());
+
+    const res = await PUT(
+      makePutRequest([{ mode: "pause", cards: ["Lightning Bolt"] }]),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/0 remaining/);
+  });
+
+  it("accepts an empty queue array (clears the queue)", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockGetQueue.mockResolvedValueOnce([
+      { mode: "pause", cards: [{ id: 10, name: "Lightning Bolt" }] },
+    ]);
+    mockSetQueue.mockResolvedValueOnce(undefined);
+    mockBatch.mockResolvedValue(undefined);
+    mockGetQueue.mockResolvedValueOnce([]);
+
+    const res = await PUT(
+      makePutRequest([]),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.queue).toHaveLength(0);
+    expect(mockSetQueue).toHaveBeenCalledWith(expect.anything(), "test", 1, []);
   });
 });
