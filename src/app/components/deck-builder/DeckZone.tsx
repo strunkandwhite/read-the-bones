@@ -25,6 +25,7 @@ interface DeckZoneProps {
   floatedCards: string[];
   queuedCardNames: string[];
   onRemoveFloat?: (cardName: string) => void;
+  onToggleQueue?: (cardName: string) => void;
 }
 
 export function DeckZone({
@@ -35,6 +36,7 @@ export function DeckZone({
   floatedCards,
   queuedCardNames,
   onRemoveFloat,
+  onToggleQueue,
 }: DeckZoneProps) {
   const totalCards = Object.values(columns).reduce(
     (sum, cards) => sum + cards.length,
@@ -162,6 +164,7 @@ export function DeckZone({
             floatedIndices={floatedIndices}
             queuedIndices={queuedIndices}
             onRemoveFloat={onRemoveFloat}
+            onToggleQueue={onToggleQueue}
           />
         ))}
       </div>

@@ -291,9 +291,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                 className={`cursor-pointer rounded-lg p-2 transition-colors ${
                   deckBuilderModalOpen || deckFilterActive
                     ? "bg-blue-600 text-white shadow-sm shadow-blue-900/40 hover:bg-blue-500"
-                    : deckBuilderActive
-                      ? "text-blue-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                      : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+                    : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
                 }`}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" stroke="none" className="h-6 w-6">

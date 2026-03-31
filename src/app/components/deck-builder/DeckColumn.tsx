@@ -19,6 +19,7 @@ interface DeckColumnProps {
   floatedIndices: Set<string>;
   queuedIndices: Set<string>;
   onRemoveFloat?: (cardName: string) => void;
+  onToggleQueue?: (cardName: string) => void;
 }
 
 export function DeckColumn({
@@ -31,6 +32,7 @@ export function DeckColumn({
   floatedIndices,
   queuedIndices,
   onRemoveFloat,
+  onToggleQueue,
 }: DeckColumnProps) {
   const droppableId = `${zone}:${columnKey}`;
   const { setNodeRef, isOver } = useDroppable({ id: droppableId });
@@ -75,7 +77,10 @@ export function DeckColumn({
                 isQueued={queuedIndices.has(`${columnKey}:${idx}`)}
                 isLast={idx === cardNames.length - 1}
                 onRemoveFloat={onRemoveFloat}
+                onToggleQueue={onToggleQueue}
                 pickScore={stats?.weightedGeomean}
+                gpwr={stats?.gpwr}
+                gpwrCi={stats?.gpwrCi}
               />
             );
           })}

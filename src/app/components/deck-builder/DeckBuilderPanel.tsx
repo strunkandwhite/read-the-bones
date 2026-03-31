@@ -52,6 +52,9 @@ export function DeckBuilderPanel({
   const floatedCards = useLiveStore((s) => s.floatedCards);
   const queue = useLiveStore((s) => s.queue);
   const removeFloat = useLiveStore((s) => s.removeFloat);
+  const addToQueue = useLiveStore((s) => s.addToQueue);
+  const removeFromQueue = useLiveStore((s) => s.removeFromQueue);
+  const queuedCardCounts = useLiveStore((s) => s.queuedCardCounts);
   const saveStatus = useLiveStore((s) => s.deckSaveStatus);
   const mySeat = useLiveStore((s) => s.mySeat);
   // Draft store
@@ -206,6 +209,17 @@ export function DeckBuilderPanel({
     [removeFloat],
   );
 
+  const handleToggleQueue = useCallback(
+    (cardName: string) => {
+      if (queuedCardCounts.has(cardName)) {
+        removeFromQueue(cardName);
+      } else {
+        addToQueue(cardName);
+      }
+    },
+    [queuedCardCounts, addToQueue, removeFromQueue],
+  );
+
   const dragOverlayCard = useMemo(() => {
     if (!activeDragId) return null;
     const { cardName } = parseDragId(activeDragId);
@@ -290,6 +304,7 @@ export function DeckBuilderPanel({
             floatedCards={effectiveFloatedCards}
             queuedCardNames={effectiveQueuedCardNames}
             onRemoveFloat={handleRemoveFloat}
+            onToggleQueue={handleToggleQueue}
           />
           <div className="border-t border-zinc-700/30" />
           <DeckZone
@@ -300,6 +315,7 @@ export function DeckBuilderPanel({
             floatedCards={effectiveFloatedCards}
             queuedCardNames={effectiveQueuedCardNames}
             onRemoveFloat={handleRemoveFloat}
+            onToggleQueue={handleToggleQueue}
           />
         </div>
 

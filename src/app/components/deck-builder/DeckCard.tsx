@@ -13,10 +13,13 @@ interface DeckCardProps {
   isLast: boolean;
   id: string; // unique drag ID: "zone:column:index:cardName"
   onRemoveFloat?: (cardName: string) => void;
+  onToggleQueue?: (cardName: string) => void;
   pickScore?: number;
+  gpwr?: number;
+  gpwrCi?: { lower: number; upper: number };
 }
 
-export function DeckCard({ cardName, imageUri, isFloated, isQueued, isLast, id, onRemoveFloat, pickScore }: DeckCardProps) {
+export function DeckCard({ cardName, imageUri, isFloated, isQueued, isLast, id, onRemoveFloat, onToggleQueue, pickScore, gpwr, gpwrCi }: DeckCardProps) {
   const {
     attributes,
     listeners,
@@ -79,7 +82,7 @@ export function DeckCard({ cardName, imageUri, isFloated, isQueued, isLast, id, 
           {cardName}
         </div>
       )}
-      {/* Remove button for floated cards */}
+      {/* Remove button for floated cards — top right */}
       {isFloated && onRemoveFloat && (
         <button
           onClick={(e) => {
@@ -96,6 +99,30 @@ export function DeckCard({ cardName, imageUri, isFloated, isQueued, isLast, id, 
           </svg>
         </button>
       )}
+      {/* Queue toggle for floated cards — top left */}
+      {isFloated && onToggleQueue && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleQueue(cardName);
+          }}
+          onPointerDown={(e) => e.stopPropagation()}
+          className={`absolute top-0.5 left-0.5 z-10 flex h-4 w-4 cursor-pointer items-center justify-center rounded-full transition-opacity ${
+            isQueued
+              ? "bg-amber-500 text-white opacity-100"
+              : "bg-black/60 text-amber-400 opacity-0 group-hover/card:opacity-100 hover:bg-amber-600 hover:text-white"
+          }`}
+          title={isQueued ? "Remove from queue" : "Add to queue"}
+          aria-label={isQueued ? "Remove from queue" : "Add to queue"}
+        >
+          <svg viewBox="0 0 16 16" fill="currentColor" stroke="none" className="h-2.5 w-2.5" aria-hidden="true">
+            <rect x="3" y="2.5" width="10" height="1.8" rx="0.4" />
+            <rect x="3.4" y="5.3" width="10" height="1.8" rx="0.4" />
+            <rect x="3.8" y="8.1" width="10" height="1.8" rx="0.4" />
+            <rect x="4.2" y="10.9" width="10" height="1.8" rx="0.4" />
+          </svg>
+        </button>
+      )}
       {/* Hover card preview — portaled to body for full opacity and z-index */}
       {showImage && imageUri && !isDragging && createPortal(
         <div className="fixed z-[9999] pointer-events-none" style={{ top: position.top, left: position.left }}>
@@ -107,11 +134,23 @@ export function DeckCard({ cardName, imageUri, isFloated, isQueued, isLast, id, 
             className="rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-800"
             draggable={false}
           />
-          {pickScore != null && (
+          {(pickScore != null || gpwr != null) && (
             <div className="mt-1.5 flex items-center gap-3 rounded-lg bg-zinc-900/95 border border-zinc-700/60 px-3 py-2 text-xs shadow-lg backdrop-blur-sm">
-              <span className="text-zinc-400">
-                Pick <span className="font-mono font-semibold text-zinc-100">{pickScore.toFixed(1)}</span>
-              </span>
+              {pickScore != null && (
+                <span className="text-zinc-400">
+                  Pick <span className="font-mono font-semibold text-zinc-100">{pickScore.toFixed(1)}</span>
+                </span>
+              )}
+              {gpwr != null && (
+                <span className="text-zinc-400">
+                  GPWR <span className="font-mono font-semibold text-zinc-100">{(gpwr * 100).toFixed(0)}%</span>
+                  {gpwrCi && (
+                    <span className="text-zinc-500 ml-0.5">
+                      {"\u00b1"}{Math.round((gpwrCi.upper - gpwrCi.lower) * 50)}%
+                    </span>
+                  )}
+                </span>
+              )}
             </div>
           )}
         </div>,
