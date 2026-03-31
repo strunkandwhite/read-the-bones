@@ -90,20 +90,18 @@ const slotAwareCollision: CollisionDetection = (args) => {
 
 // ─── Visual components ───────────────────────────────────────────────────────
 
-function InsertionLine() {
-  return (
-    <div className="relative h-0">
-      <div className="absolute left-0 right-0 h-0.5 rounded-full bg-blue-500" />
-    </div>
-  );
-}
-
 // Drop slot between items. Has a small physical height so closestCenter can target it.
+// When active (being hovered), shows a blue insertion line.
 function DropSlot({ id, isActive }: { id: string; isActive: boolean }) {
   const { setNodeRef } = useDroppable({ id });
   return (
-    <div ref={setNodeRef} className="min-h-[6px] flex items-center">
-      {isActive && <InsertionLine />}
+    <div
+      ref={setNodeRef}
+      className={`flex items-center ${isActive ? "py-0.5" : "min-h-[6px]"}`}
+    >
+      {isActive && (
+        <div className="h-0.5 w-full rounded-full bg-blue-500" />
+      )}
     </div>
   );
 }
