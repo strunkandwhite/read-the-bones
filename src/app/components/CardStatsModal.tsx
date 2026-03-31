@@ -155,7 +155,17 @@ export function CardStatsModal() {
         style={{ background: "#1a1917" }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex flex-col gap-5 p-5 sm:flex-row">
+        <div className="sticky top-0 z-10 flex justify-end px-3 pt-3">
+          <button
+            type="button"
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-white"
+            onClick={clearSelectedCard}
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
+        <div className="-mt-5 flex flex-col gap-5 p-5 sm:flex-row">
           {/* Left / Top: Card image + actions */}
           <div className="shrink-0 sm:w-[220px]">
             {scryfallImageUrl && (
