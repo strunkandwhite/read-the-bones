@@ -49,8 +49,8 @@ describe("GET /api/drafts/[id]/queue", () => {
   it("returns queue for authenticated seat", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
     mockGetQueue.mockResolvedValueOnce([
-      { priority: 1, cardId: 10, cardName: "Lightning Bolt" },
-      { priority: 2, cardId: 20, cardName: "Counterspell" },
+      { mode: "pause", cards: [{ id: 10, name: "Lightning Bolt" }] },
+      { mode: "pause", cards: [{ id: 20, name: "Counterspell" }] },
     ]);
 
     const res = await GET(
@@ -61,7 +61,7 @@ describe("GET /api/drafts/[id]/queue", () => {
 
     expect(res.status).toBe(200);
     expect(body.queue).toHaveLength(2);
-    expect(body.queue[0].cardName).toBe("Lightning Bolt");
+    expect(body.queue[0].cards[0].name).toBe("Lightning Bolt");
   });
 
   it("returns 401 without token", async () => {
@@ -92,8 +92,8 @@ describe("PUT /api/drafts/[id]/queue", () => {
     mockSetQueue.mockResolvedValueOnce(undefined);
     // Second getQueue call: new queue (after set)
     mockGetQueue.mockResolvedValueOnce([
-      { priority: 1, cardId: 10, cardName: "Lightning Bolt" },
-      { priority: 2, cardId: 20, cardName: "Counterspell" },
+      { mode: "pause", cards: [{ id: 10, name: "Lightning Bolt" }] },
+      { mode: "pause", cards: [{ id: 20, name: "Counterspell" }] },
     ]);
 
     const res = await PUT(
@@ -139,14 +139,14 @@ describe("PUT /api/drafts/[id]/queue", () => {
     });
     // Old queue had Lightning Bolt and Counterspell
     mockGetQueue.mockResolvedValueOnce([
-      { priority: 1, cardId: 10, cardName: "Lightning Bolt" },
-      { priority: 2, cardId: 20, cardName: "Counterspell" },
+      { mode: "pause", cards: [{ id: 10, name: "Lightning Bolt" }] },
+      { mode: "pause", cards: [{ id: 20, name: "Counterspell" }] },
     ]);
     mockSetQueue.mockResolvedValueOnce(undefined);
     mockBatch.mockResolvedValue(undefined);
     // New queue only has Counterspell
     mockGetQueue.mockResolvedValueOnce([
-      { priority: 1, cardId: 20, cardName: "Counterspell" },
+      { mode: "pause", cards: [{ id: 20, name: "Counterspell" }] },
     ]);
 
     const res = await PUT(

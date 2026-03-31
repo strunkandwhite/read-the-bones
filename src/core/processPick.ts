@@ -141,8 +141,8 @@ export async function processPick(
       const affectedSeats = await getQueuesContainingCard(client, input.draftId, currentCardId);
       await Promise.all(
         affectedSeats
-          .filter(({ seat: s }) => s !== currentSeat)
-          .map(async ({ seat: affectedSeat }) => {
+          .filter(({ seat: s }: { seat: number }) => s !== currentSeat)
+          .map(async ({ seat: affectedSeat }: { seat: number }) => {
             const settings = allSeatSettings.get(affectedSeat);
             if (settings?.autoPickMode === 'cautious') {
               await updateAutoPick(client, input.draftId, affectedSeat, false);
@@ -195,20 +195,21 @@ export async function processPick(
     });
     const availableSet = new Set(available.rows.map((r) => r.card_id as number));
 
-    const candidate = await getAutoPickCandidate(
+    const autoPickResult = await getAutoPickCandidate(
       client, input.draftId, nextAfter.seat, availableSet,
     );
-    if (!candidate) break;
+    if (autoPickResult.kind !== 'candidate') break;
+    const candidateId = autoPickResult.cardId;
 
     // Look up card name for the candidate
     const cardRow = await client.execute({
       sql: `SELECT name FROM cards WHERE card_id = ?`,
-      args: [candidate],
+      args: [candidateId],
     });
     if (cardRow.rows.length === 0) break;
 
     currentSeat = nextAfter.seat;
-    currentCardId = candidate;
+    currentCardId = candidateId;
     currentCardName = cardRow.rows[0].name as string;
     cascadeDepth++;
   }

@@ -1,83 +1,129 @@
 import type { Client } from '@libsql/client';
 
+export interface QueueCard {
+  id: number;
+  name: string;
+}
+
+export interface QueueEntry {
+  mode: 'pause' | 'flow-through';
+  cards: QueueCard[];
+}
+
+export type AutoPickResult =
+  | { kind: 'candidate'; cardId: number; entryIndex: number }
+  | { kind: 'paused' }
+  | { kind: 'empty' };
+
 export async function getQueue(
   client: Client,
   draftId: string,
   seat: number,
-): Promise<{ priority: number; cardId: number; cardName: string }[]> {
+): Promise<QueueEntry[]> {
   const result = await client.execute({
-    sql: `SELECT pq.priority, pq.card_id, c.name
-          FROM pick_queue pq
-          JOIN cards c ON c.card_id = pq.card_id
-          WHERE pq.draft_id = ? AND pq.seat = ?
-          ORDER BY pq.priority`,
+    sql: `SELECT queue_json FROM seat_tokens WHERE draft_id = ? AND seat = ?`,
     args: [draftId, seat],
   });
-  return result.rows.map((row) => ({
-    priority: row.priority as number,
-    cardId: row.card_id as number,
-    cardName: row.name as string,
-  }));
+  if (result.rows.length === 0) return [];
+  const raw = result.rows[0].queue_json as string | null;
+  if (!raw) return [];
+  return JSON.parse(raw) as QueueEntry[];
 }
 
 export async function setQueue(
   client: Client,
   draftId: string,
   seat: number,
-  cardIds: number[],
+  entries: QueueEntry[],
 ): Promise<void> {
-  const statements = [
-    { sql: `DELETE FROM pick_queue WHERE draft_id = ? AND seat = ?`, args: [draftId, seat] },
-    ...cardIds.map((cardId, i) => ({
-      sql: `INSERT INTO pick_queue (draft_id, seat, priority, card_id) VALUES (?, ?, ?, ?)`,
-      args: [draftId, seat, i + 1, cardId],
-    })),
-  ];
-  await client.batch(statements);
+  await client.execute({
+    sql: `UPDATE seat_tokens SET queue_json = ? WHERE draft_id = ? AND seat = ?`,
+    args: [JSON.stringify(entries), draftId, seat],
+  });
 }
 
 export async function removeCardFromAllQueues(
   client: Client,
   draftId: string,
   cardId: number,
-): Promise<void> {
-  await client.execute({
-    sql: `DELETE FROM pick_queue WHERE draft_id = ? AND card_id = ?`,
-    args: [draftId, cardId],
-  });
-
-  const remaining = await client.execute({
-    sql: `SELECT seat, card_id FROM pick_queue WHERE draft_id = ? ORDER BY seat, priority`,
+): Promise<{ pauseSeats: number[] }> {
+  const result = await client.execute({
+    sql: `SELECT seat, queue_json FROM seat_tokens WHERE draft_id = ? AND queue_json IS NOT NULL`,
     args: [draftId],
   });
 
-  if (remaining.rows.length === 0) return;
+  const updates: { seat: number; newQueue: QueueEntry[] }[] = [];
+  const pauseSeats: number[] = [];
 
-  const statements: { sql: string; args: (string | number)[] }[] = [
-    { sql: `DELETE FROM pick_queue WHERE draft_id = ?`, args: [draftId] },
-  ];
-
-  let currentSeat = -1;
-  let priority = 0;
-  for (const row of remaining.rows) {
+  for (const row of result.rows) {
     const seat = row.seat as number;
-    if (seat !== currentSeat) {
-      currentSeat = seat;
-      priority = 0;
+    const queue: QueueEntry[] = JSON.parse(row.queue_json as string);
+
+    // Check if card is in this queue at all
+    const hasCard = queue.some((entry) => entry.cards.some((c) => c.id === cardId));
+    if (!hasCard) continue;
+
+    // Check pause trigger before mutation: is the card in the first entry?
+    const firstEntry = queue[0];
+    const cardInFirstEntry = firstEntry?.cards.some((c) => c.id === cardId);
+
+    // Remove card from all entries, drop empty entries
+    const newQueue: QueueEntry[] = [];
+    for (const entry of queue) {
+      const filteredCards = entry.cards.filter((c) => c.id !== cardId);
+      if (filteredCards.length > 0) {
+        newQueue.push({ ...entry, cards: filteredCards });
+      }
     }
-    priority++;
-    statements.push({
-      sql: `INSERT INTO pick_queue (draft_id, seat, priority, card_id) VALUES (?, ?, ?, ?)`,
-      args: [draftId, seat, priority, row.card_id as number],
-    });
+
+    // Pause check: if card was in the first entry, that entry's mode is 'pause',
+    // and the first entry is now fully exhausted (empty after removal)
+    if (cardInFirstEntry && firstEntry.mode === 'pause') {
+      const remainingInFirstEntry = firstEntry.cards.filter((c) => c.id !== cardId);
+      if (remainingInFirstEntry.length === 0) {
+        pauseSeats.push(seat);
+      }
+    }
+
+    updates.push({ seat, newQueue });
   }
 
-  await client.batch(statements);
+  if (updates.length > 0) {
+    await client.batch(
+      updates.map(({ seat, newQueue }) => ({
+        sql: `UPDATE seat_tokens SET queue_json = ? WHERE draft_id = ? AND seat = ?`,
+        args: [JSON.stringify(newQueue), draftId, seat] as (string | number)[],
+      })),
+    );
+  }
+
+  return { pauseSeats };
+}
+
+export async function getAutoPickCandidate(
+  client: Client,
+  draftId: string,
+  seat: number,
+  availableCardIds: Set<number>,
+): Promise<AutoPickResult> {
+  const queue = await getQueue(client, draftId, seat);
+  for (let i = 0; i < queue.length; i++) {
+    const entry = queue[i];
+    for (const card of entry.cards) {
+      if (availableCardIds.has(card.id)) {
+        return { kind: 'candidate', cardId: card.id, entryIndex: i };
+      }
+    }
+    // Entry exhausted
+    if (entry.mode === 'pause') return { kind: 'paused' };
+    // flow-through: continue to next entry
+  }
+  return { kind: 'empty' };
 }
 
 /**
  * Remove queue entries that exceed remainingCopies for a given card.
- * Removes from the bottom (highest priority number) per seat.
+ * Removes from the bottom (lowest priority = highest index) per seat.
  * Called after a pick to trim queues across all seats.
  */
 export async function trimExcessQueueEntries(
@@ -87,80 +133,70 @@ export async function trimExcessQueueEntries(
   remainingCopies: number,
 ): Promise<void> {
   if (remainingCopies <= 0) {
-    // No copies left — remove all entries (existing behavior)
     await removeCardFromAllQueues(client, draftId, cardId);
     return;
   }
 
-  // Find all queue entries for this card across all seats
-  const entries = await client.execute({
-    sql: `SELECT seat, priority, card_id
-          FROM pick_queue
-          WHERE draft_id = ? AND card_id = ?
-          ORDER BY seat, priority`,
-    args: [draftId, cardId],
+  const result = await client.execute({
+    sql: `SELECT seat, queue_json FROM seat_tokens WHERE draft_id = ? AND queue_json IS NOT NULL`,
+    args: [draftId],
   });
 
-  // Group by seat, find entries to delete (lowest-priority = highest number)
-  const toDelete: { seat: number; priority: number }[] = [];
-  const bySeat = new Map<number, { priority: number }[]>();
-  for (const row of entries.rows) {
+  const updates: { seat: number; newQueue: QueueEntry[] }[] = [];
+
+  for (const row of result.rows) {
     const seat = row.seat as number;
-    const priority = row.priority as number;
-    const arr = bySeat.get(seat) ?? [];
-    arr.push({ priority });
-    bySeat.set(seat, arr);
-  }
+    const queue: QueueEntry[] = JSON.parse(row.queue_json as string);
 
-  for (const [seat, seatEntries] of bySeat) {
-    if (seatEntries.length <= remainingCopies) continue;
-    // Sort by priority ascending, keep the first `remainingCopies`, delete the rest
-    seatEntries.sort((a, b) => a.priority - b.priority);
-    for (let i = remainingCopies; i < seatEntries.length; i++) {
-      toDelete.push({ seat, priority: seatEntries[i].priority });
+    // Count references to this card
+    let count = 0;
+    for (const entry of queue) {
+      count += entry.cards.filter((c) => c.id === cardId).length;
     }
+    if (count <= remainingCopies) continue;
+
+    // Remove excess from bottom (highest index) up
+    let toRemove = count - remainingCopies;
+
+    // First pass: find which entries to trim (iterate in reverse)
+    const removeAtEntry = new Set<number>();
+    for (let i = queue.length - 1; i >= 0 && toRemove > 0; i--) {
+      if (queue[i].cards.some((c) => c.id === cardId)) {
+        removeAtEntry.add(i);
+        toRemove--;
+      }
+    }
+
+    // Second pass: build new queue
+    const newQueue: QueueEntry[] = [];
+    for (let i = 0; i < queue.length; i++) {
+      if (removeAtEntry.has(i)) {
+        const filteredCards = queue[i].cards.filter((c) => c.id !== cardId);
+        if (filteredCards.length > 0) {
+          newQueue.push({ ...queue[i], cards: filteredCards });
+        }
+        // else: entry removed entirely
+      } else {
+        newQueue.push(queue[i]);
+      }
+    }
+
+    updates.push({ seat, newQueue });
   }
 
-  if (toDelete.length === 0) return;
-
-  // Delete excess entries
-  const deleteStatements = toDelete.map(({ seat, priority }) => ({
-    sql: `DELETE FROM pick_queue WHERE draft_id = ? AND seat = ? AND priority = ?`,
-    args: [draftId, seat, priority] as (string | number)[],
-  }));
-  await client.batch(deleteStatements);
-
-  // Renumber remaining entries per affected seat
-  const affectedSeats = new Set(toDelete.map((d) => d.seat));
-  const renumberStatements: { sql: string; args: (string | number)[] }[] = [];
-
-  for (const seat of affectedSeats) {
-    const remaining = await client.execute({
-      sql: `SELECT card_id FROM pick_queue WHERE draft_id = ? AND seat = ? ORDER BY priority`,
-      args: [draftId, seat],
-    });
-
-    renumberStatements.push({
-      sql: `DELETE FROM pick_queue WHERE draft_id = ? AND seat = ?`,
-      args: [draftId, seat],
-    });
-    remaining.rows.forEach((row, i) => {
-      renumberStatements.push({
-        sql: `INSERT INTO pick_queue (draft_id, seat, priority, card_id) VALUES (?, ?, ?, ?)`,
-        args: [draftId, seat, i + 1, row.card_id as number],
-      });
-    });
-  }
-
-  if (renumberStatements.length > 0) {
-    await client.batch(renumberStatements);
+  if (updates.length > 0) {
+    await client.batch(
+      updates.map(({ seat, newQueue }) => ({
+        sql: `UPDATE seat_tokens SET queue_json = ? WHERE draft_id = ? AND seat = ?`,
+        args: [JSON.stringify(newQueue), draftId, seat] as (string | number)[],
+      })),
+    );
   }
 }
 
 /**
- * Find all seats that have a specific card in their queue.
- * Used to detect queue invalidation when a card is picked.
- * MUST be called BEFORE removeCardFromAllQueues for the same card.
+ * @deprecated Use removeCardFromAllQueues which now returns pauseSeats directly.
+ * Kept functional for compatibility while processPick.ts is being updated (Task 3).
  */
 export async function getQueuesContainingCard(
   client: Client,
@@ -168,26 +204,30 @@ export async function getQueuesContainingCard(
   cardId: number,
 ): Promise<Array<{ seat: number }>> {
   const result = await client.execute({
-    sql: `SELECT DISTINCT st.seat
-          FROM pick_queue pq
-          JOIN seat_tokens st ON st.draft_id = pq.draft_id AND st.seat = pq.seat
-          WHERE pq.draft_id = ? AND pq.card_id = ?`,
-    args: [draftId, cardId],
+    sql: `SELECT seat, queue_json FROM seat_tokens WHERE draft_id = ? AND queue_json IS NOT NULL`,
+    args: [draftId],
   });
-  return result.rows.map((row) => ({ seat: row.seat as number }));
+  const seats: { seat: number }[] = [];
+  for (const row of result.rows) {
+    const queue: QueueEntry[] = JSON.parse(row.queue_json as string);
+    if (queue.some((entry) => entry.cards.some((c) => c.id === cardId))) {
+      seats.push({ seat: row.seat as number });
+    }
+  }
+  return seats;
 }
 
-export async function getAutoPickCandidate(
+/**
+ * Remove an entire queue entry at a given index for a seat.
+ * Called after auto-picking from a group entry.
+ */
+export async function fulfillGroupEntry(
   client: Client,
   draftId: string,
   seat: number,
-  availableCardIds: Set<number>,
-): Promise<number | null> {
+  entryIndex: number,
+): Promise<void> {
   const queue = await getQueue(client, draftId, seat);
-  for (const entry of queue) {
-    if (availableCardIds.has(entry.cardId)) {
-      return entry.cardId;
-    }
-  }
-  return null;
+  const newQueue = queue.filter((_, i) => i !== entryIndex);
+  await setQueue(client, draftId, seat, newQueue);
 }

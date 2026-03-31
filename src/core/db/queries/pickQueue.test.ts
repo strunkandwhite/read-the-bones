@@ -6,6 +6,8 @@ import {
   removeCardFromAllQueues,
   getAutoPickCandidate,
   trimExcessQueueEntries,
+  fulfillGroupEntry,
+  type QueueEntry,
 } from "./pickQueue";
 
 function createMockClient() {
@@ -17,29 +19,35 @@ function createMockClient() {
 
 describe("getQueue", () => {
   let client: ReturnType<typeof createMockClient>;
+  beforeEach(() => { client = createMockClient(); });
 
-  beforeEach(() => {
-    client = createMockClient();
-  });
-
-  it("returns ordered entries with card names", async () => {
+  it("returns parsed queue entries from queue_json", async () => {
+    const queueJson: QueueEntry[] = [
+      { mode: "pause", cards: [{ id: 10, name: "Lightning Bolt" }] },
+      { mode: "flow-through", cards: [{ id: 20, name: "Counterspell" }, { id: 30, name: "Mana Drain" }] },
+    ];
     client.execute.mockResolvedValueOnce({
-      rows: [
-        { priority: 1, card_id: 10, name: "Lightning Bolt" },
-        { priority: 2, card_id: 20, name: "Counterspell" },
-        { priority: 3, card_id: 30, name: "Dark Ritual" },
-      ],
+      rows: [{ queue_json: JSON.stringify(queueJson) }],
     });
 
     const result = await getQueue(client, "draft-1", 1);
+    expect(result).toEqual(queueJson);
+  });
 
-    expect(result).toEqual([
-      { priority: 1, cardId: 10, cardName: "Lightning Bolt" },
-      { priority: 2, cardId: 20, cardName: "Counterspell" },
-      { priority: 3, cardId: 30, cardName: "Dark Ritual" },
-    ]);
-    expect(client.execute).toHaveBeenCalledOnce();
-    expect(client.execute.mock.calls[0][0].args).toEqual(["draft-1", 1]);
+  it("returns empty array when queue_json is null", async () => {
+    client.execute.mockResolvedValueOnce({
+      rows: [{ queue_json: null }],
+    });
+
+    const result = await getQueue(client, "draft-1", 1);
+    expect(result).toEqual([]);
+  });
+
+  it("returns empty array when no seat_token row exists", async () => {
+    client.execute.mockResolvedValueOnce({ rows: [] });
+
+    const result = await getQueue(client, "draft-1", 1);
+    expect(result).toEqual([]);
   });
 });
 
@@ -47,17 +55,26 @@ describe("setQueue", () => {
   let client: ReturnType<typeof createMockClient>;
   beforeEach(() => { client = createMockClient(); });
 
-  it("batches delete + inserts in correct priority order", async () => {
-    await setQueue(client, "draft-1", 2, [10, 20, 30]);
+  it("writes queue entries as JSON to seat_tokens", async () => {
+    const entries: QueueEntry[] = [
+      { mode: "pause", cards: [{ id: 10, name: "Lightning Bolt" }] },
+      { mode: "flow-through", cards: [{ id: 20, name: "Counterspell" }] },
+    ];
+    await setQueue(client, "draft-1", 1, entries);
 
-    expect(client.batch).toHaveBeenCalledOnce();
-    const statements = client.batch.mock.calls[0][0];
-    expect(statements).toHaveLength(4);
-    expect(statements[0].sql).toContain("DELETE");
-    expect(statements[0].args).toEqual(["draft-1", 2]);
-    expect(statements[1].args).toEqual(["draft-1", 2, 1, 10]);
-    expect(statements[2].args).toEqual(["draft-1", 2, 2, 20]);
-    expect(statements[3].args).toEqual(["draft-1", 2, 3, 30]);
+    expect(client.execute).toHaveBeenCalledOnce();
+    const call = client.execute.mock.calls[0][0];
+    expect(call.sql).toContain("UPDATE seat_tokens");
+    expect(call.sql).toContain("queue_json");
+    const storedJson = JSON.parse(call.args[0] as string);
+    expect(storedJson).toEqual(entries);
+  });
+
+  it("writes empty array for empty queue", async () => {
+    await setQueue(client, "draft-1", 1, []);
+
+    const call = client.execute.mock.calls[0][0];
+    expect(JSON.parse(call.args[0] as string)).toEqual([]);
   });
 });
 
@@ -65,67 +82,220 @@ describe("removeCardFromAllQueues", () => {
   let client: ReturnType<typeof createMockClient>;
   beforeEach(() => { client = createMockClient(); });
 
-  it("deletes the card and batches renumbered entries", async () => {
-    // First call: delete the card
-    client.execute.mockResolvedValueOnce({ rows: [] });
-    // Second call: fetch all remaining rows ordered by seat, priority
+  it("removes card from single-card entries across all seats", async () => {
     client.execute.mockResolvedValueOnce({
       rows: [
-        { seat: 1, card_id: 20 },
-        { seat: 1, card_id: 30 },
+        {
+          seat: 1,
+          queue_json: JSON.stringify([
+            { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+            { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
+          ]),
+        },
+        {
+          seat: 2,
+          queue_json: JSON.stringify([
+            { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+          ]),
+        },
       ],
     });
 
-    await removeCardFromAllQueues(client, "draft-1", 10);
+    const result = await removeCardFromAllQueues(client, "draft-1", 10);
 
-    expect(client.execute).toHaveBeenCalledTimes(2);
-    expect(client.execute.mock.calls[0][0].args).toEqual(["draft-1", 10]);
-    expect(client.execute.mock.calls[1][0].sql).toContain("ORDER BY seat, priority");
-
+    // Should batch-update both seats
     expect(client.batch).toHaveBeenCalledOnce();
     const statements = client.batch.mock.calls[0][0];
-    expect(statements).toHaveLength(3);
-    expect(statements[0].sql).toContain("DELETE");
-    expect(statements[0].args).toEqual(["draft-1"]);
-    expect(statements[1].args).toEqual(["draft-1", 1, 1, 20]);
-    expect(statements[2].args).toEqual(["draft-1", 1, 2, 30]);
+    expect(statements).toHaveLength(2);
+
+    // Seat 1: Bolt removed, Recall remains
+    const seat1Json = JSON.parse(statements[0].args[0] as string);
+    expect(seat1Json).toEqual([{ mode: "pause", cards: [{ id: 20, name: "Recall" }] }]);
+
+    // Seat 2: Bolt removed, queue empty
+    const seat2Json = JSON.parse(statements[1].args[0] as string);
+    expect(seat2Json).toEqual([]);
+
+    // Returns pause triggers: both seats' first entries were exhausted in pause mode
+    expect(result).toEqual({ pauseSeats: [1, 2] });
+  });
+
+  it("removes card from within a group without removing the group", async () => {
+    client.execute.mockResolvedValueOnce({
+      rows: [{
+        seat: 1,
+        queue_json: JSON.stringify([
+          { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }] },
+        ]),
+      }],
+    });
+
+    const result = await removeCardFromAllQueues(client, "draft-1", 10);
+
+    const statements = client.batch.mock.calls[0][0];
+    const json = JSON.parse(statements[0].args[0] as string);
+    expect(json).toEqual([
+      { mode: "flow-through", cards: [{ id: 20, name: "Chain" }] },
+    ]);
+    expect(result).toEqual({ pauseSeats: [] });
+  });
+
+  it("triggers pause when first entry top card removed and mode is pause", async () => {
+    client.execute.mockResolvedValueOnce({
+      rows: [{
+        seat: 1,
+        queue_json: JSON.stringify([
+          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+          { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
+        ]),
+      }],
+    });
+
+    const result = await removeCardFromAllQueues(client, "draft-1", 10);
+    expect(result).toEqual({ pauseSeats: [1] });
+  });
+
+  it("does not trigger pause when removed card is not in first entry", async () => {
+    client.execute.mockResolvedValueOnce({
+      rows: [{
+        seat: 1,
+        queue_json: JSON.stringify([
+          { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
+          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+        ]),
+      }],
+    });
+
+    const result = await removeCardFromAllQueues(client, "draft-1", 10);
+    expect(result).toEqual({ pauseSeats: [] });
+  });
+
+  it("does not trigger pause when first entry group still has cards", async () => {
+    client.execute.mockResolvedValueOnce({
+      rows: [{
+        seat: 1,
+        queue_json: JSON.stringify([
+          { mode: "pause", cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }] },
+        ]),
+      }],
+    });
+
+    const result = await removeCardFromAllQueues(client, "draft-1", 10);
+    // Group still has Chain, so no pause even though Bolt was first card
+    expect(result).toEqual({ pauseSeats: [] });
+  });
+
+  it("does not pause when first entry mode is flow-through", async () => {
+    client.execute.mockResolvedValueOnce({
+      rows: [{
+        seat: 1,
+        queue_json: JSON.stringify([
+          { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }] },
+        ]),
+      }],
+    });
+
+    const result = await removeCardFromAllQueues(client, "draft-1", 10);
+    expect(result).toEqual({ pauseSeats: [] });
+  });
+
+  it("skips seats without the card in their queue", async () => {
+    client.execute.mockResolvedValueOnce({
+      rows: [
+        { seat: 1, queue_json: JSON.stringify([{ mode: "pause", cards: [{ id: 99, name: "Other" }] }]) },
+        { seat: 2, queue_json: JSON.stringify([{ mode: "pause", cards: [{ id: 10, name: "Bolt" }] }]) },
+      ],
+    });
+
+    const result = await removeCardFromAllQueues(client, "draft-1", 10);
+
+    // Only seat 2 should be updated
+    const statements = client.batch.mock.calls[0][0];
+    expect(statements).toHaveLength(1);
+    expect(statements[0].args[1]).toBe("draft-1");
+    expect(statements[0].args[2]).toBe(2);
+    expect(result).toEqual({ pauseSeats: [2] });
   });
 });
 
 describe("getAutoPickCandidate", () => {
   let client: ReturnType<typeof createMockClient>;
+  beforeEach(() => { client = createMockClient(); });
 
-  beforeEach(() => {
-    client = createMockClient();
-  });
-
-  it("returns the highest priority card_id that is in the available set", async () => {
+  it("returns first available card from first entry", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [
-        { priority: 1, card_id: 10, name: "Lightning Bolt" },
-        { priority: 2, card_id: 20, name: "Counterspell" },
-        { priority: 3, card_id: 30, name: "Dark Ritual" },
-      ],
+      rows: [{
+        queue_json: JSON.stringify([
+          { mode: "pause", cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }] },
+        ]),
+      }],
     });
 
-    const available = new Set([20, 30]);
-    const result = await getAutoPickCandidate(client, "draft-1", 1, available);
-
-    expect(result).toBe(20);
+    const result = await getAutoPickCandidate(client, "draft-1", 1, new Set([10, 20]));
+    expect(result).toEqual({ kind: "candidate", cardId: 10, entryIndex: 0 });
   });
 
-  it("returns null when no queued cards are available", async () => {
+  it("skips unavailable cards within an entry", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [
-        { priority: 1, card_id: 10, name: "Lightning Bolt" },
-        { priority: 2, card_id: 20, name: "Counterspell" },
-      ],
+      rows: [{
+        queue_json: JSON.stringify([
+          { mode: "pause", cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }] },
+        ]),
+      }],
     });
 
-    const available = new Set([99, 100]);
-    const result = await getAutoPickCandidate(client, "draft-1", 1, available);
+    const result = await getAutoPickCandidate(client, "draft-1", 1, new Set([20]));
+    expect(result).toEqual({ kind: "candidate", cardId: 20, entryIndex: 0 });
+  });
 
-    expect(result).toBeNull();
+  it("skips exhausted flow-through entries and continues", async () => {
+    client.execute.mockResolvedValueOnce({
+      rows: [{
+        queue_json: JSON.stringify([
+          { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }] },
+          { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
+        ]),
+      }],
+    });
+
+    const result = await getAutoPickCandidate(client, "draft-1", 1, new Set([20]));
+    expect(result).toEqual({ kind: "candidate", cardId: 20, entryIndex: 1 });
+  });
+
+  it("returns paused when exhausted pause entry is reached", async () => {
+    client.execute.mockResolvedValueOnce({
+      rows: [{
+        queue_json: JSON.stringify([
+          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+          { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
+        ]),
+      }],
+    });
+
+    const result = await getAutoPickCandidate(client, "draft-1", 1, new Set([20]));
+    expect(result).toEqual({ kind: "paused" });
+  });
+
+  it("returns empty when all entries exhausted via flow-through", async () => {
+    client.execute.mockResolvedValueOnce({
+      rows: [{
+        queue_json: JSON.stringify([
+          { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }] },
+        ]),
+      }],
+    });
+
+    const result = await getAutoPickCandidate(client, "draft-1", 1, new Set([20]));
+    expect(result).toEqual({ kind: "empty" });
+  });
+
+  it("returns empty when queue is empty", async () => {
+    client.execute.mockResolvedValueOnce({
+      rows: [{ queue_json: "[]" }],
+    });
+
+    const result = await getAutoPickCandidate(client, "draft-1", 1, new Set([10]));
+    expect(result).toEqual({ kind: "empty" });
   });
 });
 
@@ -133,66 +303,119 @@ describe("trimExcessQueueEntries", () => {
   let client: ReturnType<typeof createMockClient>;
   beforeEach(() => { client = createMockClient(); });
 
-  it("removes only excess entries per seat when remainingCopies > 0", async () => {
-    // Seat 1 has card queued at priority 2 and 4 (2 entries, excess = 1 when remaining = 1)
-    // Seat 2 has card queued at priority 1 (1 entry, no excess)
+  it("removes excess card references from lowest-priority entries", async () => {
+    // Seat 1 has the card in entries at index 0 and 2 (two refs), remaining=1
     client.execute.mockResolvedValueOnce({
-      rows: [
-        { seat: 1, priority: 2, card_id: 10 },
-        { seat: 1, priority: 4, card_id: 10 },
-        { seat: 2, priority: 1, card_id: 10 },
-      ],
-    });
-    // After delete batch, query remaining for seat 1 renumbering
-    client.execute.mockResolvedValueOnce({
-      rows: [
-        { card_id: 20 },  // was priority 1
-        { card_id: 10 },  // was priority 2 (kept)
-        { card_id: 30 },  // was priority 3
-      ],
+      rows: [{
+        seat: 1,
+        queue_json: JSON.stringify([
+          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+          { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
+          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+        ]),
+      }],
     });
 
     await trimExcessQueueEntries(client, "draft-1", 10, 1);
 
-    // Should have: 1 execute (SELECT entries) + 1 batch (delete excess) + 1 execute (SELECT remaining for seat 1) + 1 batch (renumber seat 1)
-    expect(client.execute).toHaveBeenCalledTimes(2);
-    expect(client.batch).toHaveBeenCalledTimes(2);
+    const statements = client.batch.mock.calls[0][0];
+    const json = JSON.parse(statements[0].args[0] as string);
+    // Entry at index 2 (lowest priority) should be removed
+    expect(json).toEqual([
+      { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+      { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
+    ]);
+  });
 
-    // First batch: delete the excess entry (seat 1, priority 4)
-    const deleteBatch = client.batch.mock.calls[0][0];
-    expect(deleteBatch).toHaveLength(1);
-    expect(deleteBatch[0].args).toEqual(["draft-1", 1, 4]);
+  it("removes card from within a group at lowest priority", async () => {
+    client.execute.mockResolvedValueOnce({
+      rows: [{
+        seat: 1,
+        queue_json: JSON.stringify([
+          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+          { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }] },
+        ]),
+      }],
+    });
 
-    // Second batch: renumber seat 1 (delete + 3 inserts)
-    const renumberBatch = client.batch.mock.calls[1][0];
-    expect(renumberBatch).toHaveLength(4); // 1 delete + 3 inserts
-    expect(renumberBatch[0].sql).toContain("DELETE");
+    await trimExcessQueueEntries(client, "draft-1", 10, 1);
+
+    const statements = client.batch.mock.calls[0][0];
+    const json = JSON.parse(statements[0].args[0] as string);
+    expect(json).toEqual([
+      { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+      { mode: "flow-through", cards: [{ id: 20, name: "Chain" }] },
+    ]);
+  });
+
+  it("delegates to removeCardFromAllQueues when remainingCopies is 0", async () => {
+    // removeCardFromAllQueues SELECT
+    client.execute.mockResolvedValueOnce({
+      rows: [{
+        seat: 1,
+        queue_json: JSON.stringify([{ mode: "pause", cards: [{ id: 10, name: "Bolt" }] }]),
+      }],
+    });
+
+    await trimExcessQueueEntries(client, "draft-1", 10, 0);
+
+    // Should have called removeCardFromAllQueues path
+    expect(client.execute).toHaveBeenCalled();
   });
 
   it("does nothing when no seat has excess entries", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [
-        { seat: 1, priority: 2, card_id: 10 },
-        { seat: 2, priority: 1, card_id: 10 },
-      ],
+      rows: [{
+        seat: 1,
+        queue_json: JSON.stringify([
+          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+        ]),
+      }],
     });
 
     await trimExcessQueueEntries(client, "draft-1", 10, 2);
 
-    // Only the initial SELECT, no batches
-    expect(client.execute).toHaveBeenCalledTimes(1);
     expect(client.batch).not.toHaveBeenCalled();
   });
 
-  it("delegates to removeCardFromAllQueues when remainingCopies is 0", async () => {
-    // removeCardFromAllQueues expects: execute (DELETE), execute (SELECT remaining)
-    client.execute.mockResolvedValueOnce({ rows: [] }); // DELETE
-    client.execute.mockResolvedValueOnce({ rows: [] }); // SELECT remaining
+  it("never triggers a pause even if first entry is emptied", async () => {
+    client.execute.mockResolvedValueOnce({
+      rows: [{
+        seat: 1,
+        queue_json: JSON.stringify([
+          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+        ]),
+      }],
+    });
 
-    await trimExcessQueueEntries(client, "draft-1", 10, 0);
+    // remainingCopies=1, so one Bolt ref stays, one gets trimmed. Bottom-up, so index 1 is trimmed.
+    await trimExcessQueueEntries(client, "draft-1", 10, 1);
 
-    // Should have called execute for the removeCardFromAllQueues path
-    expect(client.execute).toHaveBeenCalledTimes(2);
-    expect(client.execute.mock.calls[0][0].sql).toContain("DELETE");
+    const statements = client.batch.mock.calls[0][0];
+    const json = JSON.parse(statements[0].args[0] as string);
+    expect(json).toEqual([{ mode: "pause", cards: [{ id: 10, name: "Bolt" }] }]);
+  });
+});
+
+describe("fulfillGroupEntry", () => {
+  let client: ReturnType<typeof createMockClient>;
+  beforeEach(() => { client = createMockClient(); });
+
+  it("removes the entry at the given index", async () => {
+    client.execute.mockResolvedValueOnce({
+      rows: [{
+        queue_json: JSON.stringify([
+          { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }] },
+          { mode: "pause", cards: [{ id: 30, name: "Recall" }] },
+        ]),
+      }],
+    });
+
+    await fulfillGroupEntry(client, "draft-1", 1, 0);
+
+    const call = client.execute.mock.calls[1][0]; // second call is the UPDATE
+    const json = JSON.parse(call.args[0] as string);
+    expect(json).toEqual([{ mode: "pause", cards: [{ id: 30, name: "Recall" }] }]);
   });
 });

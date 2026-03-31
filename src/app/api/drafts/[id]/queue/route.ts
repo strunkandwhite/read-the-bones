@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
-import { getQueue, setQueue } from "@/core/db/queries/pickQueue";
+import { getQueue, setQueue, type QueueEntry } from "@/core/db/queries/pickQueue";
 import { resolveCardIds } from "@/core/db/queries/cards";
 import { AppError } from "@/core/errors";
 
@@ -44,20 +44,20 @@ export async function PUT(
     // Batch resolve card names to IDs
     const nameToId = await resolveCardIds(client, cardNames);
 
-    const cardIds: number[] = [];
+    const newEntries: QueueEntry[] = [];
     for (const name of cardNames) {
       const id = nameToId.get(name);
       if (id === undefined) {
         return NextResponse.json({ error: `Card not found: ${name}` }, { status: 400 });
       }
-      cardIds.push(id);
+      newEntries.push({ mode: 'pause', cards: [{ id, name }] });
     }
 
     // Get old queue before replacing, to detect removed cards
     const oldQueue = await getQueue(client, draftId, seat);
-    const oldCardNames = oldQueue.map((q) => q.cardName);
+    const oldCardNames = oldQueue.flatMap((entry) => entry.cards.map((c) => c.name));
 
-    await setQueue(client, draftId, seat, cardIds);
+    await setQueue(client, draftId, seat, newEntries);
 
     // Auto-float any cards that were removed from the queue
     const newCardNameSet = new Set(cardNames);
