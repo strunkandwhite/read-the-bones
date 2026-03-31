@@ -8,6 +8,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   useDroppable,
@@ -325,6 +326,7 @@ export function QueuePanel({
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 500, tolerance: 8 } }),
     useSensor(KeyboardSensor),
   );
 
@@ -334,6 +336,10 @@ export function QueuePanel({
       updateActiveSlot(null);
       updateMergeTarget(null);
       clearHoverTimer();
+      // Haptic feedback on mobile when drag activates
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        navigator.vibrate(10);
+      }
     },
     [clearHoverTimer],
   );
