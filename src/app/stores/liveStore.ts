@@ -431,13 +431,18 @@ export const useLiveStore = create<LiveStoreState>()(
     },
 
     addToQueue: (cardName: string) => {
-      const { queue: original } = get();
+      const { queue: original, floatedCards } = get();
       // Optimistic update: add card to queue immediately
       const optimisticQueue = [...original, { priority: original.length + 1, cardId: 0, cardName }];
       set({
         queue: optimisticQueue,
         queuedCardCounts: deriveQueuedCardCounts(optimisticQueue),
       });
+      // Queue supersedes float — optimistically remove from float list
+      if (floatedCards.includes(cardName)) {
+        const nextFloats = floatedCards.filter((c) => c !== cardName);
+        set({ floatedCards: nextFloats, floatedCardsSet: new Set(nextFloats) });
+      }
       const newNames = [...original.map((e) => e.cardName), cardName];
       syncQueue(set, get, newNames, original);
     },
@@ -796,6 +801,15 @@ function syncDeckWithPicks() {
     canonicalCards,
     scryfallData: scryfallDataMap,
   });
+
+  // Ensure deckState identity (draftId/seat) is correct — mySeat may not
+  // have been available when fetchDeckState ran, so patch it here.
+  const activeDraft = useDraftStore.getState().activeDraft;
+  const mySeat = useLiveStore.getState().mySeat;
+  const ds = useLiveStore.getState().deckState;
+  if (activeDraft && mySeat != null && (ds.draftId !== activeDraft || ds.seat !== mySeat)) {
+    useLiveStore.setState({ deckState: { ...ds, draftId: activeDraft, seat: mySeat } });
+  }
 }
 
 function debouncedSyncDeckWithPicks() {
@@ -828,5 +842,11 @@ useLiveStore.subscribe(
 // Rebuild deck when queue changes
 useLiveStore.subscribe(
   (state) => state.queue,
+  () => debouncedSyncDeckWithPicks(),
+);
+
+// Rebuild deck when mySeat resolves (identity fix)
+useLiveStore.subscribe(
+  (state) => state.mySeat,
   () => debouncedSyncDeckWithPicks(),
 );

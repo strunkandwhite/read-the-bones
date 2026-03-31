@@ -217,15 +217,6 @@ export function DeckBuilderPanel({
     <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-zinc-700/40 bg-zinc-950">
       <div className="flex items-center justify-between border-b border-zinc-800/60 bg-zinc-900/80 px-5 py-3">
         <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-white"
-            aria-label="Close"
-          >
-            ✕
-          </button>
-          <div className="h-4 w-px bg-zinc-700/60" />
           <span className="text-sm font-semibold tracking-tight text-zinc-200">
             {draftName}
           </span>
@@ -271,6 +262,15 @@ export function DeckBuilderPanel({
             className="cursor-pointer rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm shadow-blue-900/40 hover:bg-blue-500 transition-colors"
           >
             {shareStatus === "sharing" ? "Sharing..." : shareStatus === "shared" ? "Copied!" : "Share Deck"}
+          </button>
+          <div className="h-4 w-px bg-zinc-700/60" />
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-white"
+            aria-label="Close"
+          >
+            ✕
           </button>
         </div>
       </div>

@@ -1508,7 +1508,7 @@ describe("liveStore — fetchDeckState", () => {
 
     const s = useLiveStore.getState();
     expect(s.deckReady).toBe(true);
-    // deckState remains empty
+    // deckState remains empty — identity is patched later by syncDeckWithPicks
     expect(s.deckState.draftId).toBe("");
   });
 

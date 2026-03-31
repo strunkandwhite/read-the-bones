@@ -71,6 +71,18 @@ export async function PUT(
       );
     }
 
+    // Auto-unfloat any cards that were added to the queue (queue supersedes float)
+    const oldCardNameSet = new Set(oldCardNames);
+    const addedCardNames = cardNames.filter((name) => !oldCardNameSet.has(name));
+    if (addedCardNames.length > 0) {
+      await client.batch(
+        addedCardNames.map((name) => ({
+          sql: "DELETE FROM floated_cards WHERE draft_id = ? AND seat = ? AND card_name = ?",
+          args: [draftId, seat, name],
+        }))
+      );
+    }
+
     const queue = await getQueue(client, draftId, seat);
     return NextResponse.json({ queue });
   } catch (error) {
