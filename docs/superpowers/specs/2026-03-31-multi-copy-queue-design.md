@@ -58,7 +58,16 @@ Currently calls `DELETE FROM pick_queue WHERE draft_id = ? AND card_id = ?`, bla
 
 Two changes are needed:
 
-1. **Invoke on every pick, not just last copy.** The `if (isLastCopy)` guard in `processPick.ts` must be relaxed so the cascade fires whenever a pick reduces availability below any seat's queued count. (When the last copy is taken, the function still removes all entries — this is a special case of "excess entries = all entries.")
+1. **Invoke on every pick, not just last copy.** The `if (isLastCopy)` guard in `processPick.ts` must be replaced with a copy-aware check:
+
+   ```
+   remainingAfterPick = cube_qty - (picked_count + 1)  // +1 for current pick
+   seatsWithExcessQueued = query seats where queued_count > remainingAfterPick
+   if seatsWithExcessQueued is not empty:
+     call removeCardFromAllQueues(client, draftId, cardId, remainingAfterPick)
+   ```
+
+   When the last copy is taken (`remainingAfterPick = 0`), every seat with any queue entry has excess — this degenerates to the current "remove all" behavior.
 
 2. **Make the function copy-aware.** New algorithm:
    - Query remaining copies: `cube_qty - picked_count` for the card
@@ -102,7 +111,9 @@ Behavior is identical to today. After one queue entry, `queuedCount` equals `rem
 
 `QueuePanel.tsx` renders from the `queue: QueueEntry[]` array. Duplicate card names naturally appear as separate rows at their respective positions (e.g., Scalding Tarn at #2 and #7).
 
-However, the QueuePanel's remove button currently calls `onRemove(cardName)`. With duplicates, clicking remove on row #7 (Scalding Tarn) would incorrectly remove #2 (the highest-priority entry) instead. QueuePanel must change to pass the priority/index to `onRemove` so the correct row is removed. `removeFromQueue` in the store may need a priority-aware variant (e.g., `removeFromQueueByPriority(cardName, priority)`) for QueuePanel's use case, while the stats modal continues to use the "remove from top" behavior.
+However, the QueuePanel's remove button currently calls `onRemove(cardName)`. With duplicates, clicking remove on row #7 (Scalding Tarn) would incorrectly remove #2 (the highest-priority entry) instead. QueuePanel must change to pass the priority to `onRemove` so the correct row is removed.
+
+Add `removeFromQueueByPriority(cardName, priority)` to the store. This removes the entry matching both the card name and the given priority number. Optimistically, it filters the queue array for the entry where `e.cardName === cardName && e.priority === priority`, removes that single entry, and re-derives `queuedCardCounts`. Then syncs the remaining queue to the server. The stats modal continues to use `removeFromQueue(cardName)` which removes from the top (highest priority / lowest number).
 
 ## Auto-Pick
 
