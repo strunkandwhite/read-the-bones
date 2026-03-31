@@ -43,15 +43,13 @@ export function DraftBoardModal({
   const mySeat = useLiveStore((s) => s.mySeat);
   const seatToken = useLiveStore((s) => s.seatToken);
   const autoPick = useLiveStore((s) => s.autoPick);
-  const autoPickMode = useLiveStore((s) => s.autoPickMode);
   const queue = useLiveStore((s) => s.queue);
   const isMyTurn = useLiveStore((s) => s.isMyTurn);
   const pickError = useLiveStore((s) => s.pickError);
   const submitPick = useLiveStore((s) => s.handlePick);
   const reorderQueue = useLiveStore((s) => s.reorderQueue);
-  const removeFromQueueByPriority = useLiveStore((s) => s.removeFromQueueByPriority);
+  const removeFromQueue = useLiveStore((s) => s.removeFromQueue);
   const toggleAutoPick = useLiveStore((s) => s.toggleAutoPick);
-  const updateAutoPickMode = useLiveStore((s) => s.updateAutoPickMode);
 
   const isAuthed = useIsAuthed();
 
@@ -70,7 +68,10 @@ export function DraftBoardModal({
     await useDraftStore.getState().refreshNow();
   }, [mySeat, patchSeatName]);
 
-  const pickQueue = queue.map((e) => ({ cardName: e.cardName, position: e.priority }));
+  // Map grouped queue entries to flat display items for QueuePanel
+  const pickQueue = queue.flatMap((entry, entryIndex) =>
+    entry.cards.map((card) => ({ cardName: card.cardName, position: entryIndex + 1 }))
+  );
 
   const phase = board?.phase ?? liveDraftStatus?.phase ?? "unknown";
   const badgeColors = PHASE_BADGE_COLORS[phase] ?? { bg: "bg-zinc-700", text: "text-zinc-400" };
@@ -159,11 +160,17 @@ export function DraftBoardModal({
                   <QueuePanel
                     queue={pickQueue}
                     autoPick={autoPick}
-                    autoPickMode={autoPickMode}
-                    onReorder={reorderQueue}
-                    onRemove={removeFromQueueByPriority}
+                    autoPickMode="resilient"
+                    onReorder={(cardNames) => {
+                      const entries = cardNames.map((name) => ({
+                        mode: 'pause' as const,
+                        cards: [{ cardId: 0, cardName: name }],
+                      }));
+                      reorderQueue(entries);
+                    }}
+                    onRemove={(cardName) => removeFromQueue(cardName)}
                     onToggleAutoPick={toggleAutoPick}
-                    onChangeAutoPickMode={updateAutoPickMode}
+                    onChangeAutoPickMode={() => {}}
                   />
                 )}
               </div>

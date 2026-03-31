@@ -24,18 +24,19 @@ export function getCardStatus(cardName: string): CardStatusResult {
   if (getIsAuthed()) {
     const count = queuedCardCounts.get(cardName);
     if (count != null && count > 0) {
-      // Find highest-priority (lowest number) entry for queue position display
-      let minPriority = Infinity;
-      for (const e of queue) {
-        if (e.cardName === cardName && e.priority < minPriority) {
-          minPriority = e.priority;
+      // Find the first entry (by index) that contains this card; position is 1-based entry index
+      let entryPosition = Infinity;
+      for (let i = 0; i < queue.length; i++) {
+        if (queue[i].cards.some((c) => c.cardName === cardName)) {
+          entryPosition = i + 1;
+          break;
         }
       }
       const cubeCopies = cardData.cubeCopies[cardName] ?? 1;
       const takenCount = takenCardCounts?.get(cardName) ?? 0;
       return {
         status: "queued",
-        queuePosition: minPriority,
+        queuePosition: entryPosition,
         queuedCount: count,
         remainingCopies: cubeCopies - takenCount,
       };

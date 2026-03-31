@@ -62,7 +62,7 @@ export function DeckBuilderPanel({
 
   const isAuthed = useIsAuthed();
   const effectiveFloatedCards = isAuthed ? floatedCards : [];
-  const effectiveQueuedCardNames = isAuthed ? queue.map((e) => e.cardName) : [];
+  const effectiveQueuedCardNames = isAuthed ? queue.flatMap((e) => e.cards.map((c) => c.cardName)) : [];
 
   const [showBasicLands, setShowBasicLands] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);

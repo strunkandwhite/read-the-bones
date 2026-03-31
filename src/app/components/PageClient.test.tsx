@@ -130,7 +130,6 @@ describe("PageClient", () => {
       seatToken: null,
       mySeat: null,
       autoPick: true,
-      autoPickMode: "resilient",
       displayName: null,
       queue: [],
       queuedCardCounts: new Map(),

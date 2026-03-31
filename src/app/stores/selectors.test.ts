@@ -50,7 +50,6 @@ function resetStores() {
     seatToken: null,
     mySeat: null,
     autoPick: true,
-    autoPickMode: "resilient",
     displayName: null,
     queue: [],
     queuedCardCounts: new Map(),
@@ -87,7 +86,7 @@ describe("getCardStatus", () => {
     useLiveStore.setState({
       mySeat: 2,
       queuedCardCounts: new Map([["Counterspell", 1]]),
-      queue: [{ priority: 1, cardId: 0, cardName: "Counterspell" }],
+      queue: [{ mode: 'pause', cards: [{ cardId: 0, cardName: "Counterspell" }] }],
     });
     expect(getCardStatus("Counterspell")).toEqual({
       status: "queued",
@@ -121,7 +120,7 @@ describe("getCardStatus", () => {
     useLiveStore.setState({
       mySeat: 2,
       queuedCardCounts: new Map([["Force of Will", 1]]),
-      queue: [{ priority: 1, cardId: 0, cardName: "Force of Will" }],
+      queue: [{ mode: 'pause', cards: [{ cardId: 0, cardName: "Force of Will" }] }],
     });
     expect(getCardStatus("Force of Will")).toEqual({ status: "none" });
   });
@@ -141,7 +140,7 @@ describe("getCardStatus", () => {
     useLiveStore.setState({
       mySeat: 1,
       queuedCardCounts: new Map([["Swords to Plowshares", 1]]),
-      queue: [{ priority: 1, cardId: 0, cardName: "Swords to Plowshares" }],
+      queue: [{ mode: 'pause', cards: [{ cardId: 0, cardName: "Swords to Plowshares" }] }],
     });
     useCardStore.setState({
       seatCardNames: new Set(["Swords to Plowshares"]),
@@ -154,7 +153,11 @@ describe("getCardStatus", () => {
     useLiveStore.setState({
       mySeat: 1,
       queuedCardCounts: new Map([["Thoughtseize", 1]]),
-      queue: [{ priority: 2, cardId: 0, cardName: "Thoughtseize" }],
+      // Position is 1-based entry index, so putting it in the second entry gives position 2
+      queue: [
+        { mode: 'pause', cards: [{ cardId: 99, cardName: "Other Card" }] },
+        { mode: 'pause', cards: [{ cardId: 0, cardName: "Thoughtseize" }] },
+      ],
     });
     useCardStore.setState({
       takenCardNamesSet: new Set(["Thoughtseize"]),
@@ -173,8 +176,8 @@ describe("getCardStatus", () => {
       mySeat: 2,
       queuedCardCounts: new Map([["Scalding Tarn", 2]]),
       queue: [
-        { priority: 1, cardId: 10, cardName: "Scalding Tarn" },
-        { priority: 3, cardId: 10, cardName: "Scalding Tarn" },
+        { mode: 'pause', cards: [{ cardId: 10, cardName: "Scalding Tarn" }] },
+        { mode: 'pause', cards: [{ cardId: 10, cardName: "Scalding Tarn" }] },
       ],
     });
     useCardStore.setState({

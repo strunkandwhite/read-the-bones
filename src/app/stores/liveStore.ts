@@ -13,10 +13,12 @@ import type { DeckState } from "@/core/types";
 
 export type { DeckAction };
 
-function deriveQueuedCardCounts(queue: QueueEntry[]): Map<string, number> {
+function deriveQueuedCardCounts(queue: QueueGroupEntry[]): Map<string, number> {
   const counts = new Map<string, number>();
-  for (const e of queue) {
-    counts.set(e.cardName, (counts.get(e.cardName) ?? 0) + 1);
+  for (const entry of queue) {
+    for (const card of entry.cards) {
+      counts.set(card.cardName, (counts.get(card.cardName) ?? 0) + 1);
+    }
   }
   return counts;
 }
@@ -25,22 +27,29 @@ function deriveQueuedCardCounts(queue: QueueEntry[]): Map<string, number> {
 // Types
 // ---------------------------------------------------------------------------
 
-export interface QueueEntry {
-  priority: number;
+export interface QueueCard {
   cardId: number;
   cardName: string;
 }
+
+export interface QueueGroupEntry {
+  mode: 'pause' | 'flow-through';
+  cards: QueueCard[];
+}
+
+// Server-side queue format (id/name fields)
+interface ServerQueueCard { id?: number; cardId?: number; name?: string; cardName?: string; }
+interface ServerQueueEntry { mode: 'pause' | 'flow-through'; cards: ServerQueueCard[]; }
 
 interface LiveStoreState {
   // Auth
   seatToken: string | null;
   mySeat: number | null;
   autoPick: boolean;
-  autoPickMode: "resilient" | "cautious";
   displayName: string | null;
 
   // Queue
-  queue: QueueEntry[];
+  queue: QueueGroupEntry[];
   queuedCardCounts: Map<string, number>;
   queueLoading: boolean;
   queueError: string | null;
@@ -66,15 +75,14 @@ interface LiveStoreState {
   fetchMySeat: () => Promise<void>;
   toggleAutoPick: () => Promise<void>;
   updateDisplayName: (name: string) => Promise<void>;
-  updateAutoPickMode: (mode: "resilient" | "cautious") => Promise<void>;
   refreshSettings: () => Promise<void>;
 
   // Queue actions
   fetchQueue: () => Promise<void>;
   addToQueue: (cardName: string) => void;
   removeFromQueue: (cardName: string) => void;
-  removeFromQueueByPriority: (cardName: string, priority: number) => void;
-  reorderQueue: (cardNames: string[]) => void;
+  reorderQueue: (entries: QueueGroupEntry[]) => void;
+  setEntryMode: (entryIndex: number, mode: 'pause' | 'flow-through') => void;
 
   // Float actions
   fetchFloatedCards: () => Promise<void>;
@@ -98,7 +106,7 @@ interface LiveStoreState {
 type SetState = (partial: Partial<LiveStoreState>) => void;
 type GetState = () => LiveStoreState;
 
-async function syncQueue(set: SetState, get: GetState, cardNames: string[], previousQueue?: QueueEntry[]) {
+async function syncQueue(set: SetState, get: GetState, newQueue: QueueGroupEntry[], previousQueue?: QueueGroupEntry[]) {
   const { seatToken } = get();
   const fallbackQueue = previousQueue ?? get().queue;
   const activeDraft = useDraftStore.getState().activeDraft;
@@ -106,7 +114,10 @@ async function syncQueue(set: SetState, get: GetState, cardNames: string[], prev
 
   set({ queueLoading: true });
   try {
-    const body = cardNames.map((card_name) => ({ card_name }));
+    const body = newQueue.map((entry) => ({
+      mode: entry.mode,
+      cards: entry.cards.map((c) => c.cardName),
+    }));
     const res = await fetch(`/api/drafts/${activeDraft}/queue`, {
       method: "PUT",
       headers: {
@@ -117,7 +128,11 @@ async function syncQueue(set: SetState, get: GetState, cardNames: string[], prev
     });
     if (res.ok) {
       const data = await res.json();
-      const queue: QueueEntry[] = data.queue;
+      // Server returns { mode, cards: [{ id, name }] } format
+      const queue: QueueGroupEntry[] = (data.queue as ServerQueueEntry[]).map((e) => ({
+        mode: e.mode,
+        cards: e.cards.map((c) => ({ cardId: c.id ?? c.cardId ?? 0, cardName: c.name ?? c.cardName ?? "" })),
+      }));
       set({
         queue,
         queuedCardCounts: deriveQueuedCardCounts(queue),
@@ -236,7 +251,6 @@ export const useLiveStore = create<LiveStoreState>()(
     seatToken: null,
     mySeat: null,
     autoPick: true,
-    autoPickMode: "resilient",
     displayName: null,
 
     // Queue state
@@ -296,7 +310,6 @@ export const useLiveStore = create<LiveStoreState>()(
           mySeat: data.seat,
           autoPick: data.autoPick,
           displayName: data.displayName,
-          autoPickMode: data.autoPickMode || "resilient",
         });
         recomputePicking();
       } catch {
@@ -355,31 +368,6 @@ export const useLiveStore = create<LiveStoreState>()(
     },
 
     // -----------------------------------------------------------------------
-    // updateAutoPickMode — optimistic update, reverts on failure
-    // -----------------------------------------------------------------------
-    updateAutoPickMode: async (mode: "resilient" | "cautious") => {
-      const { seatToken, autoPickMode: previous } = get();
-      const activeDraft = useDraftStore.getState().activeDraft;
-      if (!seatToken || !activeDraft) return;
-
-      set({ autoPickMode: mode });
-
-      try {
-        const res = await fetch(`/api/drafts/${activeDraft}/seat-settings`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Seat-Token": seatToken,
-          },
-          body: JSON.stringify({ auto_pick_mode: mode }),
-        });
-        if (!res.ok) set({ autoPickMode: previous });
-      } catch {
-        set({ autoPickMode: previous });
-      }
-    },
-
-    // -----------------------------------------------------------------------
     // refreshSettings — re-fetches seat settings from server
     // -----------------------------------------------------------------------
     refreshSettings: async () => {
@@ -395,7 +383,6 @@ export const useLiveStore = create<LiveStoreState>()(
         const data = await res.json();
         set({
           autoPick: data.autoPick,
-          autoPickMode: data.autoPickMode || "resilient",
         });
       } catch {
         // ignore
@@ -417,7 +404,11 @@ export const useLiveStore = create<LiveStoreState>()(
         });
         if (res.ok) {
           const data = await res.json();
-          const queue: QueueEntry[] = data.queue;
+          // Server returns { mode, cards: [{ id, name }] } format
+          const queue: QueueGroupEntry[] = (data.queue as ServerQueueEntry[]).map((e) => ({
+            mode: e.mode,
+            cards: e.cards.map((c) => ({ cardId: c.id ?? c.cardId ?? 0, cardName: c.name ?? c.cardName ?? "" })),
+          }));
           set({
             queue,
             queuedCardCounts: deriveQueuedCardCounts(queue),
@@ -432,8 +423,8 @@ export const useLiveStore = create<LiveStoreState>()(
 
     addToQueue: (cardName: string) => {
       const { queue: original, floatedCards } = get();
-      // Optimistic update: add card to queue immediately
-      const optimisticQueue = [...original, { priority: original.length + 1, cardId: 0, cardName }];
+      // Optimistic update: add card as a new pause entry at the end
+      const optimisticQueue: QueueGroupEntry[] = [...original, { mode: 'pause', cards: [{ cardId: 0, cardName }] }];
       set({
         queue: optimisticQueue,
         queuedCardCounts: deriveQueuedCardCounts(optimisticQueue),
@@ -443,44 +434,44 @@ export const useLiveStore = create<LiveStoreState>()(
         const nextFloats = floatedCards.filter((c) => c !== cardName);
         set({ floatedCards: nextFloats, floatedCardsSet: new Set(nextFloats) });
       }
-      const newNames = [...original.map((e) => e.cardName), cardName];
-      syncQueue(set, get, newNames, original);
+      syncQueue(set, get, optimisticQueue, original);
     },
 
     removeFromQueue: (cardName: string) => {
       const { queue: original } = get();
-      // Remove only the highest-priority (lowest number) entry for this card
-      const targetIndex = original.reduce<number | null>((best, e, i) => {
-        if (e.cardName !== cardName) return best;
-        if (best === null || e.priority < original[best].priority) return i;
-        return best;
-      }, null);
-      if (targetIndex === null) return;
-      const optimisticQueue = original.filter((_, i) => i !== targetIndex);
+      // Find the first entry containing this card, remove the card from it; remove empty entries
+      let found = false;
+      const optimisticQueue: QueueGroupEntry[] = original
+        .map((entry) => {
+          if (!found) {
+            const cardIndex = entry.cards.findIndex((c) => c.cardName === cardName);
+            if (cardIndex !== -1) {
+              found = true;
+              return { ...entry, cards: entry.cards.filter((_, i) => i !== cardIndex) };
+            }
+          }
+          return entry;
+        })
+        .filter((entry) => entry.cards.length > 0);
+      if (!found) return;
       set({
         queue: optimisticQueue,
         queuedCardCounts: deriveQueuedCardCounts(optimisticQueue),
       });
-      const newNames = optimisticQueue.map((e) => e.cardName);
-      syncQueue(set, get, newNames, original);
+      syncQueue(set, get, optimisticQueue, original);
     },
 
-    removeFromQueueByPriority: (cardName: string, priority: number) => {
+    reorderQueue: (entries: QueueGroupEntry[]) => {
+      syncQueue(set, get, entries);
+    },
+
+    setEntryMode: (entryIndex: number, mode: 'pause' | 'flow-through') => {
       const { queue: original } = get();
-      const optimisticQueue = original.filter(
-        (e) => !(e.cardName === cardName && e.priority === priority)
+      const newQueue = original.map((entry, i) =>
+        i === entryIndex ? { ...entry, mode } : entry
       );
-      if (optimisticQueue.length === original.length) return; // no match
-      set({
-        queue: optimisticQueue,
-        queuedCardCounts: deriveQueuedCardCounts(optimisticQueue),
-      });
-      const newNames = optimisticQueue.map((e) => e.cardName);
-      syncQueue(set, get, newNames, original);
-    },
-
-    reorderQueue: (cardNames: string[]) => {
-      syncQueue(set, get, cardNames);
+      set({ queue: newQueue, queuedCardCounts: deriveQueuedCardCounts(newQueue) });
+      syncQueue(set, get, newQueue, original);
     },
 
     // -----------------------------------------------------------------------
@@ -661,7 +652,6 @@ async function triggerAutoPick() {
   if (autoPickInFlight) return;
   autoPickInFlight = true;
   try {
-    // Re-check server-side settings before auto-picking (cautious mode may have disabled it)
     await useLiveStore.getState().refreshSettings();
     const { autoPick } = useLiveStore.getState();
     if (!autoPick) return;
@@ -671,15 +661,23 @@ async function triggerAutoPick() {
     const { queue } = useLiveStore.getState();
     if (queue.length === 0) return;
 
-    // Try each queued card in priority order — if the top card was already taken,
-    // handlePick suppresses the "already been picked" error, so try the next card.
-    const sorted = [...queue].sort((a, b) => a.priority - b.priority);
-    for (const entry of sorted) {
-      const { pickError } = useLiveStore.getState();
-      if (pickError) break; // real error, stop trying
-      await useLiveStore.getState().handlePick(entry.cardName);
-      // If no error, the pick succeeded — stop
-      if (!useLiveStore.getState().pickError) break;
+    // Try entries in order; within each entry try each card.
+    // If a card succeeds, stop. If a card fails with "already taken", try the next card in the entry.
+    // If the whole entry is exhausted without a pick, check mode:
+    //   pause → stop; flow-through → continue to next entry.
+    for (const entry of queue) {
+      let pickedFromEntry = false;
+      for (const card of entry.cards) {
+        await useLiveStore.getState().handlePick(card.cardName);
+        if (!useLiveStore.getState().pickError) {
+          pickedFromEntry = true;
+          break;
+        }
+        useLiveStore.getState().setPickError(null);
+      }
+      if (pickedFromEntry) break;
+      if (entry.mode === 'pause') break;
+      // flow-through: continue to next entry
     }
   } finally {
     autoPickInFlight = false;
@@ -732,7 +730,6 @@ useDraftStore.subscribe(
         seatToken: null,
         mySeat: null,
         autoPick: true,
-        autoPickMode: "resilient",
         displayName: null,
         queue: [],
         queuedCardCounts: new Map(),
@@ -782,7 +779,7 @@ function syncDeckWithPicks() {
 
   const picks = seatCardList ?? [];
   const authFloated = isAuthed ? floatedCards : [];
-  const authQueued = isAuthed ? [...queue].map((e) => e.cardName) : [];
+  const authQueued = isAuthed ? queue.flatMap((entry) => entry.cards.map((c) => c.cardName)) : [];
   // Deduplicate speculative cards: if a card is both floated and queued, count it once.
   // Picks are authoritative; speculative cards add on top of picks but not on top of each other.
   const pickedSet = new Set(picks);
