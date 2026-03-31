@@ -40,25 +40,22 @@ pnpm precommit   # Run all checks: typecheck → lint → knip → tests → e2e
 # Database commands
 pnpm db:migrate  # Run database migrations (creates tables in Turso)
 
-# Sync pipeline
-pnpm sync                      # Sync all active drafts from Google Sheets → Turso
-pnpm sync tarkir               # Sync a specific draft
-pnpm sync --dry-run            # Preview what would change without writing to DB
-
-# Draft lifecycle
-pnpm draft:create --name "Draft Name" --date 2026-01-15 --sheet-id <id>  # Create new draft
+# Draft lifecycle (Sheets-based — for importing completed or in-progress external drafts)
+pnpm draft:create --name "Draft Name" --date 2026-01-15 --sheet-id <id>  # Create draft record linked to a Google Sheet
+pnpm sync <draft-name>         # Sync picks, pool, and matches from Google Sheets → Turso
+pnpm sync                      # Sync all Sheets-based drafts
 pnpm draft:reset <draft-name>  # Reset a draft (clear all data, re-sync from scratch)
-pnpm draft:delete <draft-id>  # Permanently delete a draft and all associated data
+pnpm draft:delete <draft-id>   # Permanently delete a draft and all associated data
 
-# Decklists
-pnpm decklists                 # Fetch decklists from sealeddeck.tech and write to Turso
-pnpm decklists tarkir          # Fetch decklists for a specific draft
-
-# Live draft commands
+# Draft lifecycle (live — for running rotisserie drafts in-app)
 pnpm draft:create-live --name "Name" --date 2026-04-01 --seats 10 --picks-per-player 45 --pool cubecobra:<id>
 # Default cube ID for new drafts: cubecobra:samp
 pnpm draft:start <name>              # Start drafting (setup → drafting)
 pnpm draft:admin <subcommand>        # Admin tools (undo-pick, edit-pick, regen-token, set-phase, add-ban, remove-ban, enter-match)
+
+# Decklists
+pnpm decklists                 # Fetch decklists from sealeddeck.tech and write to Turso
+pnpm decklists tarkir          # Fetch decklists for a specific draft
 
 # Scryfall data
 pnpm scryfall:backfill         # Fetch missing Scryfall data for cards in Turso, update local cache

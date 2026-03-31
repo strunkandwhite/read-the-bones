@@ -49,9 +49,25 @@ pnpm precommit   # Run all checks: typecheck, lint, knip, tests
 
 ## Adding Draft Data
 
-1. Create a draft: `pnpm draft:create --name "Draft Name" --date 2026-01-15 --sheet-id <google-sheet-id>`
-2. Sync data: `pnpm sync` (fetches picks and matches from Google Sheets into Turso)
+There are two ways to add drafts:
+
+### Sheets-based drafts (importing external drafts)
+
+For drafts run outside the app (e.g., via Google Sheets):
+
+1. Create a draft record: `pnpm draft:create --name "Draft Name" --date 2026-01-15 --sheet-id <google-sheet-id>`
+2. Sync data: `pnpm sync <draft-name>` (fetches pool, picks, and matches from Google Sheets into Turso)
 3. Optionally add decklists: add sealeddeck.tech URLs to `data/decklists.txt`, then run `pnpm decklists`
+
+Re-run `pnpm sync <draft-name>` to pull updated data as the draft progresses. Use `pnpm draft:reset <draft-name>` followed by `pnpm sync <draft-name>` to force a full reimport.
+
+### Live drafts (in-app rotisserie drafts)
+
+For drafts run directly in the app:
+
+1. Create: `pnpm draft:create-live --name "Name" --date 2026-04-01 --seats 10 --picks-per-player 45 --pool cubecobra:<id>`
+2. Start: `pnpm draft:start <draft-name>`
+3. Share seat URLs with players (printed by the create command)
 
 ## REST API
 

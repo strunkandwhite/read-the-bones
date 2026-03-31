@@ -73,8 +73,8 @@ async function main() {
   }
 
   await client.execute({
-    sql: `INSERT INTO drafts (draft_id, draft_name, draft_date, cube_snapshot_id, num_seats, phase, sheet_id, banned_cards)
-          VALUES (?, ?, ?, ?, 0, 'setup', ?, ?)`,
+    sql: `INSERT INTO drafts (draft_id, draft_name, draft_date, cube_snapshot_id, num_seats, phase, sheet_id, banned_cards, import_hash)
+          VALUES (?, ?, ?, ?, 0, 'setup', ?, ?, '')`,
     args: [
       draftId,
       name,
