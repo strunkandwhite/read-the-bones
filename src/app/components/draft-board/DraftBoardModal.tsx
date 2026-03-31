@@ -68,10 +68,7 @@ export function DraftBoardModal({
     await useDraftStore.getState().refreshNow();
   }, [mySeat, patchSeatName]);
 
-  // Map grouped queue entries to flat display items for QueuePanel
-  const pickQueue = queue.flatMap((entry, entryIndex) =>
-    entry.cards.map((card) => ({ cardName: card.cardName, position: entryIndex + 1 }))
-  );
+  const setEntryMode = useLiveStore((s) => s.setEntryMode);
 
   const phase = board?.phase ?? liveDraftStatus?.phase ?? "unknown";
   const badgeColors = PHASE_BADGE_COLORS[phase] ?? { bg: "bg-zinc-700", text: "text-zinc-400" };
@@ -158,19 +155,12 @@ export function DraftBoardModal({
                 />
                 {seatToken !== null && (
                   <QueuePanel
-                    queue={pickQueue}
+                    queue={queue}
                     autoPick={autoPick}
-                    autoPickMode="resilient"
-                    onReorder={(cardNames) => {
-                      const entries = cardNames.map((name) => ({
-                        mode: 'pause' as const,
-                        cards: [{ cardId: 0, cardName: name }],
-                      }));
-                      reorderQueue(entries);
-                    }}
-                    onRemove={(cardName) => removeFromQueue(cardName)}
+                    onReorder={reorderQueue}
+                    onRemove={removeFromQueue}
                     onToggleAutoPick={toggleAutoPick}
-                    onChangeAutoPickMode={() => {}}
+                    onSetEntryMode={setEntryMode}
                   />
                 )}
               </div>
