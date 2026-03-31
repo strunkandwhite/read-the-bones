@@ -143,6 +143,7 @@ function DraggableEntry({
   const modeToggle = (
     <button
       onClick={() => onSetEntryMode(entryIndex, isPause ? "flow-through" : "pause")}
+      onPointerDown={(e) => e.stopPropagation()}
       aria-label={`Mode: ${entry.mode}`}
       title={isPause ? "Currently set to Pause: stops here if top card taken" : "Currently set to Flow-through: skips taken cards"}
       className={`rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-colors cursor-pointer border-none ${
@@ -161,20 +162,15 @@ function DraggableEntry({
 
   if (isGroup) {
     return (
-      <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }}>
+      <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} {...attributes} {...listeners}>
         <div ref={setMergeRef}>
           <div
-            className={`rounded px-2 py-1.5 text-xs transition-colors ${
+            className={`cursor-grab touch-none rounded px-2 py-1.5 text-xs transition-colors ${
               mergeStyle || "border border-zinc-700/60 bg-zinc-800/50"
             } ${allTaken ? "opacity-40" : ""}`}
           >
             <div className="flex items-center gap-1.5">
-              <span
-                {...attributes}
-                {...listeners}
-                className="cursor-grab text-zinc-600 select-none touch-none"
-                aria-label="Drag to reorder"
-              >
+              <span className="text-zinc-600 select-none">
                 ⠿
               </span>
               <span className="flex-1 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
@@ -214,19 +210,14 @@ function DraggableEntry({
   const isTaken = takenCards.has(card.cardName);
 
   return (
-    <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }}>
+    <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} {...attributes} {...listeners}>
       <div ref={setMergeRef}>
         <div
-          className={`flex items-center gap-1.5 rounded px-2 py-1 text-xs transition-colors ${
+          className={`flex items-center gap-1.5 cursor-grab touch-none rounded px-2 py-1 text-xs transition-colors ${
             mergeStyle || "border border-transparent bg-zinc-800/30"
           }`}
         >
-          <span
-            {...attributes}
-            {...listeners}
-            className="cursor-grab text-zinc-600 select-none touch-none"
-            aria-label="Drag to reorder"
-          >
+          <span className="text-zinc-600 select-none">
             ⠿
           </span>
           <span className={`flex-1 ${isTaken ? "text-zinc-600 line-through" : "text-zinc-300"}`}>
@@ -235,6 +226,7 @@ function DraggableEntry({
           {modeToggle}
           <button
             onClick={() => onRemove(card.cardName)}
+            onPointerDown={(e) => e.stopPropagation()}
             aria-label={`Remove ${card.cardName}`}
             className="cursor-pointer border-none bg-transparent px-1 py-0.5 text-sm leading-none text-zinc-500 hover:text-zinc-300"
           >
@@ -270,14 +262,11 @@ function DraggableGroupCard({
     <div
       ref={setNodeRef}
       style={{ opacity: isDragging ? 0.3 : 1 }}
-      className="flex items-center gap-1.5 rounded px-1 py-0.5"
+      className="flex items-center gap-1.5 cursor-grab touch-none rounded px-1 py-0.5"
+      {...attributes}
+      {...listeners}
     >
-      <span
-        {...attributes}
-        {...listeners}
-        className="cursor-grab text-zinc-700 select-none touch-none text-[10px]"
-        aria-label="Drag to reorder"
-      >
+      <span className="text-zinc-700 select-none text-[10px]">
         ⠿
       </span>
       <span className={`flex-1 text-xs ${isTaken ? "text-zinc-600 line-through" : "text-zinc-400"}`}>
@@ -285,6 +274,7 @@ function DraggableGroupCard({
       </span>
       <button
         onClick={() => onRemove(cardName)}
+        onPointerDown={(e) => e.stopPropagation()}
         aria-label={`Remove ${cardName}`}
         className="cursor-pointer border-none bg-transparent px-1 py-0.5 text-sm leading-none text-zinc-600 hover:text-zinc-300"
       >
