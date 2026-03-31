@@ -750,12 +750,14 @@ useDraftStore.subscribe(
   },
 );
 
-// Refetch queue when dataVersion changes (new picks arrived)
+// Refetch queue, floats, and settings when a new pick arrives
 useDraftStore.subscribe(
-  (state) => state.dataVersion,
-  (dataVersion) => {
-    if (dataVersion > 0) {
+  (state) => state.liveDraftStatus?.latestPickN,
+  (latestPickN, prevLatestPickN) => {
+    if (latestPickN != null && prevLatestPickN != null && latestPickN !== prevLatestPickN) {
       useLiveStore.getState().fetchQueue();
+      useLiveStore.getState().fetchFloatedCards();
+      useLiveStore.getState().refreshSettings();
     }
   },
 );
