@@ -129,11 +129,9 @@ ALTER TABLE drafts ADD COLUMN phase TEXT NOT NULL DEFAULT 'complete';
 ALTER TABLE drafts ADD COLUMN in_app INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE drafts ADD COLUMN picks_per_player INTEGER;
 
--- Backfill phase from is_complete
-UPDATE drafts SET phase = CASE WHEN is_complete = 1 THEN 'complete' ELSE 'drafting' END;
-
--- Drop is_complete after migration (SQLite 3.35.0+)
-ALTER TABLE drafts DROP COLUMN is_complete;
+-- is_complete → phase migration (already applied, kept as no-op for history)
+-- Previously: UPDATE drafts SET phase = CASE WHEN is_complete = 1 THEN 'complete' ELSE 'drafting' END;
+-- Previously: ALTER TABLE drafts DROP COLUMN is_complete;
 
 -- Match reporting attribution
 ALTER TABLE match_events ADD COLUMN reported_by_seat INTEGER;
