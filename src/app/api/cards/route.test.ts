@@ -23,6 +23,7 @@ describe("GET /api/cards", () => {
       draftIds: ["draft-1", "draft-2"],
       activeDraft: undefined,
       poolAsOfDraft: undefined,
+      includeWinStats: false,
     });
   });
 
@@ -36,6 +37,7 @@ describe("GET /api/cards", () => {
       draftIds: undefined,
       activeDraft: "active-1",
       poolAsOfDraft: "pool-1",
+      includeWinStats: false,
     });
   });
 
@@ -59,6 +61,30 @@ describe("GET /api/cards", () => {
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe("no-store");
+  });
+
+  it("includes win stats when host is localhost", async () => {
+    const req = new NextRequest(
+      new URL("http://localhost:3000/api/cards"),
+      { headers: { host: "localhost:3000" } },
+    );
+    await GET(req);
+
+    expect(getCards).toHaveBeenCalledWith(
+      expect.objectContaining({ includeWinStats: true }),
+    );
+  });
+
+  it("excludes win stats when host is not localhost", async () => {
+    const req = new NextRequest(
+      new URL("https://example.com/api/cards"),
+      { headers: { host: "example.com" } },
+    );
+    await GET(req);
+
+    expect(getCards).toHaveBeenCalledWith(
+      expect.objectContaining({ includeWinStats: false }),
+    );
   });
 
   it("returns 500 on error", async () => {

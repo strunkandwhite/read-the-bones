@@ -82,6 +82,12 @@ export type CardStats = {
   maxCopiesInDraft: number;
   /** Color identities associated with this card */
   colors: string[];
+  /** Game Play Win Rate (0-1), localhost only */
+  gpwr?: number;
+  /** Wilson confidence interval for GPWR */
+  gpwrCi?: { lower: number; upper: number };
+  /** Number of seats that maindecked the card */
+  gpwrSampleSize?: number;
 };
 
 /**

@@ -21,6 +21,7 @@ import { useSlowRenderTracking } from "../hooks/useSlowRenderTracking";
 import { InfoTooltip } from "./InfoTooltip";
 import { useCardStore } from "../stores/cardStore";
 import { getCardStatus } from "../stores/selectors";
+import { isLocalClient } from "@/core/isLocal";
 
 export interface CardTableProps {
   cards: EnrichedCardStats[];
@@ -80,6 +81,7 @@ export function CardTable({
       manaCost: showSm,
       type: isDesktopOrWider,
       colors: showSm,
+      gpwr: isDesktopOrWider,
     };
   }, [breakpoint, isDesktopOrWider]);
 
@@ -180,6 +182,41 @@ export function CardTable({
           );
         },
       }),
+      ...(isLocalClient() ? [
+        columnHelper.accessor((row) => row.gpwr != null ? row.gpwr : undefined, {
+          id: "gpwr",
+          size: 95,
+          sortUndefined: "last",
+          header: () => (
+            <span className="inline-flex items-center">
+              GPWR
+              <InfoTooltip text="Game Play Win Rate — win rate of seats that maindecked this card, with 95% confidence interval." />
+            </span>
+          ),
+          cell: ({ row }) => {
+            const gpwr = row.original.gpwr;
+            if (gpwr == null) {
+              return (
+                <span className="text-sm text-zinc-400 dark:text-zinc-500">
+                  -
+                </span>
+              );
+            }
+            const ci = row.original.gpwrCi;
+            const margin = ci ? Math.round((ci.upper - ci.lower) * 50) : 0;
+            return (
+              <span className="font-mono text-sm text-zinc-800 dark:text-zinc-200">
+                <span className="font-semibold">{(gpwr * 100).toFixed(0)}%</span>
+                {margin > 0 && (
+                  <span className="ml-0.5 text-xs text-zinc-400 dark:text-zinc-500">
+                    ±{margin}
+                  </span>
+                )}
+              </span>
+            );
+          },
+        }),
+      ] : []),
     ],
     [currentCubeCopies]
   );
