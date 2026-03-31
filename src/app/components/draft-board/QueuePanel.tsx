@@ -33,7 +33,7 @@ export type QueuePanelProps = {
 };
 
 // Drag IDs encode context:
-//   "entry:<entryIndex>"          — top-level entry drag
+//   "entry:<entryIndex>"            — top-level entry drag
 //   "card:<entryIndex>:<cardIndex>" — card within a group drag
 function makeEntryId(entryIndex: number) {
   return `entry:${entryIndex}`;
@@ -43,9 +43,25 @@ function makeCardId(entryIndex: number, cardIndex: number) {
 }
 function parseId(id: string) {
   const parts = id.split(":");
-  if (parts[0] === "entry") return { type: "entry" as const, entryIndex: parseInt(parts[1], 10) };
-  if (parts[0] === "card") return { type: "card" as const, entryIndex: parseInt(parts[1], 10), cardIndex: parseInt(parts[2], 10) };
+  if (parts[0] === "entry")
+    return { type: "entry" as const, entryIndex: parseInt(parts[1], 10) };
+  if (parts[0] === "card")
+    return {
+      type: "card" as const,
+      entryIndex: parseInt(parts[1], 10),
+      cardIndex: parseInt(parts[2], 10),
+    };
   return null;
+}
+
+// ─── Insertion Line ──────────────────────────────────────────────────────────
+
+function InsertionLine() {
+  return (
+    <div className="relative h-0">
+      <div className="absolute left-0 right-0 h-0.5 rounded-full bg-blue-500" />
+    </div>
+  );
 }
 
 // ─── Sortable Entry (top-level) ───────────────────────────────────────────────
@@ -56,10 +72,12 @@ interface SortableEntryProps {
   entryIndex: number;
   allEntries: QueueGroupEntry[];
   onRemove: (cardName: string) => void;
-  onSetEntryMode: (entryIndex: number, mode: "pause" | "flow-through") => void;
+  onSetEntryMode: (
+    entryIndex: number,
+    mode: "pause" | "flow-through",
+  ) => void;
   onReorder: (queue: QueueGroupEntry[]) => void;
   takenCards: Set<string>;
-  isOver: boolean;
   isMergeTarget: boolean;
 }
 
@@ -72,17 +90,10 @@ function SortableEntry({
   onSetEntryMode,
   onReorder,
   takenCards,
-  isOver,
   isMergeTarget,
 }: SortableEntryProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id, data: { type: "entry", entryIndex } });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id, data: { type: "entry", entryIndex } });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -94,24 +105,42 @@ function SortableEntry({
   const allTaken = entry.cards.every((c) => takenCards.has(c.cardName));
   const isPause = entry.mode === "pause";
 
+  const modeToggle = (
+    <button
+      onClick={() =>
+        onSetEntryMode(entryIndex, isPause ? "flow-through" : "pause")
+      }
+      aria-label={`Mode: ${entry.mode}`}
+      title={
+        isPause
+          ? "Pause: stops here if top card taken"
+          : "Flow-through: skips taken cards"
+      }
+      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-colors cursor-pointer border-none ${
+        isPause
+          ? "bg-blue-900/50 text-blue-300 hover:bg-blue-800/60"
+          : "bg-amber-900/50 text-amber-300 hover:bg-amber-800/60"
+      }`}
+    >
+      {isPause ? "⏸" : "⏩"}
+    </button>
+  );
+
   // Grouped entries: inner sortable for cards within the group
   if (isGroup) {
     const cardIds = entry.cards.map((_, ci) => makeCardId(entryIndex, ci));
     return (
-      <li
+      <div
         ref={setNodeRef}
         style={style}
         className={`rounded px-2 py-1.5 text-xs transition-colors ${
           isMergeTarget
             ? "border-2 border-dashed border-green-500/60 bg-green-900/20"
-            : isOver
-              ? "border border-blue-500/60 bg-blue-900/20"
-              : "border border-zinc-700/60 bg-zinc-800/50"
+            : "border border-zinc-700/60 bg-zinc-800/50"
         } ${allTaken ? "opacity-40" : ""}`}
       >
         {/* Group header */}
         <div className="flex items-center gap-1.5">
-          {/* Drag handle */}
           <span
             {...attributes}
             {...listeners}
@@ -123,24 +152,15 @@ function SortableEntry({
           <span className="flex-1 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
             Group ({entry.cards.length})
           </span>
-          {/* Mode toggle */}
-          <button
-            onClick={() => onSetEntryMode(entryIndex, isPause ? "flow-through" : "pause")}
-            aria-label={`Mode: ${entry.mode}`}
-            title={isPause ? "Pause: stops here if top card taken" : "Flow-through: skips taken cards"}
-            className={`rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-colors cursor-pointer border-none ${
-              isPause
-                ? "bg-blue-900/50 text-blue-300 hover:bg-blue-800/60"
-                : "bg-amber-900/50 text-amber-300 hover:bg-amber-800/60"
-            }`}
-          >
-            {isPause ? "⏸" : "⏩"}
-          </button>
+          {modeToggle}
         </div>
 
         {/* Cards within group */}
-        <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
-          <ul className="mt-1.5 flex flex-col gap-0.5 pl-4">
+        <SortableContext
+          items={cardIds}
+          strategy={verticalListSortingStrategy}
+        >
+          <div className="mt-1.5 flex flex-col gap-0.5 pl-4">
             {entry.cards.map((card, cardIndex) => (
               <SortableGroupCard
                 key={makeCardId(entryIndex, cardIndex)}
@@ -154,9 +174,9 @@ function SortableEntry({
                 isTaken={takenCards.has(card.cardName)}
               />
             ))}
-          </ul>
+          </div>
         </SortableContext>
-      </li>
+      </div>
     );
   }
 
@@ -165,18 +185,15 @@ function SortableEntry({
   const isTaken = takenCards.has(card.cardName);
 
   return (
-    <li
+    <div
       ref={setNodeRef}
       style={style}
       className={`flex items-center gap-1.5 rounded px-2 py-1 text-xs transition-colors ${
         isMergeTarget
           ? "border-2 border-dashed border-green-500/60 bg-green-900/20"
-          : isOver
-            ? "border border-blue-500/60 bg-blue-900/20"
-            : "border border-transparent bg-zinc-800/30"
+          : "border border-transparent bg-zinc-800/30"
       }`}
     >
-      {/* Drag handle */}
       <span
         {...attributes}
         {...listeners}
@@ -185,27 +202,12 @@ function SortableEntry({
       >
         ⠿
       </span>
-
-      {/* Card name */}
-      <span className={`flex-1 ${isTaken ? "text-zinc-600 line-through" : "text-zinc-300"}`}>
+      <span
+        className={`flex-1 ${isTaken ? "text-zinc-600 line-through" : "text-zinc-300"}`}
+      >
         {card.cardName}
       </span>
-
-      {/* Mode toggle */}
-      <button
-        onClick={() => onSetEntryMode(entryIndex, isPause ? "flow-through" : "pause")}
-        aria-label={`Mode: ${entry.mode}`}
-        title={isPause ? "Pause: stops here if card taken" : "Flow-through: skips if card taken"}
-        className={`rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-colors cursor-pointer border-none ${
-          isPause
-            ? "bg-blue-900/50 text-blue-300 hover:bg-blue-800/60"
-            : "bg-amber-900/50 text-amber-300 hover:bg-amber-800/60"
-        }`}
-      >
-        {isPause ? "⏸" : "⏩"}
-      </button>
-
-      {/* Remove */}
+      {modeToggle}
       <button
         onClick={() => onRemove(card.cardName)}
         aria-label={`Remove ${card.cardName}`}
@@ -213,7 +215,7 @@ function SortableEntry({
       >
         &times;
       </button>
-    </li>
+    </div>
   );
 }
 
@@ -240,14 +242,8 @@ function SortableGroupCard({
   onReorder,
   isTaken,
 }: SortableGroupCardProps) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id, data: { type: "card", entryIndex, cardIndex } });
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id, data: { type: "card", entryIndex, cardIndex } });
 
   const style = {
     transform: CSS.Transform.toString(transform),
@@ -258,26 +254,18 @@ function SortableGroupCard({
   function handleRemoveFromGroup() {
     const entry = allEntries[entryIndex];
     const newCards = entry.cards.filter((_, i) => i !== cardIndex);
-    let newEntries: QueueGroupEntry[];
-    if (newCards.length === 0) {
-      // Remove entire entry
-      newEntries = allEntries.filter((_, i) => i !== entryIndex);
-    } else if (newCards.length === 1) {
-      // Collapse to single-card entry
-      newEntries = allEntries.map((e, i) =>
-        i === entryIndex ? { ...e, cards: newCards } : e
-      );
-    } else {
-      newEntries = allEntries.map((e, i) =>
-        i === entryIndex ? { ...e, cards: newCards } : e
-      );
-    }
+    const newEntries =
+      newCards.length === 0
+        ? allEntries.filter((_, i) => i !== entryIndex)
+        : allEntries.map((e, i) =>
+            i === entryIndex ? { ...e, cards: newCards } : e,
+          );
     onReorder(newEntries);
     onRemove(cardName);
   }
 
   return (
-    <li
+    <div
       ref={setNodeRef}
       style={style}
       className="flex items-center gap-1.5 rounded px-1 py-0.5"
@@ -290,7 +278,9 @@ function SortableGroupCard({
       >
         ⠿
       </span>
-      <span className={`flex-1 text-xs ${isTaken ? "text-zinc-600 line-through" : "text-zinc-400"}`}>
+      <span
+        className={`flex-1 text-xs ${isTaken ? "text-zinc-600 line-through" : "text-zinc-400"}`}
+      >
         {cardName}
       </span>
       <button
@@ -300,7 +290,7 @@ function SortableGroupCard({
       >
         &times;
       </button>
-    </li>
+    </div>
   );
 }
 
@@ -316,17 +306,17 @@ export function QueuePanel({
   takenCards = new Set(),
 }: QueuePanelProps) {
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
-  const [overEntryIndex, setOverEntryIndex] = useState<number | null>(null);
   const [mergeTarget, setMergeTarget] = useState<number | null>(null);
   const mergeTargetRef = useRef<number | null>(null);
+  // insertionIndex: show blue line before this entry index (null = no line)
+  const [insertionIndex, setInsertionIndex] = useState<number | null>(null);
 
   function updateMergeTarget(index: number | null) {
     setMergeTarget(index);
     mergeTargetRef.current = index;
   }
 
-  // Hold-to-merge: track which entry the dragged item is hovering over,
-  // and after MERGE_HOLD_MS, activate the merge indicator.
+  // Hold-to-merge timer
   const MERGE_HOLD_MS = 500;
   const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const hoverEntryRef = useRef<number | null>(null);
@@ -341,80 +331,106 @@ export function QueuePanel({
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    }),
   );
 
-  const handleDragStart = useCallback((event: DragStartEvent) => {
-    setActiveDragId(event.active.id as string);
-    updateMergeTarget(null);
-    clearHoverTimer();
-  }, [clearHoverTimer]);
-
-  const handleDragOver = useCallback((event: DragOverEvent) => {
-    if (!event.over) {
-      setOverEntryIndex(null);
+  const handleDragStart = useCallback(
+    (event: DragStartEvent) => {
+      setActiveDragId(event.active.id as string);
       updateMergeTarget(null);
+      setInsertionIndex(null);
       clearHoverTimer();
-      return;
-    }
-    const activeParsed = activeDragId ? parseId(activeDragId) : null;
-    const overParsed = parseId(String(event.over.id));
+    },
+    [clearHoverTimer],
+  );
 
-    if (!activeParsed || activeParsed.type !== "entry") {
-      setOverEntryIndex(overParsed?.type === "entry" ? overParsed.entryIndex : null);
-      updateMergeTarget(null);
-      clearHoverTimer();
-      return;
-    }
-
-    // Determine which entry index the pointer is over
-    let overEntryIdx: number | null = null;
-    if (overParsed?.type === "entry" && overParsed.entryIndex !== activeParsed.entryIndex) {
-      overEntryIdx = overParsed.entryIndex;
-    } else if (overParsed?.type === "card" && overParsed.entryIndex !== activeParsed.entryIndex) {
-      overEntryIdx = overParsed.entryIndex;
-    }
-
-    setOverEntryIndex(overParsed?.type === "entry" ? overParsed.entryIndex : (overParsed?.type === "card" ? overParsed.entryIndex : null));
-
-    if (overEntryIdx !== null) {
-      // Hovering over a different entry — start or continue the hold timer
-      if (hoverEntryRef.current !== overEntryIdx) {
-        // Moved to a new entry — reset timer
+  const handleDragOver = useCallback(
+    (event: DragOverEvent) => {
+      if (!event.over) {
+        updateMergeTarget(null);
+        setInsertionIndex(null);
         clearHoverTimer();
-        hoverEntryRef.current = overEntryIdx;
-        const targetIdx = overEntryIdx;
-        hoverTimerRef.current = setTimeout(() => {
-          updateMergeTarget(targetIdx);
-        }, MERGE_HOLD_MS);
+        return;
       }
-      // If same entry, timer is already running (or merge already active)
-    } else {
-      // Not over a valid merge target
+
+      const activeParsed = activeDragId ? parseId(activeDragId) : null;
+      const overParsed = parseId(String(event.over.id));
+      if (!activeParsed) return;
+
+      // Determine which entry the pointer is over
+      const overEntryIdx =
+        overParsed?.type === "entry"
+          ? overParsed.entryIndex
+          : overParsed?.type === "card"
+            ? overParsed.entryIndex
+            : null;
+
+      const isDraggingEntry = activeParsed.type === "entry";
+      const isDraggingCard = activeParsed.type === "card";
+      const isSameEntry = overEntryIdx === activeParsed.entryIndex;
+
+      // ── Entry being dragged ──
+      if (isDraggingEntry && overEntryIdx !== null && !isSameEntry) {
+        // If merge timer hasn't fired yet, show insertion line
+        if (mergeTargetRef.current === null) {
+          // Show insertion line: compute whether to insert before or after
+          const fromIdx = activeParsed.entryIndex;
+          const insertion = overEntryIdx > fromIdx ? overEntryIdx + 1 : overEntryIdx;
+          setInsertionIndex(insertion);
+        } else {
+          setInsertionIndex(null);
+        }
+
+        // Start/continue hold-to-merge timer
+        if (hoverEntryRef.current !== overEntryIdx) {
+          clearHoverTimer();
+          hoverEntryRef.current = overEntryIdx;
+          const targetIdx = overEntryIdx;
+          hoverTimerRef.current = setTimeout(() => {
+            updateMergeTarget(targetIdx);
+            setInsertionIndex(null); // Switch from line to merge indicator
+          }, MERGE_HOLD_MS);
+        }
+        return;
+      }
+
+      // ── Card being dragged to a different entry (ungroup) ──
+      if (isDraggingCard && overEntryIdx !== null && !isSameEntry) {
+        const insertion = overEntryIdx > activeParsed.entryIndex
+          ? overEntryIdx + 1
+          : overEntryIdx;
+        setInsertionIndex(insertion);
+        updateMergeTarget(null);
+        clearHoverTimer();
+        return;
+      }
+
+      // Default: no indicators (same entry or invalid target)
       updateMergeTarget(null);
+      setInsertionIndex(null);
       clearHoverTimer();
-    }
-  }, [activeDragId, clearHoverTimer]);
+    },
+    [activeDragId, clearHoverTimer],
+  );
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const currentMergeTarget = mergeTargetRef.current;
       setActiveDragId(null);
-      setOverEntryIndex(null);
       updateMergeTarget(null);
+      setInsertionIndex(null);
       clearHoverTimer();
 
       const { active, over } = event;
       if (!over || active.id === over.id) return;
 
-      const activeId = active.id as string;
-      const overId = over.id as string;
-      const activeParsed = parseId(activeId);
-      const overParsed = parseId(overId);
+      const activeParsed = parseId(active.id as string);
+      const overParsed = parseId(over.id as string);
       if (!activeParsed || !overParsed) return;
 
-      // ── Case 1: Merge entry into another entry or group ────────────────
-      // If mergeTarget was set (green indicator was showing), always merge.
+      // ── Merge: entry into another entry (hold-to-merge was active) ──
       if (activeParsed.type === "entry" && currentMergeTarget !== null) {
         const fromIndex = activeParsed.entryIndex;
         const toIndex = currentMergeTarget;
@@ -426,17 +442,16 @@ export function QueuePanel({
           mode: targetEntry.mode,
           cards: [...targetEntry.cards, ...draggedEntry.cards],
         };
+        const adjustedTarget =
+          fromIndex < toIndex ? toIndex - 1 : toIndex;
         const newQueue = queue
           .filter((_, i) => i !== fromIndex)
-          .map((entry, i) => {
-            const adjustedTarget = fromIndex < toIndex ? toIndex - 1 : toIndex;
-            return i === adjustedTarget ? mergedEntry : entry;
-          });
+          .map((entry, i) => (i === adjustedTarget ? mergedEntry : entry));
         onReorder(newQueue);
         return;
       }
 
-      // ── Case 2: Reorder top-level entries ──────────────────────────────
+      // ── Reorder top-level entries ──
       if (activeParsed.type === "entry" && overParsed.type === "entry") {
         const fromIndex = activeParsed.entryIndex;
         const toIndex = overParsed.entryIndex;
@@ -449,7 +464,7 @@ export function QueuePanel({
         return;
       }
 
-      // ── Case 2: Reorder cards within a group ───────────────────────────────
+      // ── Reorder cards within the same group ──
       if (
         activeParsed.type === "card" &&
         overParsed.type === "card" &&
@@ -471,7 +486,7 @@ export function QueuePanel({
         return;
       }
 
-      // ── Case 3: Drag card out of group to become top-level entry ───────────
+      // ── Drag card out of group to become a top-level entry ──
       if (activeParsed.type === "card" && overParsed.type === "entry") {
         const srcEntryIndex = activeParsed.entryIndex;
         const srcCardIndex = activeParsed.cardIndex;
@@ -481,10 +496,11 @@ export function QueuePanel({
 
         const srcEntry = queue[srcEntryIndex];
         const draggedCard = srcEntry.cards[srcCardIndex];
+        const newSrcCards = srcEntry.cards.filter(
+          (_, i) => i !== srcCardIndex,
+        );
 
-        // Remove card from source group
-        const newSrcCards = srcEntry.cards.filter((_, i) => i !== srcCardIndex);
-
+        // Build new queue with the card removed from its group
         let newQueue: QueueGroupEntry[] = queue.map((entry, i) => {
           if (i !== srcEntryIndex) return entry;
           return { ...entry, cards: newSrcCards };
@@ -495,19 +511,60 @@ export function QueuePanel({
           newQueue = newQueue.filter((_, i) => i !== srcEntryIndex);
         }
 
-        // Insert as new single-card entry at the target position
-        const adjustedTarget = newSrcCards.length === 0 && srcEntryIndex < targetEntryIndex
-          ? targetEntryIndex - 1
-          : targetEntryIndex;
+        // Insert as a new single-card entry
+        const adjustedTarget =
+          newSrcCards.length === 0 && srcEntryIndex < targetEntryIndex
+            ? targetEntryIndex - 1
+            : targetEntryIndex;
 
-        const newEntry: QueueGroupEntry = { mode: "pause", cards: [draggedCard] };
+        const newEntry: QueueGroupEntry = {
+          mode: "pause",
+          cards: [draggedCard],
+        };
         newQueue.splice(adjustedTarget, 0, newEntry);
         onReorder(newQueue);
         return;
       }
 
+      // ── Drag card to a card in a different group (ungroup) ──
+      if (
+        activeParsed.type === "card" &&
+        overParsed.type === "card" &&
+        activeParsed.entryIndex !== overParsed.entryIndex
+      ) {
+        const srcEntryIndex = activeParsed.entryIndex;
+        const srcCardIndex = activeParsed.cardIndex;
+        const targetEntryIndex = overParsed.entryIndex;
+
+        const srcEntry = queue[srcEntryIndex];
+        const draggedCard = srcEntry.cards[srcCardIndex];
+        const newSrcCards = srcEntry.cards.filter(
+          (_, i) => i !== srcCardIndex,
+        );
+
+        let newQueue: QueueGroupEntry[] = queue.map((entry, i) => {
+          if (i !== srcEntryIndex) return entry;
+          return { ...entry, cards: newSrcCards };
+        });
+
+        if (newSrcCards.length === 0) {
+          newQueue = newQueue.filter((_, i) => i !== srcEntryIndex);
+        }
+
+        const adjustedTarget =
+          newSrcCards.length === 0 && srcEntryIndex < targetEntryIndex
+            ? targetEntryIndex - 1
+            : targetEntryIndex;
+
+        const newEntry: QueueGroupEntry = {
+          mode: "pause",
+          cards: [draggedCard],
+        };
+        newQueue.splice(adjustedTarget, 0, newEntry);
+        onReorder(newQueue);
+      }
     },
-    [queue, onReorder, clearHoverTimer]
+    [queue, onReorder, clearHoverTimer],
   );
 
   const entryIds = queue.map((_, i) => makeEntryId(i));
@@ -519,13 +576,15 @@ export function QueuePanel({
     if (activeParsed.type === "entry") {
       const entry = queue[activeParsed.entryIndex];
       if (entry) {
-        overlayLabel = entry.cards.length === 1
-          ? entry.cards[0].cardName
-          : `Group (${entry.cards.length})`;
+        overlayLabel =
+          entry.cards.length === 1
+            ? entry.cards[0].cardName
+            : `Group (${entry.cards.length})`;
       }
     } else if (activeParsed.type === "card") {
       const entry = queue[activeParsed.entryIndex];
-      if (entry) overlayLabel = entry.cards[activeParsed.cardIndex]?.cardName ?? null;
+      if (entry)
+        overlayLabel = entry.cards[activeParsed.cardIndex]?.cardName ?? null;
     }
   }
 
@@ -562,24 +621,30 @@ export function QueuePanel({
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
-          <SortableContext items={entryIds} strategy={verticalListSortingStrategy}>
-            <ol className="m-0 flex max-h-[30vh] list-none flex-col gap-1 overflow-y-auto p-0">
+          <SortableContext
+            items={entryIds}
+            strategy={verticalListSortingStrategy}
+          >
+            <div className="flex max-h-[30vh] flex-col gap-1 overflow-y-auto">
               {queue.map((entry, entryIndex) => (
-                <SortableEntry
-                  key={makeEntryId(entryIndex)}
-                  id={makeEntryId(entryIndex)}
-                  entry={entry}
-                  entryIndex={entryIndex}
-                  allEntries={queue}
-                  onRemove={onRemove}
-                  onSetEntryMode={onSetEntryMode}
-                  onReorder={onReorder}
-                  takenCards={takenCards}
-                  isOver={overEntryIndex === entryIndex && activeDragId !== makeEntryId(entryIndex)}
-                  isMergeTarget={mergeTarget === entryIndex}
-                />
+                <div key={makeEntryId(entryIndex)}>
+                  {insertionIndex === entryIndex && <InsertionLine />}
+                  <SortableEntry
+                    id={makeEntryId(entryIndex)}
+                    entry={entry}
+                    entryIndex={entryIndex}
+                    allEntries={queue}
+                    onRemove={onRemove}
+                    onSetEntryMode={onSetEntryMode}
+                    onReorder={onReorder}
+                    takenCards={takenCards}
+                    isMergeTarget={mergeTarget === entryIndex}
+                  />
+                </div>
               ))}
-            </ol>
+              {/* Insertion line after the last entry */}
+              {insertionIndex === queue.length && <InsertionLine />}
+            </div>
           </SortableContext>
 
           <DragOverlay>
