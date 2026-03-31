@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -318,6 +318,26 @@ export function QueuePanel({
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [overEntryIndex, setOverEntryIndex] = useState<number | null>(null);
   const [mergeTarget, setMergeTarget] = useState<number | null>(null);
+  const mergeTargetRef = useRef<number | null>(null);
+
+  function updateMergeTarget(index: number | null) {
+    setMergeTarget(index);
+    mergeTargetRef.current = index;
+  }
+
+  // Hold-to-merge: track which entry the dragged item is hovering over,
+  // and after MERGE_HOLD_MS, activate the merge indicator.
+  const MERGE_HOLD_MS = 500;
+  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hoverEntryRef = useRef<number | null>(null);
+
+  const clearHoverTimer = useCallback(() => {
+    if (hoverTimerRef.current) {
+      clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = null;
+    }
+    hoverEntryRef.current = null;
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -326,35 +346,63 @@ export function QueuePanel({
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     setActiveDragId(event.active.id as string);
-  }, []);
+    updateMergeTarget(null);
+    clearHoverTimer();
+  }, [clearHoverTimer]);
 
   const handleDragOver = useCallback((event: DragOverEvent) => {
     if (!event.over) {
       setOverEntryIndex(null);
-      setMergeTarget(null);
+      updateMergeTarget(null);
+      clearHoverTimer();
       return;
     }
     const activeParsed = activeDragId ? parseId(activeDragId) : null;
     const overParsed = parseId(String(event.over.id));
-    if (overParsed?.type === "entry") {
-      setOverEntryIndex(overParsed.entryIndex);
-      // Show merge indicator when dragging an entry over another entry
-      if (activeParsed?.type === "entry" && activeParsed.entryIndex !== overParsed.entryIndex) {
-        setMergeTarget(overParsed.entryIndex);
-      } else {
-        setMergeTarget(null);
-      }
-    } else {
-      setOverEntryIndex(null);
-      setMergeTarget(null);
+
+    if (!activeParsed || activeParsed.type !== "entry") {
+      setOverEntryIndex(overParsed?.type === "entry" ? overParsed.entryIndex : null);
+      updateMergeTarget(null);
+      clearHoverTimer();
+      return;
     }
-  }, [activeDragId]);
+
+    // Determine which entry index the pointer is over
+    let overEntryIdx: number | null = null;
+    if (overParsed?.type === "entry" && overParsed.entryIndex !== activeParsed.entryIndex) {
+      overEntryIdx = overParsed.entryIndex;
+    } else if (overParsed?.type === "card" && overParsed.entryIndex !== activeParsed.entryIndex) {
+      overEntryIdx = overParsed.entryIndex;
+    }
+
+    setOverEntryIndex(overParsed?.type === "entry" ? overParsed.entryIndex : (overParsed?.type === "card" ? overParsed.entryIndex : null));
+
+    if (overEntryIdx !== null) {
+      // Hovering over a different entry — start or continue the hold timer
+      if (hoverEntryRef.current !== overEntryIdx) {
+        // Moved to a new entry — reset timer
+        clearHoverTimer();
+        hoverEntryRef.current = overEntryIdx;
+        const targetIdx = overEntryIdx;
+        hoverTimerRef.current = setTimeout(() => {
+          updateMergeTarget(targetIdx);
+        }, MERGE_HOLD_MS);
+      }
+      // If same entry, timer is already running (or merge already active)
+    } else {
+      // Not over a valid merge target
+      updateMergeTarget(null);
+      clearHoverTimer();
+    }
+  }, [activeDragId, clearHoverTimer]);
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      const currentMergeTarget = mergeTargetRef.current;
       setActiveDragId(null);
       setOverEntryIndex(null);
-      setMergeTarget(null);
+      updateMergeTarget(null);
+      clearHoverTimer();
 
       const { active, over } = event;
       if (!over || active.id === over.id) return;
@@ -365,50 +413,39 @@ export function QueuePanel({
       const overParsed = parseId(overId);
       if (!activeParsed || !overParsed) return;
 
-      // ── Case 1: Entry-to-entry: reorder or merge into group ─────────────
+      // ── Case 1: Merge entry into another entry or group ────────────────
+      // If mergeTarget was set (green indicator was showing), always merge.
+      if (activeParsed.type === "entry" && currentMergeTarget !== null) {
+        const fromIndex = activeParsed.entryIndex;
+        const toIndex = currentMergeTarget;
+        if (fromIndex === toIndex) return;
+
+        const draggedEntry = queue[fromIndex];
+        const targetEntry = queue[toIndex];
+        const mergedEntry: QueueGroupEntry = {
+          mode: targetEntry.mode,
+          cards: [...targetEntry.cards, ...draggedEntry.cards],
+        };
+        const newQueue = queue
+          .filter((_, i) => i !== fromIndex)
+          .map((entry, i) => {
+            const adjustedTarget = fromIndex < toIndex ? toIndex - 1 : toIndex;
+            return i === adjustedTarget ? mergedEntry : entry;
+          });
+        onReorder(newQueue);
+        return;
+      }
+
+      // ── Case 2: Reorder top-level entries ──────────────────────────────
       if (activeParsed.type === "entry" && overParsed.type === "entry") {
         const fromIndex = activeParsed.entryIndex;
         const toIndex = overParsed.entryIndex;
         if (fromIndex === toIndex) return;
 
-        // Detect if drop landed on center of target (merge) vs edge (reorder).
-        // Use pointer position relative to the over element's bounding rect.
-        const overRect = over.rect;
-        const pointerY = event.activatorEvent instanceof PointerEvent
-          ? event.activatorEvent.clientY + (event.delta?.y ?? 0)
-          : null;
-
-        let shouldMerge = false;
-        if (pointerY !== null && overRect) {
-          const top = overRect.top;
-          const height = overRect.height;
-          const relativeY = (pointerY - top) / height;
-          // Middle 40% = merge zone
-          shouldMerge = relativeY > 0.3 && relativeY < 0.7;
-        }
-
-        if (shouldMerge) {
-          // Merge: combine the dragged entry's cards into the target entry
-          const draggedEntry = queue[fromIndex];
-          const targetEntry = queue[toIndex];
-          const mergedEntry: QueueGroupEntry = {
-            mode: targetEntry.mode,
-            cards: [...targetEntry.cards, ...draggedEntry.cards],
-          };
-          const newQueue = queue
-            .filter((_, i) => i !== fromIndex)
-            .map((entry, i) => {
-              const adjustedTarget = fromIndex < toIndex ? toIndex - 1 : toIndex;
-              return i === adjustedTarget ? mergedEntry : entry;
-            });
-          onReorder(newQueue);
-        } else {
-          // Reorder
-          const newQueue = [...queue];
-          const [moved] = newQueue.splice(fromIndex, 1);
-          newQueue.splice(toIndex, 0, moved);
-          onReorder(newQueue);
-        }
+        const newQueue = [...queue];
+        const [moved] = newQueue.splice(fromIndex, 1);
+        newQueue.splice(toIndex, 0, moved);
+        onReorder(newQueue);
         return;
       }
 
@@ -470,7 +507,7 @@ export function QueuePanel({
       }
 
     },
-    [queue, onReorder]
+    [queue, onReorder, clearHoverTimer]
   );
 
   const entryIds = queue.map((_, i) => makeEntryId(i));
