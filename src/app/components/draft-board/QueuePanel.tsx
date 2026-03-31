@@ -146,7 +146,7 @@ function DraggableEntry({
       onPointerDown={(e) => e.stopPropagation()}
       aria-label={`Mode: ${entry.mode}`}
       title={isPause ? "Currently set to Pause: stops here if top card taken" : "Currently set to Flow-through: skips taken cards"}
-      className={`rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-colors cursor-pointer border-none ${
+      className={`rounded px-2.5 py-1.5 sm:px-1.5 sm:py-0.5 text-sm sm:text-[10px] font-semibold leading-none transition-colors cursor-pointer border-none ${
         isPause
           ? "bg-blue-900/50 text-blue-300 hover:bg-blue-800/60"
           : "bg-amber-900/50 text-amber-300 hover:bg-amber-800/60"
@@ -165,7 +165,7 @@ function DraggableEntry({
       <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} {...attributes} {...listeners}>
         <div ref={setMergeRef}>
           <div
-            className={`cursor-grab touch-none rounded px-2 py-1.5 text-xs transition-colors ${
+            className={`cursor-grab touch-none rounded px-2 py-2.5 sm:py-1.5 text-sm sm:text-xs transition-colors ${
               mergeStyle || "border border-zinc-700/60 bg-zinc-800/50"
             } ${allTaken ? "opacity-40" : ""}`}
           >
@@ -213,7 +213,7 @@ function DraggableEntry({
     <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} {...attributes} {...listeners}>
       <div ref={setMergeRef}>
         <div
-          className={`flex items-center gap-1.5 cursor-grab touch-none rounded px-2 py-1 text-xs transition-colors ${
+          className={`flex items-center gap-1.5 cursor-grab touch-none rounded px-2 py-2.5 sm:py-1 text-sm sm:text-xs transition-colors ${
             mergeStyle || "border border-transparent bg-zinc-800/30"
           }`}
         >
@@ -228,7 +228,7 @@ function DraggableEntry({
             onClick={() => onRemove(card.cardName)}
             onPointerDown={(e) => e.stopPropagation()}
             aria-label={`Remove ${card.cardName}`}
-            className="cursor-pointer border-none bg-transparent px-1 py-0.5 text-sm leading-none text-zinc-500 hover:text-zinc-300"
+            className="cursor-pointer border-none bg-transparent px-2.5 py-1.5 sm:px-1 sm:py-0.5 text-lg sm:text-sm leading-none text-zinc-500 hover:text-zinc-300"
           >
             &times;
           </button>
@@ -262,7 +262,7 @@ function DraggableGroupCard({
     <div
       ref={setNodeRef}
       style={{ opacity: isDragging ? 0.3 : 1 }}
-      className="flex items-center gap-1.5 cursor-grab touch-none rounded px-1 py-0.5"
+      className="flex items-center gap-1.5 cursor-grab touch-none rounded px-1 py-1.5 sm:py-0.5"
       {...attributes}
       {...listeners}
     >
@@ -276,7 +276,7 @@ function DraggableGroupCard({
         onClick={() => onRemove(cardName)}
         onPointerDown={(e) => e.stopPropagation()}
         aria-label={`Remove ${cardName}`}
-        className="cursor-pointer border-none bg-transparent px-1 py-0.5 text-sm leading-none text-zinc-600 hover:text-zinc-300"
+        className="cursor-pointer border-none bg-transparent px-2.5 py-1.5 sm:px-1 sm:py-0.5 text-lg sm:text-sm leading-none text-zinc-600 hover:text-zinc-300"
       >
         &times;
       </button>
