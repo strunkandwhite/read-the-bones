@@ -144,7 +144,7 @@ function DraggableEntry({
     <button
       onClick={() => onSetEntryMode(entryIndex, isPause ? "flow-through" : "pause")}
       aria-label={`Mode: ${entry.mode}`}
-      title={isPause ? "Pause: stops here if top card taken" : "Flow-through: skips taken cards"}
+      title={isPause ? "Currently set to Pause: stops here if top card taken" : "Currently set to Flow-through: skips taken cards"}
       className={`rounded px-1.5 py-0.5 text-[10px] font-semibold leading-none transition-colors cursor-pointer border-none ${
         isPause
           ? "bg-blue-900/50 text-blue-300 hover:bg-blue-800/60"
