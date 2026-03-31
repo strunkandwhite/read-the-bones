@@ -60,6 +60,7 @@ interface SortableEntryProps {
   onReorder: (queue: QueueGroupEntry[]) => void;
   takenCards: Set<string>;
   isOver: boolean;
+  isMergeTarget: boolean;
 }
 
 function SortableEntry({
@@ -72,6 +73,7 @@ function SortableEntry({
   onReorder,
   takenCards,
   isOver,
+  isMergeTarget,
 }: SortableEntryProps) {
   const {
     attributes,
@@ -99,10 +101,12 @@ function SortableEntry({
       <li
         ref={setNodeRef}
         style={style}
-        className={`rounded border px-2 py-1.5 text-xs transition-colors ${
-          isOver
-            ? "border-blue-500/60 bg-blue-900/20"
-            : "border-zinc-700/60 bg-zinc-800/50"
+        className={`rounded px-2 py-1.5 text-xs transition-colors ${
+          isMergeTarget
+            ? "border-2 border-dashed border-green-500/60 bg-green-900/20"
+            : isOver
+              ? "border border-blue-500/60 bg-blue-900/20"
+              : "border border-zinc-700/60 bg-zinc-800/50"
         } ${allTaken ? "opacity-40" : ""}`}
       >
         {/* Group header */}
@@ -165,9 +169,11 @@ function SortableEntry({
       ref={setNodeRef}
       style={style}
       className={`flex items-center gap-1.5 rounded px-2 py-1 text-xs transition-colors ${
-        isOver
-          ? "border border-blue-500/60 bg-blue-900/20"
-          : "border border-transparent bg-zinc-800/30"
+        isMergeTarget
+          ? "border-2 border-dashed border-green-500/60 bg-green-900/20"
+          : isOver
+            ? "border border-blue-500/60 bg-blue-900/20"
+            : "border border-transparent bg-zinc-800/30"
       }`}
     >
       {/* Drag handle */}
@@ -311,6 +317,7 @@ export function QueuePanel({
 }: QueuePanelProps) {
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [overEntryIndex, setOverEntryIndex] = useState<number | null>(null);
+  const [mergeTarget, setMergeTarget] = useState<number | null>(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -324,20 +331,30 @@ export function QueuePanel({
   const handleDragOver = useCallback((event: DragOverEvent) => {
     if (!event.over) {
       setOverEntryIndex(null);
+      setMergeTarget(null);
       return;
     }
-    const parsed = parseId(String(event.over.id));
-    if (parsed?.type === "entry") {
-      setOverEntryIndex(parsed.entryIndex);
+    const activeParsed = activeDragId ? parseId(activeDragId) : null;
+    const overParsed = parseId(String(event.over.id));
+    if (overParsed?.type === "entry") {
+      setOverEntryIndex(overParsed.entryIndex);
+      // Show merge indicator when dragging an entry over another entry
+      if (activeParsed?.type === "entry" && activeParsed.entryIndex !== overParsed.entryIndex) {
+        setMergeTarget(overParsed.entryIndex);
+      } else {
+        setMergeTarget(null);
+      }
     } else {
       setOverEntryIndex(null);
+      setMergeTarget(null);
     }
-  }, []);
+  }, [activeDragId]);
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       setActiveDragId(null);
       setOverEntryIndex(null);
+      setMergeTarget(null);
 
       const { active, over } = event;
       if (!over || active.id === over.id) return;
@@ -348,19 +365,50 @@ export function QueuePanel({
       const overParsed = parseId(overId);
       if (!activeParsed || !overParsed) return;
 
-      // ── Case 1: Reorder top-level entries ──────────────────────────────────
+      // ── Case 1: Entry-to-entry: reorder or merge into group ─────────────
       if (activeParsed.type === "entry" && overParsed.type === "entry") {
         const fromIndex = activeParsed.entryIndex;
         const toIndex = overParsed.entryIndex;
         if (fromIndex === toIndex) return;
 
-        // Check if we're hovering center (group) vs edge (reorder).
-        // We use a heuristic: if the pointer Y is in the middle 40% of the over element, group.
-        // For simplicity in testing, we always reorder here (group merging is a future enhancement).
-        const newQueue = [...queue];
-        const [moved] = newQueue.splice(fromIndex, 1);
-        newQueue.splice(toIndex, 0, moved);
-        onReorder(newQueue);
+        // Detect if drop landed on center of target (merge) vs edge (reorder).
+        // Use pointer position relative to the over element's bounding rect.
+        const overRect = over.rect;
+        const pointerY = event.activatorEvent instanceof PointerEvent
+          ? event.activatorEvent.clientY + (event.delta?.y ?? 0)
+          : null;
+
+        let shouldMerge = false;
+        if (pointerY !== null && overRect) {
+          const top = overRect.top;
+          const height = overRect.height;
+          const relativeY = (pointerY - top) / height;
+          // Middle 40% = merge zone
+          shouldMerge = relativeY > 0.3 && relativeY < 0.7;
+        }
+
+        if (shouldMerge) {
+          // Merge: combine the dragged entry's cards into the target entry
+          const draggedEntry = queue[fromIndex];
+          const targetEntry = queue[toIndex];
+          const mergedEntry: QueueGroupEntry = {
+            mode: targetEntry.mode,
+            cards: [...targetEntry.cards, ...draggedEntry.cards],
+          };
+          const newQueue = queue
+            .filter((_, i) => i !== fromIndex)
+            .map((entry, i) => {
+              const adjustedTarget = fromIndex < toIndex ? toIndex - 1 : toIndex;
+              return i === adjustedTarget ? mergedEntry : entry;
+            });
+          onReorder(newQueue);
+        } else {
+          // Reorder
+          const newQueue = [...queue];
+          const [moved] = newQueue.splice(fromIndex, 1);
+          newQueue.splice(toIndex, 0, moved);
+          onReorder(newQueue);
+        }
         return;
       }
 
@@ -421,11 +469,6 @@ export function QueuePanel({
         return;
       }
 
-      // ── Case 4: Drag top-level entry onto another entry to merge (group) ───
-      if (activeParsed.type === "entry" && overParsed.type === "entry") {
-        // Already handled in Case 1 as reorder. Group merging requires explicit
-        // "drop on center" detection which we skip here for simplicity.
-      }
     },
     [queue, onReorder]
   );
@@ -496,6 +539,7 @@ export function QueuePanel({
                   onReorder={onReorder}
                   takenCards={takenCards}
                   isOver={overEntryIndex === entryIndex && activeDragId !== makeEntryId(entryIndex)}
+                  isMergeTarget={mergeTarget === entryIndex}
                 />
               ))}
             </ol>
