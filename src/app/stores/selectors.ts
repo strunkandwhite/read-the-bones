@@ -16,14 +16,30 @@ export function useIsAuthed(): boolean {
 }
 
 export function getCardStatus(cardName: string): CardStatusResult {
-  const { seatCardNames, takenCardNamesSet } = useCardStore.getState();
-  const { queuedCards, floatedCardsSet } = useLiveStore.getState();
+  const { seatCardNames, takenCardNamesSet, takenCardCounts, cardData } = useCardStore.getState();
+  const { queuedCardCounts, floatedCardsSet, queue } = useLiveStore.getState();
 
   if (seatCardNames?.has(cardName)) return { status: "picked" };
 
   if (getIsAuthed()) {
-    const queuePriority = queuedCards.get(cardName);
-    if (queuePriority != null) return { status: "queued", queuePosition: queuePriority };
+    const count = queuedCardCounts.get(cardName);
+    if (count != null && count > 0) {
+      // Find highest-priority (lowest number) entry for queue position display
+      let minPriority = Infinity;
+      for (const e of queue) {
+        if (e.cardName === cardName && e.priority < minPriority) {
+          minPriority = e.priority;
+        }
+      }
+      const cubeCopies = cardData.cubeCopies[cardName] ?? 1;
+      const takenCount = takenCardCounts?.get(cardName) ?? 0;
+      return {
+        status: "queued",
+        queuePosition: minPriority,
+        queuedCount: count,
+        remainingCopies: cubeCopies - takenCount,
+      };
+    }
     if (floatedCardsSet.has(cardName)) return { status: "floated" };
   }
 
