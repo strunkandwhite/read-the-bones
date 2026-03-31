@@ -441,8 +441,14 @@ export const useLiveStore = create<LiveStoreState>()(
 
     removeFromQueue: (cardName: string) => {
       const { queue: original } = get();
-      // Optimistic update: remove card from queue immediately
-      const optimisticQueue = original.filter((e) => e.cardName !== cardName);
+      // Remove only the highest-priority (lowest number) entry for this card
+      const targetIndex = original.reduce<number | null>((best, e, i) => {
+        if (e.cardName !== cardName) return best;
+        if (best === null || e.priority < original[best].priority) return i;
+        return best;
+      }, null);
+      if (targetIndex === null) return;
+      const optimisticQueue = original.filter((_, i) => i !== targetIndex);
       set({
         queue: optimisticQueue,
         queuedCardCounts: deriveQueuedCardCounts(optimisticQueue),
