@@ -162,7 +162,7 @@ function DraggableEntry({
 
   if (isGroup) {
     return (
-      <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} {...attributes} {...listeners}>
+      <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} {...attributes} {...listeners} className="select-none">
         <div ref={setMergeRef}>
           <div
             className={`cursor-grab touch-none rounded px-2 py-2.5 sm:py-1.5 text-sm sm:text-xs transition-colors ${
@@ -210,7 +210,7 @@ function DraggableEntry({
   const isTaken = takenCards.has(card.cardName);
 
   return (
-    <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} {...attributes} {...listeners}>
+    <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} {...attributes} {...listeners} className="select-none">
       <div ref={setMergeRef}>
         <div
           className={`flex items-center gap-1.5 cursor-grab touch-none rounded px-2 py-2.5 sm:py-1 text-sm sm:text-xs transition-colors ${
@@ -262,7 +262,7 @@ function DraggableGroupCard({
     <div
       ref={setNodeRef}
       style={{ opacity: isDragging ? 0.3 : 1 }}
-      className="flex items-center gap-1.5 cursor-grab touch-none rounded px-1 py-1.5 sm:py-0.5"
+      className="flex items-center gap-1.5 cursor-grab touch-none select-none rounded px-1 py-1.5 sm:py-0.5"
       {...attributes}
       {...listeners}
     >
