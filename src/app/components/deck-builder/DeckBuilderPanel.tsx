@@ -218,10 +218,12 @@ export function DeckBuilderPanel({
       <div className="flex items-center justify-between border-b border-zinc-800/60 bg-zinc-900/80 px-5 py-3">
         <div className="flex items-center gap-4">
           <button
+            type="button"
             onClick={onClose}
-            className="cursor-pointer rounded-md bg-zinc-800 px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-white"
+            aria-label="Close"
           >
-            Close
+            ✕
           </button>
           <div className="h-4 w-px bg-zinc-700/60" />
           <span className="text-sm font-semibold tracking-tight text-zinc-200">

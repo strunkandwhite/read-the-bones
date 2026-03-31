@@ -121,11 +121,12 @@ export function DraftBoardModal({
             )}
           </div>
           <button
+            type="button"
             onClick={onClose}
-            className="bg-transparent border-none text-zinc-400 cursor-pointer p-1 text-lg leading-none"
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-white"
             aria-label="Close draft board"
           >
-            &times;
+            ✕
           </button>
         </div>
 

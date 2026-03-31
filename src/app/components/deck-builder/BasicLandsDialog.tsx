@@ -51,9 +51,19 @@ export function BasicLandsDialog({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-72 rounded-xl border border-zinc-700 bg-zinc-900 p-4 shadow-xl">
-        <h3 className="mb-3 text-sm font-bold text-zinc-200">
-          Add Basic Lands
-        </h3>
+        <div className="mb-3 flex items-center justify-between">
+          <h3 className="text-sm font-bold text-zinc-200">
+            Add Basic Lands
+          </h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-white"
+            aria-label="Close"
+          >
+            ✕
+          </button>
+        </div>
         <div className="space-y-2">
           {BASIC_LAND_NAMES.map((land) => (
             <div
