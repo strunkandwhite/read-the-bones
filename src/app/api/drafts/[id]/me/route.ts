@@ -24,7 +24,6 @@ export async function GET(
     return NextResponse.json({
       seat: resolved.seat,
       autoPick: resolved.autoPick,
-      autoPickMode: resolved.autoPickMode,
       displayName: resolved.displayName,
     });
   } catch (error) {

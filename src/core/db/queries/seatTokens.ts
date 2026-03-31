@@ -26,9 +26,9 @@ export async function generateSeatTokens(
 export async function resolveToken(
   client: Client,
   token: string,
-): Promise<{ draftId: string; seat: number; autoPick: boolean; displayName: string | null; autoPickMode: "resilient" | "cautious" } | null> {
+): Promise<{ draftId: string; seat: number; autoPick: boolean; displayName: string | null } | null> {
   const result = await client.execute({
-    sql: `SELECT draft_id, seat, auto_pick, display_name, auto_pick_mode FROM seat_tokens WHERE token = ?`,
+    sql: `SELECT draft_id, seat, auto_pick, display_name FROM seat_tokens WHERE token = ?`,
     args: [token],
   });
   if (result.rows.length === 0) return null;
@@ -38,7 +38,6 @@ export async function resolveToken(
     seat: row.seat as number,
     autoPick: row.auto_pick === 1,
     displayName: (row.display_name as string) ?? null,
-    autoPickMode: (row.auto_pick_mode as "resilient" | "cautious") ?? "resilient",
   };
 }
 
@@ -96,18 +95,6 @@ export async function updateAutoPick(
   });
 }
 
-export async function updateAutoPickMode(
-  client: Client,
-  draftId: string,
-  seat: number,
-  mode: "resilient" | "cautious",
-): Promise<void> {
-  await client.execute({
-    sql: `UPDATE seat_tokens SET auto_pick_mode = ? WHERE draft_id = ? AND seat = ?`,
-    args: [mode, draftId, seat],
-  });
-}
-
 /**
  * Get seat-to-display-name mapping for a draft.
  * Only includes seats that have a non-null display name.
@@ -133,16 +120,15 @@ export async function getSeatDisplayNames(
 export async function getAllSeatSettings(
   client: Client,
   draftId: string,
-): Promise<Map<number, { autoPick: boolean; autoPickMode: string; displayName: string | null }>> {
+): Promise<Map<number, { autoPick: boolean; displayName: string | null }>> {
   const result = await client.execute({
-    sql: "SELECT seat, auto_pick, auto_pick_mode, display_name FROM seat_tokens WHERE draft_id = ?",
+    sql: "SELECT seat, auto_pick, display_name FROM seat_tokens WHERE draft_id = ?",
     args: [draftId],
   });
-  const map = new Map<number, { autoPick: boolean; autoPickMode: string; displayName: string | null }>();
+  const map = new Map<number, { autoPick: boolean; displayName: string | null }>();
   for (const row of result.rows) {
     map.set(row.seat as number, {
       autoPick: row.auto_pick === 1,
-      autoPickMode: (row.auto_pick_mode as string) ?? "resilient",
       displayName: row.display_name as string | null,
     });
   }
@@ -157,9 +143,9 @@ export async function getSeatSettings(
   client: Client,
   draftId: string,
   seat: number,
-): Promise<{ autoPick: boolean; displayName: string | null; autoPickMode: "resilient" | "cautious" } | null> {
+): Promise<{ autoPick: boolean; displayName: string | null } | null> {
   const result = await client.execute({
-    sql: "SELECT auto_pick, display_name, auto_pick_mode FROM seat_tokens WHERE draft_id = ? AND seat = ?",
+    sql: "SELECT auto_pick, display_name FROM seat_tokens WHERE draft_id = ? AND seat = ?",
     args: [draftId, seat],
   });
   if (result.rows.length === 0) return null;
@@ -167,6 +153,5 @@ export async function getSeatSettings(
   return {
     autoPick: row.auto_pick === 1,
     displayName: row.display_name as string | null,
-    autoPickMode: (row.auto_pick_mode as "resilient" | "cautious") ?? "resilient",
   };
 }

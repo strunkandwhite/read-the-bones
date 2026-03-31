@@ -45,7 +45,6 @@ describe('authenticateSeat', () => {
       seat: 3,
       autoPick: true,
       displayName: null,
-      autoPickMode: 'resilient' as const,
     });
 
     const req = new Request('http://localhost/test', {
@@ -83,7 +82,6 @@ describe('authenticateSeat', () => {
       seat: 1,
       autoPick: false,
       displayName: null,
-      autoPickMode: 'resilient' as const,
     });
 
     const req = new Request('http://localhost/test', {

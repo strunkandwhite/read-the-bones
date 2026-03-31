@@ -237,58 +237,15 @@ describe('processPick', () => {
     });
   });
 
-  describe('cautious auto-pick mode', () => {
-    it('pauses auto-pick when a queued card is taken and mode is cautious', async () => {
-      const { getQueuesContainingCard } = await import('./db/queries/pickQueue');
-      const { getAllSeatSettings, updateAutoPick } = await import('./db/queries/seatTokens');
-
-      // Seat 2 has Lightning Bolt (card 42) queued
-      vi.mocked(getQueuesContainingCard).mockResolvedValueOnce([{ seat: 2 }]);
-      // Batch settings: seat 2 is in cautious mode with autoPick disabled (cascade won't trigger)
-      vi.mocked(getAllSeatSettings).mockResolvedValueOnce(new Map([
-        [2, { autoPick: false, autoPickMode: 'cautious', displayName: null }],
-      ]));
-
-      // 1. Draft metadata
-      mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([
-          { phase: 'drafting', num_seats: 4, picks_per_player: 6, banned_cards: null },
-        ]),
-      );
-      // 2. Pick count -- 0 picks
-      mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([{ cnt: 0 }]),
-      );
-      // 3. Availability check -- picked_count=0, qty=1 (last copy)
-      mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([{ picked_count: 0, qty: 1 }]),
-      );
-      // 4. INSERT pick_events -- success
-      mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([], 1),
-      );
-      // 5. isLastCopy=true -> getQueuesContainingCard, updateAutoPick, removeCardFromAllQueues are mocked
-      // (no DB query for next seat auto_pick; uses allSeatSettings map -- seat 2 not autoPick as next -> break)
-
-      await processPick(mockClient as never, baseInput);
-
-      expect(getQueuesContainingCard).toHaveBeenCalledWith(
-        mockClient, 'draft-1', 42,
-      );
-      expect(updateAutoPick).toHaveBeenCalledWith(
-        mockClient, 'draft-1', 2, false,
-      );
-    });
-
-    it('does not pause auto-pick when mode is resilient', async () => {
+  describe('queue cleanup on last copy', () => {
+    it('does not pause auto-pick when last copy is taken (cautious mode removed)', async () => {
       const { getQueuesContainingCard } = await import('./db/queries/pickQueue');
       const { getAllSeatSettings, updateAutoPick } = await import('./db/queries/seatTokens');
 
       // Seat 2 has the card queued
       vi.mocked(getQueuesContainingCard).mockResolvedValueOnce([{ seat: 2 }]);
-      // Batch settings: seat 2 is in resilient mode with autoPick disabled (cascade won't trigger)
       vi.mocked(getAllSeatSettings).mockResolvedValueOnce(new Map([
-        [2, { autoPick: false, autoPickMode: 'resilient', displayName: null }],
+        [2, { autoPick: false, displayName: null }],
       ]));
 
       // 1. Draft metadata
@@ -309,58 +266,14 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([], 1),
       );
-      // 5. isLastCopy=true -> queues checked but resilient mode skips pause
-      // (no DB query for next seat auto_pick; seat 2 not autoPick as cascade next -> break)
 
       await processPick(mockClient as never, baseInput);
 
       expect(getQueuesContainingCard).toHaveBeenCalledWith(
         mockClient, 'draft-1', 42,
       );
-      // updateAutoPick should NOT have been called
+      // updateAutoPick should NOT be called — cautious-mode pause logic removed
       expect(updateAutoPick).not.toHaveBeenCalled();
-    });
-
-    it('skips the picker seat when checking affected queues', async () => {
-      const { getQueuesContainingCard } = await import('./db/queries/pickQueue');
-      const { getAllSeatSettings, updateAutoPick } = await import('./db/queries/seatTokens');
-
-      // Both seat 1 (the picker) and seat 3 have the card queued
-      vi.mocked(getQueuesContainingCard).mockResolvedValueOnce([
-        { seat: 1 }, { seat: 3 },
-      ]);
-      // Batch settings: seat 3 is in cautious mode; seat 1 is the picker (filtered out)
-      vi.mocked(getAllSeatSettings).mockResolvedValueOnce(new Map([
-        [1, { autoPick: false, autoPickMode: 'resilient', displayName: null }],
-        [3, { autoPick: true, autoPickMode: 'cautious', displayName: null }],
-      ]));
-
-      // 1. Draft metadata
-      mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([
-          { phase: 'drafting', num_seats: 4, picks_per_player: 6, banned_cards: null },
-        ]),
-      );
-      // 2. Pick count
-      mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([{ cnt: 0 }]),
-      );
-      // 3. Availability check -- picked_count=0, qty=1 (last copy)
-      mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([{ picked_count: 0, qty: 1 }]),
-      );
-      // 4. INSERT
-      mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([], 1),
-      );
-      // 5. isLastCopy=true -> queues checked; seat 1 filtered out; seat 3 paused
-      // (no DB query for next seat auto_pick; seat 2 not in map -> break)
-
-      await processPick(mockClient as never, baseInput);
-
-      // updateAutoPick called only for seat 3, not seat 1
-      expect(updateAutoPick).toHaveBeenCalledTimes(1);
-      expect(updateAutoPick).toHaveBeenCalledWith(mockClient, 'draft-1', 3, false);
     });
   });
 

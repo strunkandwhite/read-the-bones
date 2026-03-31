@@ -6,7 +6,6 @@ import {
   regenerateToken,
   updateDisplayName,
   updateAutoPick,
-  updateAutoPickMode,
   getSeatDisplayNames,
   getSeatSettings,
   getAllSeatSettings,
@@ -51,18 +50,18 @@ describe("generateSeatTokens", () => {
 describe("resolveToken", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("returns { draftId, seat, autoPick, autoPickMode } for a valid token", async () => {
+  it("returns { draftId, seat, autoPick, displayName } for a valid token", async () => {
     const mockClient = createMockClient();
     mockClient.execute.mockResolvedValue({
-      rows: [{ draft_id: "draft-1", seat: 3, auto_pick: 1, display_name: null, auto_pick_mode: "resilient" }],
+      rows: [{ draft_id: "draft-1", seat: 3, auto_pick: 1, display_name: null }],
     });
 
     const result = await resolveToken(mockClient as never, "some-token");
 
-    expect(result).toEqual({ draftId: "draft-1", seat: 3, autoPick: true, displayName: null, autoPickMode: "resilient" });
+    expect(result).toEqual({ draftId: "draft-1", seat: 3, autoPick: true, displayName: null });
     expect(mockClient.execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        sql: expect.stringContaining("SELECT draft_id, seat, auto_pick, display_name, auto_pick_mode"),
+        sql: expect.stringContaining("SELECT draft_id, seat, auto_pick, display_name"),
         args: ["some-token"],
       })
     );
@@ -175,37 +174,6 @@ describe("updateAutoPick", () => {
   });
 });
 
-describe("updateAutoPickMode", () => {
-  beforeEach(() => vi.clearAllMocks());
-
-  it("calls UPDATE with 'resilient' mode", async () => {
-    const mockClient = createMockClient();
-    mockClient.execute.mockResolvedValue({ rows: [] });
-
-    await updateAutoPickMode(mockClient as never, "draft-1", 1, "resilient");
-
-    expect(mockClient.execute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sql: expect.stringContaining("UPDATE seat_tokens SET auto_pick_mode = ?"),
-        args: ["resilient", "draft-1", 1],
-      })
-    );
-  });
-
-  it("calls UPDATE with 'cautious' mode", async () => {
-    const mockClient = createMockClient();
-    mockClient.execute.mockResolvedValue({ rows: [] });
-
-    await updateAutoPickMode(mockClient as never, "draft-1", 2, "cautious");
-
-    expect(mockClient.execute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sql: expect.stringContaining("UPDATE seat_tokens SET auto_pick_mode = ?"),
-        args: ["cautious", "draft-1", 2],
-      })
-    );
-  });
-});
 
 describe("getSeatDisplayNames", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -253,21 +221,21 @@ describe("getAllSeatSettings", () => {
     const mockClient = createMockClient();
     mockClient.execute.mockResolvedValue({
       rows: [
-        { seat: 1, auto_pick: 1, auto_pick_mode: "resilient", display_name: "Alice" },
-        { seat: 2, auto_pick: 0, auto_pick_mode: "cautious", display_name: null },
-        { seat: 3, auto_pick: 1, auto_pick_mode: "resilient", display_name: "Charlie" },
+        { seat: 1, auto_pick: 1, display_name: "Alice" },
+        { seat: 2, auto_pick: 0, display_name: null },
+        { seat: 3, auto_pick: 1, display_name: "Charlie" },
       ],
     });
 
     const result = await getAllSeatSettings(mockClient as never, "draft-1");
 
     expect(result.size).toBe(3);
-    expect(result.get(1)).toEqual({ autoPick: true, autoPickMode: "resilient", displayName: "Alice" });
-    expect(result.get(2)).toEqual({ autoPick: false, autoPickMode: "cautious", displayName: null });
-    expect(result.get(3)).toEqual({ autoPick: true, autoPickMode: "resilient", displayName: "Charlie" });
+    expect(result.get(1)).toEqual({ autoPick: true, displayName: "Alice" });
+    expect(result.get(2)).toEqual({ autoPick: false, displayName: null });
+    expect(result.get(3)).toEqual({ autoPick: true, displayName: "Charlie" });
     expect(mockClient.execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        sql: expect.stringContaining("SELECT seat, auto_pick, auto_pick_mode, display_name FROM seat_tokens WHERE draft_id = ?"),
+        sql: expect.stringContaining("SELECT seat, auto_pick, display_name FROM seat_tokens WHERE draft_id = ?"),
         args: ["draft-1"],
       })
     );
@@ -282,16 +250,6 @@ describe("getAllSeatSettings", () => {
     expect(result.size).toBe(0);
   });
 
-  it("defaults auto_pick_mode to 'resilient' when null", async () => {
-    const mockClient = createMockClient();
-    mockClient.execute.mockResolvedValue({
-      rows: [{ seat: 1, auto_pick: 1, auto_pick_mode: null, display_name: null }],
-    });
-
-    const result = await getAllSeatSettings(mockClient as never, "draft-1");
-
-    expect(result.get(1)?.autoPickMode).toBe("resilient");
-  });
 });
 
 describe("getSeatSettings", () => {
@@ -300,15 +258,15 @@ describe("getSeatSettings", () => {
   it("returns settings for an existing seat", async () => {
     const mockClient = createMockClient();
     mockClient.execute.mockResolvedValue({
-      rows: [{ auto_pick: 1, display_name: "Bob", auto_pick_mode: "resilient" }],
+      rows: [{ auto_pick: 1, display_name: "Bob" }],
     });
 
     const result = await getSeatSettings(mockClient as never, "draft-1", 2);
 
-    expect(result).toEqual({ autoPick: true, displayName: "Bob", autoPickMode: "resilient" });
+    expect(result).toEqual({ autoPick: true, displayName: "Bob" });
     expect(mockClient.execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        sql: expect.stringContaining("SELECT auto_pick, display_name, auto_pick_mode"),
+        sql: expect.stringContaining("SELECT auto_pick, display_name"),
         args: ["draft-1", 2],
       })
     );
@@ -326,11 +284,11 @@ describe("getSeatSettings", () => {
   it("returns autoPick false when auto_pick is 0", async () => {
     const mockClient = createMockClient();
     mockClient.execute.mockResolvedValue({
-      rows: [{ auto_pick: 0, display_name: null, auto_pick_mode: "cautious" }],
+      rows: [{ auto_pick: 0, display_name: null }],
     });
 
     const result = await getSeatSettings(mockClient as never, "draft-1", 1);
 
-    expect(result).toEqual({ autoPick: false, displayName: null, autoPickMode: "cautious" });
+    expect(result).toEqual({ autoPick: false, displayName: null });
   });
 });

@@ -2,7 +2,7 @@ import type { Client } from '@libsql/client';
 import { getNextPick, getTotalPicks } from './snakeDraft';
 import { removeCardFromAllQueues, trimExcessQueueEntries, getAutoPickCandidate, getQueuesContainingCard } from './db/queries/pickQueue';
 import { removeFloatedCardByCardId } from './db/queries/floatedCards';
-import { getAllSeatSettings, updateAutoPick } from './db/queries/seatTokens';
+import { getAllSeatSettings } from './db/queries/seatTokens';
 import { parseBannedCards } from './db/queries/helpers';
 import { NotFoundError, ValidationError, ConflictError } from './errors';
 
@@ -137,17 +137,13 @@ export async function processPick(
     }
 
     if (isLastCopy) {
-      // Last copy taken: pause cautious-mode players, remove all queue entries + floats
+      // Last copy taken: remove all queue entries + floats
       const affectedSeats = await getQueuesContainingCard(client, input.draftId, currentCardId);
       await Promise.all(
         affectedSeats
           .filter(({ seat: s }: { seat: number }) => s !== currentSeat)
-          .map(async ({ seat: affectedSeat }: { seat: number }) => {
-            const settings = allSeatSettings.get(affectedSeat);
-            if (settings?.autoPickMode === 'cautious') {
-              await updateAutoPick(client, input.draftId, affectedSeat, false);
-              allSeatSettings.set(affectedSeat, { ...settings, autoPick: false });
-            }
+          .map(async (_: { seat: number }) => {
+            // No-op: cautious-mode pause logic removed; processPick will be overhauled in Task 3
           })
       );
       await Promise.all([

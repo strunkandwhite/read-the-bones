@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
-import { updateAutoPick, updateAutoPickMode, updateDisplayName, getSeatSettings } from "@/core/db/queries/seatTokens";
+import { updateAutoPick, updateDisplayName, getSeatSettings } from "@/core/db/queries/seatTokens";
 import { AppError } from "@/core/errors";
 
 export async function PUT(
@@ -29,12 +29,6 @@ export async function PUT(
       }
       await updateAutoPick(client, draftId, seat, body.auto_pick);
     }
-    if (body.auto_pick_mode !== undefined) {
-      if (!["resilient", "cautious"].includes(body.auto_pick_mode)) {
-        return NextResponse.json({ error: "auto_pick_mode must be 'resilient' or 'cautious'" }, { status: 400 });
-      }
-      await updateAutoPickMode(client, draftId, seat, body.auto_pick_mode);
-    }
     if (body.display_name !== undefined) {
       await updateDisplayName(client, draftId, seat, body.display_name || null);
     }
@@ -44,7 +38,6 @@ export async function PUT(
     return NextResponse.json({
       seat,
       autoPick: settings!.autoPick,
-      autoPickMode: settings!.autoPickMode,
       displayName: settings!.displayName,
     });
   } catch (error) {
