@@ -49,7 +49,7 @@ export function DraftBoardModal({
   const pickError = useLiveStore((s) => s.pickError);
   const submitPick = useLiveStore((s) => s.handlePick);
   const reorderQueue = useLiveStore((s) => s.reorderQueue);
-  const removeFromQueue = useLiveStore((s) => s.removeFromQueue);
+  const removeFromQueueByPriority = useLiveStore((s) => s.removeFromQueueByPriority);
   const toggleAutoPick = useLiveStore((s) => s.toggleAutoPick);
   const updateAutoPickMode = useLiveStore((s) => s.updateAutoPickMode);
 
@@ -160,7 +160,7 @@ export function DraftBoardModal({
                     autoPick={autoPick}
                     autoPickMode={autoPickMode}
                     onReorder={reorderQueue}
-                    onRemove={removeFromQueue}
+                    onRemove={removeFromQueueByPriority}
                     onToggleAutoPick={toggleAutoPick}
                     onChangeAutoPickMode={updateAutoPickMode}
                   />

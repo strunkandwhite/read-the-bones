@@ -43,7 +43,7 @@ function resetStores() {
     autoPickMode: "resilient",
     displayName: null,
     queue: [],
-    queuedCards: new Map(),
+    queuedCardCounts: new Map(),
     queueLoading: false,
     queueError: null,
     floatedCards: [],
@@ -563,7 +563,7 @@ describe("liveStore — fetchQueue", () => {
     );
   });
 
-  it("sets queue and queuedCards from response", async () => {
+  it("sets queue and queuedCardCounts from response", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
@@ -584,8 +584,8 @@ describe("liveStore — fetchQueue", () => {
     const s = useLiveStore.getState();
     expect(s.queue).toHaveLength(2);
     expect(s.queue[0].cardName).toBe("Bolt");
-    expect(s.queuedCards.get("Bolt")).toBe(1);
-    expect(s.queuedCards.get("Counterspell")).toBe(2);
+    expect(s.queuedCardCounts.get("Bolt")).toBe(1);
+    expect(s.queuedCardCounts.get("Counterspell")).toBe(1);
     expect(s.queueError).toBeNull();
   });
 
@@ -634,7 +634,7 @@ describe("liveStore — addToQueue", () => {
     useLiveStore.setState({
       seatToken: "tok-abc",
       queue: [{ priority: 1, cardId: 10, cardName: "Bolt" }],
-      queuedCards: new Map([["Bolt", 1]]),
+      queuedCardCounts: new Map([["Bolt", 1]]),
     });
 
     useLiveStore.getState().addToQueue("Counterspell");
@@ -682,7 +682,7 @@ describe("liveStore — removeFromQueue", () => {
         { priority: 1, cardId: 10, cardName: "Bolt" },
         { priority: 2, cardId: 20, cardName: "Counterspell" },
       ],
-      queuedCards: new Map([["Bolt", 1], ["Counterspell", 2]]),
+      queuedCardCounts: new Map([["Bolt", 1], ["Counterspell", 1]]),
     });
 
     useLiveStore.getState().removeFromQueue("Bolt");
@@ -696,6 +696,79 @@ describe("liveStore — removeFromQueue", () => {
         body: JSON.stringify([{ card_name: "Counterspell" }]),
       }),
     );
+  });
+
+  it("removeFromQueue removes only the highest-priority entry for a card", async () => {
+    useLiveStore.setState({
+      seatToken: "tok",
+      queue: [
+        { priority: 1, cardId: 10, cardName: "Bolt" },
+        { priority: 2, cardId: 20, cardName: "Counterspell" },
+        { priority: 3, cardId: 10, cardName: "Bolt" },
+      ],
+      queuedCardCounts: new Map([["Bolt", 2], ["Counterspell", 1]]),
+    });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(JSON.stringify({
+        queue: [
+          { priority: 1, cardId: 20, cardName: "Counterspell" },
+          { priority: 2, cardId: 10, cardName: "Bolt" },
+        ],
+      }))
+    );
+
+    useLiveStore.getState().removeFromQueue("Bolt");
+
+    // Check optimistic state — Bolt should still appear once
+    const s = useLiveStore.getState();
+    expect(s.queue.filter((e) => e.cardName === "Bolt")).toHaveLength(1);
+    expect(s.queue.filter((e) => e.cardName === "Counterspell")).toHaveLength(1);
+    expect(s.queuedCardCounts.get("Bolt")).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// removeFromQueueByPriority
+// ---------------------------------------------------------------------------
+describe("liveStore — removeFromQueueByPriority", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("removeFromQueueByPriority removes the entry matching both card name and priority", () => {
+    useLiveStore.setState({
+      seatToken: "tok",
+      queue: [
+        { priority: 1, cardId: 10, cardName: "Bolt" },
+        { priority: 2, cardId: 20, cardName: "Counterspell" },
+        { priority: 3, cardId: 10, cardName: "Bolt" },
+      ],
+      queuedCardCounts: new Map([["Bolt", 2], ["Counterspell", 1]]),
+    });
+
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(JSON.stringify({
+        queue: [
+          { priority: 1, cardId: 10, cardName: "Bolt" },
+          { priority: 2, cardId: 20, cardName: "Counterspell" },
+        ],
+      }))
+    );
+
+    useLiveStore.getState().removeFromQueueByPriority("Bolt", 3);
+
+    // Priority-3 Bolt removed, priority-1 Bolt remains
+    const s = useLiveStore.getState();
+    const bolts = s.queue.filter((e) => e.cardName === "Bolt");
+    expect(bolts).toHaveLength(1);
+    expect(bolts[0].priority).toBe(1);
+    expect(s.queuedCardCounts.get("Bolt")).toBe(1);
   });
 });
 
@@ -770,7 +843,7 @@ describe("liveStore — syncQueue reverts on failure", () => {
     useLiveStore.setState({
       seatToken: "tok-abc",
       queue: [{ priority: 1, cardId: 10, cardName: "Bolt" }],
-      queuedCards: new Map([["Bolt", 1]]),
+      queuedCardCounts: new Map([["Bolt", 1]]),
     });
 
     useLiveStore.getState().addToQueue("Counterspell");
@@ -779,8 +852,8 @@ describe("liveStore — syncQueue reverts on failure", () => {
 
     const s = useLiveStore.getState();
     expect(s.queue).toEqual([{ priority: 1, cardId: 10, cardName: "Bolt" }]);
-    expect(s.queuedCards.get("Bolt")).toBe(1);
-    expect(s.queuedCards.has("Counterspell")).toBe(false);
+    expect(s.queuedCardCounts.get("Bolt")).toBe(1);
+    expect(s.queuedCardCounts.has("Counterspell")).toBe(false);
     expect(s.queueError).toBe("Failed to sync queue");
   });
 
@@ -791,7 +864,7 @@ describe("liveStore — syncQueue reverts on failure", () => {
     useLiveStore.setState({
       seatToken: "tok-abc",
       queue: [{ priority: 1, cardId: 10, cardName: "Bolt" }],
-      queuedCards: new Map([["Bolt", 1]]),
+      queuedCardCounts: new Map([["Bolt", 1]]),
     });
 
     useLiveStore.getState().addToQueue("Counterspell");
@@ -805,9 +878,9 @@ describe("liveStore — syncQueue reverts on failure", () => {
 });
 
 // ---------------------------------------------------------------------------
-// queuedCards derived
+// queuedCardCounts derived
 // ---------------------------------------------------------------------------
-describe("liveStore — queuedCards derived from queue", () => {
+describe("liveStore — queuedCardCounts derived from queue", () => {
   beforeEach(() => {
     localStorage.clear();
     resetStores();
@@ -817,7 +890,7 @@ describe("liveStore — queuedCards derived from queue", () => {
     vi.restoreAllMocks();
   });
 
-  it("recomputes queuedCards after fetchQueue", async () => {
+  it("recomputes queuedCardCounts after fetchQueue", async () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
       new Response(
         JSON.stringify({
@@ -835,10 +908,30 @@ describe("liveStore — queuedCards derived from queue", () => {
 
     await useLiveStore.getState().fetchQueue();
 
-    const qc = useLiveStore.getState().queuedCards;
+    const qc = useLiveStore.getState().queuedCardCounts;
     expect(qc.size).toBe(2);
     expect(qc.get("Bolt")).toBe(1);
-    expect(qc.get("Swords")).toBe(2);
+    expect(qc.get("Swords")).toBe(1);
+  });
+
+  it("queuedCardCounts counts duplicate card names in queue", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(JSON.stringify({
+        queue: [
+          { priority: 1, cardId: 10, cardName: "Bolt" },
+          { priority: 2, cardId: 20, cardName: "Counterspell" },
+          { priority: 3, cardId: 10, cardName: "Bolt" },
+        ],
+      }))
+    );
+
+    useDraftStore.setState({ activeDraft: "d1" });
+    useLiveStore.setState({ seatToken: "tok" });
+    await useLiveStore.getState().fetchQueue();
+
+    const s = useLiveStore.getState();
+    expect(s.queuedCardCounts.get("Bolt")).toBe(2);
+    expect(s.queuedCardCounts.get("Counterspell")).toBe(1);
   });
 });
 

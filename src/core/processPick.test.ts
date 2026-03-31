@@ -4,6 +4,7 @@ import { processPick } from './processPick';
 // Mock pickQueue module
 vi.mock('./db/queries/pickQueue', () => ({
   removeCardFromAllQueues: vi.fn().mockResolvedValue(undefined),
+  trimExcessQueueEntries: vi.fn().mockResolvedValue(undefined),
   getAutoPickCandidate: vi.fn().mockResolvedValue(null),
   getQueuesContainingCard: vi.fn().mockResolvedValue([]),
 }));
@@ -480,6 +481,40 @@ describe('processPick', () => {
       // Copies remain -> no pause, no queue removal
       expect(getQueuesContainingCard).not.toHaveBeenCalled();
       expect(updateAutoPick).not.toHaveBeenCalled();
+    });
+
+    it('calls trimExcessQueueEntries when pick is not last copy', async () => {
+      const { trimExcessQueueEntries } = await import('./db/queries/pickQueue');
+
+      // 1. Draft metadata
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ phase: 'drafting', num_seats: 2, picks_per_player: 3, banned_cards: null }]),
+      );
+      // 2. Pick count -- 0 picks (seat 1's turn)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ cnt: 0 }]),
+      );
+      // 3. Availability check -- qty=3, picked_count=0 (NOT last copy)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ picked_count: 0, qty: 3 }]),
+      );
+      // 4. INSERT pick_events -- success
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([], 1),
+      );
+      // 5. isLastCopy=false (0+1 < 3) -> trimExcessQueueEntries called (mocked)
+      // (no DB query for next seat; allSeatSettings returns empty map -> break)
+
+      await processPick(mockClient as never, {
+        draftId: 'd1', seat: 1, cardId: 100, cardName: 'Scalding Tarn',
+      });
+
+      expect(trimExcessQueueEntries).toHaveBeenCalledWith(
+        mockClient, 'd1', 100, 2, // 3 - (0+1) = 2 remaining
+      );
+      // removeCardFromAllQueues should NOT have been called
+      const { removeCardFromAllQueues } = await import('./db/queries/pickQueue');
+      expect(removeCardFromAllQueues).not.toHaveBeenCalled();
     });
   });
 });

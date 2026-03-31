@@ -48,21 +48,25 @@ export function CardStatsModal() {
 
   // Subscribe to the store values that getCardStatus reads internally,
   // so the status recomputes when queue/float state changes
-  const queuedCards = useLiveStore((s) => s.queuedCards);
+  const queuedCardCounts = useLiveStore((s) => s.queuedCardCounts);
   const floatedCardsSet = useLiveStore((s) => s.floatedCardsSet);
   const seatCardNames = useCardStore((s) => s.seatCardNames);
   const takenCardNamesSet = useCardStore((s) => s.takenCardNamesSet);
+  const takenCardCounts = useCardStore((s) => s.takenCardCounts);
+  const cardData = useCardStore((s) => s.cardData);
 
   // getCardStatus reads from stores imperatively — these subscriptions
   // ensure the memo recomputes when the underlying data changes
   const cardStatusResult = useMemo(
     () => selectedCard ? getCardStatus(selectedCard) : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedCard, isAuthed, queuedCards, floatedCardsSet, seatCardNames, takenCardNamesSet]
+    [selectedCard, isAuthed, queuedCardCounts, floatedCardsSet, seatCardNames, takenCardNamesSet, takenCardCounts, cardData]
   );
 
   const cardStatus: CardStatus = cardStatusResult?.status ?? "none";
   const queuePosition = cardStatusResult?.queuePosition;
+  const queuedCount = cardStatusResult?.queuedCount;
+  const remainingCopies = cardStatusResult?.remainingCopies;
 
   // Disable buttons briefly after any action to prevent double-clicks.
   // Re-enables after the server confirms (cardStatus changes) or 600ms, whichever is later.
@@ -183,6 +187,8 @@ export function CardStatsModal() {
                   cardStatus={cardStatus}
                   isMyTurn={isAuthed && isMyTurn}
                   queuePosition={queuePosition}
+                  queuedCount={queuedCount}
+                  remainingCopies={remainingCopies}
                   disabled={actionPending}
                   onPick={isAuthed ? handlePick : undefined}
                   onQueue={canQueue ? handleQueue : undefined}
@@ -359,6 +365,8 @@ interface ActionButtonsProps {
   cardStatus?: CardStatus;
   isMyTurn?: boolean;
   queuePosition?: number;
+  queuedCount?: number;
+  remainingCopies?: number;
   disabled?: boolean;
   onPick?: () => void;
   onQueue?: () => void;
@@ -391,17 +399,30 @@ function ActionButtons(props: ActionButtonsProps) {
         </>
       );
 
-    case "queued":
+    case "queued": {
+      const canQueueMore = props.onQueue &&
+        props.queuedCount != null &&
+        props.remainingCopies != null &&
+        props.queuedCount < props.remainingCopies;
+      const countLabel = props.queuedCount != null && props.remainingCopies != null
+        ? ` · ${props.queuedCount}/${props.remainingCopies} queued`
+        : "";
       return (
         <>
           {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} disabled={disabled} />}
+          {canQueueMore && (
+            <button className={queueBtn} onClick={props.onQueue} disabled={disabled}>
+              Queue
+            </button>
+          )}
           {props.onUnqueue && (
             <button className={secondaryBtn} onClick={props.onUnqueue} disabled={disabled}>
-              Unqueue{props.queuePosition != null ? ` (#${props.queuePosition})` : ""}
+              Unqueue{props.queuePosition != null ? ` (#${props.queuePosition})` : ""}{countLabel}
             </button>
           )}
         </>
       );
+    }
 
     case "floated":
       return (

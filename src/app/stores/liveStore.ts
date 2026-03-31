@@ -13,6 +13,14 @@ import type { DeckState } from "@/core/types";
 
 export type { DeckAction };
 
+function deriveQueuedCardCounts(queue: QueueEntry[]): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const e of queue) {
+    counts.set(e.cardName, (counts.get(e.cardName) ?? 0) + 1);
+  }
+  return counts;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -33,7 +41,7 @@ interface LiveStoreState {
 
   // Queue
   queue: QueueEntry[];
-  queuedCards: Map<string, number>;
+  queuedCardCounts: Map<string, number>;
   queueLoading: boolean;
   queueError: string | null;
 
@@ -65,6 +73,7 @@ interface LiveStoreState {
   fetchQueue: () => Promise<void>;
   addToQueue: (cardName: string) => void;
   removeFromQueue: (cardName: string) => void;
+  removeFromQueueByPriority: (cardName: string, priority: number) => void;
   reorderQueue: (cardNames: string[]) => void;
 
   // Float actions
@@ -111,20 +120,20 @@ async function syncQueue(set: SetState, get: GetState, cardNames: string[], prev
       const queue: QueueEntry[] = data.queue;
       set({
         queue,
-        queuedCards: new Map(queue.map((e) => [e.cardName, e.priority])),
+        queuedCardCounts: deriveQueuedCardCounts(queue),
         queueError: null,
       });
     } else {
       set({
         queue: fallbackQueue,
-        queuedCards: new Map(fallbackQueue.map((e) => [e.cardName, e.priority])),
+        queuedCardCounts: deriveQueuedCardCounts(fallbackQueue),
         queueError: "Failed to sync queue",
       });
     }
   } catch {
     set({
       queue: fallbackQueue,
-      queuedCards: new Map(fallbackQueue.map((e) => [e.cardName, e.priority])),
+      queuedCardCounts: deriveQueuedCardCounts(fallbackQueue),
       queueError: "Failed to sync queue",
     });
   }
@@ -232,7 +241,7 @@ export const useLiveStore = create<LiveStoreState>()(
 
     // Queue state
     queue: [],
-    queuedCards: new Map(),
+    queuedCardCounts: new Map(),
     queueLoading: false,
     queueError: null,
 
@@ -411,7 +420,7 @@ export const useLiveStore = create<LiveStoreState>()(
           const queue: QueueEntry[] = data.queue;
           set({
             queue,
-            queuedCards: new Map(queue.map((e) => [e.cardName, e.priority])),
+            queuedCardCounts: deriveQueuedCardCounts(queue),
             queueError: null,
           });
         }
@@ -427,7 +436,7 @@ export const useLiveStore = create<LiveStoreState>()(
       const optimisticQueue = [...original, { priority: original.length + 1, cardId: 0, cardName }];
       set({
         queue: optimisticQueue,
-        queuedCards: new Map(optimisticQueue.map((e) => [e.cardName, e.priority])),
+        queuedCardCounts: deriveQueuedCardCounts(optimisticQueue),
       });
       const newNames = [...original.map((e) => e.cardName), cardName];
       syncQueue(set, get, newNames, original);
@@ -435,11 +444,31 @@ export const useLiveStore = create<LiveStoreState>()(
 
     removeFromQueue: (cardName: string) => {
       const { queue: original } = get();
-      // Optimistic update: remove card from queue immediately
-      const optimisticQueue = original.filter((e) => e.cardName !== cardName);
+      // Remove only the highest-priority (lowest number) entry for this card
+      const targetIndex = original.reduce<number | null>((best, e, i) => {
+        if (e.cardName !== cardName) return best;
+        if (best === null || e.priority < original[best].priority) return i;
+        return best;
+      }, null);
+      if (targetIndex === null) return;
+      const optimisticQueue = original.filter((_, i) => i !== targetIndex);
       set({
         queue: optimisticQueue,
-        queuedCards: new Map(optimisticQueue.map((e) => [e.cardName, e.priority])),
+        queuedCardCounts: deriveQueuedCardCounts(optimisticQueue),
+      });
+      const newNames = optimisticQueue.map((e) => e.cardName);
+      syncQueue(set, get, newNames, original);
+    },
+
+    removeFromQueueByPriority: (cardName: string, priority: number) => {
+      const { queue: original } = get();
+      const optimisticQueue = original.filter(
+        (e) => !(e.cardName === cardName && e.priority === priority)
+      );
+      if (optimisticQueue.length === original.length) return; // no match
+      set({
+        queue: optimisticQueue,
+        queuedCardCounts: deriveQueuedCardCounts(optimisticQueue),
       });
       const newNames = optimisticQueue.map((e) => e.cardName);
       syncQueue(set, get, newNames, original);
@@ -653,7 +682,7 @@ async function triggerAutoPick() {
 }
 
 export function recomputePicking() {
-  const { mySeat, autoPick, queuedCards } = useLiveStore.getState();
+  const { mySeat, autoPick, queuedCardCounts } = useLiveStore.getState();
   const { liveDraftStatus } = useDraftStore.getState();
 
   const isMyTurn = mySeat !== null && liveDraftStatus?.nextSeat === mySeat;
@@ -674,7 +703,7 @@ export function recomputePicking() {
   useLiveStore.setState({ isMyTurn, consecutivePicks });
 
   // Auto-pick trigger
-  if (isMyTurn && autoPick && queuedCards.size > 0) {
+  if (isMyTurn && autoPick && queuedCardCounts.size > 0) {
     triggerAutoPick();
   }
 }
@@ -701,7 +730,7 @@ useDraftStore.subscribe(
         autoPickMode: "resilient",
         displayName: null,
         queue: [],
-        queuedCards: new Map(),
+        queuedCardCounts: new Map(),
         queueLoading: false,
         queueError: null,
         floatedCards: [],

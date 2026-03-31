@@ -9,7 +9,7 @@ type QueuePanelProps = {
   autoPick: boolean;
   autoPickMode: "resilient" | "cautious";
   onReorder: (queue: string[]) => void;
-  onRemove: (cardName: string) => void;
+  onRemove: (cardName: string, position: number) => void;
   onToggleAutoPick: () => void;
   onChangeAutoPickMode: (mode: "resilient" | "cautious") => void;
 };
@@ -90,7 +90,7 @@ export function QueuePanel({
         <ol className="m-0 flex max-h-[30vh] list-none flex-col gap-1 overflow-y-auto p-0">
           {queue.map((item, index) => (
             <li
-              key={item.cardName}
+              key={`${item.cardName}-${item.position}`}
               className="flex items-center gap-1.5 rounded bg-zinc-800/30 px-2 py-1 text-xs"
             >
               {/* Position number */}
@@ -133,7 +133,7 @@ export function QueuePanel({
 
               {/* Remove button */}
               <button
-                onClick={() => onRemove(item.cardName)}
+                onClick={() => onRemove(item.cardName, item.position)}
                 aria-label={`Remove ${item.cardName}`}
                 className="cursor-pointer border-none bg-transparent px-1 py-0.5 text-sm leading-none text-zinc-500"
               >

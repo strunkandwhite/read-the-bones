@@ -53,7 +53,7 @@ function resetStores() {
     autoPickMode: "resilient",
     displayName: null,
     queue: [],
-    queuedCards: new Map(),
+    queuedCardCounts: new Map(),
     queueLoading: false,
     queueError: null,
     floatedCards: [],
@@ -82,15 +82,18 @@ describe("getCardStatus", () => {
     expect(getCardStatus("Lightning Bolt")).toEqual({ status: "picked" });
   });
 
-  it("returns 'queued' with position when authed and card is in queuedCards", () => {
+  it("returns 'queued' with position when authed and card is in queuedCardCounts", () => {
     useDraftStore.setState({ selectedSeat: 2 });
     useLiveStore.setState({
       mySeat: 2,
-      queuedCards: new Map([["Counterspell", 1]]),
+      queuedCardCounts: new Map([["Counterspell", 1]]),
+      queue: [{ priority: 1, cardId: 0, cardName: "Counterspell" }],
     });
     expect(getCardStatus("Counterspell")).toEqual({
       status: "queued",
       queuePosition: 1,
+      queuedCount: 1,
+      remainingCopies: 1,
     });
   });
 
@@ -117,7 +120,8 @@ describe("getCardStatus", () => {
     useDraftStore.setState({ selectedSeat: 1 });
     useLiveStore.setState({
       mySeat: 2,
-      queuedCards: new Map([["Force of Will", 0]]),
+      queuedCardCounts: new Map([["Force of Will", 1]]),
+      queue: [{ priority: 1, cardId: 0, cardName: "Force of Will" }],
     });
     expect(getCardStatus("Force of Will")).toEqual({ status: "none" });
   });
@@ -136,7 +140,8 @@ describe("getCardStatus", () => {
     useDraftStore.setState({ selectedSeat: 1 });
     useLiveStore.setState({
       mySeat: 1,
-      queuedCards: new Map([["Swords to Plowshares", 0]]),
+      queuedCardCounts: new Map([["Swords to Plowshares", 1]]),
+      queue: [{ priority: 1, cardId: 0, cardName: "Swords to Plowshares" }],
     });
     useCardStore.setState({
       seatCardNames: new Set(["Swords to Plowshares"]),
@@ -148,7 +153,8 @@ describe("getCardStatus", () => {
     useDraftStore.setState({ selectedSeat: 1 });
     useLiveStore.setState({
       mySeat: 1,
-      queuedCards: new Map([["Thoughtseize", 2]]),
+      queuedCardCounts: new Map([["Thoughtseize", 1]]),
+      queue: [{ priority: 2, cardId: 0, cardName: "Thoughtseize" }],
     });
     useCardStore.setState({
       takenCardNamesSet: new Set(["Thoughtseize"]),
@@ -156,7 +162,33 @@ describe("getCardStatus", () => {
     expect(getCardStatus("Thoughtseize")).toEqual({
       status: "queued",
       queuePosition: 2,
+      queuedCount: 1,
+      remainingCopies: 1,
     });
+  });
+
+  it("returns 'queued' with queuedCount and remainingCopies for multi-copy card", () => {
+    useDraftStore.setState({ selectedSeat: 2 });
+    useLiveStore.setState({
+      mySeat: 2,
+      queuedCardCounts: new Map([["Scalding Tarn", 2]]),
+      queue: [
+        { priority: 1, cardId: 10, cardName: "Scalding Tarn" },
+        { priority: 3, cardId: 10, cardName: "Scalding Tarn" },
+      ],
+    });
+    useCardStore.setState({
+      seatCardNames: new Set(),
+      takenCardNamesSet: new Set(),
+      takenCardCounts: new Map([["Scalding Tarn", 1]]),
+      cardData: { ...useCardStore.getState().cardData, cubeCopies: { "Scalding Tarn": 3 } },
+    });
+
+    const result = getCardStatus("Scalding Tarn");
+    expect(result.status).toBe("queued");
+    expect(result.queuePosition).toBe(1);
+    expect(result.queuedCount).toBe(2);
+    expect(result.remainingCopies).toBe(2); // 3 total - 1 taken
   });
 });
 

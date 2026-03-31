@@ -53,7 +53,7 @@ describe("QueuePanel", () => {
     render(<QueuePanel {...defaultProps} onRemove={onRemove} />);
     const removeButtons = screen.getAllByRole("button", { name: /remove/i });
     fireEvent.click(removeButtons[0]);
-    expect(onRemove).toHaveBeenCalledWith("Lightning Bolt");
+    expect(onRemove).toHaveBeenCalledWith("Lightning Bolt", 1);
   });
 
   it("calls onReorder when up button is clicked", () => {
