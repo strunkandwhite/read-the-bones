@@ -1,6 +1,6 @@
 import type { Client } from '@libsql/client';
 import { getNextPick, getTotalPicks } from './snakeDraft';
-import { removeCardFromAllQueues, getAutoPickCandidate, getQueuesContainingCard } from './db/queries/pickQueue';
+import { removeCardFromAllQueues, trimExcessQueueEntries, getAutoPickCandidate, getQueuesContainingCard } from './db/queries/pickQueue';
 import { removeFloatedCardByCardId } from './db/queries/floatedCards';
 import { getAllSeatSettings, updateAutoPick } from './db/queries/seatTokens';
 import { parseBannedCards } from './db/queries/helpers';
@@ -106,8 +106,9 @@ export async function processPick(
       cardName: currentCardName,
     });
 
-    // Determine if this was the last available copy
+    // Determine remaining copies after this pick
     let isLastCopy: boolean;
+    let remainingAfterPick: number;
     if (cascadeDepth === 0) {
       // Initial pick: reuse the validation query result
       const prevPickedCount = availCheck.rows.length > 0
@@ -117,6 +118,7 @@ export async function processPick(
         ? (availCheck.rows[0].qty as number)
         : 1;
       isLastCopy = prevPickedCount + 1 >= totalQty;
+      remainingAfterPick = totalQty - (prevPickedCount + 1);
     } else {
       // Cascade pick: check the count now
       const copyCheck = await client.execute({
@@ -131,10 +133,11 @@ export async function processPick(
       const pickedNow = copyCheck.rows.length > 0 ? (copyCheck.rows[0].picked_count as number) : 1;
       const totalQty = copyCheck.rows.length > 0 ? (copyCheck.rows[0].qty as number) : 1;
       isLastCopy = pickedNow >= totalQty;
+      remainingAfterPick = totalQty - pickedNow;
     }
 
-    // Only pause cautious-mode players and remove from queues when last copy taken
     if (isLastCopy) {
+      // Last copy taken: pause cautious-mode players, remove all queue entries + floats
       const affectedSeats = await getQueuesContainingCard(client, input.draftId, currentCardId);
       await Promise.all(
         affectedSeats
@@ -143,16 +146,17 @@ export async function processPick(
             const settings = allSeatSettings.get(affectedSeat);
             if (settings?.autoPickMode === 'cautious') {
               await updateAutoPick(client, input.draftId, affectedSeat, false);
-              // Update the batch map so the cascade check below sees the paused state
               allSeatSettings.set(affectedSeat, { ...settings, autoPick: false });
             }
           })
       );
-
       await Promise.all([
         removeCardFromAllQueues(client, input.draftId, currentCardId),
         removeFloatedCardByCardId(client, input.draftId, currentCardId),
       ]);
+    } else {
+      // Not last copy: trim queue entries that exceed remaining availability
+      await trimExcessQueueEntries(client, input.draftId, currentCardId, remainingAfterPick);
     }
 
     // Check if draft is complete
