@@ -133,7 +133,7 @@ describe("PageClient", () => {
       autoPickMode: "resilient",
       displayName: null,
       queue: [],
-      queuedCards: new Map(),
+      queuedCardCounts: new Map(),
       queueLoading: false,
       queueError: null,
       floatedCards: [],

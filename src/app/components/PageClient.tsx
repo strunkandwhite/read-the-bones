@@ -66,7 +66,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   const isMyTurn = useLiveStore((s) => s.isMyTurn);
   const pickError = useLiveStore((s) => s.pickError);
   const setPickError = useLiveStore((s) => s.setPickError);
-  const queuedCards = useLiveStore((s) => s.queuedCards);
+  const queuedCardCounts = useLiveStore((s) => s.queuedCardCounts);
   const floatedCards = useLiveStore((s) => s.floatedCards);
   const dispatchDeck = useLiveStore((s) => s.dispatchDeck);
   const setDeckBuilderActive = useLiveStore((s) => s.setDeckBuilderActive);
@@ -132,8 +132,8 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   });
 
   const queuedCardNames = useMemo(
-    () => Array.from(queuedCards.keys()),
-    [queuedCards],
+    () => Array.from(queuedCardCounts.keys()),
+    [queuedCardCounts],
   );
 
   // Handle card click — opens card stats modal
