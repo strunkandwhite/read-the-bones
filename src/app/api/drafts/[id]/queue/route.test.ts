@@ -79,7 +79,7 @@ describe("GET /api/drafts/[id]/queue", () => {
 describe("PUT /api/drafts/[id]/queue", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("replaces queue and returns updated queue", async () => {
+  it("replaces queue with structured entries and returns updated queue", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
     mockExecute.mockResolvedValueOnce({
       rows: [
@@ -93,13 +93,13 @@ describe("PUT /api/drafts/[id]/queue", () => {
     // Second getQueue call: new queue (after set)
     mockGetQueue.mockResolvedValueOnce([
       { mode: "pause", cards: [{ id: 10, name: "Lightning Bolt" }] },
-      { mode: "pause", cards: [{ id: 20, name: "Counterspell" }] },
+      { mode: "flow-through", cards: [{ id: 20, name: "Counterspell" }] },
     ]);
 
     const res = await PUT(
       makePutRequest([
-        { card_name: "Lightning Bolt" },
-        { card_name: "Counterspell" },
+        { mode: "pause", cards: ["Lightning Bolt"] },
+        { mode: "flow-through", cards: ["Counterspell"] },
       ]),
       { params: Promise.resolve({ id: "test" }) },
     );
@@ -109,12 +109,94 @@ describe("PUT /api/drafts/[id]/queue", () => {
     expect(body.queue).toHaveLength(2);
   });
 
+  it("accepts object-style card entries { cardName }", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockExecute.mockResolvedValueOnce({
+      rows: [{ card_id: 10, name: "Lightning Bolt" }],
+    });
+    mockGetQueue.mockResolvedValueOnce([]);
+    mockSetQueue.mockResolvedValueOnce(undefined);
+    mockGetQueue.mockResolvedValueOnce([
+      { mode: "pause", cards: [{ id: 10, name: "Lightning Bolt" }] },
+    ]);
+
+    const res = await PUT(
+      makePutRequest([
+        { mode: "pause", cards: [{ cardName: "Lightning Bolt" }] },
+      ]),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    expect(res.status).toBe(200);
+  });
+
+  it("defaults mode to pause when omitted", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockExecute.mockResolvedValueOnce({
+      rows: [{ card_id: 10, name: "Lightning Bolt" }],
+    });
+    mockGetQueue.mockResolvedValueOnce([]);
+    mockSetQueue.mockResolvedValueOnce(undefined);
+    mockGetQueue.mockResolvedValueOnce([
+      { mode: "pause", cards: [{ id: 10, name: "Lightning Bolt" }] },
+    ]);
+
+    const res = await PUT(
+      makePutRequest([{ cards: ["Lightning Bolt"] }]),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    expect(res.status).toBe(200);
+    expect(mockSetQueue).toHaveBeenCalledWith(
+      expect.anything(),
+      "test",
+      1,
+      [{ mode: "pause", cards: [{ id: 10, name: "Lightning Bolt" }] }],
+    );
+  });
+
+  it("returns 400 for invalid mode", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+
+    const res = await PUT(
+      makePutRequest([{ mode: "invalid", cards: ["Lightning Bolt"] }]),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 for entry missing cards array", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+
+    const res = await PUT(
+      makePutRequest([{ mode: "pause" }]),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    expect(res.status).toBe(400);
+  });
+
+  it("returns 400 for duplicate card names across entries", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+
+    const res = await PUT(
+      makePutRequest([
+        { mode: "pause", cards: ["Lightning Bolt"] },
+        { mode: "pause", cards: ["Lightning Bolt"] },
+      ]),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    expect(res.status).toBe(400);
+  });
+
   it("returns 400 for unknown card", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
     mockExecute.mockResolvedValueOnce({ rows: [] });
 
     const res = await PUT(
-      makePutRequest([{ card_name: "Not Real" }]),
+      makePutRequest([{ mode: "pause", cards: ["Not Real"] }]),
       { params: Promise.resolve({ id: "test" }) },
     );
 
@@ -125,7 +207,7 @@ describe("PUT /api/drafts/[id]/queue", () => {
     mockAuthenticateSeat.mockRejectedValueOnce(new AuthError("Missing seat token"));
 
     const res = await PUT(
-      makePutRequest([{ card_name: "Lightning Bolt" }], ""),
+      makePutRequest([{ mode: "pause", cards: ["Lightning Bolt"] }], ""),
       { params: Promise.resolve({ id: "test" }) },
     );
 
@@ -150,7 +232,7 @@ describe("PUT /api/drafts/[id]/queue", () => {
     ]);
 
     const res = await PUT(
-      makePutRequest([{ card_name: "Counterspell" }]),
+      makePutRequest([{ mode: "pause", cards: ["Counterspell"] }]),
       { params: Promise.resolve({ id: "test" }) },
     );
 
