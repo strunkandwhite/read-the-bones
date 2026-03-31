@@ -111,6 +111,7 @@ interface SortableEntryProps {
   onReorder: (queue: QueueGroupEntry[]) => void;
   takenCards: Set<string>;
   isMergeTarget: boolean;
+  cardInsertionBefore: number | null;
 }
 
 function SortableEntry({
@@ -123,6 +124,7 @@ function SortableEntry({
   onReorder,
   takenCards,
   isMergeTarget,
+  cardInsertionBefore,
 }: SortableEntryProps) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
     useSortable({ id, data: { type: "entry", entryIndex } });
@@ -184,18 +186,21 @@ function SortableEntry({
             <SortableContext items={cardIds} strategy={verticalListSortingStrategy}>
               <div className="mt-1.5 flex flex-col gap-0.5 pl-4">
                 {entry.cards.map((card, cardIndex) => (
-                  <SortableGroupCard
-                    key={makeCardId(entryIndex, cardIndex)}
-                    id={makeCardId(entryIndex, cardIndex)}
-                    cardName={card.cardName}
-                    entryIndex={entryIndex}
-                    cardIndex={cardIndex}
-                    allEntries={allEntries}
-                    onRemove={onRemove}
-                    onReorder={onReorder}
-                    isTaken={takenCards.has(card.cardName)}
-                  />
+                  <div key={makeCardId(entryIndex, cardIndex)}>
+                    {cardInsertionBefore === cardIndex && <InsertionLine />}
+                    <SortableGroupCard
+                      id={makeCardId(entryIndex, cardIndex)}
+                      cardName={card.cardName}
+                      entryIndex={entryIndex}
+                      cardIndex={cardIndex}
+                      allEntries={allEntries}
+                      onRemove={onRemove}
+                      onReorder={onReorder}
+                      isTaken={takenCards.has(card.cardName)}
+                    />
+                  </div>
                 ))}
+                {cardInsertionBefore === entry.cards.length && <InsertionLine />}
               </div>
             </SortableContext>
           </div>
@@ -327,6 +332,8 @@ export function QueuePanel({
   const [mergeTarget, setMergeTarget] = useState<number | null>(null);
   const mergeTargetRef = useRef<number | null>(null);
   const [insertionIndex, setInsertionIndex] = useState<number | null>(null);
+  // Blue line within a group for card reorder
+  const [cardInsertionInfo, setCardInsertionInfo] = useState<{ entryIndex: number; before: number } | null>(null);
 
   function updateMergeTarget(index: number | null) {
     setMergeTarget(index);
@@ -356,6 +363,7 @@ export function QueuePanel({
       setActiveDragId(event.active.id as string);
       updateMergeTarget(null);
       setInsertionIndex(null);
+      setCardInsertionInfo(null);
       clearHoverTimer();
     },
     [clearHoverTimer],
@@ -366,6 +374,7 @@ export function QueuePanel({
       if (!event.over) {
         updateMergeTarget(null);
         setInsertionIndex(null);
+        setCardInsertionInfo(null);
         clearHoverTimer();
         return;
       }
@@ -382,8 +391,8 @@ export function QueuePanel({
       // ── Pointer is inside a merge: zone ──
       if (overParsed.type === "merge" && isDraggingEntry) {
         const targetIdx = overParsed.entryIndex;
+        setCardInsertionInfo(null);
         if (targetIdx === activeParsed.entryIndex) {
-          // Over own merge zone — ignore
           updateMergeTarget(null);
           setInsertionIndex(null);
           clearHoverTimer();
@@ -405,8 +414,8 @@ export function QueuePanel({
 
       // ── Pointer is over a sortable entry: (reorder) ──
       if (overParsed.type === "entry" && isDraggingEntry) {
-        // Left the merge zone — cancel any pending merge
         updateMergeTarget(null);
+        setCardInsertionInfo(null);
         clearHoverTimer();
 
         const fromIdx = activeParsed.entryIndex;
@@ -420,7 +429,7 @@ export function QueuePanel({
         return;
       }
 
-      // ── Card being dragged to a different entry (ungroup) ──
+      // ── Card being dragged ──
       if (isDraggingCard) {
         const overEntryIdx = overParsed.type === "entry"
           ? overParsed.entryIndex
@@ -430,12 +439,32 @@ export function QueuePanel({
               ? overParsed.entryIndex
               : null;
 
+        // Reorder within same group — show card insertion line
+        if (
+          overParsed.type === "card" &&
+          overParsed.entryIndex === activeParsed.entryIndex
+        ) {
+          const from = activeParsed.cardIndex;
+          const to = overParsed.cardIndex;
+          const before = to > from ? to + 1 : to;
+          setCardInsertionInfo({ entryIndex: activeParsed.entryIndex, before });
+          setInsertionIndex(null);
+          updateMergeTarget(null);
+          clearHoverTimer();
+          return;
+        }
+
+        setCardInsertionInfo(null);
+
+        // Card dragged to a different entry (ungroup)
         if (overEntryIdx !== null && overEntryIdx !== activeParsed.entryIndex) {
           const insertion = overEntryIdx > activeParsed.entryIndex
             ? overEntryIdx + 1
             : overEntryIdx;
           setInsertionIndex(insertion);
         } else {
+          // Card over own entry/merge zone — show insertion at group boundary
+          // to signal "drag out to ungroup"
           setInsertionIndex(null);
         }
         updateMergeTarget(null);
@@ -457,14 +486,34 @@ export function QueuePanel({
       setActiveDragId(null);
       updateMergeTarget(null);
       setInsertionIndex(null);
+      setCardInsertionInfo(null);
       clearHoverTimer();
 
       const { active, over } = event;
+      const activeParsed = parseId(active.id as string);
+      if (!activeParsed) return;
+
+      // ── Card dropped outside all droppables — ungroup it ──
+      if (!over && activeParsed.type === "card") {
+        const srcEntry = queue[activeParsed.entryIndex];
+        if (srcEntry.cards.length <= 1) return; // already single, nothing to do
+        const draggedCard = srcEntry.cards[activeParsed.cardIndex];
+        const newSrcCards = srcEntry.cards.filter((_, i) => i !== activeParsed.cardIndex);
+        const newQueue: QueueGroupEntry[] = queue.map((entry, i) => {
+          if (i !== activeParsed.entryIndex) return entry;
+          return { ...entry, cards: newSrcCards };
+        });
+        // Insert as new entry after the source group
+        const newEntry: QueueGroupEntry = { mode: "pause", cards: [draggedCard] };
+        newQueue.splice(activeParsed.entryIndex + 1, 0, newEntry);
+        onReorder(newQueue);
+        return;
+      }
+
       if (!over || active.id === over.id) return;
 
-      const activeParsed = parseId(active.id as string);
       const overParsed = parseId(over.id as string);
-      if (!activeParsed || !overParsed) return;
+      if (!overParsed) return;
 
       // ── Merge: entry into another (hold-to-merge was active) ──
       if (activeParsed.type === "entry" && currentMergeTarget !== null) {
@@ -633,6 +682,7 @@ export function QueuePanel({
                     onReorder={onReorder}
                     takenCards={takenCards}
                     isMergeTarget={mergeTarget === entryIndex}
+                    cardInsertionBefore={cardInsertionInfo?.entryIndex === entryIndex ? cardInsertionInfo.before : null}
                   />
                 </div>
               ))}
