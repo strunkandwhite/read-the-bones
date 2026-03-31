@@ -166,7 +166,7 @@ function DraggableEntry({
       <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} {...attributes} {...listeners} className="select-none">
         <div ref={setMergeRef}>
           <div
-            className={`cursor-grab touch-none rounded px-2 py-2.5 sm:py-1.5 text-sm sm:text-xs transition-colors ${
+            className={`cursor-grab rounded px-2 py-2.5 sm:py-1.5 text-sm sm:text-xs transition-colors ${
               mergeStyle || "border border-zinc-700/60 bg-zinc-800/50"
             } ${allTaken ? "opacity-40" : ""}`}
           >
@@ -214,7 +214,7 @@ function DraggableEntry({
     <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} {...attributes} {...listeners} className="select-none">
       <div ref={setMergeRef}>
         <div
-          className={`flex items-center gap-1.5 cursor-grab touch-none rounded px-2 py-2.5 sm:py-1 text-sm sm:text-xs transition-colors ${
+          className={`flex items-center gap-1.5 cursor-grab rounded px-2 py-2.5 sm:py-1 text-sm sm:text-xs transition-colors ${
             mergeStyle || "border border-transparent bg-zinc-800/30"
           }`}
         >
@@ -263,7 +263,7 @@ function DraggableGroupCard({
     <div
       ref={setNodeRef}
       style={{ opacity: isDragging ? 0.3 : 1 }}
-      className="flex items-center gap-1.5 cursor-grab touch-none select-none rounded px-1 py-1.5 sm:py-0.5"
+      className="flex items-center gap-1.5 cursor-grab select-none rounded px-1 py-1.5 sm:py-0.5"
       {...attributes}
       {...listeners}
     >
