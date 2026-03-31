@@ -156,16 +156,6 @@ UPDATE drafts SET picks_per_player = (
   WHERE pe.draft_id = drafts.draft_id
 ) WHERE picks_per_player IS NULL AND phase = 'complete';
 
--- Pick queue for banking picks
--- Uses card_id (integer FK) to match pick_events and cube_snapshot_cards
-CREATE TABLE IF NOT EXISTS pick_queue (
-  draft_id TEXT NOT NULL REFERENCES drafts(draft_id),
-  seat INTEGER NOT NULL,
-  priority INTEGER NOT NULL,
-  card_id INTEGER NOT NULL REFERENCES cards(card_id),
-  PRIMARY KEY (draft_id, seat, priority)
-);
-
 -- Indexes for common queries
 CREATE INDEX IF NOT EXISTS idx_cards_name ON cards(name);
 CREATE INDEX IF NOT EXISTS idx_pick_events_card ON pick_events(card_id);
@@ -211,8 +201,5 @@ CREATE TABLE IF NOT EXISTS floated_cards (
   FOREIGN KEY (draft_id) REFERENCES drafts(draft_id)
 );
 
--- auto_pick_mode on seat_tokens: 'resilient' (default) or 'cautious'
-ALTER TABLE seat_tokens ADD COLUMN auto_pick_mode TEXT NOT NULL DEFAULT 'resilient';
-
--- queue_json on seat_tokens: JSON array of queue group entries (replaces pick_queue table)
+-- queue_json on seat_tokens: JSON array of queue group entries
 ALTER TABLE seat_tokens ADD COLUMN queue_json TEXT;
