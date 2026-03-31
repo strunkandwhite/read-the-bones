@@ -327,7 +327,12 @@ export function QueuePanel({
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [mergeTarget, setMergeTarget] = useState<number | null>(null);
   const mergeTargetRef = useRef<number | null>(null);
-  const [insertionIndex, setInsertionIndex] = useState<number | null>(null);
+  const [insertionIndex, _setInsertionIndex] = useState<number | null>(null);
+  const insertionIndexRef = useRef<number | null>(null);
+  function setInsertionIndex(v: number | null) {
+    _setInsertionIndex(v);
+    insertionIndexRef.current = v;
+  }
   // Blue line within a group for card reorder
   const [cardInsertionInfo, setCardInsertionInfo] = useState<{ entryIndex: number; before: number } | null>(null);
 
@@ -453,14 +458,18 @@ export function QueuePanel({
         setCardInsertionInfo(null);
 
         // Card dragged to a different entry (ungroup)
+        // Use pointer position relative to `over` to decide before vs after
         if (overEntryIdx !== null && overEntryIdx !== activeParsed.entryIndex) {
-          const insertion = overEntryIdx > activeParsed.entryIndex
-            ? overEntryIdx + 1
-            : overEntryIdx;
+          let insertAfter = false;
+          const overRect = event.over?.rect;
+          if (overRect && event.activatorEvent instanceof PointerEvent) {
+            const pointerY = event.activatorEvent.clientY + (event.delta?.y ?? 0);
+            const midY = overRect.top + overRect.height / 2;
+            insertAfter = pointerY > midY;
+          }
+          const insertion = insertAfter ? overEntryIdx + 1 : overEntryIdx;
           setInsertionIndex(insertion);
         } else {
-          // Card over own entry/merge zone — show insertion at group boundary
-          // to signal "drag out to ungroup"
           setInsertionIndex(null);
         }
         updateMergeTarget(null);
@@ -479,6 +488,7 @@ export function QueuePanel({
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
       const currentMergeTarget = mergeTargetRef.current;
+      const savedInsertionIndex = insertionIndexRef.current;
       setActiveDragId(null);
       updateMergeTarget(null);
       setInsertionIndex(null);
@@ -586,7 +596,6 @@ export function QueuePanel({
       ) {
         const srcEntryIndex = activeParsed.entryIndex;
         const srcCardIndex = activeParsed.cardIndex;
-        const targetEntryIndex = resolvedEntryIdx;
 
         const srcEntry = queue[srcEntryIndex];
         const draggedCard = srcEntry.cards[srcCardIndex];
@@ -601,13 +610,16 @@ export function QueuePanel({
           newQueue = newQueue.filter((_, i) => i !== srcEntryIndex);
         }
 
-        const adjustedTarget =
-          newSrcCards.length === 0 && srcEntryIndex < targetEntryIndex
-            ? targetEntryIndex - 1
-            : targetEntryIndex;
+        // Use the insertion index from handleDragOver (accounts for pointer position)
+        let targetIdx = savedInsertionIndex ?? resolvedEntryIdx;
+        // Adjust for the source entry being removed or shrunk
+        if (newSrcCards.length === 0 && srcEntryIndex < targetIdx) {
+          targetIdx--;
+        }
+        targetIdx = Math.max(0, Math.min(targetIdx, newQueue.length));
 
         const newEntry: QueueGroupEntry = { mode: "pause", cards: [draggedCard] };
-        newQueue.splice(adjustedTarget, 0, newEntry);
+        newQueue.splice(targetIdx, 0, newEntry);
         onReorder(newQueue);
       }
     },
