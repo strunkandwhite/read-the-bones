@@ -213,3 +213,6 @@ CREATE TABLE IF NOT EXISTS floated_cards (
 
 -- auto_pick_mode on seat_tokens: 'resilient' (default) or 'cautious'
 ALTER TABLE seat_tokens ADD COLUMN auto_pick_mode TEXT NOT NULL DEFAULT 'resilient';
+
+-- queue_json on seat_tokens: JSON array of queue group entries (replaces pick_queue table)
+ALTER TABLE seat_tokens ADD COLUMN queue_json TEXT;

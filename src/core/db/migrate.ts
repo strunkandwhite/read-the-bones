@@ -105,12 +105,81 @@ async function migrate(): Promise<void> {
     }
 
     console.log(`[db:migrate] Migration complete`);
+
+    await migrateQueueToJson(client);
   } catch (error) {
     console.error(`[db:migrate] Migration failed:`, error);
     process.exit(1);
   } finally {
     client.close();
   }
+}
+
+async function migrateQueueToJson(client: ReturnType<typeof createClient>) {
+  // Check if pick_queue table exists
+  const tableCheck = await client.execute({
+    sql: `SELECT name FROM sqlite_master WHERE type='table' AND name='pick_queue'`,
+    args: [],
+  });
+  if (tableCheck.rows.length === 0) return; // Already migrated
+
+  // Check if queue_json column exists
+  const colCheck = await client.execute({
+    sql: `PRAGMA table_info(seat_tokens)`,
+    args: [],
+  });
+  const hasQueueJson = colCheck.rows.some((r) => r.name === 'queue_json');
+  if (!hasQueueJson) return; // Column not yet added, skip
+
+  console.log(`[db:migrate] Migrating pick_queue → queue_json...`);
+
+  // Read all queue entries joined with card names
+  const entries = await client.execute({
+    sql: `SELECT pq.draft_id, pq.seat, pq.priority, pq.card_id, c.name
+          FROM pick_queue pq
+          JOIN cards c ON c.card_id = pq.card_id
+          ORDER BY pq.draft_id, pq.seat, pq.priority`,
+    args: [],
+  });
+
+  // Group by (draft_id, seat)
+  const grouped = new Map<string, { id: number; name: string }[]>();
+  for (const row of entries.rows) {
+    const key = `${row.draft_id}:${row.seat}`;
+    const arr = grouped.get(key) ?? [];
+    arr.push({ id: row.card_id as number, name: row.name as string });
+    grouped.set(key, arr);
+  }
+
+  // Write JSON to seat_tokens
+  const statements: { sql: string; args: (string | number)[] }[] = [];
+  for (const [key, cards] of grouped) {
+    const [draftId, seatStr] = key.split(':');
+    const queueJson = cards.map((c) => ({
+      mode: 'pause',
+      cards: [{ id: c.id, name: c.name }],
+    }));
+    statements.push({
+      sql: `UPDATE seat_tokens SET queue_json = ? WHERE draft_id = ? AND seat = ?`,
+      args: [JSON.stringify(queueJson), draftId, parseInt(seatStr)],
+    });
+  }
+
+  // Set empty queue for seats without queue entries
+  statements.push({
+    sql: `UPDATE seat_tokens SET queue_json = '[]' WHERE queue_json IS NULL`,
+    args: [],
+  });
+
+  if (statements.length > 0) {
+    await client.batch(statements);
+  }
+
+  // Drop pick_queue table and auto_pick_mode column
+  await client.execute({ sql: `DROP TABLE IF EXISTS pick_queue`, args: [] });
+  await client.execute({ sql: `ALTER TABLE seat_tokens DROP COLUMN auto_pick_mode`, args: [] });
+
+  console.log(`[db:migrate] pick_queue migration complete`);
 }
 
 migrate();
