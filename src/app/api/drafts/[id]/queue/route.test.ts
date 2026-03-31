@@ -177,20 +177,6 @@ describe("PUT /api/drafts/[id]/queue", () => {
     expect(res.status).toBe(400);
   });
 
-  it("returns 400 for duplicate card names across entries", async () => {
-    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
-
-    const res = await PUT(
-      makePutRequest([
-        { mode: "pause", cards: ["Lightning Bolt"] },
-        { mode: "pause", cards: ["Lightning Bolt"] },
-      ]),
-      { params: Promise.resolve({ id: "test" }) },
-    );
-
-    expect(res.status).toBe(400);
-  });
-
   it("returns 400 for unknown card", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
     mockExecute.mockResolvedValueOnce({ rows: [] });

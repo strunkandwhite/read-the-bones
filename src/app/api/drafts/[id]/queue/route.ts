@@ -54,14 +54,10 @@ export async function PUT(
       normalizedEntries.push({ mode, cardNames });
     }
 
-    // Flatten card names for total count and duplicate checks
+    // Flatten card names for total count check
     const allCardNames = normalizedEntries.flatMap((e) => e.cardNames);
     if (allCardNames.length > 500) {
       return NextResponse.json({ error: "Queue cannot exceed 500 cards" }, { status: 400 });
-    }
-    const cardNameSet = new Set(allCardNames);
-    if (cardNameSet.size !== allCardNames.length) {
-      return NextResponse.json({ error: "Duplicate card names are not allowed in the queue" }, { status: 400 });
     }
 
     // Batch resolve card names to IDs
