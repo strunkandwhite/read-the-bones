@@ -73,12 +73,17 @@ function parseDropId(id: string): DropId | null {
 // ─── Custom collision detection ──────────────────────────────────────────────
 
 const slotAwareCollision: CollisionDetection = (args) => {
-  // 1. Check merge zones first (pointer must be inside)
-  const mergeContainers = args.droppableContainers.filter(
-    ({ id }) => String(id).startsWith("merge:"),
-  );
-  const mergeHits = pointerWithin({ ...args, droppableContainers: mergeContainers });
-  if (mergeHits.length > 0) return mergeHits;
+  const active = parseDragId(String(args.active.id));
+  const isDraggingEntry = active?.kind === "entry";
+
+  // 1. Check merge zones first — but only when dragging an entry (not a card)
+  if (isDraggingEntry) {
+    const mergeContainers = args.droppableContainers.filter(
+      ({ id }) => String(id).startsWith("merge:"),
+    );
+    const mergeHits = pointerWithin({ ...args, droppableContainers: mergeContainers });
+    if (mergeHits.length > 0) return mergeHits;
+  }
 
   // 2. Check all slots and cardslots
   const slotContainers = args.droppableContainers.filter(({ id }) => {
