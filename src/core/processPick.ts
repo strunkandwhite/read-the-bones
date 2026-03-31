@@ -1,8 +1,8 @@
 import type { Client } from '@libsql/client';
 import { getNextPick, getTotalPicks } from './snakeDraft';
-import { removeCardFromAllQueues, trimExcessQueueEntries, getAutoPickCandidate, getQueuesContainingCard } from './db/queries/pickQueue';
+import { removeCardFromAllQueues, trimExcessQueueEntries, getAutoPickCandidate, fulfillGroupEntry } from './db/queries/pickQueue';
 import { removeFloatedCardByCardId } from './db/queries/floatedCards';
-import { getAllSeatSettings } from './db/queries/seatTokens';
+import { getAllSeatSettings, updateAutoPick } from './db/queries/seatTokens';
 import { parseBannedCards } from './db/queries/helpers';
 import { NotFoundError, ValidationError, ConflictError } from './errors';
 
@@ -137,19 +137,18 @@ export async function processPick(
     }
 
     if (isLastCopy) {
-      // Last copy taken: remove all queue entries + floats
-      const affectedSeats = await getQueuesContainingCard(client, input.draftId, currentCardId);
+      const { pauseSeats } = await removeCardFromAllQueues(client, input.draftId, currentCardId);
+      // Disable auto-pick for seats whose first entry was exhausted with pause mode
       await Promise.all(
-        affectedSeats
-          .filter(({ seat: s }: { seat: number }) => s !== currentSeat)
-          .map(async (_: { seat: number }) => {
-            // No-op: cautious-mode pause logic removed; processPick will be overhauled in Task 3
+        pauseSeats
+          .filter((s) => s !== currentSeat)
+          .map(async (s) => {
+            await updateAutoPick(client, input.draftId, s, false);
+            const prev = allSeatSettings.get(s);
+            if (prev) allSeatSettings.set(s, { ...prev, autoPick: false });
           })
       );
-      await Promise.all([
-        removeCardFromAllQueues(client, input.draftId, currentCardId),
-        removeFloatedCardByCardId(client, input.draftId, currentCardId),
-      ]);
+      await removeFloatedCardByCardId(client, input.draftId, currentCardId);
     } else {
       // Not last copy: trim queue entries that exceed remaining availability
       await trimExcessQueueEntries(client, input.draftId, currentCardId, remainingAfterPick);
@@ -194,18 +193,28 @@ export async function processPick(
     const autoPickResult = await getAutoPickCandidate(
       client, input.draftId, nextAfter.seat, availableSet,
     );
-    if (autoPickResult.kind !== 'candidate') break;
-    const candidateId = autoPickResult.cardId;
+    if (autoPickResult.kind !== 'candidate') {
+      if (autoPickResult.kind === 'paused') {
+        await updateAutoPick(client, input.draftId, nextAfter.seat, false);
+        allSeatSettings.set(nextAfter.seat, { ...nextSettings, autoPick: false });
+      }
+      break;
+    }
+
+    // Fulfill the group entry (remove entire entry from picking seat's queue)
+    await fulfillGroupEntry(client, input.draftId, nextAfter.seat, autoPickResult.entryIndex);
+
+    const candidate = autoPickResult.cardId;
 
     // Look up card name for the candidate
     const cardRow = await client.execute({
       sql: `SELECT name FROM cards WHERE card_id = ?`,
-      args: [candidateId],
+      args: [candidate],
     });
     if (cardRow.rows.length === 0) break;
 
     currentSeat = nextAfter.seat;
-    currentCardId = candidateId;
+    currentCardId = candidate;
     currentCardName = cardRow.rows[0].name as string;
     cascadeDepth++;
   }

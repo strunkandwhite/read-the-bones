@@ -195,29 +195,6 @@ export async function trimExcessQueueEntries(
 }
 
 /**
- * @deprecated Use removeCardFromAllQueues which now returns pauseSeats directly.
- * Kept functional for compatibility while processPick.ts is being updated (Task 3).
- */
-export async function getQueuesContainingCard(
-  client: Client,
-  draftId: string,
-  cardId: number,
-): Promise<Array<{ seat: number }>> {
-  const result = await client.execute({
-    sql: `SELECT seat, queue_json FROM seat_tokens WHERE draft_id = ? AND queue_json IS NOT NULL`,
-    args: [draftId],
-  });
-  const seats: { seat: number }[] = [];
-  for (const row of result.rows) {
-    const queue: QueueEntry[] = JSON.parse(row.queue_json as string);
-    if (queue.some((entry) => entry.cards.some((c) => c.id === cardId))) {
-      seats.push({ seat: row.seat as number });
-    }
-  }
-  return seats;
-}
-
-/**
  * Remove an entire queue entry at a given index for a seat.
  * Called after auto-picking from a group entry.
  */
