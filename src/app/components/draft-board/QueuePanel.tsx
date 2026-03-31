@@ -373,25 +373,25 @@ export function QueuePanel({
 
       // ── Entry being dragged ──
       if (isDraggingEntry && overEntryIdx !== null && !isSameEntry) {
-        // If merge timer hasn't fired yet, show insertion line
+        // Moved to a different entry — reset merge and restart hold timer
+        if (hoverEntryRef.current !== overEntryIdx) {
+          clearHoverTimer();
+          updateMergeTarget(null);
+          hoverEntryRef.current = overEntryIdx;
+          const targetIdx = overEntryIdx;
+          hoverTimerRef.current = setTimeout(() => {
+            updateMergeTarget(targetIdx);
+            setInsertionIndex(null);
+          }, MERGE_HOLD_MS);
+        }
+
+        // Show insertion line when merge is not active
         if (mergeTargetRef.current === null) {
-          // Show insertion line: compute whether to insert before or after
           const fromIdx = activeParsed.entryIndex;
           const insertion = overEntryIdx > fromIdx ? overEntryIdx + 1 : overEntryIdx;
           setInsertionIndex(insertion);
         } else {
           setInsertionIndex(null);
-        }
-
-        // Start/continue hold-to-merge timer
-        if (hoverEntryRef.current !== overEntryIdx) {
-          clearHoverTimer();
-          hoverEntryRef.current = overEntryIdx;
-          const targetIdx = overEntryIdx;
-          hoverTimerRef.current = setTimeout(() => {
-            updateMergeTarget(targetIdx);
-            setInsertionIndex(null); // Switch from line to merge indicator
-          }, MERGE_HOLD_MS);
         }
         return;
       }
