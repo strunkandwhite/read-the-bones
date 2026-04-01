@@ -499,6 +499,47 @@ describe('processPick', () => {
       expect(fulfillGroupEntry).toHaveBeenCalledWith(mockClient, 'draft-1', 2, 0);
     });
 
+    it('floats non-picked group members when cascade fulfills a group entry', async () => {
+      const { getAutoPickCandidate, fulfillGroupEntry } = await import('./db/queries/pickQueue');
+      const { addFloatedCard } = await import('./db/queries/floatedCards');
+      const { getAllSeatSettings } = await import('./db/queries/seatTokens');
+
+      vi.mocked(getAllSeatSettings).mockResolvedValueOnce(new Map([
+        [2, { autoPick: true, displayName: null }],
+      ]));
+      vi.mocked(getAutoPickCandidate).mockResolvedValueOnce({
+        kind: 'candidate', cardId: 10, entryIndex: 0,
+      });
+      // Group has 3 cards; cardId 10 is picked, 20 and 30 should be floated
+      vi.mocked(fulfillGroupEntry).mockResolvedValueOnce({
+        mode: 'pause',
+        cards: [
+          { id: 10, name: 'Lightning Bolt' },
+          { id: 20, name: 'Counterspell' },
+          { id: 30, name: 'Swords to Plowshares' },
+        ],
+      });
+
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ phase: 'drafting', num_seats: 2, picks_per_player: 3, banned_cards: null }]),
+      );
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cnt: 0 }]));
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 0, qty: 1 }]));
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([], 1));
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 10 }]));
+      // Card name lookup returns empty to break cascade after the float
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+
+      await processPick(mockClient as never, baseInput);
+
+      // Picked card should NOT be floated
+      expect(addFloatedCard).not.toHaveBeenCalledWith(mockClient, 'draft-1', 2, 'Lightning Bolt');
+      // Non-picked group members should be floated
+      expect(addFloatedCard).toHaveBeenCalledWith(mockClient, 'draft-1', 2, 'Counterspell');
+      expect(addFloatedCard).toHaveBeenCalledWith(mockClient, 'draft-1', 2, 'Swords to Plowshares');
+      expect(addFloatedCard).toHaveBeenCalledTimes(2);
+    });
+
     it('disables auto-pick and stops cascade when getAutoPickCandidate returns paused', async () => {
       const { getAutoPickCandidate } = await import('./db/queries/pickQueue');
       const { getAllSeatSettings, updateAutoPick } = await import('./db/queries/seatTokens');
