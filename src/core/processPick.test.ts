@@ -6,11 +6,12 @@ vi.mock('./db/queries/pickQueue', () => ({
   removeCardFromAllQueues: vi.fn().mockResolvedValue({ pauseSeats: [] }),
   trimExcessQueueEntries: vi.fn().mockResolvedValue(undefined),
   getAutoPickCandidate: vi.fn().mockResolvedValue({ kind: 'empty' }),
-  fulfillGroupEntry: vi.fn().mockResolvedValue(undefined),
+  fulfillGroupEntry: vi.fn().mockResolvedValue({ mode: 'pause', cards: [] }),
 }));
 
 // Mock floatedCards module
 vi.mock('./db/queries/floatedCards', () => ({
+  addFloatedCard: vi.fn().mockResolvedValue(undefined),
   removeFloatedCardByCardId: vi.fn().mockResolvedValue(undefined),
 }));
 

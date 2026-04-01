@@ -197,14 +197,17 @@ export async function trimExcessQueueEntries(
 /**
  * Remove an entire queue entry at a given index for a seat.
  * Called after auto-picking from a group entry.
+ * Returns the removed entry so the caller can demote non-picked cards to float.
  */
 export async function fulfillGroupEntry(
   client: Client,
   draftId: string,
   seat: number,
   entryIndex: number,
-): Promise<void> {
+): Promise<QueueEntry> {
   const queue = await getQueue(client, draftId, seat);
+  const removed = queue[entryIndex];
   const newQueue = queue.filter((_, i) => i !== entryIndex);
   await setQueue(client, draftId, seat, newQueue);
+  return removed;
 }

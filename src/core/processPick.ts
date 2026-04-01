@@ -1,7 +1,7 @@
 import type { Client } from '@libsql/client';
 import { getNextPick, getTotalPicks } from './snakeDraft';
 import { removeCardFromAllQueues, trimExcessQueueEntries, getAutoPickCandidate, fulfillGroupEntry } from './db/queries/pickQueue';
-import { removeFloatedCardByCardId } from './db/queries/floatedCards';
+import { addFloatedCard, removeFloatedCardByCardId } from './db/queries/floatedCards';
 import { getAllSeatSettings, updateAutoPick } from './db/queries/seatTokens';
 import { parseBannedCards } from './db/queries/helpers';
 import { NotFoundError, ValidationError, ConflictError } from './errors';
@@ -202,9 +202,13 @@ export async function processPick(
     }
 
     // Fulfill the group entry (remove entire entry from picking seat's queue)
-    await fulfillGroupEntry(client, input.draftId, nextAfter.seat, autoPickResult.entryIndex);
+    const fulfilledEntry = await fulfillGroupEntry(client, input.draftId, nextAfter.seat, autoPickResult.entryIndex);
 
     const candidate = autoPickResult.cardId;
+
+    // Demote non-picked group members to float
+    const nonPicked = fulfilledEntry.cards.filter((c) => c.id !== candidate);
+    await Promise.all(nonPicked.map((c) => addFloatedCard(client, input.draftId, nextAfter.seat, c.name)));
 
     // Look up card name for the candidate
     const cardRow = await client.execute({
