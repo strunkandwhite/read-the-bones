@@ -567,9 +567,10 @@ describe("parsePickRows with 12 drafters (real-style data)", () => {
   ];
 
   it("should parse all 12 drafters", () => {
-    const { picks, numDrafters } = parsePickRows(realStyleRows, "real-draft");
+    const { picks, numDrafters, picksPerPlayer } = parsePickRows(realStyleRows, "real-draft");
     expect(picks).toHaveLength(24);
     expect(numDrafters).toBe(12);
+    expect(picksPerPlayer).toBe(2); // max round number from column A
   });
 
   it("should correctly associate colors with picks", () => {
