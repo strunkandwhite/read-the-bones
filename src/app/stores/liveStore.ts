@@ -106,7 +106,7 @@ interface LiveStoreState {
 type SetState = (partial: Partial<LiveStoreState>) => void;
 type GetState = () => LiveStoreState;
 
-async function syncQueue(set: SetState, get: GetState, newQueue: QueueGroupEntry[], previousQueue?: QueueGroupEntry[]) {
+async function syncQueue(set: SetState, get: GetState, newQueue: QueueGroupEntry[], previousQueue?: QueueGroupEntry[], fallbackFloats?: string[]) {
   const { seatToken } = get();
   const fallbackQueue = previousQueue ?? get().queue;
   const activeDraft = useDraftStore.getState().activeDraft;
@@ -146,7 +146,9 @@ async function syncQueue(set: SetState, get: GetState, newQueue: QueueGroupEntry
         queuedCardCounts: deriveQueuedCardCounts(fallbackQueue),
         queueError: "Failed to sync queue",
       });
-      void useLiveStore.getState().fetchFloatedCards();
+      if (fallbackFloats !== undefined) {
+        set({ floatedCards: fallbackFloats, floatedCardsSet: new Set(fallbackFloats) });
+      }
     }
   } catch {
     set({
@@ -154,7 +156,9 @@ async function syncQueue(set: SetState, get: GetState, newQueue: QueueGroupEntry
       queuedCardCounts: deriveQueuedCardCounts(fallbackQueue),
       queueError: "Failed to sync queue",
     });
-    void useLiveStore.getState().fetchFloatedCards();
+    if (fallbackFloats !== undefined) {
+      set({ floatedCards: fallbackFloats, floatedCardsSet: new Set(fallbackFloats) });
+    }
   }
   set({ queueLoading: false });
 }
@@ -441,7 +445,7 @@ export const useLiveStore = create<LiveStoreState>()(
         const nextFloats = floatedCards.filter((c) => c !== cardName);
         set({ floatedCards: nextFloats, floatedCardsSet: new Set(nextFloats) });
       }
-      syncQueue(set, get, optimisticQueue, original);
+      syncQueue(set, get, optimisticQueue, original, floatedCards);
     },
 
     removeFromQueue: (cardName: string) => {
@@ -469,7 +473,7 @@ export const useLiveStore = create<LiveStoreState>()(
         floatedCards: nextFloats,
         floatedCardsSet: new Set(nextFloats),
       });
-      syncQueue(set, get, optimisticQueue, original);
+      syncQueue(set, get, optimisticQueue, original, floatedCards);
     },
 
     reorderQueue: (entries: QueueGroupEntry[]) => {
