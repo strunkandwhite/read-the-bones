@@ -138,12 +138,15 @@ async function syncQueue(set: SetState, get: GetState, newQueue: QueueGroupEntry
         queuedCardCounts: deriveQueuedCardCounts(queue),
         queueError: null,
       });
+      // Refresh floated cards to pick up any server-side auto-float/unfloat side effects
+      void useLiveStore.getState().fetchFloatedCards();
     } else {
       set({
         queue: fallbackQueue,
         queuedCardCounts: deriveQueuedCardCounts(fallbackQueue),
         queueError: "Failed to sync queue",
       });
+      void useLiveStore.getState().fetchFloatedCards();
     }
   } catch {
     set({
@@ -151,6 +154,7 @@ async function syncQueue(set: SetState, get: GetState, newQueue: QueueGroupEntry
       queuedCardCounts: deriveQueuedCardCounts(fallbackQueue),
       queueError: "Failed to sync queue",
     });
+    void useLiveStore.getState().fetchFloatedCards();
   }
   set({ queueLoading: false });
 }
@@ -441,7 +445,7 @@ export const useLiveStore = create<LiveStoreState>()(
     },
 
     removeFromQueue: (cardName: string) => {
-      const { queue: original } = get();
+      const { queue: original, floatedCards } = get();
       // Find the first entry containing this card, remove the card from it; remove empty entries
       let found = false;
       const optimisticQueue: QueueGroupEntry[] = original
@@ -457,9 +461,13 @@ export const useLiveStore = create<LiveStoreState>()(
         })
         .filter((entry) => entry.cards.length > 0);
       if (!found) return;
+      // Optimistically demote to float (mirrors the server-side auto-float behavior)
+      const nextFloats = floatedCards.includes(cardName) ? floatedCards : [...floatedCards, cardName];
       set({
         queue: optimisticQueue,
         queuedCardCounts: deriveQueuedCardCounts(optimisticQueue),
+        floatedCards: nextFloats,
+        floatedCardsSet: new Set(nextFloats),
       });
       syncQueue(set, get, optimisticQueue, original);
     },
