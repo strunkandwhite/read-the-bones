@@ -246,7 +246,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
 
           {/* Action Buttons */}
           <div className="flex shrink-0 items-center gap-1">
-            {activeDraft && selectedSeat !== null && (
+            {activeDraft && (
               <button
                 onClick={() => setDraftBoardOpen(!draftBoardOpen)}
                 className={`cursor-pointer rounded-md p-2 transition-colors hover:bg-zinc-100 dark:hover:bg-zinc-800 ${
@@ -254,8 +254,8 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                     ? "text-emerald-400 animate-pulse"
                     : "text-zinc-500 dark:text-zinc-400"
                 }`}
-                title={isMyTurn ? "Your Pick!" : `${activeDraft}, Seat ${selectedSeat}`}
-                aria-label={isMyTurn ? "Your Pick!" : `Pod View — ${activeDraft}, Seat ${selectedSeat}`}
+                title={isMyTurn ? "Your Pick!" : selectedSeat !== null ? `${activeDraft}, Seat ${selectedSeat}` : `Pod View — ${activeDraft}`}
+                aria-label={isMyTurn ? "Your Pick!" : selectedSeat !== null ? `Pod View — ${activeDraft}, Seat ${selectedSeat}` : `Pod View — ${activeDraft}`}
               >
                 <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <rect x="3" y="3" width="8" height="8" rx="1.5" />

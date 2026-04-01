@@ -134,7 +134,8 @@ export function DraftBoardMatrix({
           {(() => {
             const rowLabelClassName = "px-1.5 py-0.5 text-center text-zinc-500 text-[10px] whitespace-nowrap border-r border-zinc-700";
             let displayRow = 0;
-            return matrix.map((row) => {
+            const lastSinglePickIdx = matrix.findLastIndex((r) => !r.isDoublePick);
+            return matrix.map((row, idx) => {
               const isCurrentRound = row.round === currentRound;
 
               // For each seat column, find the pick(s) in this round
@@ -156,12 +157,14 @@ export function DraftBoardMatrix({
               return subRows.map((subRow) => {
                 displayRow++;
                 const rowNum = displayRow;
+                const isPhaseTransition = lastSinglePickIdx !== -1 && lastSinglePickIdx < matrix.length - 1 && idx === lastSinglePickIdx && subRow === subRows.length - 1;
                 return (
                   <tr
                     key={`${row.round}-${subRow}`}
                     ref={isCurrentRound && subRow === 0 ? currentRoundRef : undefined}
                     style={{
                       backgroundColor: isCurrentRound ? "rgba(59,130,246,0.05)" : undefined,
+                      borderBottom: isPhaseTransition ? "2px solid rgba(251,191,36,0.4)" : undefined,
                     }}
                   >
                     <td className={rowLabelClassName}>

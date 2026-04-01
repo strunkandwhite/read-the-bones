@@ -335,7 +335,10 @@ export const useLiveStore = create<LiveStoreState>()(
           },
           body: JSON.stringify({ auto_pick: newValue }),
         });
-        if (res.ok) set({ autoPick: newValue });
+        if (res.ok) {
+          set({ autoPick: newValue });
+          recomputePicking();
+        }
       } catch {
         // ignore
       }
