@@ -30,6 +30,7 @@ function resetStores() {
     completedDraftIds: [],
     hydrated: false,
     dataVersion: 0,
+    pollCount: 0,
     liveDraftStatus: null,
     board: null,
     poolAsOfDraft: null,

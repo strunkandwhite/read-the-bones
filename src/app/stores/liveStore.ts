@@ -753,13 +753,23 @@ useDraftStore.subscribe(
   },
 );
 
-// Refetch queue, floats, and settings when a new pick arrives
+// Refetch queue and floated cards on every poll cycle so changes on one device
+// propagate to other devices within one polling interval (~10s).
+useDraftStore.subscribe(
+  (state) => state.pollCount,
+  (pollCount) => {
+    if (pollCount > 0) {
+      useLiveStore.getState().fetchQueue();
+      useLiveStore.getState().fetchFloatedCards();
+    }
+  },
+);
+
+// Refetch seat settings when a new pick arrives (auto-pick mode may change)
 useDraftStore.subscribe(
   (state) => state.liveDraftStatus?.latestPickN,
   (latestPickN, prevLatestPickN) => {
     if (latestPickN != null && prevLatestPickN != null && latestPickN !== prevLatestPickN) {
-      useLiveStore.getState().fetchQueue();
-      useLiveStore.getState().fetchFloatedCards();
       useLiveStore.getState().refreshSettings();
     }
   },

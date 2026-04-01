@@ -57,6 +57,7 @@ interface DraftState {
 
   // Polling / data
   dataVersion: number;
+  pollCount: number;
   liveDraftStatus: LiveDraftStatus | null;
   board: BoardData | null;
   poolAsOfDraft: string | null;
@@ -192,7 +193,7 @@ function applyPollResults(
     }
     prevSeatNamesKey = seatNamesKey;
 
-    useDraftStore.setState({ liveDraftStatus: status, board });
+    useDraftStore.setState({ liveDraftStatus: status, board, pollCount: useDraftStore.getState().pollCount + 1 });
   }
 
   if (syncData) {
@@ -222,6 +223,7 @@ export const useDraftStore = create<DraftState>()(
     completedDraftIds: [],
     hydrated: false,
     dataVersion: 0,
+    pollCount: 0,
     liveDraftStatus: null,
     board: null,
     poolAsOfDraft: null,
