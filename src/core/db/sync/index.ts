@@ -107,7 +107,7 @@ export async function syncDraft(
     const poolNames = rawData.pool ? parsePoolRows(rawData.pool) : [];
     const parsedPicks = rawData.picks
       ? parsePickRows(rawData.picks, draftId)
-      : { picks: [], numDrafters: 0, drafterNames: [], isComplete: true, doublePickStartsAfterRound: null };
+      : { picks: [], numDrafters: 0, drafterNames: [], isComplete: true, doublePickStartsAfterRound: null, picksPerPlayer: 0 };
     const matches = parseMatchRows(
       rawData.matches,
       parsedPicks.drafterNames,
@@ -169,11 +169,17 @@ export async function syncDraft(
       await batchInsertPicks(client, pickInserts);
       result.picksCount = pickInserts.length;
 
-      // Update num_seats
+      // Update num_seats and picks_per_player
       if (parsedPicks.numDrafters > 0) {
         await client.execute({
           sql: "UPDATE drafts SET num_seats = ? WHERE draft_id = ?",
           args: [parsedPicks.numDrafters, draftId],
+        });
+      }
+      if (parsedPicks.picksPerPlayer > 0) {
+        await client.execute({
+          sql: "UPDATE drafts SET picks_per_player = ? WHERE draft_id = ? AND in_app = 0",
+          args: [parsedPicks.picksPerPlayer, draftId],
         });
       }
 

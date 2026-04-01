@@ -25,6 +25,7 @@ export interface ParsedPicks {
   drafterNames: string[];
   isComplete: boolean;
   doublePickStartsAfterRound: number | null;
+  picksPerPlayer: number;
 }
 
 /**
@@ -140,6 +141,7 @@ export function parsePickRows(
       drafterNames: [],
       isComplete: true,
       doublePickStartsAfterRound: null,
+      picksPerPlayer: 0,
     };
   }
 
@@ -187,6 +189,7 @@ export function parsePickRows(
       drafterNames: [],
       isComplete: true,
       doublePickStartsAfterRound: null,
+      picksPerPlayer: 0,
     };
   }
 
@@ -212,6 +215,7 @@ export function parsePickRows(
   const copyNumberTracker = new Map<string, number>();
 
   const picks: CardPick[] = [];
+  let maxRound = 0;
 
   // Process pick rows starting from row 4 (index 3)
   for (let rowIndex = 3; rowIndex < rows.length; rowIndex++) {
@@ -222,6 +226,7 @@ export function parsePickRows(
     const roundNumberStr = row[0]?.trim();
     const roundNumber = parseInt(roundNumberStr, 10);
     if (isNaN(roundNumber)) continue;
+    if (roundNumber > maxRound) maxRound = roundNumber;
 
     // Find where color data starts by looking for single-letter color codes at the end
     const colorPattern = /^[WUBRGC]+$/;
@@ -320,6 +325,7 @@ export function parsePickRows(
     drafterNames,
     isComplete,
     doublePickStartsAfterRound,
+    picksPerPlayer: maxRound,
   };
 }
 

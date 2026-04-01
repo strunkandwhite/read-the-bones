@@ -107,7 +107,7 @@ describe("match sync in runSync", () => {
       numDrafters: 2,
       drafterNames: ["Alice", "Bob"],
       isComplete: false,
-      doublePickStartsAfterRound: null,
+      doublePickStartsAfterRound: null, picksPerPlayer: 0,
     });
   });
 

@@ -268,7 +268,7 @@ describe("incrementalIngest", () => {
       numDrafters: 2,
       drafterNames: [],
       isComplete: false,
-      doublePickStartsAfterRound: null,
+      doublePickStartsAfterRound: null, picksPerPlayer: 0,
     });
     expect(result).toEqual({ status: "no_change", picksInserted: 0 });
   });
@@ -282,7 +282,7 @@ describe("incrementalIngest", () => {
       numDrafters: 2,
       drafterNames: [],
       isComplete: false,
-      doublePickStartsAfterRound: null,
+      doublePickStartsAfterRound: null, picksPerPlayer: 0,
     });
     expect(result).toEqual({ status: "diverged", picksInserted: 0 });
   });
@@ -296,7 +296,7 @@ describe("incrementalIngest", () => {
       numDrafters: 2,
       drafterNames: [],
       isComplete: false,
-      doublePickStartsAfterRound: null,
+      doublePickStartsAfterRound: null, picksPerPlayer: 0,
     });
     expect(result).toEqual({ status: "no_change", picksInserted: 0 });
   });
@@ -315,7 +315,7 @@ describe("incrementalIngest", () => {
       numDrafters: 2,
       drafterNames: [],
       isComplete: false,
-      doublePickStartsAfterRound: null,
+      doublePickStartsAfterRound: null, picksPerPlayer: 0,
     });
     expect(result.status).toBe("updated");
     expect(result.picksInserted).toBe(1);
@@ -337,7 +337,7 @@ describe("incrementalIngest", () => {
       numDrafters: 2,
       drafterNames: [],
       isComplete: true,
-      doublePickStartsAfterRound: null,
+      doublePickStartsAfterRound: null, picksPerPlayer: 0,
     });
     expect(result.status).toBe("completed");
     expect(result.picksInserted).toBe(1);
