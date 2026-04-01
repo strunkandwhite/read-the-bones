@@ -734,6 +734,18 @@ useDraftStore.subscribe(
   (state) => state.activeDraft,
   (activeDraft) => {
     if (activeDraft) {
+      // Reset per-seat state before loading for the new draft so stale auth
+      // from a previous draft never bleeds into the newly selected one.
+      useLiveStore.setState({
+        seatToken: null,
+        mySeat: null,
+        autoPick: true,
+        displayName: null,
+        queue: [],
+        queuedCardCounts: new Map(),
+        floatedCards: [],
+        floatedCardsSet: new Set<string>(),
+      });
       useLiveStore.getState().hydrateToken(activeDraft);
       useLiveStore.getState().fetchMySeat();
       useLiveStore.getState().fetchQueue();
