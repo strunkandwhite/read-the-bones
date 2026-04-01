@@ -121,7 +121,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     if (mySeat !== null && selectedSeat === null) {
       setSelectedSeat(mySeat);
     }
-  }, [mySeat, selectedSeat]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [mySeat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useSharedDeckLoader({
     setActiveDraft,
