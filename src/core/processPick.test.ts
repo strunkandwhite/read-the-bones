@@ -221,6 +221,10 @@ describe('processPick', () => {
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([], 1),
     );
+    // 7. Clear all queues on phase transition
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([], 0),
+    );
 
     const result = await processPick(mockClient as never, {
       ...baseInput,
@@ -236,6 +240,13 @@ describe('processPick', () => {
       phaseChanged: true,
       newPhase: 'playing',
     });
+
+    // Verify queues were cleared
+    const calls = mockClient.execute.mock.calls;
+    const clearQueueCall = calls.find((c: unknown[]) =>
+      typeof c[0] === 'object' && (c[0] as { sql: string }).sql.includes("queue_json = '[]'")
+    );
+    expect(clearQueueCall).toBeDefined();
   });
 
   describe('queue cleanup on last copy', () => {
