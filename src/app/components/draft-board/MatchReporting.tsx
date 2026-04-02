@@ -25,6 +25,7 @@ interface MatchInput {
   saving: boolean;
   error: string | null;
   saved: boolean;
+  previouslySaved: boolean;
 }
 
 function CheckIcon({ className }: { className?: string }) {
@@ -169,7 +170,7 @@ export function MatchReporting({
   const [inputs, setInputs] = useState<Record<number, MatchInput>>(() => {
     const initial: Record<number, MatchInput> = {};
     for (const opp of opponents) {
-      initial[opp] = { wins: "", losses: "", saving: false, error: null, saved: false };
+      initial[opp] = { wins: "", losses: "", saving: false, error: null, saved: false, previouslySaved: false };
     }
     return initial;
   });
@@ -199,6 +200,7 @@ export function MatchReporting({
                 wins: String(myWins),
                 losses: String(myLosses),
                 saved: true,
+                previouslySaved: true,
               };
             }
           }
@@ -236,8 +238,11 @@ export function MatchReporting({
         [opponent]: { ...prev[opponent], saving: true, error: null },
       }));
 
-      // Optimistic: update standings immediately before the POST
-      onMatchReported({ mySeat, opponent, wins, losses });
+      // Only apply optimistic update for new reports, not edits of existing results
+      // (edits would double-count since standings already include the old values)
+      if (!input.previouslySaved) {
+        onMatchReported({ mySeat, opponent, wins, losses });
+      }
 
       try {
         const res = await fetch(`/api/drafts/${draftId}/match`, {
@@ -260,8 +265,12 @@ export function MatchReporting({
 
         setInputs((prev) => ({
           ...prev,
-          [opponent]: { ...prev[opponent], saving: false, saved: true },
+          [opponent]: { ...prev[opponent], saving: false, saved: true, previouslySaved: true },
         }));
+        // For re-reports, refresh standings from server to reflect the edit
+        if (input.previouslySaved) {
+          onMatchReverted(); // reuses the re-fetch path
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
         setInputs((prev) => ({
