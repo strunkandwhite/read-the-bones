@@ -2,13 +2,21 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 
+export interface MatchResultData {
+  mySeat: number;
+  opponent: number;
+  wins: number;
+  losses: number;
+}
+
 interface MatchReportingProps {
   draftId: string;
   mySeat: number;
   token: string;
   numSeats: number;
   seatNames: Record<string, string>;
-  onMatchReported: () => void;
+  onMatchReported: (data: MatchResultData) => void;
+  onMatchReverted: () => void;
 }
 
 interface MatchInput {
@@ -151,6 +159,7 @@ export function MatchReporting({
   numSeats,
   seatNames,
   onMatchReported,
+  onMatchReverted,
 }: MatchReportingProps) {
   const opponents: number[] = [];
   for (let s = 1; s <= numSeats; s++) {
@@ -227,6 +236,9 @@ export function MatchReporting({
         [opponent]: { ...prev[opponent], saving: true, error: null },
       }));
 
+      // Optimistic: update standings immediately before the POST
+      onMatchReported({ mySeat, opponent, wins, losses });
+
       try {
         const res = await fetch(`/api/drafts/${draftId}/match`, {
           method: "POST",
@@ -250,16 +262,16 @@ export function MatchReporting({
           ...prev,
           [opponent]: { ...prev[opponent], saving: false, saved: true },
         }));
-        onMatchReported();
       } catch (err) {
         const message = err instanceof Error ? err.message : "Unknown error";
         setInputs((prev) => ({
           ...prev,
           [opponent]: { ...prev[opponent], saving: false, error: message },
         }));
+        onMatchReverted();
       }
     },
-    [inputs, draftId, token, onMatchReported],
+    [inputs, draftId, mySeat, token, onMatchReported, onMatchReverted],
   );
 
   return (

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { BoardData, LiveDraftStatus } from "@/app/stores/draftStore";
 import { MatchReporting } from "./MatchReporting";
+import type { MatchResultData } from "./MatchReporting";
 
 interface StandingsSectionProps {
   board: BoardData;
@@ -141,10 +142,35 @@ function StandingsTable({
   }, [status?.matchCount, fetchStandings]); // eslint-disable-line react-hooks/exhaustive-deps
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const handleMatchReported = useCallback(() => {
-    fetchStandings();
+  const handleMatchReported = useCallback((data: MatchResultData) => {
+    // Optimistic: apply match result to standings immediately
+    setStandings((prev) => prev.map((row) => {
+      if (row.seat === data.mySeat) {
+        return {
+          ...row,
+          gameWins: row.gameWins + data.wins,
+          gameLosses: row.gameLosses + data.losses,
+          matchWins: row.matchWins + (data.wins > data.losses ? 1 : 0),
+          matchLosses: row.matchLosses + (data.wins < data.losses ? 1 : 0),
+        };
+      }
+      if (row.seat === data.opponent) {
+        return {
+          ...row,
+          gameWins: row.gameWins + data.losses,
+          gameLosses: row.gameLosses + data.wins,
+          matchWins: row.matchWins + (data.losses > data.wins ? 1 : 0),
+          matchLosses: row.matchLosses + (data.losses < data.wins ? 1 : 0),
+        };
+      }
+      return row;
+    }));
     onMatchReported();
-  }, [fetchStandings, onMatchReported]);
+  }, [onMatchReported]);
+
+  const handleMatchReverted = useCallback(() => {
+    fetchStandings();
+  }, [fetchStandings]);
 
   if (loading) {
     return (
@@ -204,6 +230,7 @@ function StandingsTable({
           numSeats={board.numSeats}
           seatNames={board.seatNames}
           onMatchReported={handleMatchReported}
+          onMatchReverted={handleMatchReverted}
         />
       )}
     </div>
