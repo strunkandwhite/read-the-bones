@@ -162,6 +162,11 @@ export async function processPick(
         sql: `UPDATE drafts SET phase = 'playing' WHERE draft_id = ?`,
         args: [input.draftId],
       });
+      // Clear all queues — they're irrelevant once drafting ends
+      await client.execute({
+        sql: `UPDATE seat_tokens SET queue_json = '[]' WHERE draft_id = ?`,
+        args: [input.draftId],
+      });
       return { picks, phaseChanged: true, newPhase: 'playing' };
     }
 

@@ -153,7 +153,7 @@ export function DraftBoardModal({
                   token={seatToken}
                   onMatchReported={() => useDraftStore.getState().refreshNow()}
                 />
-                {seatToken !== null && (
+                {seatToken !== null && board?.phase === "drafting" && (
                   <QueuePanel
                     queue={queue}
                     autoPick={autoPick}
