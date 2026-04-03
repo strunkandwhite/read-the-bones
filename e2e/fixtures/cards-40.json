@@ -1,0 +1,775 @@
+{
+  "cards": [
+    {
+      "cardName": "Sol Ring",
+      "weightedGeomean": 2.0,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["C"],
+      "scryfall": {
+        "name": "Sol Ring",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-sol-ring.jpg",
+        "manaCost": "{1}",
+        "manaValue": 1,
+        "typeLine": "Artifact",
+        "colors": [],
+        "colorIdentity": [],
+        "oracleText": "{T}: Add {C}{C}."
+      }
+    },
+    {
+      "cardName": "Mana Crypt",
+      "weightedGeomean": 2.3,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["C"],
+      "scryfall": {
+        "name": "Mana Crypt",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-mana-crypt.jpg",
+        "manaCost": "{0}",
+        "manaValue": 0,
+        "typeLine": "Artifact",
+        "colors": [],
+        "colorIdentity": [],
+        "oracleText": "At the beginning of your upkeep, flip a coin. If you lose the flip, this artifact deals 3 damage to you.\n{T}: Add {C}{C}."
+      }
+    },
+    {
+      "cardName": "Demonic Tutor",
+      "weightedGeomean": 2.8,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["B"],
+      "scryfall": {
+        "name": "Demonic Tutor",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-demonic-tutor.jpg",
+        "manaCost": "{1}{B}",
+        "manaValue": 2,
+        "typeLine": "Sorcery",
+        "colors": ["B"],
+        "colorIdentity": ["B"],
+        "oracleText": "Search your library for a card, put that card into your hand, then shuffle."
+      }
+    },
+    {
+      "cardName": "Lightning Bolt",
+      "weightedGeomean": 3.2,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 2,
+      "colors": ["R"],
+      "scryfall": {
+        "name": "Lightning Bolt",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-lightning-bolt.jpg",
+        "manaCost": "{R}",
+        "manaValue": 1,
+        "typeLine": "Instant",
+        "colors": ["R"],
+        "colorIdentity": ["R"],
+        "oracleText": "Lightning Bolt deals 3 damage to any target."
+      }
+    },
+    {
+      "cardName": "Swords to Plowshares",
+      "weightedGeomean": 3.5,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["W"],
+      "scryfall": {
+        "name": "Swords to Plowshares",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-swords-to-plowshares.jpg",
+        "manaCost": "{W}",
+        "manaValue": 1,
+        "typeLine": "Instant",
+        "colors": ["W"],
+        "colorIdentity": ["W"],
+        "oracleText": "Exile target creature. Its controller gains life equal to its power."
+      }
+    },
+    {
+      "cardName": "Brainstorm",
+      "weightedGeomean": 3.8,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["U"],
+      "scryfall": {
+        "name": "Brainstorm",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-brainstorm.jpg",
+        "manaCost": "{U}",
+        "manaValue": 1,
+        "typeLine": "Instant",
+        "colors": ["U"],
+        "colorIdentity": ["U"],
+        "oracleText": "Draw three cards, then put two cards from your hand on top of your library in any order."
+      }
+    },
+    {
+      "cardName": "Dark Ritual",
+      "weightedGeomean": 4.1,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["B"],
+      "scryfall": {
+        "name": "Dark Ritual",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-dark-ritual.jpg",
+        "manaCost": "{B}",
+        "manaValue": 1,
+        "typeLine": "Instant",
+        "colors": ["B"],
+        "colorIdentity": ["B"],
+        "oracleText": "Add {B}{B}{B}."
+      }
+    },
+    {
+      "cardName": "Scalding Tarn",
+      "weightedGeomean": 4.5,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 2,
+      "colors": ["C"],
+      "scryfall": {
+        "name": "Scalding Tarn",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-scalding-tarn.jpg",
+        "manaCost": "",
+        "manaValue": 0,
+        "typeLine": "Land",
+        "colors": [],
+        "colorIdentity": [],
+        "oracleText": "{T}, Pay 1 life, Sacrifice this land: Search your library for an Island or Mountain card, put it onto the battlefield, then shuffle."
+      }
+    },
+    {
+      "cardName": "Misty Rainforest",
+      "weightedGeomean": 4.8,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["C"],
+      "scryfall": {
+        "name": "Misty Rainforest",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-misty-rainforest.jpg",
+        "manaCost": "",
+        "manaValue": 0,
+        "typeLine": "Land",
+        "colors": [],
+        "colorIdentity": [],
+        "oracleText": "{T}, Pay 1 life, Sacrifice this land: Search your library for a Forest or Island card, put it onto the battlefield, then shuffle."
+      }
+    },
+    {
+      "cardName": "Counterspell",
+      "weightedGeomean": 5.1,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["U"],
+      "scryfall": {
+        "name": "Counterspell",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-counterspell.jpg",
+        "manaCost": "{U}{U}",
+        "manaValue": 2,
+        "typeLine": "Instant",
+        "colors": ["U"],
+        "colorIdentity": ["U"],
+        "oracleText": "Counter target spell."
+      }
+    },
+    {
+      "cardName": "Sylvan Library",
+      "weightedGeomean": 5.5,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["G"],
+      "scryfall": {
+        "name": "Sylvan Library",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-sylvan-library.jpg",
+        "manaCost": "{1}{G}",
+        "manaValue": 2,
+        "typeLine": "Enchantment",
+        "colors": ["G"],
+        "colorIdentity": ["G"],
+        "oracleText": "At the beginning of your draw step, you may draw two additional cards. If you do, choose two cards in your hand drawn this turn. For each of those cards, pay 4 life or put the card on top of your library."
+      }
+    },
+    {
+      "cardName": "Mother of Runes",
+      "weightedGeomean": 5.9,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["W"],
+      "scryfall": {
+        "name": "Mother of Runes",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-mother-of-runes.jpg",
+        "manaCost": "{W}",
+        "manaValue": 1,
+        "typeLine": "Creature \u2014 Human Cleric",
+        "colors": ["W"],
+        "colorIdentity": ["W"],
+        "oracleText": "{T}: Target creature you control gains protection from the color of your choice until end of turn."
+      }
+    },
+    {
+      "cardName": "Birds of Paradise",
+      "weightedGeomean": 6.3,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["G"],
+      "scryfall": {
+        "name": "Birds of Paradise",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-birds-of-paradise.jpg",
+        "manaCost": "{G}",
+        "manaValue": 1,
+        "typeLine": "Creature \u2014 Bird",
+        "colors": ["G"],
+        "colorIdentity": ["G"],
+        "oracleText": "Flying\n{T}: Add one mana of any color."
+      }
+    },
+    {
+      "cardName": "Thoughtseize",
+      "weightedGeomean": 6.7,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["B"],
+      "scryfall": {
+        "name": "Thoughtseize",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-thoughtseize.jpg",
+        "manaCost": "{B}",
+        "manaValue": 1,
+        "typeLine": "Sorcery",
+        "colors": ["B"],
+        "colorIdentity": ["B"],
+        "oracleText": "Target player reveals their hand. You choose a nonland card from it. That player discards that card. You lose 2 life."
+      }
+    },
+    {
+      "cardName": "Llanowar Elves",
+      "weightedGeomean": 7.1,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["G"],
+      "scryfall": {
+        "name": "Llanowar Elves",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-llanowar-elves.jpg",
+        "manaCost": "{G}",
+        "manaValue": 1,
+        "typeLine": "Creature \u2014 Elf Druid",
+        "colors": ["G"],
+        "colorIdentity": ["G"],
+        "oracleText": "{T}: Add {G}."
+      }
+    },
+    {
+      "cardName": "Goblin Guide",
+      "weightedGeomean": 7.5,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["R"],
+      "scryfall": {
+        "name": "Goblin Guide",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-goblin-guide.jpg",
+        "manaCost": "{R}",
+        "manaValue": 1,
+        "typeLine": "Creature \u2014 Goblin Scout",
+        "colors": ["R"],
+        "colorIdentity": ["R"],
+        "oracleText": "Haste\nWhenever this creature attacks, defending player reveals the top card of their library. If it's a land card, that player puts it into their hand."
+      }
+    },
+    {
+      "cardName": "Land Tax",
+      "weightedGeomean": 7.9,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["W"],
+      "scryfall": {
+        "name": "Land Tax",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-land-tax.jpg",
+        "manaCost": "{W}",
+        "manaValue": 1,
+        "typeLine": "Enchantment",
+        "colors": ["W"],
+        "colorIdentity": ["W"],
+        "oracleText": "At the beginning of your upkeep, if an opponent controls more lands than you, you may search your library for up to three basic land cards, reveal them, put them into your hand, then shuffle."
+      }
+    },
+    {
+      "cardName": "Mystical Tutor",
+      "weightedGeomean": 8.2,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["U"],
+      "scryfall": {
+        "name": "Mystical Tutor",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-mystical-tutor.jpg",
+        "manaCost": "{U}",
+        "manaValue": 1,
+        "typeLine": "Instant",
+        "colors": ["U"],
+        "colorIdentity": ["U"],
+        "oracleText": "Search your library for an instant or sorcery card, reveal it, then shuffle and put that card on top."
+      }
+    },
+    {
+      "cardName": "Snapcaster Mage",
+      "weightedGeomean": 8.8,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["U"],
+      "scryfall": {
+        "name": "Snapcaster Mage",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-snapcaster-mage.jpg",
+        "manaCost": "{1}{U}",
+        "manaValue": 2,
+        "typeLine": "Creature \u2014 Human Wizard",
+        "colors": ["U"],
+        "colorIdentity": ["U"],
+        "oracleText": "Flash\nWhen this creature enters, target instant or sorcery card in your graveyard gains flashback until end of turn. The flashback cost is equal to its mana cost. (You may cast that card from your graveyard for its flashback cost. Then exile it.)"
+      }
+    },
+    {
+      "cardName": "Tarmogoyf",
+      "weightedGeomean": 9.3,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["G"],
+      "scryfall": {
+        "name": "Tarmogoyf",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-tarmogoyf.jpg",
+        "manaCost": "{1}{G}",
+        "manaValue": 2,
+        "typeLine": "Creature \u2014 Lhurgoyf",
+        "colors": ["G"],
+        "colorIdentity": ["G"],
+        "oracleText": "Tarmogoyf's power is equal to the number of card types among cards in all graveyards and its toughness is equal to that number plus 1."
+      }
+    },
+    {
+      "cardName": "Doom Blade",
+      "weightedGeomean": 9.8,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["B"],
+      "scryfall": {
+        "name": "Doom Blade",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-doom-blade.jpg",
+        "manaCost": "{1}{B}",
+        "manaValue": 2,
+        "typeLine": "Instant",
+        "colors": ["B"],
+        "colorIdentity": ["B"],
+        "oracleText": "Destroy target nonblack creature."
+      }
+    },
+    {
+      "cardName": "Faithless Looting",
+      "weightedGeomean": 10.2,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["R"],
+      "scryfall": {
+        "name": "Faithless Looting",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-faithless-looting.jpg",
+        "manaCost": "{R}",
+        "manaValue": 1,
+        "typeLine": "Sorcery",
+        "colors": ["R"],
+        "colorIdentity": ["R"],
+        "oracleText": "Draw two cards, then discard two cards.\nFlashback {2}{R} (You may cast this card from your graveyard for its flashback cost. Then exile it.)"
+      }
+    },
+    {
+      "cardName": "Growth Spiral",
+      "weightedGeomean": 10.7,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["G", "U"],
+      "scryfall": {
+        "name": "Growth Spiral",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-growth-spiral.jpg",
+        "manaCost": "{G}{U}",
+        "manaValue": 2,
+        "typeLine": "Instant",
+        "colors": ["G", "U"],
+        "colorIdentity": ["G", "U"],
+        "oracleText": "Draw a card. You may put a land card from your hand onto the battlefield."
+      }
+    },
+    {
+      "cardName": "Teferi, Time Raveler",
+      "weightedGeomean": 11.2,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["U", "W"],
+      "scryfall": {
+        "name": "Teferi, Time Raveler",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-teferi-time-raveler.jpg",
+        "manaCost": "{1}{W}{U}",
+        "manaValue": 3,
+        "typeLine": "Legendary Planeswalker \u2014 Teferi",
+        "colors": ["U", "W"],
+        "colorIdentity": ["U", "W"],
+        "oracleText": "Each opponent can cast spells only any time they could cast a sorcery.\n+1: Until your next turn, you may cast sorcery spells as though they had flash.\n\u22123: Return up to one target artifact, creature, or enchantment to its owner's hand. Draw a card."
+      }
+    },
+    {
+      "cardName": "Kolaghan's Command",
+      "weightedGeomean": 11.8,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["B", "R"],
+      "scryfall": {
+        "name": "Kolaghan's Command",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-kolaghans-command.jpg",
+        "manaCost": "{1}{B}{R}",
+        "manaValue": 3,
+        "typeLine": "Instant",
+        "colors": ["B", "R"],
+        "colorIdentity": ["B", "R"],
+        "oracleText": "Choose two \u2014\n\u2022 Return target creature card from your graveyard to your hand.\n\u2022 Target player discards a card.\n\u2022 Destroy target artifact.\n\u2022 Kolaghan's Command deals 2 damage to any target."
+      }
+    },
+    {
+      "cardName": "Liliana of the Veil",
+      "weightedGeomean": 12.3,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["B"],
+      "scryfall": {
+        "name": "Liliana of the Veil",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-liliana-of-the-veil.jpg",
+        "manaCost": "{1}{B}{B}",
+        "manaValue": 3,
+        "typeLine": "Legendary Planeswalker \u2014 Liliana",
+        "colors": ["B"],
+        "colorIdentity": ["B"],
+        "oracleText": "+1: Each player discards a card.\n\u22122: Target player sacrifices a creature.\n\u22126: Separate all permanents target player controls into two piles. That player sacrifices all permanents in the pile of their choice."
+      }
+    },
+    {
+      "cardName": "Phyrexian Arena",
+      "weightedGeomean": 12.8,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["B"],
+      "scryfall": {
+        "name": "Phyrexian Arena",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-phyrexian-arena.jpg",
+        "manaCost": "{1}{B}{B}",
+        "manaValue": 3,
+        "typeLine": "Enchantment",
+        "colors": ["B"],
+        "colorIdentity": ["B"],
+        "oracleText": "At the beginning of your upkeep, you draw a card and you lose 1 life."
+      }
+    },
+    {
+      "cardName": "Vindicate",
+      "weightedGeomean": 13.4,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["B", "W"],
+      "scryfall": {
+        "name": "Vindicate",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-vindicate.jpg",
+        "manaCost": "{1}{W}{B}",
+        "manaValue": 3,
+        "typeLine": "Sorcery",
+        "colors": ["B", "W"],
+        "colorIdentity": ["B", "W"],
+        "oracleText": "Destroy target permanent."
+      }
+    },
+    {
+      "cardName": "Chaos Warp",
+      "weightedGeomean": 14.0,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["R"],
+      "scryfall": {
+        "name": "Chaos Warp",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-chaos-warp.jpg",
+        "manaCost": "{2}{R}",
+        "manaValue": 3,
+        "typeLine": "Instant",
+        "colors": ["R"],
+        "colorIdentity": ["R"],
+        "oracleText": "The owner of target permanent shuffles it into their library, then reveals the top card of their library. If it's a permanent card, they put it onto the battlefield."
+      }
+    },
+    {
+      "cardName": "Jace, the Mind Sculptor",
+      "weightedGeomean": 14.8,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["U"],
+      "scryfall": {
+        "name": "Jace, the Mind Sculptor",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-jace-the-mind-sculptor.jpg",
+        "manaCost": "{2}{U}{U}",
+        "manaValue": 4,
+        "typeLine": "Legendary Planeswalker \u2014 Jace",
+        "colors": ["U"],
+        "colorIdentity": ["U"],
+        "oracleText": "+2: Look at the top card of target player's library. You may put that card on the bottom of that player's library.\n0: Draw three cards, then put two cards from your hand on top of your library in any order.\n\u22121: Return target creature to its owner's hand.\n\u221212: Exile all cards from target player's library, then that player shuffles their hand into their library."
+      }
+    },
+    {
+      "cardName": "Cryptic Command",
+      "weightedGeomean": 15.5,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["U"],
+      "scryfall": {
+        "name": "Cryptic Command",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-cryptic-command.jpg",
+        "manaCost": "{1}{U}{U}{U}",
+        "manaValue": 4,
+        "typeLine": "Instant",
+        "colors": ["U"],
+        "colorIdentity": ["U"],
+        "oracleText": "Choose two \u2014\n\u2022 Counter target spell.\n\u2022 Return target permanent to its owner's hand.\n\u2022 Tap all creatures your opponents control.\n\u2022 Draw a card."
+      }
+    },
+    {
+      "cardName": "Wrath of God",
+      "weightedGeomean": 16.0,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["W"],
+      "scryfall": {
+        "name": "Wrath of God",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-wrath-of-god.jpg",
+        "manaCost": "{2}{W}{W}",
+        "manaValue": 4,
+        "typeLine": "Sorcery",
+        "colors": ["W"],
+        "colorIdentity": ["W"],
+        "oracleText": "Destroy all creatures. They can't be regenerated."
+      }
+    },
+    {
+      "cardName": "Elspeth, Knight-Errant",
+      "weightedGeomean": 16.5,
+      "timesAvailable": 3,
+      "draftsPickedIn": 3,
+      "maxCopiesInDraft": 1,
+      "colors": ["W"],
+      "scryfall": {
+        "name": "Elspeth, Knight-Errant",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-elspeth-knight-errant.jpg",
+        "manaCost": "{2}{W}{W}",
+        "manaValue": 4,
+        "typeLine": "Legendary Planeswalker \u2014 Elspeth",
+        "colors": ["W"],
+        "colorIdentity": ["W"],
+        "oracleText": "+1: Create a 1/1 white Soldier creature token.\n+1: Target creature gets +3/+3 and gains flying until end of turn.\n\u22128: You get an emblem with \"Artifacts, creatures, enchantments, and lands you control have indestructible.\""
+      }
+    },
+    {
+      "cardName": "Palace Jailer",
+      "weightedGeomean": 17.2,
+      "timesAvailable": 3,
+      "draftsPickedIn": 2,
+      "maxCopiesInDraft": 1,
+      "colors": ["W"],
+      "scryfall": {
+        "name": "Palace Jailer",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-palace-jailer.jpg",
+        "manaCost": "{2}{W}{W}",
+        "manaValue": 4,
+        "typeLine": "Creature \u2014 Human Soldier",
+        "colors": ["W"],
+        "colorIdentity": ["W"],
+        "oracleText": "When this creature enters, you become the monarch.\nWhen this creature enters, exile target creature an opponent controls until an opponent becomes the monarch."
+      }
+    },
+    {
+      "cardName": "Natural Order",
+      "weightedGeomean": 17.8,
+      "timesAvailable": 3,
+      "draftsPickedIn": 2,
+      "maxCopiesInDraft": 1,
+      "colors": ["G"],
+      "scryfall": {
+        "name": "Natural Order",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-natural-order.jpg",
+        "manaCost": "{2}{G}{G}",
+        "manaValue": 4,
+        "typeLine": "Sorcery",
+        "colors": ["G"],
+        "colorIdentity": ["G"],
+        "oracleText": "As an additional cost to cast this spell, sacrifice a green creature.\nSearch your library for a green creature card, put it onto the battlefield, then shuffle."
+      }
+    },
+    {
+      "cardName": "Batterskull",
+      "weightedGeomean": 18.5,
+      "timesAvailable": 3,
+      "draftsPickedIn": 2,
+      "maxCopiesInDraft": 1,
+      "colors": ["C"],
+      "scryfall": {
+        "name": "Batterskull",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-batterskull.jpg",
+        "manaCost": "{5}",
+        "manaValue": 5,
+        "typeLine": "Artifact \u2014 Equipment",
+        "colors": [],
+        "colorIdentity": [],
+        "oracleText": "Living weapon (When this Equipment enters, create a 0/0 black Phyrexian Germ creature token, then attach this to it.)\nEquipped creature gets +4/+4 and has vigilance and lifelink.\n{3}: Return this Equipment to its owner's hand.\nEquip {5}"
+      }
+    },
+    {
+      "cardName": "Kiki-Jiki, Mirror Breaker",
+      "weightedGeomean": 19.2,
+      "timesAvailable": 3,
+      "draftsPickedIn": 2,
+      "maxCopiesInDraft": 1,
+      "colors": ["R"],
+      "scryfall": {
+        "name": "Kiki-Jiki, Mirror Breaker",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-kiki-jiki.jpg",
+        "manaCost": "{2}{R}{R}{R}",
+        "manaValue": 5,
+        "typeLine": "Legendary Creature \u2014 Goblin Shaman",
+        "colors": ["R"],
+        "colorIdentity": ["R"],
+        "oracleText": "Haste\n{T}: Create a token that's a copy of target nonlegendary creature you control, except it has haste. Sacrifice it at the beginning of the next end step."
+      }
+    },
+    {
+      "cardName": "Wurmcoil Engine",
+      "weightedGeomean": 20.0,
+      "timesAvailable": 3,
+      "draftsPickedIn": 2,
+      "maxCopiesInDraft": 1,
+      "colors": ["C"],
+      "scryfall": {
+        "name": "Wurmcoil Engine",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-wurmcoil-engine.jpg",
+        "manaCost": "{6}",
+        "manaValue": 6,
+        "typeLine": "Artifact Creature \u2014 Phyrexian Wurm",
+        "colors": [],
+        "colorIdentity": [],
+        "oracleText": "Deathtouch, lifelink\nWhen this creature dies, create a 3/3 colorless Phyrexian Wurm artifact creature token with deathtouch and a 3/3 colorless Phyrexian Wurm artifact creature token with lifelink."
+      }
+    },
+    {
+      "cardName": "Inferno Titan",
+      "weightedGeomean": 21.0,
+      "timesAvailable": 3,
+      "draftsPickedIn": 2,
+      "maxCopiesInDraft": 1,
+      "colors": ["R"],
+      "scryfall": {
+        "name": "Inferno Titan",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-inferno-titan.jpg",
+        "manaCost": "{4}{R}{R}",
+        "manaValue": 6,
+        "typeLine": "Creature \u2014 Giant",
+        "colors": ["R"],
+        "colorIdentity": ["R"],
+        "oracleText": "{R}: This creature gets +1/+0 until end of turn.\nWhenever this creature enters or attacks, it deals 3 damage divided as you choose among one, two, or three targets."
+      }
+    },
+    {
+      "cardName": "Craterhoof Behemoth",
+      "weightedGeomean": 22.5,
+      "timesAvailable": 3,
+      "draftsPickedIn": 2,
+      "maxCopiesInDraft": 1,
+      "colors": ["G"],
+      "scryfall": {
+        "name": "Craterhoof Behemoth",
+        "imageUri": "https://cards.scryfall.io/normal/front/0/0/placeholder-craterhoof-behemoth.jpg",
+        "manaCost": "{5}{G}{G}{G}",
+        "manaValue": 8,
+        "typeLine": "Creature \u2014 Beast",
+        "colors": ["G"],
+        "colorIdentity": ["G"],
+        "oracleText": "Haste\nWhen this creature enters, creatures you control gain trample and get +X/+X until end of turn, where X is the number of creatures you control."
+      }
+    }
+  ],
+  "draftCount": 3,
+  "cubeCopies": {
+    "Sol Ring": 1,
+    "Mana Crypt": 1,
+    "Demonic Tutor": 1,
+    "Lightning Bolt": 2,
+    "Swords to Plowshares": 1,
+    "Brainstorm": 1,
+    "Dark Ritual": 1,
+    "Scalding Tarn": 2,
+    "Misty Rainforest": 1,
+    "Counterspell": 1,
+    "Sylvan Library": 1,
+    "Mother of Runes": 1,
+    "Birds of Paradise": 1,
+    "Thoughtseize": 1,
+    "Llanowar Elves": 1,
+    "Goblin Guide": 1,
+    "Land Tax": 1,
+    "Mystical Tutor": 1,
+    "Snapcaster Mage": 1,
+    "Tarmogoyf": 1,
+    "Doom Blade": 1,
+    "Faithless Looting": 1,
+    "Growth Spiral": 1,
+    "Teferi, Time Raveler": 1,
+    "Kolaghan's Command": 1,
+    "Liliana of the Veil": 1,
+    "Phyrexian Arena": 1,
+    "Vindicate": 1,
+    "Chaos Warp": 1,
+    "Jace, the Mind Sculptor": 1,
+    "Cryptic Command": 1,
+    "Wrath of God": 1,
+    "Elspeth, Knight-Errant": 1,
+    "Palace Jailer": 1,
+    "Natural Order": 1,
+    "Batterskull": 1,
+    "Kiki-Jiki, Mirror Breaker": 1,
+    "Wurmcoil Engine": 1,
+    "Inferno Titan": 1,
+    "Craterhoof Behemoth": 1
+  },
+  "draftMetadata": {
+    "gamma": { "name": "Gamma Draft", "date": "2026-03-01", "numDrafters": 10 },
+    "delta": { "name": "Delta Draft", "date": "2026-02-01", "numDrafters": 10 },
+    "epsilon": { "name": "Epsilon Draft", "date": "2026-01-01", "numDrafters": 10 }
+  },
+  "draftIds": ["gamma", "delta", "epsilon"],
+  "completedDraftIds": ["delta", "epsilon"],
+  "ingestionHash": "e2e-test-hash-001"
+}
