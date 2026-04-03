@@ -3,12 +3,23 @@
   "seat": 5,
   "zones": {
     "deck": {
-      "W": ["Swords to Plowshares", "Mother of Runes", "Wrath of God"],
-      "U": ["Counterspell", "Brainstorm", "Snapcaster Mage"],
-      "R": ["Lightning Bolt", "Goblin Guide"],
-      "C": ["Sol Ring"]
+      "mv-0-1": ["Sol Ring", "Swords to Plowshares", "Mother of Runes", "Lightning Bolt", "Goblin Guide", "Brainstorm"],
+      "mv-2": ["Counterspell", "Snapcaster Mage"],
+      "mv-3": [],
+      "mv-4": ["Wrath of God"],
+      "mv-5": [],
+      "mv-6+": [],
+      "lands": []
     },
-    "sideboard": { "sb": ["Doom Blade", "Chaos Warp"] }
+    "sideboard": {
+      "mv-0-1": [],
+      "mv-2": ["Doom Blade"],
+      "mv-3": ["Chaos Warp"],
+      "mv-4": [],
+      "mv-5": [],
+      "mv-6+": [],
+      "lands": []
+    }
   },
   "basicLands": { "Plains": 4, "Island": 6, "Swamp": 0, "Mountain": 4, "Forest": 0 }
 }
