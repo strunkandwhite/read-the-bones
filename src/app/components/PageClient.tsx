@@ -265,7 +265,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                 </svg>
               </button>
             )}
-            {isAuthed && activeDraft && selectedSeat !== null && (
+            {activeDraft && selectedSeat !== null && (
               <button
                 onClick={() => {
                   // On mobile (< 640px), toggle card table filter instead of modal
