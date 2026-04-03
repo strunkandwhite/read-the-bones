@@ -2,38 +2,12 @@ import { test, expect } from "@playwright/test";
 import { createMockContext } from "../helpers/mock-api";
 import { authenticateAs } from "../helpers/auth";
 import { openDeckBuilder } from "../helpers/assertions";
-import cardsFixture from "../fixtures/cards-40.json" with { type: "json" };
-import liveBoardFixture from "../fixtures/live-board.json" with { type: "json" };
 import liveQueueFixture from "../fixtures/live-queue.json" with { type: "json" };
-
-// Build takenCards from the live-board fixture picks for the cards API response
-const takenCards = liveBoardFixture.picks.map((p) => ({
-  name: p.cardName,
-  seat: p.seat,
-}));
-
-const cardsWithTaken = { ...cardsFixture, takenCards };
 
 test.describe("Deck builder", () => {
   test.beforeEach(async ({ page }) => {
-    await authenticateAs(page, {
-      draftId: "gamma",
-      seat: 3,
-      displayName: "Alice",
-    });
-    await createMockContext(page, "deck-builder", {
-      cards: async (route, request) => {
-        const url = new URL(request.url());
-        const body = url.searchParams.has("activeDraft")
-          ? cardsWithTaken
-          : cardsFixture;
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(body),
-        });
-      },
-    });
+    await authenticateAs(page, { draftId: "gamma" });
+    await createMockContext(page, "deck-builder");
 
     // Mock card stats endpoint
     await page.route("**/api/cards/stats*", (route) =>

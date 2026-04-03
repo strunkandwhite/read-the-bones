@@ -7,18 +7,9 @@ import {
   openCardStatsModal,
 } from "../helpers/assertions";
 import { expectCardVisible } from "../helpers/card-table";
-import cardsFixture from "../fixtures/cards-40.json" with { type: "json" };
 import liveBoardFixture from "../fixtures/live-board.json" with { type: "json" };
 import liveQueueFixture from "../fixtures/live-queue.json" with { type: "json" };
 import liveFloatsFixture from "../fixtures/live-floats.json" with { type: "json" };
-
-// Build takenCards from the live-board fixture picks for the cards API response
-const takenCards = liveBoardFixture.picks.map((p) => ({
-  name: p.cardName,
-  seat: p.seat,
-}));
-
-const cardsWithTaken = { ...cardsFixture, takenCards };
 
 // Minimal card stats response for the stats modal
 const cardStatsResponse = {
@@ -46,24 +37,8 @@ const cardStatsResponse = {
 
 test.describe("Live draft", () => {
   test.beforeEach(async ({ page }) => {
-    await authenticateAs(page, {
-      draftId: "gamma",
-      seat: 3,
-      displayName: "Alice",
-    });
-    await createMockContext(page, "live-draft", {
-      cards: async (route, request) => {
-        const url = new URL(request.url());
-        const body = url.searchParams.has("activeDraft")
-          ? cardsWithTaken
-          : cardsFixture;
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(body),
-        });
-      },
-    });
+    await authenticateAs(page, { draftId: "gamma" });
+    await createMockContext(page, "live-draft");
 
     // Mock card stats endpoint for stats modal tests
     await page.route("**/api/cards/stats*", (route) =>

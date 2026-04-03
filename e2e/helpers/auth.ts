@@ -2,7 +2,7 @@ import { Page } from "@playwright/test";
 
 export async function authenticateAs(
   page: Page,
-  opts: { draftId: string; seat: number; displayName: string },
+  opts: { draftId: string },
 ) {
   await page.addInitScript(
     ({ draftId, token }) => {

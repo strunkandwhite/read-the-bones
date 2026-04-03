@@ -53,19 +53,41 @@ export async function createMockContext(
     route.fulfill({ status: 200, body: "" }),
   );
 
+  // Build takenCards from board picks for scenarios with a live board
+  const hasLiveBoard = ["live-draft", "deck-builder", "spectator"].includes(
+    scenario,
+  );
+  const boardData = (overrides.liveBoard ?? liveBoardFixture) as {
+    picks: { cardName: string; seat: number }[];
+  };
+  const cardsWithTaken = hasLiveBoard
+    ? {
+        ...cardsFixture,
+        takenCards: boardData.picks.map((p) => ({
+          name: p.cardName,
+          seat: p.seat,
+        })),
+      }
+    : null;
+
   // Base routes (all scenarios)
   if (overrides.cards) {
     await page.route("**/api/cards*", (route) =>
       overrides.cards!(route, route.request()),
     );
   } else {
-    await page.route("**/api/cards*", (route) =>
-      route.fulfill({
+    await page.route("**/api/cards*", (route) => {
+      const url = new URL(route.request().url());
+      const body =
+        cardsWithTaken && url.searchParams.has("activeDraft")
+          ? cardsWithTaken
+          : cardsFixture;
+      return route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(cardsFixture),
-      }),
-    );
+        body: JSON.stringify(body),
+      });
+    });
   }
 
   await page.route("**/api/draft-stats*", (route) =>

@@ -54,8 +54,7 @@ test.describe("Browse and filter", () => {
 
     await page.fill("#search", "t:creature");
     // Scryfall operator search has a 500ms debounce
-    await page.waitForTimeout(600);
-
+    // Scryfall operator search has a 500ms debounce — toPass retries handle the wait
     await expect(async () => {
       await expectCardVisible(page, "Llanowar Elves");
       await expectCardVisible(page, "Snapcaster Mage");
@@ -72,8 +71,6 @@ test.describe("Browse and filter", () => {
     await expect(page.locator("table")).toBeVisible();
 
     await page.fill("#search", 'o:"draw"');
-    await page.waitForTimeout(600);
-
     await expect(async () => {
       await expectCardVisible(page, "Brainstorm");
       await expectCardVisible(page, "Cryptic Command");
@@ -115,8 +112,6 @@ test.describe("Browse and filter", () => {
     await expect(page.locator("table")).toBeVisible();
 
     await page.fill("#search", "mv<=1");
-    await page.waitForTimeout(600);
-
     await expect(async () => {
       await expectCardVisible(page, "Sol Ring");
       await expectCardVisible(page, "Lightning Bolt");
@@ -133,8 +128,6 @@ test.describe("Browse and filter", () => {
     await expect(page.locator("table")).toBeVisible();
 
     await page.fill("#search", "t:instant c:u");
-    await page.waitForTimeout(600);
-
     await expect(async () => {
       // 5 blue instants fit in viewport — use row count
       const rows = page.locator("tbody tr").filter({ has: page.locator("td") });

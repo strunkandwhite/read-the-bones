@@ -9,33 +9,10 @@ import {
   openDeckBuilder,
 } from "../helpers/assertions";
 import { expectCardVisible } from "../helpers/card-table";
-import cardsFixture from "../fixtures/cards-40.json" with { type: "json" };
-import liveBoardFixture from "../fixtures/live-board.json" with { type: "json" };
-
-// Build takenCards from the live-board fixture picks for the cards API response
-const takenCards = liveBoardFixture.picks.map((p) => ({
-  name: p.cardName,
-  seat: p.seat,
-}));
-
-// Cards response that includes takenCards (returned when activeDraft is set)
-const cardsWithTaken = { ...cardsFixture, takenCards };
 
 test.describe("Spectator (unauthenticated)", () => {
   test.beforeEach(async ({ page }) => {
-    await createMockContext(page, "spectator", {
-      cards: async (route, request) => {
-        const url = new URL(request.url());
-        const body = url.searchParams.has("activeDraft")
-          ? cardsWithTaken
-          : cardsFixture;
-        await route.fulfill({
-          status: 200,
-          contentType: "application/json",
-          body: JSON.stringify(body),
-        });
-      },
-    });
+    await createMockContext(page, "spectator");
   });
 
   test("seat picks are highlighted in the card table", async ({ page }) => {
