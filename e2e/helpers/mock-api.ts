@@ -224,15 +224,3 @@ export async function createMockContext(
     }),
   );
 }
-
-/** @deprecated Use createMockContext instead. Kept for old specs until they are rewritten. */
-export async function mockApiRoutes(
-  page: Page,
-  overrides: { cards?: object; draftStats?: object; syncStatus?: object; syncResponse?: object; sharedDeck?: object | null } = {},
-) {
-  await createMockContext(page, "browse", {
-    draftStats: overrides.draftStats,
-    syncStatus: overrides.syncStatus,
-    sharedDeck: overrides.sharedDeck ?? undefined,
-  });
-}

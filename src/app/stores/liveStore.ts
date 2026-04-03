@@ -816,7 +816,7 @@ function syncDeckWithPicks() {
   const { seatCardList, scryfallDataMap } = useCardStore.getState();
   const isAuthed = getIsAuthed();
 
-  if (!deckBuilderActive || !deckReady) return;
+  if (!deckBuilderActive || !deckReady || useLiveStore.getState().viewingSharedDeck) return;
 
   const picks = seatCardList ?? [];
   const authFloated = isAuthed ? floatedCards : [];
