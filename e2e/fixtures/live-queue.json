@@ -1,0 +1,7 @@
+{
+  "queue": [
+    { "mode": "pause", "cards": [{ "id": 1, "name": "Doom Blade" }] },
+    { "mode": "flow-through", "cards": [{ "id": 2, "name": "Teferi, Time Raveler" }, { "id": 3, "name": "Kolaghan's Command" }, { "id": 4, "name": "Vindicate" }] },
+    { "mode": "pause", "cards": [{ "id": 5, "name": "Faithless Looting" }] }
+  ]
+}

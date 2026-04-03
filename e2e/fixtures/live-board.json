@@ -1,0 +1,51 @@
+{
+  "phase": "drafting",
+  "numSeats": 10,
+  "picksPerPlayer": 45,
+  "latestPickN": 22,
+  "nextSeat": 3,
+  "matchCount": 0,
+  "totalMatches": 45,
+  "bannedCards": [],
+  "seatNames": {
+    "1": "Bob",
+    "2": "Carol",
+    "3": "Alice",
+    "4": "Dave",
+    "5": "Eve",
+    "6": "Frank",
+    "7": "Grace",
+    "8": "Heidi",
+    "9": "Ivan",
+    "10": "Judy"
+  },
+  "recentPicks": [
+    { "pickN": 22, "seat": 2, "cardName": "Snapcaster Mage", "oracleId": "snapcaster-mage-id", "colorIdentity": ["U"], "manaCost": "{1}{U}" },
+    { "pickN": 21, "seat": 1, "cardName": "Mother of Runes", "oracleId": "mother-of-runes-id", "colorIdentity": ["W"], "manaCost": "{W}" },
+    { "pickN": 20, "seat": 1, "cardName": "Elspeth, Knight-Errant", "oracleId": "elspeth-knight-errant-id", "colorIdentity": ["W"], "manaCost": "{2}{W}{W}" }
+  ],
+  "picks": [
+    { "pickN": 1, "seat": 1, "cardName": "Sol Ring", "oracleId": "sol-ring-id", "colorIdentity": [], "manaCost": "{1}" },
+    { "pickN": 2, "seat": 2, "cardName": "Mana Crypt", "oracleId": "mana-crypt-id", "colorIdentity": [], "manaCost": "{0}" },
+    { "pickN": 3, "seat": 3, "cardName": "Brainstorm", "oracleId": "brainstorm-id", "colorIdentity": ["U"], "manaCost": "{U}" },
+    { "pickN": 4, "seat": 4, "cardName": "Demonic Tutor", "oracleId": "demonic-tutor-id", "colorIdentity": ["B"], "manaCost": "{1}{B}" },
+    { "pickN": 5, "seat": 5, "cardName": "Scalding Tarn", "oracleId": "scalding-tarn-id", "colorIdentity": [], "manaCost": "" },
+    { "pickN": 6, "seat": 6, "cardName": "Tarmogoyf", "oracleId": "tarmogoyf-id", "colorIdentity": ["G"], "manaCost": "{1}{G}" },
+    { "pickN": 7, "seat": 7, "cardName": "Swords to Plowshares", "oracleId": "swords-to-plowshares-id", "colorIdentity": ["W"], "manaCost": "{W}" },
+    { "pickN": 8, "seat": 8, "cardName": "Dark Ritual", "oracleId": "dark-ritual-id", "colorIdentity": ["B"], "manaCost": "{B}" },
+    { "pickN": 9, "seat": 9, "cardName": "Counterspell", "oracleId": "counterspell-id", "colorIdentity": ["U"], "manaCost": "{U}{U}" },
+    { "pickN": 10, "seat": 10, "cardName": "Lightning Bolt", "oracleId": "lightning-bolt-id", "colorIdentity": ["R"], "manaCost": "{R}" },
+    { "pickN": 11, "seat": 10, "cardName": "Goblin Guide", "oracleId": "goblin-guide-id", "colorIdentity": ["R"], "manaCost": "{R}" },
+    { "pickN": 12, "seat": 9, "cardName": "Llanowar Elves", "oracleId": "llanowar-elves-id", "colorIdentity": ["G"], "manaCost": "{G}" },
+    { "pickN": 13, "seat": 8, "cardName": "Thoughtseize", "oracleId": "thoughtseize-id", "colorIdentity": ["B"], "manaCost": "{B}" },
+    { "pickN": 14, "seat": 7, "cardName": "Jace, the Mind Sculptor", "oracleId": "jace-the-mind-sculptor-id", "colorIdentity": ["U"], "manaCost": "{2}{U}{U}" },
+    { "pickN": 15, "seat": 6, "cardName": "Birds of Paradise", "oracleId": "birds-of-paradise-id", "colorIdentity": ["G"], "manaCost": "{G}" },
+    { "pickN": 16, "seat": 5, "cardName": "Liliana of the Veil", "oracleId": "liliana-of-the-veil-id", "colorIdentity": ["B"], "manaCost": "{1}{B}{B}" },
+    { "pickN": 17, "seat": 4, "cardName": "Natural Order", "oracleId": "natural-order-id", "colorIdentity": ["G"], "manaCost": "{2}{G}{G}" },
+    { "pickN": 18, "seat": 3, "cardName": "Cryptic Command", "oracleId": "cryptic-command-id", "colorIdentity": ["U"], "manaCost": "{1}{U}{U}{U}" },
+    { "pickN": 19, "seat": 2, "cardName": "Wrath of God", "oracleId": "wrath-of-god-id", "colorIdentity": ["W"], "manaCost": "{2}{W}{W}" },
+    { "pickN": 20, "seat": 1, "cardName": "Elspeth, Knight-Errant", "oracleId": "elspeth-knight-errant-id", "colorIdentity": ["W"], "manaCost": "{2}{W}{W}" },
+    { "pickN": 21, "seat": 1, "cardName": "Mother of Runes", "oracleId": "mother-of-runes-id", "colorIdentity": ["W"], "manaCost": "{W}" },
+    { "pickN": 22, "seat": 2, "cardName": "Snapcaster Mage", "oracleId": "snapcaster-mage-id", "colorIdentity": ["U"], "manaCost": "{1}{U}" }
+  ]
+}

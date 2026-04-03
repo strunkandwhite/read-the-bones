@@ -1,0 +1,24 @@
+{
+  "cards": [
+    { "card_name": "Lightning Bolt", "remaining_qty": 1 },
+    { "card_name": "Scalding Tarn", "remaining_qty": 1 },
+    { "card_name": "Misty Rainforest", "remaining_qty": 1 },
+    { "card_name": "Sylvan Library", "remaining_qty": 1 },
+    { "card_name": "Land Tax", "remaining_qty": 1 },
+    { "card_name": "Mystical Tutor", "remaining_qty": 1 },
+    { "card_name": "Doom Blade", "remaining_qty": 1 },
+    { "card_name": "Faithless Looting", "remaining_qty": 1 },
+    { "card_name": "Growth Spiral", "remaining_qty": 1 },
+    { "card_name": "Teferi, Time Raveler", "remaining_qty": 1 },
+    { "card_name": "Kolaghan's Command", "remaining_qty": 1 },
+    { "card_name": "Phyrexian Arena", "remaining_qty": 1 },
+    { "card_name": "Vindicate", "remaining_qty": 1 },
+    { "card_name": "Chaos Warp", "remaining_qty": 1 },
+    { "card_name": "Palace Jailer", "remaining_qty": 1 },
+    { "card_name": "Batterskull", "remaining_qty": 1 },
+    { "card_name": "Kiki-Jiki, Mirror Breaker", "remaining_qty": 1 },
+    { "card_name": "Wurmcoil Engine", "remaining_qty": 1 },
+    { "card_name": "Inferno Titan", "remaining_qty": 1 },
+    { "card_name": "Craterhoof Behemoth", "remaining_qty": 1 }
+  ]
+}

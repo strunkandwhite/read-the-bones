@@ -1,0 +1,9 @@
+{
+  "activeDrafts": [
+    { "id": "gamma", "name": "Gamma Draft", "date": "2026-03-01", "numSeats": 10 }
+  ],
+  "completedDrafts": [
+    { "id": "delta", "name": "Delta Draft", "date": "2026-02-01", "numSeats": 10 },
+    { "id": "epsilon", "name": "Epsilon Draft", "date": "2026-01-01", "numSeats": 10 }
+  ]
+}

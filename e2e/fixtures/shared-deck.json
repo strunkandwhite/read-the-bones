@@ -1,22 +1,14 @@
 {
-  "draftId": "gamma",
-  "seat": 3,
+  "draftId": "delta",
+  "seat": 5,
   "zones": {
     "deck": {
-      "mv-0-1": ["Lightning Bolt", "Swords to Plowshares"],
-      "mv-2": ["Counterspell"],
-      "mv-3": ["Teferi, Time Raveler"]
+      "W": ["Swords to Plowshares", "Mother of Runes", "Wrath of God"],
+      "U": ["Counterspell", "Brainstorm", "Snapcaster Mage"],
+      "R": ["Lightning Bolt", "Goblin Guide"],
+      "C": ["Sol Ring"]
     },
-    "sideboard": {
-      "sb": ["Dark Ritual"]
-    }
+    "sideboard": { "sb": ["Doom Blade", "Chaos Warp"] }
   },
-  "speculativeCards": [],
-  "basicLands": {
-    "Plains": 4,
-    "Island": 6,
-    "Swamp": 0,
-    "Mountain": 4,
-    "Forest": 0
-  }
+  "basicLands": { "Plains": 4, "Island": 6, "Swamp": 0, "Mountain": 4, "Forest": 0 }
 }

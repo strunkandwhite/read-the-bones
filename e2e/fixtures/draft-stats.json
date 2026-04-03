@@ -1,11 +1,15 @@
 {
   "winRateBySeat": [
     { "seat": 1, "wins": 8, "losses": 4, "winRate": 0.667, "ciLower": 0.39, "ciUpper": 0.87 },
-    { "seat": 2, "wins": 6, "losses": 6, "winRate": 0.5, "ciLower": 0.25, "ciUpper": 0.75 }
+    { "seat": 2, "wins": 6, "losses": 6, "winRate": 0.5, "ciLower": 0.25, "ciUpper": 0.75 },
+    { "seat": 3, "wins": 7, "losses": 5, "winRate": 0.583, "ciLower": 0.32, "ciUpper": 0.82 },
+    { "seat": 4, "wins": 5, "losses": 7, "winRate": 0.417, "ciLower": 0.18, "ciUpper": 0.68 },
+    { "seat": 5, "wins": 9, "losses": 3, "winRate": 0.75, "ciLower": 0.47, "ciUpper": 0.93 }
   ],
   "winRateByColor": [
     { "color": "WU", "wins": 5, "losses": 3, "winRate": 0.625, "ciLower": 0.29, "ciUpper": 0.88 },
-    { "color": "BR", "wins": 4, "losses": 4, "winRate": 0.5, "ciLower": 0.22, "ciUpper": 0.78 }
+    { "color": "BR", "wins": 4, "losses": 4, "winRate": 0.5, "ciLower": 0.22, "ciUpper": 0.78 },
+    { "color": "UG", "wins": 6, "losses": 2, "winRate": 0.75, "ciLower": 0.41, "ciUpper": 0.95 }
   ],
   "ingestionHash": "e2e-test-hash-001"
 }

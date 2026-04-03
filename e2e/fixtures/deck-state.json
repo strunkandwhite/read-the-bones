@@ -1,0 +1,13 @@
+{
+  "draftId": "gamma",
+  "seat": 3,
+  "zones": {
+    "deck": {
+      "U": ["Brainstorm", "Cryptic Command"],
+      "B": ["Phyrexian Arena"],
+      "UG": ["Growth Spiral"]
+    },
+    "sideboard": { "sb": [] }
+  },
+  "basicLands": { "Plains": 0, "Island": 8, "Swamp": 0, "Mountain": 0, "Forest": 0 }
+}
