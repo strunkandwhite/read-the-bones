@@ -636,19 +636,21 @@ export const useLiveStore = create<LiveStoreState>()(
       if (get().viewingSharedDeck) return;
       const { seatToken } = get();
       const activeDraft = useDraftStore.getState().activeDraft;
-      if (!seatToken || !activeDraft) return;
+      if (!activeDraft) return;
 
-      try {
-        const res = await fetch(`/api/drafts/${activeDraft}/deck-state`, {
-          headers: { "X-Seat-Token": seatToken },
-        });
-        if (res.ok) {
-          const snapshot = await res.json();
-          get().dispatchDeck({ type: "INIT_FROM_SNAPSHOT", snapshot });
+      if (seatToken) {
+        try {
+          const res = await fetch(`/api/drafts/${activeDraft}/deck-state`, {
+            headers: { "X-Seat-Token": seatToken },
+          });
+          if (res.ok) {
+            const snapshot = await res.json();
+            get().dispatchDeck({ type: "INIT_FROM_SNAPSHOT", snapshot });
+          }
+          // 404 = no saved state, stay with empty deck
+        } catch {
+          // Network error — stay with empty state
         }
-        // 404 = no saved state, stay with empty deck
-      } catch {
-        // Network error — stay with empty state
       }
 
       deckDirty = false;
@@ -838,13 +840,13 @@ function syncDeckWithPicks() {
     scryfallData: scryfallDataMap,
   });
 
-  // Ensure deckState identity (draftId/seat) is correct — mySeat may not
-  // have been available when fetchDeckState ran, so patch it here.
+  // Ensure deckState identity (draftId/seat) is correct — mySeat or
+  // selectedSeat may not have been available when fetchDeckState ran.
   const activeDraft = useDraftStore.getState().activeDraft;
-  const mySeat = useLiveStore.getState().mySeat;
+  const seat = useLiveStore.getState().mySeat ?? useDraftStore.getState().selectedSeat;
   const ds = useLiveStore.getState().deckState;
-  if (activeDraft && mySeat != null && (ds.draftId !== activeDraft || ds.seat !== mySeat)) {
-    useLiveStore.setState({ deckState: { ...ds, draftId: activeDraft, seat: mySeat } });
+  if (activeDraft && seat != null && (ds.draftId !== activeDraft || ds.seat !== seat)) {
+    useLiveStore.setState({ deckState: { ...ds, draftId: activeDraft, seat } });
   }
 }
 

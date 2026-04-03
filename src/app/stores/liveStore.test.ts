@@ -1525,10 +1525,11 @@ describe("liveStore — fetchDeckState", () => {
       new Response(JSON.stringify(createEmptyDeckState("draft-1", 1)), { status: 200 }),
     );
 
-    useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc" });
+    useDraftStore.setState({ activeDraft: "draft-1" });
 
-    expect(useLiveStore.getState().deckReady).toBe(false);
+    // activeDraft subscription may have already called fetchDeckState; reset to test explicitly
+    useLiveStore.setState({ deckReady: false });
 
     await useLiveStore.getState().fetchDeckState();
 
@@ -1562,6 +1563,26 @@ describe("liveStore — fetchDeckState", () => {
     const s = useLiveStore.getState();
     expect(s.deckReady).toBe(true);
     expect(s.deckState.draftId).toBe("");
+  });
+
+  it("marks deckReady true without seatToken (spectator mode)", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: null, deckReady: false });
+
+    // Clear any calls from the activeDraft subscription
+    vi.mocked(globalThis.fetch).mockClear();
+
+    await useLiveStore.getState().fetchDeckState();
+
+    expect(useLiveStore.getState().deckReady).toBe(true);
+    // No server fetch for deck-state when unauthenticated
+    const deckStateCalls = vi.mocked(globalThis.fetch).mock.calls
+      .filter((c) => String(c[0]).includes("deck-state"));
+    expect(deckStateCalls).toHaveLength(0);
   });
 });
 
