@@ -3,11 +3,15 @@
   "seat": 3,
   "zones": {
     "deck": {
-      "U": ["Brainstorm", "Cryptic Command"],
-      "B": ["Phyrexian Arena"],
-      "UG": ["Growth Spiral"]
+      "mv-0-1": ["Brainstorm"],
+      "mv-2": ["Growth Spiral"],
+      "mv-3": ["Phyrexian Arena"],
+      "mv-4": ["Cryptic Command"],
+      "mv-5": [],
+      "mv-6+": [],
+      "lands": []
     },
-    "sideboard": { "sb": [] }
+    "sideboard": { "mv-0-1": [], "mv-2": [], "mv-3": [], "mv-4": [], "mv-5": [], "mv-6+": [], "lands": [] }
   },
   "basicLands": { "Plains": 0, "Island": 8, "Swamp": 0, "Mountain": 0, "Forest": 0 }
 }
