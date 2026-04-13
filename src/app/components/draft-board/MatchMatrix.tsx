@@ -41,10 +41,6 @@ function findMatch(
   return null;
 }
 
-function truncateName(name: string, max = 8): string {
-  return name.length > max ? name.slice(0, max) + "\u2026" : name;
-}
-
 const RESULT_PATTERN = /^[012]-[012]$/;
 
 function isValidResult(value: string): boolean {
@@ -184,17 +180,17 @@ export function MatchMatrix({
 
   return (
     <div data-testid="match-matrix" className="overflow-x-auto">
-      <table className="border-collapse text-sm w-full text-zinc-200">
+      <table className="border-collapse table-fixed text-sm w-full text-zinc-300">
         <thead>
           <tr className="border-b border-zinc-700">
             <th className="px-1.5 py-1" />
             {seats.map((col) => (
               <th
                 key={col}
-                className="px-1.5 py-1 text-center text-zinc-500 font-normal max-w-[72px] overflow-hidden text-ellipsis whitespace-nowrap"
+                className="px-1.5 py-1 text-center text-zinc-500 font-normal overflow-hidden text-ellipsis whitespace-nowrap"
                 title={displayName(col)}
               >
-                {truncateName(displayName(col))}
+                {displayName(col)}
               </th>
             ))}
           </tr>
@@ -208,10 +204,10 @@ export function MatchMatrix({
                 className={isMyRow ? "bg-blue-500/10" : ""}
               >
                 <td
-                  className="px-1.5 py-1 text-zinc-500 font-medium max-w-[72px] overflow-hidden text-ellipsis whitespace-nowrap"
+                  className="px-1.5 py-1 overflow-hidden text-ellipsis whitespace-nowrap"
                   title={displayName(row)}
                 >
-                  {truncateName(displayName(row))}
+                  {displayName(row)}
                 </td>
                 {seats.map((col) => {
                   const isDiagonal = row === col;

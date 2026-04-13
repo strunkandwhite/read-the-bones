@@ -228,14 +228,14 @@ function StandingsTable({
             Standings
           </h3>
           {standings.length > 0 ? (
-            <table className="border-collapse text-sm w-full text-zinc-200">
+            <table className="border-collapse table-fixed text-sm w-full text-zinc-300">
               <thead>
                 <tr className="border-b border-zinc-700">
-                  <th className="px-1.5 py-1 text-left text-zinc-500 whitespace-nowrap">Player</th>
-                  <th className="px-1.5 py-1 text-center text-zinc-500 whitespace-nowrap">Match W-L</th>
-                  <th className="px-1.5 py-1 text-center text-zinc-500 whitespace-nowrap">Game W-L</th>
-                  <th className="px-1.5 py-1 text-center text-zinc-500 whitespace-nowrap">OMW%</th>
-                  <th className="px-1.5 py-1 text-center text-zinc-500 whitespace-nowrap">OGW%</th>
+                  <th className="px-1.5 py-1 text-left text-zinc-500 font-normal whitespace-nowrap">Player</th>
+                  <th className="px-1.5 py-1 text-center text-zinc-500 font-normal whitespace-nowrap">Match W-L</th>
+                  <th className="px-1.5 py-1 text-center text-zinc-500 font-normal whitespace-nowrap">Game W-L</th>
+                  <th className="px-1.5 py-1 text-center text-zinc-500 font-normal whitespace-nowrap">OMW%</th>
+                  <th className="px-1.5 py-1 text-center text-zinc-500 font-normal whitespace-nowrap">OGW%</th>
                 </tr>
               </thead>
               <tbody>
@@ -268,6 +268,12 @@ function StandingsTable({
         <div className="flex-1 basis-[calc(50%-0.75rem)] min-w-[480px]">
           <h3 className="text-[13px] font-semibold text-zinc-200 mb-2">
             Match Results
+            <span
+              className="ml-1.5 text-zinc-500 cursor-help"
+              title="Read left to right: each row shows that player's result against the column player"
+            >
+              ?
+            </span>
           </h3>
           <MatchMatrix
             matches={matches}
