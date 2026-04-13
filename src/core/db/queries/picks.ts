@@ -5,7 +5,7 @@
 import type { Client } from "@libsql/client";
 import { getClient } from "../client";
 import { getOptedOutSeats, parseScryfallJson, matchesColorFilter, parseBannedCards, transformScryfallJson } from "./helpers";
-import { aggregateMatchRecords } from "./matches";
+import { aggregateMatchRecords, computeTiebreakers } from "./matches";
 import { getFrontFace } from "../../cardNames";
 
 export interface GetPicksParams {
@@ -245,6 +245,8 @@ export interface StandingsEntry {
   matchLosses: number;
   gameWins: number;
   gameLosses: number;
+  omwPct: number | null;
+  ogwPct: number | null;
 }
 
 export interface MatchRecord {
@@ -265,7 +267,7 @@ export interface StandingsResult {
  * Computes wins/losses from match_events table.
  * Redacts seat numbers for players who have opted out.
  */
-export async function getStandings(draftId: string, optedOutSeats?: Set<number>): Promise<StandingsResult> {
+export async function getStandings(draftId: string, numSeats?: number, optedOutSeats?: Set<number>): Promise<StandingsResult> {
   const client = await getClient();
   const resolvedOptedOutSeats = optedOutSeats ?? await getOptedOutSeats(draftId);
 
@@ -292,31 +294,65 @@ export async function getStandings(draftId: string, optedOutSeats?: Set<number>)
     stats.set(seat, rec);
   }
 
-  // Convert to array and sort by match wins descending
+  // Compute tiebreakers (OMW%, OGW%)
+  const tiebreakers = computeTiebreakers(stats, matches);
+
+  // Convert to array and sort
   const redactedSeatsInResult = new Set<number>();
   const standings: StandingsEntry[] = [];
+  const seatsInStandings = new Set<number>();
 
   for (const [seat, s] of stats) {
+    seatsInStandings.add(seat);
     const isRedacted = resolvedOptedOutSeats.has(seat);
     if (isRedacted) {
       redactedSeatsInResult.add(seat);
     }
+    const tb = tiebreakers.get(seat);
     standings.push({
       seat: isRedacted ? "[REDACTED]" : seat,
       matchWins: s.matchWins,
       matchLosses: s.matchLosses,
       gameWins: s.gameWins,
       gameLosses: s.gameLosses,
+      omwPct: tb?.omwPct ?? null,
+      ogwPct: tb?.ogwPct ?? null,
     });
   }
 
+  // Sort: match wins DESC → OMW% DESC (nulls last) → OGW% DESC (nulls last)
   standings.sort((a, b) => {
-    // Sort by match wins descending, then by game win rate
     if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
-    const aRate = a.gameWins / Math.max(1, a.gameWins + a.gameLosses);
-    const bRate = b.gameWins / Math.max(1, b.gameWins + b.gameLosses);
-    return bRate - aRate;
+    // OMW% descending, nulls last
+    const aOmw = a.omwPct ?? -1;
+    const bOmw = b.omwPct ?? -1;
+    if (bOmw !== aOmw) return bOmw - aOmw;
+    // OGW% descending, nulls last
+    const aOgw = a.ogwPct ?? -1;
+    const bOgw = b.ogwPct ?? -1;
+    return bOgw - aOgw;
   });
+
+  // Append seats with no matches (if numSeats provided)
+  if (numSeats != null) {
+    for (let seat = 1; seat <= numSeats; seat++) {
+      if (!seatsInStandings.has(seat)) {
+        const isRedacted = resolvedOptedOutSeats.has(seat);
+        if (isRedacted) {
+          redactedSeatsInResult.add(seat);
+        }
+        standings.push({
+          seat: isRedacted ? "[REDACTED]" : seat,
+          matchWins: 0,
+          matchLosses: 0,
+          gameWins: 0,
+          gameLosses: 0,
+          omwPct: null,
+          ogwPct: null,
+        });
+      }
+    }
+  }
 
   return {
     standings,

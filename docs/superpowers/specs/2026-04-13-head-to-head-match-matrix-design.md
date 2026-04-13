@@ -91,7 +91,7 @@ Add `omwPct` and `ogwPct` fields to each standing object. Compute server-side in
 
 For each player P:
 1. Collect all opponents O that P has played
-2. For each opponent O, compute their match win % = matchWins / (matchWins + matchLosses), floored at 0.33
+2. For each opponent O, compute their match win % = matchWins / (matchWins + matchLosses), floored at 1/3
 3. OMW% = average of all opponents' floored match win percentages
 4. Repeat with game wins/losses for OGW%
 

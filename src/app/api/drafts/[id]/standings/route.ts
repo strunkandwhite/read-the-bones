@@ -8,7 +8,9 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const result = await queries.getStandings(id);
+    const draft = await queries.getDraft(id);
+    const numSeats = draft?.num_seats;
+    const result = await queries.getStandings(id, numSeats);
     return NextResponse.json(result, {
       headers: { "Cache-Control": "public, s-maxage=60" },
     });

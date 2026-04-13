@@ -1064,24 +1064,34 @@ describe("getStandings", () => {
     expect(result.standings).toEqual([]);
   });
 
-  it("should sort by match wins then game win rate", async () => {
+  it("should sort by match wins then OMW% then OGW%", async () => {
     // Mock opt-outs query (no opt-outs)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
-    // Mock match events
+    // Mock match events: 3 players round-robin
+    // Seat 1 beats seat 2 (2-1), seat 3 beats seat 1 (2-0), seat 2 beats seat 3 (2-1)
+    // Records: seat 1 = 1-1, seat 2 = 1-1, seat 3 = 1-1
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
-        // Seat 1: 1-0, 2-1 games (66% game winrate)
         { draft_id: "draft1", seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 1 },
-        // Seat 3: 1-0, 2-0 games (100% game winrate)
-        { draft_id: "draft1", seat1: 3, seat2: 4, seat1_wins: 2, seat2_wins: 0 },
+        { draft_id: "draft1", seat1: 1, seat2: 3, seat1_wins: 0, seat2_wins: 2 },
+        { draft_id: "draft1", seat1: 2, seat2: 3, seat1_wins: 2, seat2_wins: 1 },
       ])
     );
 
     const result = await getStandings("draft1");
 
-    // Both have 1 match win, but seat 3 has better game winrate
-    expect(result.standings[0].seat).toBe(3);
-    expect(result.standings[1].seat).toBe(1);
+    // All 3 seats have 1 match win. OMW% breaks the tie:
+    // Seat 1 opponents: seat 2 (1/2=0.5), seat 3 (1/2=0.5) → OMW% = 0.5
+    // Seat 2 opponents: seat 1 (1/2=0.5), seat 3 (1/2=0.5) → OMW% = 0.5
+    // Seat 3 opponents: seat 1 (1/2=0.5), seat 2 (1/2=0.5) → OMW% = 0.5
+    // OMW% tied, so OGW% breaks it:
+    // Seat 1 opponents GWR: seat 2 (3/6=0.5), seat 3 (3/5=0.6) → OGW% = 0.55
+    // Seat 2 opponents GWR: seat 1 (2/5=0.4), seat 3 (3/5=0.6) → OGW% = 0.5
+    // Seat 3 opponents GWR: seat 1 (2/5=0.4), seat 2 (3/6=0.5) → OGW% = 0.45
+    // Order: seat 1 (0.55) > seat 2 (0.5) > seat 3 (0.45)
+    expect(result.standings[0].seat).toBe(1);
+    expect(result.standings[1].seat).toBe(2);
+    expect(result.standings[2].seat).toBe(3);
   });
 
   it("should redact opted-out seats in standings", async () => {
