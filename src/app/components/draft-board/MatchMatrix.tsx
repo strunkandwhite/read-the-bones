@@ -184,7 +184,7 @@ export function MatchMatrix({
 
   return (
     <div data-testid="match-matrix" className="overflow-x-auto">
-      <table className="border-collapse text-xs text-zinc-200">
+      <table className="border-collapse text-sm w-full text-zinc-200">
         <thead>
           <tr className="border-b border-zinc-700">
             <th className="px-1.5 py-1" />
@@ -225,7 +225,7 @@ export function MatchMatrix({
                         data-testid={`match-cell-${row}-${col}`}
                         className="px-1.5 py-1 text-center text-zinc-600"
                       >
-                        &mdash;
+                        X
                       </td>
                     );
                   }
@@ -296,7 +296,7 @@ export function MatchMatrix({
                         onClick={() => startEditing(row, col)}
                       >
                         <span className="inline-block w-6 h-5 border border-dashed border-zinc-600 rounded text-zinc-600 leading-5">
-                          &middot;
+                          &mdash;
                         </span>
                       </td>
                     );
@@ -308,7 +308,7 @@ export function MatchMatrix({
                       data-testid={`match-cell-${row}-${col}`}
                       className="px-1.5 py-1 text-center text-zinc-600"
                     >
-                      &middot;
+                      &mdash;
                     </td>
                   );
                 })}
