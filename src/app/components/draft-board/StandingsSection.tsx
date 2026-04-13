@@ -208,42 +208,39 @@ function StandingsTable({
 
   return (
     <div className="py-3">
-      <h3 className="text-[13px] font-semibold text-zinc-200 mb-2">
-        Standings
-      </h3>
-      <div className="flex gap-6 flex-wrap">
+      <div className="flex gap-6 flex-wrap items-start">
         <div className="flex-1 min-w-[280px]">
+          <h3 className="text-[13px] font-semibold text-zinc-200 mb-2">
+            Standings
+          </h3>
           {standings.length > 0 ? (
             <table className="border-collapse text-xs w-full max-w-[500px] text-zinc-200">
               <thead>
-                <tr className="border-b border-zinc-600">
-                  <th className="px-2 py-1 text-left text-zinc-500">Player</th>
-                  <th className="px-2 py-1 text-center text-zinc-500">Match W-L</th>
-                  <th className="px-2 py-1 text-center text-zinc-500">Game W-L</th>
-                  <th className="px-2 py-1 text-center text-zinc-500">OMW%</th>
-                  <th className="px-2 py-1 text-center text-zinc-500">OGW%</th>
+                <tr className="border-b border-zinc-700">
+                  <th className="px-1.5 py-1 text-left text-zinc-500 whitespace-nowrap">Player</th>
+                  <th className="px-1.5 py-1 text-center text-zinc-500 whitespace-nowrap">Match W-L</th>
+                  <th className="px-1.5 py-1 text-center text-zinc-500 whitespace-nowrap">Game W-L</th>
+                  <th className="px-1.5 py-1 text-center text-zinc-500 whitespace-nowrap">OMW%</th>
+                  <th className="px-1.5 py-1 text-center text-zinc-500 whitespace-nowrap">OGW%</th>
                 </tr>
               </thead>
               <tbody>
                 {standings.map((row) => (
                   <tr
                     key={row.seat}
-                    className="border-b border-zinc-700"
-                    style={{
-                      backgroundColor: row.seat === mySeat ? "rgba(59,130,246,0.08)" : undefined,
-                    }}
+                    className={row.seat === mySeat ? "bg-blue-500/10" : ""}
                   >
-                    <td className="px-2 py-1">{row.displayName}</td>
-                    <td className="px-2 py-1 text-center">
+                    <td className="px-1.5 py-1 whitespace-nowrap">{row.displayName}</td>
+                    <td className="px-1.5 py-1 text-center whitespace-nowrap">
                       {row.matchWins}-{row.matchLosses}
                     </td>
-                    <td className="px-2 py-1 text-center">
+                    <td className="px-1.5 py-1 text-center whitespace-nowrap">
                       {row.gameWins}-{row.gameLosses}
                     </td>
-                    <td className="px-2 py-1 text-center text-zinc-400">
+                    <td className="px-1.5 py-1 text-center text-zinc-400 whitespace-nowrap">
                       {row.omwPct !== null ? (row.omwPct * 100).toFixed(1) + "%" : "\u2014"}
                     </td>
-                    <td className="px-2 py-1 text-center text-zinc-400">
+                    <td className="px-1.5 py-1 text-center text-zinc-400 whitespace-nowrap">
                       {row.ogwPct !== null ? (row.ogwPct * 100).toFixed(1) + "%" : "\u2014"}
                     </td>
                   </tr>
@@ -255,6 +252,9 @@ function StandingsTable({
           )}
         </div>
         <div className="flex-[2_1_400px] min-w-[300px]">
+          <h3 className="text-[13px] font-semibold text-zinc-200 mb-2">
+            Match Results
+          </h3>
           <MatchMatrix
             matches={matches}
             numSeats={board.numSeats}

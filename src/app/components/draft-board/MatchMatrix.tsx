@@ -186,7 +186,7 @@ export function MatchMatrix({
     <div data-testid="match-matrix" className="overflow-x-auto">
       <table className="border-collapse text-xs text-zinc-200">
         <thead>
-          <tr>
+          <tr className="border-b border-zinc-700">
             <th className="px-1.5 py-1" />
             {seats.map((col) => (
               <th
