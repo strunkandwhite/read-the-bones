@@ -24,17 +24,19 @@ Add two columns to the existing table:
 
 | Player | Match W-L | Game W-L | OMW% | OGW% |
 
-**Sort order:** Match wins descending, OMW% as first tiebreaker, OGW% as second tiebreaker. This matches WotC Swiss tournament standard.
+**Sort order:** Match wins descending, OMW% as first tiebreaker, OGW% as second tiebreaker. This replaces the current secondary sort by game win rate, aligning with WotC Swiss tournament standard.
 
-**OMW% (Opponent Match Win %):** Average match win percentage across all opponents played. Each opponent's match win percentage is floored at 33% (WotC floor rule).
+**OMW% (Opponent Match Win %):** Average match win percentage across all opponents played. Each opponent's match win percentage is floored at 1/3 (0.3333...) per WotC rules.
 
-**OGW% (Opponent Game Win %):** Average game win percentage across all opponents played. Same 33% floor per opponent.
+**OGW% (Opponent Game Win %):** Average game win percentage across all opponents played. Same 1/3 floor per opponent.
+
+**Seats with no matches:** Appear in standings with OMW%/OGW% shown as "—" and sort below all players who have played.
 
 **Display format:** One decimal place (e.g., "51.2%").
 
 ### Match Results Matrix
 
-**Grid structure:** Rows and columns represent seats in seat order (1-N). Row and column headers show player display names. Diagonal cells (self vs self) show an em dash (—).
+**Grid structure:** Rows and columns represent all seats (1-N) in seat order, regardless of whether they have played matches. The full seat list comes from draft metadata (`numSeats` + `seatNames`), not from the matches array. Row and column headers show player display names, truncated with ellipsis if longer than ~8 characters. Diagonal cells (self vs self) show an em dash (—).
 
 **Cell display (from the row player's perspective):**
 
@@ -61,6 +63,10 @@ Players edit only their own cells:
 6. Escape cancels
 
 Players can also click a previously reported cell in their row to correct it (existing `INSERT OR REPLACE` behavior).
+
+**Optimistic updates:** New reports apply immediately to the local matches state (incrementing win/loss counts and updating the cell). Corrections (re-reports of existing results) trigger a full standings refetch instead of optimistic update, to avoid double-counting. On save failure, revert the optimistic state and show an error toast.
+
+**Editable during both `playing` and `complete` phases**, matching the current match API behavior.
 
 ## Data & API Changes
 
@@ -91,7 +97,7 @@ For each player P:
 
 ### Match Reporting (`POST /api/drafts/[id]/match`)
 
-No changes. The matrix calls the same endpoint with the same payload: `{ opponent_seat, wins, losses }`.
+Tighten validation: add a check that at least one of `wins` or `losses` equals 2 (valid best-of-3 completion). The current API only validates `wins > 2 || losses > 2`, which permits incomplete results like "1-0". Otherwise no changes — the matrix calls the same endpoint with the same payload: `{ opponent_seat, wins, losses }`.
 
 ### No New Endpoints
 
@@ -122,4 +128,4 @@ Standings already refetch when `matchCount` changes via live polling. The matrix
 
 ## Privacy
 
-Opted-out seats show `"[REDACTED]"` in standings (existing behavior). In the matrix, redacted seats show abbreviated labels and their match cells display results without identifying the player beyond the seat label.
+Opted-out seats show `"[REDACTED]"` in standings (existing behavior). In the matrix, redacted seats use "Seat N" as their row/column header. Their match cells display results normally — the result itself (e.g., "2-1") does not reveal identity beyond the seat number.
