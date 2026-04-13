@@ -209,12 +209,12 @@ function StandingsTable({
   return (
     <div className="py-3">
       <div className="flex gap-6 flex-wrap items-start">
-        <div className="flex-1 min-w-[280px]">
+        <div className="flex-1 basis-[calc(50%-0.75rem)] min-w-[320px]">
           <h3 className="text-[13px] font-semibold text-zinc-200 mb-2">
             Standings
           </h3>
           {standings.length > 0 ? (
-            <table className="border-collapse text-xs w-full max-w-[500px] text-zinc-200">
+            <table className="border-collapse text-xs w-full text-zinc-200">
               <thead>
                 <tr className="border-b border-zinc-700">
                   <th className="px-1.5 py-1 text-left text-zinc-500 whitespace-nowrap">Player</th>
@@ -251,7 +251,7 @@ function StandingsTable({
             <p className="text-xs text-zinc-500">No match results yet.</p>
           )}
         </div>
-        <div className="flex-[2_1_400px] min-w-[300px]">
+        <div className="flex-1 basis-[calc(50%-0.75rem)] min-w-[320px]">
           <h3 className="text-[13px] font-semibold text-zinc-200 mb-2">
             Match Results
           </h3>
