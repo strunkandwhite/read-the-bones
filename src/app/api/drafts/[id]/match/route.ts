@@ -4,6 +4,7 @@ import { authenticateSeat } from "@/core/tokenAuth";
 import { AppError } from "@/core/errors";
 import { getDraftPhase } from "@/core/db/queries/drafts";
 import { reportMatchResult } from "@/core/db/queries/matches";
+import { validateMatchResult } from "@/core/match-validation";
 
 export async function POST(
   request: NextRequest,
@@ -22,12 +23,9 @@ export async function POST(
     if (!Number.isInteger(opponent_seat) || !Number.isInteger(wins) || !Number.isInteger(losses)) {
       return NextResponse.json({ error: "opponent_seat, wins, and losses must be integers" }, { status: 400 });
     }
-    if (wins < 0 || losses < 0) {
-      return NextResponse.json({ error: "wins and losses must be non-negative" }, { status: 400 });
-    }
-    // MTG matches are best-of-3 (max 2 wins per side)
-    if (wins > 2 || losses > 2) {
-      return NextResponse.json({ error: "wins and losses must be 0, 1, or 2" }, { status: 400 });
+    const validationError = validateMatchResult(wins, losses);
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
     }
     if (opponent_seat < 1) {
       return NextResponse.json({ error: "opponent_seat must be >= 1" }, { status: 400 });
