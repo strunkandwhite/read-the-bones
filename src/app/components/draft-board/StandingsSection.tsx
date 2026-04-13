@@ -191,6 +191,20 @@ function StandingsTable({
         return bOgw - aOgw;
       });
     });
+    // Optimistic: add the match to the matrix immediately
+    setMatches((prev) => {
+      const seat1 = Math.min(data.mySeat, data.opponent);
+      const seat2 = Math.max(data.mySeat, data.opponent);
+      return [
+        ...prev,
+        {
+          seat1,
+          seat2,
+          seat1Wins: data.mySeat === seat1 ? data.wins : data.losses,
+          seat2Wins: data.mySeat === seat1 ? data.losses : data.wins,
+        },
+      ];
+    });
     onMatchReported();
   }, [onMatchReported]);
 
