@@ -10,7 +10,9 @@ export async function GET(
     const { id } = await params;
     const draft = await queries.getDraft(id);
     const numSeats = draft?.num_seats;
-    const result = await queries.getStandings(id, numSeats);
+    // No redaction — the match matrix makes it trivially deducible
+    const noRedaction = new Set<number>();
+    const result = await queries.getStandings(id, numSeats, noRedaction);
     return NextResponse.json(result, {
       headers: { "Cache-Control": "public, s-maxage=60" },
     });

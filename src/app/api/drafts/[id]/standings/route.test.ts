@@ -18,7 +18,7 @@ describe("GET /api/drafts/[id]/standings", () => {
       { params: Promise.resolve({ id: "tarkir" }) },
     );
     expect(res.status).toBe(200);
-    expect(queries.getStandings).toHaveBeenCalledWith("tarkir", 10);
+    expect(queries.getStandings).toHaveBeenCalledWith("tarkir", 10, expect.any(Set));
     const body = await res.json();
     expect(body).toHaveProperty("standings");
     expect(Array.isArray(body.standings)).toBe(true);
