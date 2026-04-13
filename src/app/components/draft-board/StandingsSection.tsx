@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { BoardData, LiveDraftStatus } from "@/app/stores/draftStore";
-import { MatchReporting } from "./MatchReporting";
-import type { MatchResultData } from "./MatchReporting";
+import { MatchMatrix } from "./MatchMatrix";
 
 interface StandingsSectionProps {
   board: BoardData;
@@ -21,6 +20,15 @@ interface StandingsRow {
   matchLosses: number;
   gameWins: number;
   gameLosses: number;
+  omwPct: number | null;
+  ogwPct: number | null;
+}
+
+interface MatchRecord {
+  seat1: number;
+  seat2: number;
+  seat1Wins: number;
+  seat2Wins: number;
 }
 
 function DraftProgress({
@@ -110,6 +118,7 @@ function StandingsTable({
   onMatchReported: () => void;
 }) {
   const [standings, setStandings] = useState<StandingsRow[]>([]);
+  const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
   const fetchStandings = useCallback(async () => {
@@ -125,7 +134,12 @@ function StandingsTable({
           matchLosses: (row.matchLosses ?? 0) as number,
           gameWins: (row.gameWins ?? 0) as number,
           gameLosses: (row.gameLosses ?? 0) as number,
+          omwPct: (row.omwPct as number) ?? null,
+          ogwPct: (row.ogwPct as number) ?? null,
         })));
+      }
+      if (Array.isArray(data.matches)) {
+        setMatches(data.matches as MatchRecord[]);
       }
     } catch { /* ignore */ }
     setLoading(false);
@@ -142,29 +156,41 @@ function StandingsTable({
   }, [status?.matchCount, fetchStandings]); // eslint-disable-line react-hooks/exhaustive-deps
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const handleMatchReported = useCallback((data: MatchResultData) => {
+  const handleMatchReported = useCallback((data: { mySeat: number; opponent: number; wins: number; losses: number }) => {
     // Optimistic: apply match result to standings immediately
-    setStandings((prev) => prev.map((row) => {
-      if (row.seat === data.mySeat) {
-        return {
-          ...row,
-          gameWins: row.gameWins + data.wins,
-          gameLosses: row.gameLosses + data.losses,
-          matchWins: row.matchWins + (data.wins > data.losses ? 1 : 0),
-          matchLosses: row.matchLosses + (data.wins < data.losses ? 1 : 0),
-        };
-      }
-      if (row.seat === data.opponent) {
-        return {
-          ...row,
-          gameWins: row.gameWins + data.losses,
-          gameLosses: row.gameLosses + data.wins,
-          matchWins: row.matchWins + (data.losses > data.wins ? 1 : 0),
-          matchLosses: row.matchLosses + (data.losses < data.wins ? 1 : 0),
-        };
-      }
-      return row;
-    }));
+    setStandings((prev) => {
+      const updated = prev.map((row) => {
+        if (row.seat === data.mySeat) {
+          return {
+            ...row,
+            gameWins: row.gameWins + data.wins,
+            gameLosses: row.gameLosses + data.losses,
+            matchWins: row.matchWins + (data.wins > data.losses ? 1 : 0),
+            matchLosses: row.matchLosses + (data.wins < data.losses ? 1 : 0),
+          };
+        }
+        if (row.seat === data.opponent) {
+          return {
+            ...row,
+            gameWins: row.gameWins + data.losses,
+            gameLosses: row.gameLosses + data.wins,
+            matchWins: row.matchWins + (data.losses > data.wins ? 1 : 0),
+            matchLosses: row.matchLosses + (data.losses < data.wins ? 1 : 0),
+          };
+        }
+        return row;
+      });
+      // Sort: matchWins DESC, omwPct DESC (nulls last), ogwPct DESC (nulls last)
+      return updated.sort((a, b) => {
+        if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
+        const aOmw = a.omwPct ?? -1;
+        const bOmw = b.omwPct ?? -1;
+        if (bOmw !== aOmw) return bOmw - aOmw;
+        const aOgw = a.ogwPct ?? -1;
+        const bOgw = b.ogwPct ?? -1;
+        return bOgw - aOgw;
+      });
+    });
     onMatchReported();
   }, [onMatchReported]);
 
@@ -180,59 +206,68 @@ function StandingsTable({
     );
   }
 
-  const showMatchReporting =
-    board.phase === "playing" && mySeat !== null && token !== null;
-
   return (
     <div className="py-3">
       <h3 className="text-[13px] font-semibold text-zinc-200 mb-2">
         Standings
       </h3>
-      {standings.length > 0 ? (
-        <table
-          className="border-collapse text-xs w-full max-w-[500px] text-zinc-200"
-        >
-          <thead>
-            <tr className="border-b border-zinc-600">
-              <th className="px-2 py-1 text-left text-zinc-500">Player</th>
-              <th className="px-2 py-1 text-center text-zinc-500">Match W-L</th>
-              <th className="px-2 py-1 text-center text-zinc-500">Game W-L</th>
-            </tr>
-          </thead>
-          <tbody>
-            {standings.map((row) => (
-              <tr
-                key={row.seat}
-                className="border-b border-zinc-700"
-                style={{
-                  backgroundColor: row.seat === mySeat ? "rgba(59,130,246,0.08)" : undefined,
-                }}
-              >
-                <td className="px-2 py-1">{row.displayName}</td>
-                <td className="px-2 py-1 text-center">
-                  {row.matchWins}-{row.matchLosses}
-                </td>
-                <td className="px-2 py-1 text-center">
-                  {row.gameWins}-{row.gameLosses}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      ) : (
-        <p className="text-xs text-zinc-500">No match results yet.</p>
-      )}
-      {showMatchReporting && (
-        <MatchReporting
-          draftId={draftId}
-          mySeat={mySeat}
-          token={token!}
-          numSeats={board.numSeats}
-          seatNames={board.seatNames}
-          onMatchReported={handleMatchReported}
-          onMatchReverted={handleMatchReverted}
-        />
-      )}
+      <div className="flex gap-6 flex-wrap">
+        <div className="flex-1 min-w-[280px]">
+          {standings.length > 0 ? (
+            <table className="border-collapse text-xs w-full max-w-[500px] text-zinc-200">
+              <thead>
+                <tr className="border-b border-zinc-600">
+                  <th className="px-2 py-1 text-left text-zinc-500">Player</th>
+                  <th className="px-2 py-1 text-center text-zinc-500">Match W-L</th>
+                  <th className="px-2 py-1 text-center text-zinc-500">Game W-L</th>
+                  <th className="px-2 py-1 text-center text-zinc-500">OMW%</th>
+                  <th className="px-2 py-1 text-center text-zinc-500">OGW%</th>
+                </tr>
+              </thead>
+              <tbody>
+                {standings.map((row) => (
+                  <tr
+                    key={row.seat}
+                    className="border-b border-zinc-700"
+                    style={{
+                      backgroundColor: row.seat === mySeat ? "rgba(59,130,246,0.08)" : undefined,
+                    }}
+                  >
+                    <td className="px-2 py-1">{row.displayName}</td>
+                    <td className="px-2 py-1 text-center">
+                      {row.matchWins}-{row.matchLosses}
+                    </td>
+                    <td className="px-2 py-1 text-center">
+                      {row.gameWins}-{row.gameLosses}
+                    </td>
+                    <td className="px-2 py-1 text-center text-zinc-400">
+                      {row.omwPct !== null ? (row.omwPct * 100).toFixed(1) + "%" : "\u2014"}
+                    </td>
+                    <td className="px-2 py-1 text-center text-zinc-400">
+                      {row.ogwPct !== null ? (row.ogwPct * 100).toFixed(1) + "%" : "\u2014"}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <p className="text-xs text-zinc-500">No match results yet.</p>
+          )}
+        </div>
+        <div className="flex-[2_1_400px] min-w-[300px]">
+          <MatchMatrix
+            matches={matches}
+            numSeats={board.numSeats}
+            seatNames={board.seatNames}
+            mySeat={mySeat}
+            token={token}
+            draftId={draftId}
+            phase={status?.phase ?? "setup"}
+            onMatchReported={handleMatchReported}
+            onMatchReverted={handleMatchReverted}
+          />
+        </div>
+      </div>
     </div>
   );
 }
