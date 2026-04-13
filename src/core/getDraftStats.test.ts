@@ -73,7 +73,7 @@ function setupMockExecute(options: {
       const sql = typeof query === "string" ? query : query.sql;
 
       // Completed drafts query
-      if (sql.includes("FROM drafts") && sql.includes("phase = 'complete'")) {
+      if (sql.includes("FROM drafts") && sql.includes("phase IN")) {
         return Promise.resolve({ rows: completedDraftRows });
       }
 

@@ -131,7 +131,7 @@ async function loadDraftMetadata(client: Client): Promise<DraftMetadataResult | 
       bannedCardNamesByDraft.set(draftId, bannedNames);
     }
 
-    if (row.phase === 'complete') {
+    if (row.phase === 'complete' || row.phase === 'playing') {
       completedDraftSet.add(draftId);
     }
 

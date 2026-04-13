@@ -174,7 +174,7 @@ export async function getDraftStats(
 
   // Get completed draft IDs (with domain hashes for cache fingerprint)
   const draftsResult = await client.execute({
-    sql: `SELECT draft_id, pool_hash, picks_hash, matches_hash FROM drafts WHERE phase = 'complete' ORDER BY draft_id`,
+    sql: `SELECT draft_id, pool_hash, picks_hash, matches_hash FROM drafts WHERE phase IN ('complete', 'playing') ORDER BY draft_id`,
     args: [],
   });
   const completedDraftIds = draftsResult.rows.map(
