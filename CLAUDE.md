@@ -67,9 +67,11 @@ pnpm scryfall:backfill         # Fetch missing Scryfall data for cards in Turso,
 
 **Scryfall backfill:** When a new draft uses cards not in the local Scryfall cache (`cache/scryfall.json`), those cards get inserted into Turso with `scryfall_json = NULL`. Run `pnpm scryfall:backfill` to fetch missing card data from the Scryfall API, update the local cache, and backfill the database. This is typically needed after creating a live draft with a new/updated cube.
 
-**Data flow:** The web app queries Turso at request time (SSR). Client-side state is managed with Zustand stores (draftStore, cardStore, liveStore) that are hydrated from SSR data and updated via polling. To update draft data:
-1. Run `pnpm sync` to pull latest from Google Sheets into Turso
-2. Deploy or restart the dev server — data is fetched live from Turso
+**Data flow:** The main page (`/`) is statically prerendered at build time — Turso is queried during `vercel build`, not on each request. Client-side state is managed with Zustand stores (draftStore, cardStore, liveStore) that are hydrated from the SSR snapshot and updated via polling. On localhost, the dev server fetches live from Turso on each request.
+
+**After importing a new draft** (creating a live draft or syncing a Sheets-based draft), the deployed site won't show the new draft until you redeploy:
+1. Run `pnpm sync <draft-name>` (or `pnpm draft:create-live ...`) to write data to Turso
+2. Run `vercel --prod` to rebuild and publish — this re-queries Turso and bakes the new draft into the static page
 
 ## REST API
 
@@ -112,6 +114,8 @@ The app exposes REST API routes under `/api/` for querying draft data. All route
 ## Deploying
 
 Deploy to Vercel production with `vercel --prod`. The Vercel CLI must be installed globally (`npm i -g vercel`) and authenticated (`vercel login`). Web Analytics is enabled via `@vercel/analytics` in the root layout.
+
+**Run `vercel --prod` any time you add or import a new draft.** The main page is statically prerendered at build time, so new Turso data is invisible on the deployed site until a redeploy.
 
 ## Querying Turso
 
