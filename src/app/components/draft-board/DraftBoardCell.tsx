@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { PickAutocomplete } from "./PickAutocomplete";
+import { colorIdentityGradient } from "@/core/manaColors";
 
 interface DraftBoardCellProps {
   cardName: string | null;
@@ -125,6 +126,11 @@ export function DraftBoardCell({
 
   const displayName = optimisticCardName ?? cardName;
 
+  // Tint confirmed picks by color identity (layered over the my-column blue so
+  // both show). Skipped while a pick is only optimistic — colors aren't known yet.
+  const colorTint =
+    cardName !== null && !optimisticCardName ? colorIdentityGradient(colorIdentity) : null;
+
   return (
     <td
       onClick={handleCellClick}
@@ -133,6 +139,7 @@ export function DraftBoardCell({
         minWidth: "130px",
         position: "relative",
         backgroundColor: isMyColumn ? "rgba(59,130,246,0.06)" : "transparent",
+        backgroundImage: colorTint ?? undefined,
         border: isActive ? "2px dashed #3b82f6" : "1px solid #333",
         animation: isActive ? "pulse-border 1.5s ease-in-out infinite" : undefined,
         cursor: isEditable && !isEditing && cardName === null && optimisticCardName === null ? "pointer" : undefined,

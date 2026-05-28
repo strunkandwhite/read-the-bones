@@ -6,6 +6,7 @@ import { useDraftStore } from "@/app/stores/draftStore";
 import { useLiveStore } from "@/app/stores/liveStore";
 import { getCardStatus, getImageUrl, useIsAuthed } from "@/app/stores/selectors";
 import { isLocalClient } from "@/core/isLocal";
+import { colorPairBg } from "@/core/manaColors";
 import type { CardStatsData } from "@/app/stores/cardStore";
 import { HoldToPickButton } from "./HoldToPickButton";
 import { DistributionHistogram } from "./DistributionHistogram";
@@ -217,21 +218,6 @@ export function CardStatsModal() {
 }
 
 // --- Helpers ---
-
-/** WUBRG-tinted backgrounds for color pair pills */
-const WUBRG_BG: Record<string, string> = {
-  W: "rgba(248,231,185,0.15)",
-  U: "rgba(14,104,171,0.20)",
-  B: "rgba(130,100,160,0.20)",
-  R: "rgba(211,32,42,0.18)",
-  G: "rgba(0,115,62,0.18)",
-  C: "rgba(200,200,200,0.10)",
-};
-
-function colorPairBg(pair: string): string {
-  const first = pair[0];
-  return WUBRG_BG[first] ?? WUBRG_BG.C;
-}
 
 /** Aggregate same-date drafts into a single sparkline point using geometric mean */
 function aggregateByDate(
