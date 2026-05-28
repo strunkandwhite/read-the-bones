@@ -8,12 +8,17 @@ live-draft UI:
 1. **Queue vs. float is confusing.** People could not tell the difference
    between queueing a card and floating it. (Queue = will be auto-picked on
    your turn; float = a private watchlist that is never auto-picked.)
-2. **Drag-and-drop is hard to use**, especially on mobile. The pick queue in
-   the pod view relies on `@dnd-kit` for reordering, grouping (hold-to-merge),
-   and ungrouping (drag a card out). Players struggled with all of it.
+2. **The queue's drag-and-drop felt finicky.** It relied on `@dnd-kit` for
+   reordering, grouping (hold-to-merge), *and* ungrouping (drag a card out), all
+   on one gesture. Follow-up feedback clarified the real problem: players value
+   drag-and-drop for reordering (especially on mobile and for moving cards more
+   than a few slots), but the **hold-to-merge grouping kept triggering by
+   accident** when they only wanted to slide the order around. Drag-and-drop
+   "worked well before grouping, then got finicky." Even grouping's original
+   requester said they'd rather lose grouping than the drag reordering.
 
-This spec covers two independent changes, to be shipped as **separate commits**
-so the drag-and-drop removal can be reverted on its own if feedback turns.
+This spec covers two independent changes, shipped as **separate commits** so the
+queue rework can be reverted on its own if feedback turns.
 
 ## Part 1 — "How it works" help section
 
@@ -41,61 +46,65 @@ resilient", which were deliberately retired):
 
 No data or API changes — static content rendered from Settings.
 
-## Part 2 — Queue panel: remove drag-and-drop, button-based grouping
+## Part 2 — Queue panel: drag reorders, buttons group
 
-Rework `src/app/components/draft-board/QueuePanel.tsx` to remove all `@dnd-kit`
-usage. (`@dnd-kit` stays a dependency — the deck builder still uses it; out of
-scope here.) The panel becomes plain rows plus buttons.
+Rework `src/app/components/draft-board/QueuePanel.tsx` to **separate the two
+gestures that were entangled**: drag-and-drop becomes reorder-only, and grouping
+moves to explicit buttons. This keeps the drag-and-drop players liked while
+removing the accidental grouping that made it feel finicky.
 
-**Kept as-is:** the per-entry **▲▼ move** buttons (entries and within-group
-cards both already have these), the **⏸ / ▶ mode** toggle, and the **× remove**
-button.
+**Drag-and-drop (kept, simplified):**
 
-**Added:**
+- Only **top-level entries** are draggable, and only to **reorder** them. A
+  group moves as a single unit. Reuse `@dnd-kit` with `DropSlot` insertion lines
+  between entries and a `DragOverlay`.
+- Remove the grouping/ungrouping drag paths entirely: no merge zones, no
+  hold-to-merge timer, no within-group card dragging, no drag-a-card-out-to-
+  ungroup. Collision detection collapses to plain `closestCenter` over the slots.
+- Drop the per-entry **▲▼ move** buttons — dragging now does that job
+  (the keyboard sensor keeps it accessible).
 
-- **Group button (`⊓`) per entry** — merges this entry with the entry *above*
-  it. One button is sufficient for all grouping: group two adjacent cards by
-  pressing the lower one's `⊓`; group with a card below by pressing *its* `⊓`;
-  group distant cards by moving them adjacent first. Disabled on the first
-  entry. Merge rules:
+**Grouping (now buttons, never drag):**
+
+- **Group button (`⧉`) per entry** — merges this entry with the entry *above*
+  it. One button covers all cases: group two adjacent cards via the lower one's
+  `⧉`; for distant cards, drag them adjacent first, then `⧉`. Disabled on the
+  first entry. Merge rules:
   - single + single → new group, upper card first
   - single + group, or group + group → concatenate all cards into one group
   - the resulting group keeps the **upper** entry's mode
+- **Eject button (`⏏`) per grouped card** — pulls that card out into its own
+  standalone entry, placed immediately after the group. If a group drops to one
+  card it collapses back to a single entry (the existing `cards.length > 1`
+  rule).
+- **Within-group reorder** stays on **▲▼** buttons on each grouped card (groups
+  are small; this avoids re-introducing the in-group drag that caused trouble).
 
-  A single button (rather than group-up *and* group-down) keeps rows uncluttered
-  — directly addressing the mobile complaint.
+The **⏸ / ▶ mode** toggle and per-card **× remove** are unchanged.
 
-- **Eject button (`⤷`) per grouped card** — pulls that card out of its group
-  into its own standalone entry, placed immediately after the group. If a group
-  drops to one card, it collapses back to a normal single entry (consistent with
-  the existing `cards.length > 1` group rule).
-
-**Dropped:** moving a card directly between two groups. The same result is
-reached by eject + group.
+**Dropped:** moving a card directly between two groups (do it via eject + group).
 
 ### Implementation notes
 
-- No new store actions. Grouping and ejecting build a new queue array and call
-  the existing `onReorder` prop — exactly as the old drag handlers did. The
-  existing `handleMoveEntry` / `handleMoveCard` helpers are reused; add
-  `handleGroupWithAbove(entryIndex)` and `handleEject(entryIndex, cardIndex)`.
-- Remove `DndContext`, `DragOverlay`, sensors, collision detection, `DropSlot`,
-  the draggable wrappers, and the `⠿` drag handles.
-- `QueuePanel.test.tsx` is rewritten to drive the buttons (click move / group /
-  eject) instead of simulating drags. Cover: group single+single, add single to
-  group, group+group merge, eject to standalone, group collapsing to a single on
-  eject, and the disabled-on-first-entry case.
+- No new store actions. Reordering, grouping, and ejecting all build a new queue
+  array and call the existing `onReorder` prop. Helpers: `handleMoveCard`
+  (within group), `handleGroupWithAbove(entryIndex)`, `handleEject(entryIndex,
+  cardIndex)`, and the drag-end reorder handler.
+- `QueuePanel.test.tsx` drives the buttons (group / eject / within-group move).
+  Cover: group single+single, add single to group, group+group merge, eject to
+  standalone, group collapsing to a single on eject, and the disabled-on-first-
+  entry case. (Drag reordering is exercised by the existing live-draft e2e.)
 
 ### Resulting layout
 
 ```
 Pick Queue              Auto-pick ☑
 ─────────────────────────────────────
-Lightning Bolt        [⏸][▲▼][×]      ← entry 0: no ⊓ (nothing above)
-Doom Blade        [⊓] [⏸][▲▼][×]      ← press ⊓ → GROUP{Bolt, Doom}
-GROUP (2)         [⊓] [▶][▲▼]
-  Teferi              [⤷][▲▼][×]      ← ⤷ ejects Teferi to its own entry
-  Snapcaster          [⤷][▲▼][×]
+⠿ Lightning Bolt      [⧉][⏸][×]      ← drag any row to reorder
+⠿ Doom Blade          [⧉][⏸][×]      ← press ⧉ → GROUP{Bolt, Doom}
+⠿ GROUP (2)           [⧉][▶]
+    Teferi            [▲▼][⏏][×]      ← ⏏ ejects Teferi to its own entry
+    Snapcaster        [▲▼][⏏][×]
 ```
 
 ## Verification

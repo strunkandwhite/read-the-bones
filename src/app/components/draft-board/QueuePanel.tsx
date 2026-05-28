@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback } from "react";
 import {
   DndContext,
   DragOverlay,
-  pointerWithin,
   closestCenter,
   KeyboardSensor,
   MouseSensor,
@@ -16,7 +15,6 @@ import {
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
-  type CollisionDetection,
 } from "@dnd-kit/core";
 import type { QueueGroupEntry } from "../../stores/liveStore";
 
@@ -31,89 +29,38 @@ export type QueuePanelProps = {
 };
 
 // ─── ID helpers ──────────────────────────────────────────────────────────────
-
-// Draggable IDs:
-//   "drag-entry:<i>"        — dragging a top-level entry
-//   "drag-card:<i>:<j>"     — dragging a card within a group
 //
-// Droppable IDs (slots between items where things can be inserted):
-//   "slot:<i>"              — drop slot before entry i (slot:N = after last entry)
-//   "cardslot:<i>:<j>"      — drop slot before card j in entry i
-//   "merge:<i>"             — merge zone (entire entry body)
+// Drag-and-drop reorders top-level entries only. Grouping/ungrouping are done
+// with buttons, never drag.
+//   "drag-entry:<i>" — dragging entry i
+//   "slot:<i>"       — drop slot before entry i (slot:N = after the last entry)
 
 function makeDragEntryId(i: number) { return `drag-entry:${i}`; }
-function makeDragCardId(i: number, j: number) { return `drag-card:${i}:${j}`; }
 function makeSlotId(i: number) { return `slot:${i}`; }
-function makeCardSlotId(i: number, j: number) { return `cardslot:${i}:${j}`; }
-function makeMergeId(i: number) { return `merge:${i}`; }
 
-type DragId =
-  | { kind: "entry"; entryIndex: number }
-  | { kind: "card"; entryIndex: number; cardIndex: number };
-
-type DropId =
-  | { kind: "slot"; index: number }
-  | { kind: "cardslot"; entryIndex: number; cardIndex: number }
-  | { kind: "merge"; entryIndex: number };
-
-function parseDragId(id: string): DragId | null {
+function parseDragEntryIndex(id: string): number | null {
   const p = id.split(":");
-  if (p[0] === "drag-entry") return { kind: "entry", entryIndex: +p[1] };
-  if (p[0] === "drag-card") return { kind: "card", entryIndex: +p[1], cardIndex: +p[2] };
-  return null;
+  return p[0] === "drag-entry" ? +p[1] : null;
 }
-
-function parseDropId(id: string): DropId | null {
+function parseSlotIndex(id: string): number | null {
   const p = id.split(":");
-  if (p[0] === "slot") return { kind: "slot", index: +p[1] };
-  if (p[0] === "cardslot") return { kind: "cardslot", entryIndex: +p[1], cardIndex: +p[2] };
-  if (p[0] === "merge") return { kind: "merge", entryIndex: +p[1] };
-  return null;
+  return p[0] === "slot" ? +p[1] : null;
 }
-
-// ─── Custom collision detection ──────────────────────────────────────────────
-
-const slotAwareCollision: CollisionDetection = (args) => {
-  const active = parseDragId(String(args.active.id));
-  const isDraggingEntry = active?.kind === "entry";
-
-  // 1. Check merge zones first — but only when dragging an entry (not a card)
-  if (isDraggingEntry) {
-    const mergeContainers = args.droppableContainers.filter(
-      ({ id }) => String(id).startsWith("merge:"),
-    );
-    const mergeHits = pointerWithin({ ...args, droppableContainers: mergeContainers });
-    if (mergeHits.length > 0) return mergeHits;
-  }
-
-  // 2. Check all slots and cardslots
-  const slotContainers = args.droppableContainers.filter(({ id }) => {
-    const s = String(id);
-    return s.startsWith("slot:") || s.startsWith("cardslot:");
-  });
-  return closestCenter({ ...args, droppableContainers: slotContainers });
-};
 
 // ─── Visual components ───────────────────────────────────────────────────────
 
-// Drop slot between items. Has a small physical height so closestCenter can target it.
-// When active (being hovered), shows a blue insertion line.
+// Drop slot between entries. Has a small physical height so closestCenter can
+// target it; shows a blue insertion line when active.
 function DropSlot({ id, isActive }: { id: string; isActive: boolean }) {
   const { setNodeRef } = useDroppable({ id });
   return (
-    <div
-      ref={setNodeRef}
-      className={`flex items-center ${isActive ? "py-0.5" : "min-h-[6px]"}`}
-    >
-      {isActive && (
-        <div className="h-0.5 w-full rounded-full bg-blue-500" />
-      )}
+    <div ref={setNodeRef} className={`flex items-center ${isActive ? "py-0.5" : "min-h-[6px]"}`}>
+      {isActive && <div className="h-0.5 w-full rounded-full bg-blue-500" />}
     </div>
   );
 }
 
-// ─── Move Buttons ────────────────────────────────────────────────────────────
-
+// Up/down buttons for reordering cards within a group.
 function MoveButtons({
   onUp, onDown, disableUp, disableDown,
 }: {
@@ -150,36 +97,48 @@ function MoveButtons({
   );
 }
 
+// Merges this entry with the entry directly above it. Disabled on the first entry.
+function GroupButton({ onGroup, disabled }: { onGroup: () => void; disabled: boolean }) {
+  return (
+    <button
+      onClick={onGroup}
+      onPointerDown={(e) => e.stopPropagation()}
+      disabled={disabled}
+      aria-label="Group with card above"
+      title="Group with the card above — auto-pick takes any one of a group"
+      className={`border-none bg-transparent px-2 py-1.5 sm:px-1 sm:py-0.5 text-base sm:text-sm leading-none transition-colors ${
+        disabled ? "cursor-default text-zinc-800" : "cursor-pointer text-zinc-500 hover:text-zinc-300"
+      }`}
+    >
+      ⧉
+    </button>
+  );
+}
+
 // ─── Draggable Entry ─────────────────────────────────────────────────────────
 
 interface DraggableEntryProps {
   entry: QueueGroupEntry;
   entryIndex: number;
-  totalEntries: number;
   onRemove: (cardName: string) => void;
   onSetEntryMode: (entryIndex: number, mode: "pause" | "flow-through") => void;
-  onMoveEntry: (fromIndex: number, toIndex: number) => void;
   onMoveCard: (entryIndex: number, fromCard: number, toCard: number) => void;
+  onGroupWithAbove: (entryIndex: number) => void;
+  onEject: (entryIndex: number, cardIndex: number) => void;
   takenCards: Set<string>;
-  isMergeTarget: boolean;
-  activeSlotId: string | null;
 }
 
 function DraggableEntry({
   entry,
   entryIndex,
-  totalEntries,
   onRemove,
   onSetEntryMode,
-  onMoveEntry,
   onMoveCard,
+  onGroupWithAbove,
+  onEject,
   takenCards,
-  isMergeTarget,
-  activeSlotId,
 }: DraggableEntryProps) {
-  const dragId = makeDragEntryId(entryIndex);
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: dragId });
-  const { setNodeRef: setMergeRef } = useDroppable({ id: makeMergeId(entryIndex) });
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: makeDragEntryId(entryIndex) });
 
   const isGroup = entry.cards.length > 1;
   const allTaken = entry.cards.every((c) => takenCards.has(c.cardName));
@@ -201,57 +160,36 @@ function DraggableEntry({
     </button>
   );
 
-  const mergeStyle = isMergeTarget
-    ? "border-2 border-dashed border-green-500/60 bg-green-900/20"
-    : "";
+  const groupButton = (
+    <GroupButton onGroup={() => onGroupWithAbove(entryIndex)} disabled={entryIndex === 0} />
+  );
 
   if (isGroup) {
     return (
       <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} {...attributes} {...listeners} className="select-none">
-        <div ref={setMergeRef}>
-          <div
-            className={`cursor-grab rounded px-2 py-2.5 sm:py-1.5 text-sm sm:text-xs transition-colors ${
-              mergeStyle || "border border-zinc-700/60 bg-zinc-800/50"
-            } ${allTaken ? "opacity-40" : ""}`}
-          >
-            <div className="flex items-center gap-1.5">
-              <span className="text-zinc-600 select-none">
-                ⠿
-              </span>
-              <span className="flex-1 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
-                Group ({entry.cards.length})
-              </span>
-              {modeToggle}
-              <MoveButtons
-                onUp={() => onMoveEntry(entryIndex, entryIndex - 1)}
-                onDown={() => onMoveEntry(entryIndex, entryIndex + 1)}
-                disableUp={entryIndex === 0}
-                disableDown={entryIndex === totalEntries - 1}
+        <div className={`cursor-grab rounded px-2 py-2.5 sm:py-1.5 text-sm sm:text-xs border border-zinc-700/60 bg-zinc-800/50 ${allTaken ? "opacity-40" : ""}`}>
+          <div className="flex items-center gap-1.5">
+            <span className="text-zinc-600 select-none">⠿</span>
+            <span className="flex-1 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+              Group ({entry.cards.length})
+            </span>
+            {groupButton}
+            {modeToggle}
+          </div>
+          <div className="mt-1.5 flex flex-col pl-4">
+            {entry.cards.map((card, cardIndex) => (
+              <GroupCard
+                key={`${card.cardId}-${cardIndex}`}
+                cardName={card.cardName}
+                entryIndex={entryIndex}
+                cardIndex={cardIndex}
+                totalCards={entry.cards.length}
+                isTaken={takenCards.has(card.cardName)}
+                onRemove={onRemove}
+                onMoveCard={onMoveCard}
+                onEject={onEject}
               />
-            </div>
-            <div className="mt-1.5 flex flex-col pl-4">
-              {entry.cards.map((card, cardIndex) => (
-                <div key={`${card.cardId}-${cardIndex}`}>
-                  <DropSlot
-                    id={makeCardSlotId(entryIndex, cardIndex)}
-                    isActive={activeSlotId === makeCardSlotId(entryIndex, cardIndex)}
-                  />
-                  <DraggableGroupCard
-                    cardName={card.cardName}
-                    entryIndex={entryIndex}
-                    cardIndex={cardIndex}
-                    totalCards={entry.cards.length}
-                    isTaken={takenCards.has(card.cardName)}
-                    onRemove={onRemove}
-                    onMoveCard={onMoveCard}
-                  />
-                </div>
-              ))}
-              <DropSlot
-                id={makeCardSlotId(entryIndex, entry.cards.length)}
-                isActive={activeSlotId === makeCardSlotId(entryIndex, entry.cards.length)}
-              />
-            </div>
+            ))}
           </div>
         </div>
       </div>
@@ -264,42 +202,29 @@ function DraggableEntry({
 
   return (
     <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} {...attributes} {...listeners} className="select-none">
-      <div ref={setMergeRef}>
-        <div
-          className={`flex items-center gap-1.5 cursor-grab rounded px-2 py-2.5 sm:py-1 text-sm sm:text-xs transition-colors ${
-            mergeStyle || "border border-transparent bg-zinc-800/30"
-          }`}
+      <div className="flex items-center gap-1.5 cursor-grab rounded px-2 py-2.5 sm:py-1 text-sm sm:text-xs border border-transparent bg-zinc-800/30">
+        <span className="text-zinc-600 select-none">⠿</span>
+        <span className={`flex-1 ${isTaken ? "text-zinc-600 line-through" : "text-zinc-300"}`}>
+          {card.cardName}
+        </span>
+        {groupButton}
+        {modeToggle}
+        <button
+          onClick={() => onRemove(card.cardName)}
+          onPointerDown={(e) => e.stopPropagation()}
+          aria-label={`Remove ${card.cardName}`}
+          className="cursor-pointer border-none bg-transparent px-2.5 py-1.5 sm:px-1 sm:py-0.5 text-lg sm:text-sm leading-none text-zinc-500 hover:text-zinc-300"
         >
-          <span className="text-zinc-600 select-none">
-            ⠿
-          </span>
-          <span className={`flex-1 ${isTaken ? "text-zinc-600 line-through" : "text-zinc-300"}`}>
-            {card.cardName}
-          </span>
-          {modeToggle}
-          <MoveButtons
-            onUp={() => onMoveEntry(entryIndex, entryIndex - 1)}
-            onDown={() => onMoveEntry(entryIndex, entryIndex + 1)}
-            disableUp={entryIndex === 0}
-            disableDown={entryIndex === totalEntries - 1}
-          />
-          <button
-            onClick={() => onRemove(card.cardName)}
-            onPointerDown={(e) => e.stopPropagation()}
-            aria-label={`Remove ${card.cardName}`}
-            className="cursor-pointer border-none bg-transparent px-2.5 py-1.5 sm:px-1 sm:py-0.5 text-lg sm:text-sm leading-none text-zinc-500 hover:text-zinc-300"
-          >
-            &times;
-          </button>
-        </div>
+          &times;
+        </button>
       </div>
     </div>
   );
 }
 
-// ─── Draggable Card within a Group ───────────────────────────────────────────
+// ─── Card within a Group (not draggable) ──────────────────────────────────────
 
-interface DraggableGroupCardProps {
+interface GroupCardProps {
   cardName: string;
   entryIndex: number;
   cardIndex: number;
@@ -307,9 +232,10 @@ interface DraggableGroupCardProps {
   isTaken: boolean;
   onRemove: (cardName: string) => void;
   onMoveCard: (entryIndex: number, fromCard: number, toCard: number) => void;
+  onEject: (entryIndex: number, cardIndex: number) => void;
 }
 
-function DraggableGroupCard({
+function GroupCard({
   cardName,
   entryIndex,
   cardIndex,
@@ -317,21 +243,10 @@ function DraggableGroupCard({
   isTaken,
   onRemove,
   onMoveCard,
-}: DraggableGroupCardProps) {
-  const dragId = makeDragCardId(entryIndex, cardIndex);
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: dragId });
-
+  onEject,
+}: GroupCardProps) {
   return (
-    <div
-      ref={setNodeRef}
-      style={{ opacity: isDragging ? 0.3 : 1 }}
-      className="flex items-center gap-1.5 cursor-grab select-none rounded px-1 py-1.5 sm:py-0.5"
-      {...attributes}
-      {...listeners}
-    >
-      <span className="text-zinc-700 select-none text-[10px]">
-        ⠿
-      </span>
+    <div className="flex items-center gap-1.5 select-none rounded px-1 py-1.5 sm:py-0.5">
       <span className={`flex-1 text-xs ${isTaken ? "text-zinc-600 line-through" : "text-zinc-400"}`}>
         {cardName}
       </span>
@@ -341,6 +256,15 @@ function DraggableGroupCard({
         disableUp={cardIndex === 0}
         disableDown={cardIndex === totalCards - 1}
       />
+      <button
+        onClick={() => onEject(entryIndex, cardIndex)}
+        onPointerDown={(e) => e.stopPropagation()}
+        aria-label={`Ungroup ${cardName}`}
+        title="Remove from group (keep in queue on its own)"
+        className="cursor-pointer border-none bg-transparent px-2 py-1.5 sm:px-1 sm:py-0.5 text-base sm:text-xs leading-none text-zinc-600 hover:text-zinc-300"
+      >
+        ⏏
+      </button>
       <button
         onClick={() => onRemove(cardName)}
         onPointerDown={(e) => e.stopPropagation()}
@@ -366,31 +290,6 @@ export function QueuePanel({
 }: QueuePanelProps) {
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
   const [activeSlotId, setActiveSlotId] = useState<string | null>(null);
-  const [mergeTarget, setMergeTarget] = useState<number | null>(null);
-  const mergeTargetRef = useRef<number | null>(null);
-  const activeSlotRef = useRef<string | null>(null);
-
-  function updateMergeTarget(v: number | null) {
-    setMergeTarget(v);
-    mergeTargetRef.current = v;
-  }
-  function updateActiveSlot(v: string | null) {
-    setActiveSlotId(v);
-    activeSlotRef.current = v;
-  }
-
-  // Hold-to-merge timer
-  const MERGE_HOLD_MS = 500;
-  const hoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hoverMergeIdRef = useRef<string | null>(null);
-
-  const clearHoverTimer = useCallback(() => {
-    if (hoverTimerRef.current) {
-      clearTimeout(hoverTimerRef.current);
-      hoverTimerRef.current = null;
-    }
-    hoverMergeIdRef.current = null;
-  }, []);
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -398,236 +297,36 @@ export function QueuePanel({
     useSensor(KeyboardSensor),
   );
 
-  const handleDragStart = useCallback(
-    (event: DragStartEvent) => {
-      setActiveDragId(event.active.id as string);
-      updateActiveSlot(null);
-      updateMergeTarget(null);
-      clearHoverTimer();
-      // Haptic feedback on mobile when drag activates
-      if (typeof navigator !== "undefined" && navigator.vibrate) {
-        navigator.vibrate(10);
-      }
-    },
-    [clearHoverTimer],
-  );
+  const handleDragStart = useCallback((event: DragStartEvent) => {
+    setActiveDragId(event.active.id as string);
+    setActiveSlotId(null);
+    if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(10);
+  }, []);
 
-  const handleDragOver = useCallback(
-    (event: DragOverEvent) => {
-      if (!event.over) {
-        updateActiveSlot(null);
-        updateMergeTarget(null);
-        clearHoverTimer();
-        return;
-      }
-
-      const active = activeDragId ? parseDragId(activeDragId) : null;
-      if (!active) return;
-
-      const overId = String(event.over.id);
-      const over = parseDropId(overId);
-      if (!over) return;
-
-      // ── Over a merge zone (entry dragged over another entry) ──
-      if (over.kind === "merge" && active.kind === "entry") {
-        if (over.entryIndex === active.entryIndex) {
-          updateActiveSlot(null);
-          updateMergeTarget(null);
-          clearHoverTimer();
-          return;
-        }
-        updateActiveSlot(null);
-        if (hoverMergeIdRef.current !== overId) {
-          clearHoverTimer();
-          hoverMergeIdRef.current = overId;
-          const idx = over.entryIndex;
-          hoverTimerRef.current = setTimeout(() => {
-            updateMergeTarget(idx);
-          }, MERGE_HOLD_MS);
-        }
-        return;
-      }
-
-      // ── Over a slot or cardslot ──
-      if (over.kind === "slot" || over.kind === "cardslot") {
-        // Don't show slot indicators while merge is active
-        if (mergeTargetRef.current !== null) return;
-
-        // For card drags: skip cardslots in the same group as the dragged card
-        // (they'll still show — we want within-group reorder)
-        updateActiveSlot(overId);
-        updateMergeTarget(null);
-        clearHoverTimer();
-        return;
-      }
-
-      // Default
-      updateActiveSlot(null);
-      updateMergeTarget(null);
-      clearHoverTimer();
-    },
-    [activeDragId, clearHoverTimer],
-  );
+  const handleDragOver = useCallback((event: DragOverEvent) => {
+    setActiveSlotId(event.over ? String(event.over.id) : null);
+  }, []);
 
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
-      const currentMergeTarget = mergeTargetRef.current;
-      const currentSlot = activeSlotRef.current;
+      const slotId = activeSlotId;
       setActiveDragId(null);
-      updateActiveSlot(null);
-      updateMergeTarget(null);
-      clearHoverTimer();
+      setActiveSlotId(null);
 
-      const { active: activeEvt } = event;
-      const active = parseDragId(activeEvt.id as string);
-      if (!active) return;
+      const from = parseDragEntryIndex(event.active.id as string);
+      if (from === null || !slotId) return;
+      const slot = parseSlotIndex(slotId);
+      if (slot === null) return;
 
-      // ── Merge (hold-to-merge was active) ──
-      if (active.kind === "entry" && currentMergeTarget !== null) {
-        const from = active.entryIndex;
-        const to = currentMergeTarget;
-        if (from === to) return;
-
-        const draggedEntry = queue[from];
-        const targetEntry = queue[to];
-        const merged: QueueGroupEntry = {
-          mode: targetEntry.mode,
-          cards: [...targetEntry.cards, ...draggedEntry.cards],
-        };
-        const adjusted = from < to ? to - 1 : to;
-        const newQueue = queue
-          .filter((_, i) => i !== from)
-          .map((e, i) => (i === adjusted ? merged : e));
-        onReorder(newQueue);
-        return;
-      }
-
-      // ── Drop on a slot ──
-      if (currentSlot) {
-        const slot = parseDropId(currentSlot);
-        if (!slot) return;
-
-        // Entry dropped on a top-level slot → reorder
-        if (active.kind === "entry" && slot.kind === "slot") {
-          const from = active.entryIndex;
-          let to = slot.index;
-          if (to === from || to === from + 1) return; // no-op: same position
-          const newQueue = [...queue];
-          const [moved] = newQueue.splice(from, 1);
-          if (to > from) to--;
-          newQueue.splice(to, 0, moved);
-          onReorder(newQueue);
-          return;
-        }
-
-        // Card dropped on a top-level slot → ungroup
-        if (active.kind === "card" && slot.kind === "slot") {
-          const srcEntry = queue[active.entryIndex];
-          if (srcEntry.cards.length <= 1) return;
-          const draggedCard = srcEntry.cards[active.cardIndex];
-          const newSrcCards = srcEntry.cards.filter((_, i) => i !== active.cardIndex);
-
-          let newQueue: QueueGroupEntry[] = queue.map((e, i) =>
-            i === active.entryIndex ? { ...e, cards: newSrcCards } : e,
-          );
-
-          let to = slot.index;
-          // Only adjust if source entry was completely removed
-          if (newSrcCards.length === 0) {
-            newQueue = newQueue.filter((_, i) => i !== active.entryIndex);
-            if (active.entryIndex < to) to--;
-          }
-          to = Math.max(0, Math.min(to, newQueue.length));
-
-          newQueue.splice(to, 0, { mode: "pause", cards: [draggedCard] });
-          onReorder(newQueue);
-          return;
-        }
-
-        // Card dropped on a cardslot in the SAME group → reorder within group
-        if (
-          active.kind === "card" &&
-          slot.kind === "cardslot" &&
-          slot.entryIndex === active.entryIndex
-        ) {
-          const from = active.cardIndex;
-          let to = slot.cardIndex;
-          if (to === from || to === from + 1) return; // no-op
-          const entry = queue[active.entryIndex];
-          const newCards = [...entry.cards];
-          const [moved] = newCards.splice(from, 1);
-          if (to > from) to--;
-          newCards.splice(to, 0, moved);
-          const newQueue = queue.map((e, i) =>
-            i === active.entryIndex ? { ...e, cards: newCards } : e,
-          );
-          onReorder(newQueue);
-          return;
-        }
-
-        // Card dropped on a cardslot in a DIFFERENT group → move between groups
-        if (
-          active.kind === "card" &&
-          slot.kind === "cardslot" &&
-          slot.entryIndex !== active.entryIndex
-        ) {
-          const srcEntry = queue[active.entryIndex];
-          const draggedCard = srcEntry.cards[active.cardIndex];
-          const newSrcCards = srcEntry.cards.filter((_, i) => i !== active.cardIndex);
-
-          let newQueue: QueueGroupEntry[] = queue.map((e, i) => {
-            if (i === active.entryIndex) return { ...e, cards: newSrcCards };
-            return e;
-          });
-
-          if (newSrcCards.length === 0) {
-            newQueue = newQueue.filter((_, i) => i !== active.entryIndex);
-          }
-
-          // Find the target entry (index may have shifted if source was removed)
-          let targetEntryIdx = slot.entryIndex;
-          if (newSrcCards.length === 0 && active.entryIndex < slot.entryIndex) {
-            targetEntryIdx--;
-          }
-          const targetEntry = newQueue[targetEntryIdx];
-          if (!targetEntry) return;
-
-          const insertAt = Math.min(slot.cardIndex, targetEntry.cards.length);
-          const newCards = [...targetEntry.cards];
-          newCards.splice(insertAt, 0, draggedCard);
-          newQueue = newQueue.map((e, i) =>
-            i === targetEntryIdx ? { ...e, cards: newCards } : e,
-          );
-          onReorder(newQueue);
-          return;
-        }
-
-        // Entry dropped on a cardslot → treat as reorder to that entry's position
-        if (active.kind === "entry" && slot.kind === "cardslot") {
-          const from = active.entryIndex;
-          let to = slot.entryIndex;
-          if (to === from) return;
-          const newQueue = [...queue];
-          const [moved] = newQueue.splice(from, 1);
-          if (to > from) to--;
-          newQueue.splice(to, 0, moved);
-          onReorder(newQueue);
-          return;
-        }
-      }
-    },
-    [queue, onReorder, clearHoverTimer],
-  );
-
-  const handleMoveEntry = useCallback(
-    (from: number, to: number) => {
-      if (to < 0 || to >= queue.length) return;
+      let to = slot;
+      if (to === from || to === from + 1) return; // no-op
       const newQueue = [...queue];
       const [moved] = newQueue.splice(from, 1);
+      if (to > from) to--;
       newQueue.splice(to, 0, moved);
       onReorder(newQueue);
     },
-    [queue, onReorder],
+    [queue, onReorder, activeSlotId],
   );
 
   const handleMoveCard = useCallback(
@@ -642,21 +341,44 @@ export function QueuePanel({
     [queue, onReorder],
   );
 
-  // Derive overlay label
-  const active = activeDragId ? parseDragId(activeDragId) : null;
+  // Merge entry[entryIndex] into the entry directly above it. The combined
+  // group keeps the upper entry's mode, with its cards first.
+  const handleGroupWithAbove = useCallback(
+    (entryIndex: number) => {
+      if (entryIndex <= 0 || entryIndex >= queue.length) return;
+      const upper = queue[entryIndex - 1];
+      const lower = queue[entryIndex];
+      const merged: QueueGroupEntry = { mode: upper.mode, cards: [...upper.cards, ...lower.cards] };
+      const newQueue = queue
+        .filter((_, i) => i !== entryIndex)
+        .map((e, i) => (i === entryIndex - 1 ? merged : e));
+      onReorder(newQueue);
+    },
+    [queue, onReorder],
+  );
+
+  // Pull a card out of its group into its own entry, placed right after the
+  // group. If the group drops to one card it becomes a single entry.
+  const handleEject = useCallback(
+    (entryIndex: number, cardIndex: number) => {
+      const entry = queue[entryIndex];
+      if (!entry || entry.cards.length <= 1) return;
+      const ejected = entry.cards[cardIndex];
+      const remaining = entry.cards.filter((_, i) => i !== cardIndex);
+      const newQueue = [...queue];
+      newQueue[entryIndex] = { ...entry, cards: remaining };
+      newQueue.splice(entryIndex + 1, 0, { mode: "pause", cards: [ejected] });
+      onReorder(newQueue);
+    },
+    [queue, onReorder],
+  );
+
+  // Derive the drag overlay label
   let overlayLabel: string | null = null;
-  if (active) {
-    if (active.kind === "entry") {
-      const entry = queue[active.entryIndex];
-      if (entry) {
-        overlayLabel = entry.cards.length === 1
-          ? entry.cards[0].cardName
-          : `Group (${entry.cards.length})`;
-      }
-    } else if (active.kind === "card") {
-      const entry = queue[active.entryIndex];
-      if (entry) overlayLabel = entry.cards[active.cardIndex]?.cardName ?? null;
-    }
+  const draggingIndex = activeDragId ? parseDragEntryIndex(activeDragId) : null;
+  if (draggingIndex !== null) {
+    const entry = queue[draggingIndex];
+    if (entry) overlayLabel = entry.cards.length === 1 ? entry.cards[0].cardName : `Group (${entry.cards.length})`;
   }
 
   return (
@@ -684,7 +406,7 @@ export function QueuePanel({
       ) : (
         <DndContext
           sensors={sensors}
-          collisionDetection={slotAwareCollision}
+          collisionDetection={closestCenter}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
@@ -692,28 +414,20 @@ export function QueuePanel({
           <div className="flex max-h-[30vh] flex-col overflow-y-auto pb-2">
             {queue.map((entry, entryIndex) => (
               <div key={`entry-${entryIndex}`}>
-                <DropSlot
-                  id={makeSlotId(entryIndex)}
-                  isActive={activeSlotId === makeSlotId(entryIndex)}
-                />
+                <DropSlot id={makeSlotId(entryIndex)} isActive={activeSlotId === makeSlotId(entryIndex)} />
                 <DraggableEntry
                   entry={entry}
                   entryIndex={entryIndex}
-                  totalEntries={queue.length}
                   onRemove={onRemove}
                   onSetEntryMode={onSetEntryMode}
-                  onMoveEntry={handleMoveEntry}
                   onMoveCard={handleMoveCard}
+                  onGroupWithAbove={handleGroupWithAbove}
+                  onEject={handleEject}
                   takenCards={takenCards}
-                  isMergeTarget={mergeTarget === entryIndex}
-                  activeSlotId={activeSlotId}
                 />
               </div>
             ))}
-            <DropSlot
-              id={makeSlotId(queue.length)}
-              isActive={activeSlotId === makeSlotId(queue.length)}
-            />
+            <DropSlot id={makeSlotId(queue.length)} isActive={activeSlotId === makeSlotId(queue.length)} />
           </div>
 
           <DragOverlay>

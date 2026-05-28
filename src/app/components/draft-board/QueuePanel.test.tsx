@@ -126,4 +126,83 @@ describe("QueuePanel", () => {
     fireEvent.click(flowButtons[0]);
     expect(onSetEntryMode).toHaveBeenCalledWith(1, "pause");
   });
+
+  it("disables the group button on the first entry", () => {
+    render(<QueuePanel {...defaultProps} />);
+    const groupButtons = screen.getAllByLabelText("Group with card above");
+    expect((groupButtons[0] as HTMLButtonElement).disabled).toBe(true);
+    expect((groupButtons[1] as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it("groups two single entries when the lower one's group button is clicked", () => {
+    const onReorder = vi.fn();
+    render(<QueuePanel {...defaultProps} onReorder={onReorder} />);
+    // Click the group button on Counterspell (entry 1) → merge into Bolt (entry 0)
+    const groupButtons = screen.getAllByLabelText("Group with card above");
+    fireEvent.click(groupButtons[1]);
+    expect(onReorder).toHaveBeenCalledWith([
+      {
+        mode: "pause", // keeps the upper entry's mode
+        cards: [
+          { cardId: 10, cardName: "Lightning Bolt" },
+          { cardId: 20, cardName: "Counterspell" },
+        ],
+      },
+    ]);
+  });
+
+  it("adds a single entry to the group above it", () => {
+    const onReorder = vi.fn();
+    render(<QueuePanel {...defaultProps} queue={groupEntryQueue} onReorder={onReorder} />);
+    // Demonic Tutor (entry 1) grouped into the 3-card group above (entry 0)
+    const groupButtons = screen.getAllByLabelText("Group with card above");
+    fireEvent.click(groupButtons[1]);
+    expect(onReorder).toHaveBeenCalledWith([
+      {
+        mode: "flow-through",
+        cards: [
+          { cardId: 10, cardName: "Counterspell" },
+          { cardId: 20, cardName: "Mana Drain" },
+          { cardId: 30, cardName: "Arcane Denial" },
+          { cardId: 40, cardName: "Demonic Tutor" },
+        ],
+      },
+    ]);
+  });
+
+  it("ejects a card from a group into its own entry after the group", () => {
+    const onReorder = vi.fn();
+    render(<QueuePanel {...defaultProps} queue={groupEntryQueue} onReorder={onReorder} />);
+    fireEvent.click(screen.getByLabelText("Ungroup Mana Drain"));
+    expect(onReorder).toHaveBeenCalledWith([
+      {
+        mode: "flow-through",
+        cards: [
+          { cardId: 10, cardName: "Counterspell" },
+          { cardId: 30, cardName: "Arcane Denial" },
+        ],
+      },
+      { mode: "pause", cards: [{ cardId: 20, cardName: "Mana Drain" }] },
+      { mode: "pause", cards: [{ cardId: 40, cardName: "Demonic Tutor" }] },
+    ]);
+  });
+
+  it("collapses a two-card group to a single entry when one card is ejected", () => {
+    const onReorder = vi.fn();
+    const twoCardGroup: QueueGroupEntry[] = [
+      {
+        mode: "flow-through",
+        cards: [
+          { cardId: 10, cardName: "Counterspell" },
+          { cardId: 20, cardName: "Mana Drain" },
+        ],
+      },
+    ];
+    render(<QueuePanel {...defaultProps} queue={twoCardGroup} onReorder={onReorder} />);
+    fireEvent.click(screen.getByLabelText("Ungroup Mana Drain"));
+    expect(onReorder).toHaveBeenCalledWith([
+      { mode: "flow-through", cards: [{ cardId: 10, cardName: "Counterspell" }] },
+      { mode: "pause", cards: [{ cardId: 20, cardName: "Mana Drain" }] },
+    ]);
+  });
 });
