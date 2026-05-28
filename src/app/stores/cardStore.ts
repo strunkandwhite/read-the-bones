@@ -201,10 +201,7 @@ function recompute() {
     });
   }
   if (hideTaken && takenCardNamesSet) {
-    displayCards = displayCards.filter((c) => {
-      if (seatCardNames?.has(c.cardName)) return true;
-      return !takenCardNamesSet!.has(c.cardName);
-    });
+    displayCards = displayCards.filter((c) => !takenCardNamesSet!.has(c.cardName));
   }
 
   // searchFilteredCards

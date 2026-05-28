@@ -478,7 +478,7 @@ describe("cardStore — derived state", () => {
     expect(names).not.toContain("Path");
   });
 
-  it("displayCards filters out taken cards when hideTaken is true, but keeps selected seat's cards", () => {
+  it("displayCards filters out all taken cards when hideTaken is true, including the selected seat's own picks", () => {
     useDraftStore.setState({
       activeDraft: "d1",
       hideTaken: true,
@@ -501,8 +501,8 @@ describe("cardStore — derived state", () => {
     const names = useCardStore
       .getState()
       .displayCards.map((c) => c.cardName);
-    // Bolt is taken by seat 1 (selected seat) — should be kept
-    expect(names).toContain("Bolt");
+    // Bolt is taken by seat 1 (selected seat) — now hidden too
+    expect(names).not.toContain("Bolt");
     // Path is taken by seat 2 — should be filtered out
     expect(names).not.toContain("Path");
     // Snap is not taken — should be kept

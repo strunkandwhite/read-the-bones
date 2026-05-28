@@ -262,7 +262,7 @@ export function Settings() {
                       }}
                       className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-blue-500"
                     />
-                    Hide taken cards
+                    Hide taken cards (including yours)
                   </label>
                 )}
               </div>
