@@ -209,6 +209,7 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/specs/2026-03-27-server-side-deck-persistence-design.md` - Server-side deck persistence design
 - `docs/superpowers/specs/2026-03-29-data-flow-consolidation-design.md` - Data flow consolidation (Zustand stores, polling, SSR hydration)
 - `docs/superpowers/specs/2026-03-29-multi-copy-card-picks-design.md` - Multi-copy card picks design
+- `docs/superpowers/specs/2026-05-28-queue-panel-ux-design.md` - Queue panel UX: how-to section + buttons-only grouping
 
 ### Superpowers Plans
 
