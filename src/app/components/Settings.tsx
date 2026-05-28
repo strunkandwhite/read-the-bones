@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import { track } from "@vercel/analytics/react";
 import { DraftSelector, groupDraftsByDate } from "./DraftSelector";
 import { PoolSelector } from "./PoolSelector";
+import { HowItWorks } from "./HowItWorks";
 import { useDraftStore } from "../stores/draftStore";
 import { useCardStore } from "../stores/cardStore";
 import { useLiveStore } from "../stores/liveStore";
@@ -187,6 +188,9 @@ export function Settings() {
                   Logged in to {drafts.find((d) => d.id === activeDraft)?.name ?? activeDraft} as {seatNames?.[String(mySeat)] || `Seat ${mySeat}`}
                 </div>
               )}
+
+              <HowItWorks />
+
               {/* Draft view section */}
               <div className="mb-6">
                 <h3 className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
