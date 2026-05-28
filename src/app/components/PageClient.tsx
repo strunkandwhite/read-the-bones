@@ -9,6 +9,7 @@ import { CardStatsModal } from "./CardStatsModal";
 import { ColorFilter } from "./ColorFilter";
 import { Settings } from "./Settings";
 import { StatsModal } from "./StatsModal";
+import { PodViewIcon, DeckBuilderIcon } from "./icons";
 import type { CardStatsResponse } from "@/core/getCards";
 import type { DraftStatsResponse } from "@/core/getDraftStats";
 import { DeckBuilderPanel } from "./deck-builder/DeckBuilderPanel";
@@ -257,12 +258,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                 title={isMyTurn ? "Your Pick!" : selectedSeat !== null ? `${activeDraft}, Seat ${selectedSeat}` : `Pod View — ${activeDraft}`}
                 aria-label={isMyTurn ? "Your Pick!" : selectedSeat !== null ? `Pod View — ${activeDraft}, Seat ${selectedSeat}` : `Pod View — ${activeDraft}`}
               >
-                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                  <rect x="3" y="3" width="8" height="8" rx="1.5" />
-                  <rect x="13" y="3" width="8" height="8" rx="1.5" />
-                  <rect x="3" y="13" width="8" height="8" rx="1.5" />
-                  <rect x="13" y="13" width="8" height="8" rx="1.5" />
-                </svg>
+                <PodViewIcon className="h-6 w-6" />
               </button>
             )}
             {activeDraft && selectedSeat !== null && (
@@ -294,12 +290,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
                     : "text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
                 }`}
               >
-                <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" stroke="none" className="h-6 w-6">
-                  <rect x="3" y="3" width="18" height="3" rx="0.75" />
-                  <rect x="3.5" y="7.75" width="18" height="3" rx="0.75" />
-                  <rect x="4" y="12.5" width="18" height="3" rx="0.75" />
-                  <rect x="4.5" y="17.25" width="18" height="3" rx="0.75" />
-                </svg>
+                <DeckBuilderIcon className="h-6 w-6" />
               </button>
             )}
             <StatsModal />

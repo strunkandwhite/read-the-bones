@@ -1,9 +1,13 @@
 "use client";
 
+import { CardStatusIcon } from "./CardStatusIcon";
+import { PodViewIcon, DeckBuilderIcon } from "./icons";
+
 /**
  * Collapsible "How it works" help section shown in the Settings panel.
  * Static content — orients players on the card list, deck builder, pod view,
- * and the queue / float / auto-pick model.
+ * and the queue / float / auto-pick model. Reuses the same icons players see
+ * in the toolbar and card table as visual cues.
  */
 export function HowItWorks() {
   return (
@@ -38,22 +42,42 @@ export function HowItWorks() {
 
         <div>
           <span className="font-semibold text-zinc-700 dark:text-zinc-300">Three views:</span>
-          <ul className="mt-1 list-disc space-y-1 pl-5">
+          <ul className="mt-1.5 space-y-2 pl-1">
             <li>
-              <span className="font-medium">Card list</span> — every card in the
-              cube, with stats from previous drafts and Scryfall-style search and
-              filters. Click a card for details.
+              <span className="font-medium text-zinc-700 dark:text-zinc-300">Card list</span> — the
+              main screen: every card in the cube, with stats from previous
+              drafts. Click a card for details. Search supports Scryfall-style
+              queries (e.g. <code className="rounded bg-zinc-200 px-1 dark:bg-zinc-700">t:creature</code>,{" "}
+              <code className="rounded bg-zinc-200 px-1 dark:bg-zinc-700">c:ur</code>,{" "}
+              <code className="rounded bg-zinc-200 px-1 dark:bg-zinc-700">o:flying</code>) — tap the{" "}
+              <span className="font-semibold">?</span> by the search box for the full syntax.
             </li>
-            <li>
-              <span className="font-medium">Deck builder</span> — the cards
-              you&apos;ve picked, queued, and floated.
+            <li className="flex gap-2">
+              <DeckBuilderIcon className="mt-0.5 h-4 w-4 shrink-0 text-zinc-500" />
+              <span>
+                <span className="font-medium text-zinc-700 dark:text-zinc-300">Deck builder</span> —
+                the cards you&apos;ve picked, queued, and floated; build and share
+                your decklist here.
+              </span>
             </li>
-            <li>
-              <span className="font-medium">Pod view</span> — what everyone has
-              picked. Pick from here on your turn, and manage your queue.
+            <li className="flex gap-2">
+              <PodViewIcon className="mt-0.5 h-4 w-4 shrink-0 text-zinc-500" />
+              <span>
+                <span className="font-medium text-zinc-700 dark:text-zinc-300">Pod view</span> —
+                what everyone has picked. Pick here on your turn, manage your
+                queue, and (after the draft) report match results. The icon turns
+                green and pulses when it&apos;s <span className="font-medium">your pick</span>.
+              </span>
             </li>
           </ul>
         </div>
+
+        <p>
+          <span className="font-semibold text-zinc-700 dark:text-zinc-300">Picking.</span>{" "}
+          On your turn, pick a card by typing into your next slot in the pod view,
+          or by opening a card and using the hold-to-confirm button (the hold
+          guards against misclicks).
+        </p>
 
         <p>
           <span className="font-semibold text-zinc-700 dark:text-zinc-300">Auto-pick.</span>{" "}
@@ -61,32 +85,55 @@ export function HowItWorks() {
           card in your queue for you.
         </p>
 
+        <p className="flex items-start gap-2">
+          <span className="mt-0.5 flex shrink-0 items-center gap-0.5">
+            <CardStatusIcon status="queued" queuePosition={1} />
+            <CardStatusIcon status="floated" />
+          </span>
+          <span>
+            <span className="font-semibold text-zinc-700 dark:text-zinc-300">Queue vs. float.</span>{" "}
+            A <span className="font-medium">queued</span> card will be picked on
+            your turn (if auto-pick is on), in queue order. A{" "}
+            <span className="font-medium">floated</span> card won&apos;t — it&apos;s
+            just a private shortlist of cards you&apos;re hoping to get later.
+          </span>
+        </p>
+
         <p>
-          <span className="font-semibold text-zinc-700 dark:text-zinc-300">Queue vs. float.</span>{" "}
-          A <span className="font-medium">queued</span> card will be picked on
-          your turn (if auto-pick is on). A <span className="font-medium">floated</span>{" "}
-          card won&apos;t — it&apos;s just a private shortlist of cards you&apos;re
-          hoping to get later.
+          <span className="font-semibold text-zinc-700 dark:text-zinc-300">Reordering.</span>{" "}
+          In the pod view&apos;s queue, drag a card to move it, or nudge it with the
+          up/down arrows.
         </p>
 
         <p>
           <span className="font-semibold text-zinc-700 dark:text-zinc-300">Pause vs. flow-through.</span>{" "}
-          Set on each queue entry. <span className="font-medium">Pause</span>: if
-          your top choice was taken before your turn, auto-pick switches off so
-          you can reassess. <span className="font-medium">Flow-through</span>: skip
-          the taken card and take the next available one.
+          Set on each queue entry with the{" "}
+          <span className="rounded bg-blue-900/50 px-1.5 py-0.5 font-semibold text-blue-300">⏸</span>{" "}
+          /{" "}
+          <span className="rounded bg-amber-900/50 px-1.5 py-0.5 font-semibold text-amber-300">▶</span>{" "}
+          toggle. <span className="font-medium">Pause</span>: if your top choice
+          was taken before your turn, auto-pick switches off so you can reassess.{" "}
+          <span className="font-medium">Flow-through</span>: skip the taken card
+          and take the next available one.
         </p>
 
         <p>
           <span className="font-semibold text-zinc-700 dark:text-zinc-300">Grouping.</span>{" "}
-          Group cards to mean &ldquo;any one of these&rdquo; — e.g. three removal
-          spells you&apos;d be happy with. When one card in a group is picked, the
-          whole group leaves your queue.
+          Group cards (the <span className="font-semibold">⧉</span> button) to mean
+          &ldquo;any one of these&rdquo; — e.g. three removal spells you&apos;d be
+          happy with. Auto-pick takes the first available card in the group, and
+          when one is picked the whole group leaves your queue. Use the{" "}
+          <span className="font-semibold">⏏</span> button to pull a card back out.
         </p>
 
-        <p>
-          <span className="font-semibold text-zinc-700 dark:text-zinc-300">Privacy.</span>{" "}
-          Your picks are visible to everyone. Your queue and floats are private.
+        <p className="flex items-start gap-2">
+          <span className="mt-0.5 shrink-0">
+            <CardStatusIcon status="picked" />
+          </span>
+          <span>
+            <span className="font-semibold text-zinc-700 dark:text-zinc-300">Privacy.</span>{" "}
+            Your picks are visible to everyone. Your queue and floats are private.
+          </span>
         </p>
       </div>
     </details>
