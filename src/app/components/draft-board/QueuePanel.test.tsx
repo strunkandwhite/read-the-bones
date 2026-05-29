@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { QueuePanel } from "./QueuePanel";
+import { QueuePanel, reorderEntryToSlot } from "./QueuePanel";
 import type { QueueGroupEntry } from "../../stores/liveStore";
 
 describe("QueuePanel", () => {
@@ -187,6 +187,26 @@ describe("QueuePanel", () => {
     ]);
   });
 
+  it("reorders cards within a group via the up/down buttons", () => {
+    const onReorder = vi.fn();
+    render(<QueuePanel {...defaultProps} queue={groupEntryQueue} onReorder={onReorder} />);
+    // Group cards: Counterspell(0, up disabled), Mana Drain(1), Arcane Denial(2).
+    // Move Mana Drain up → swaps with Counterspell.
+    const upButtons = screen.getAllByLabelText("Move up");
+    fireEvent.click(upButtons[1]);
+    expect(onReorder).toHaveBeenCalledWith([
+      {
+        mode: "flow-through",
+        cards: [
+          { cardId: 20, cardName: "Mana Drain" },
+          { cardId: 10, cardName: "Counterspell" },
+          { cardId: 30, cardName: "Arcane Denial" },
+        ],
+      },
+      { mode: "pause", cards: [{ cardId: 40, cardName: "Demonic Tutor" }] },
+    ]);
+  });
+
   it("collapses a two-card group to a single entry when one card is ejected", () => {
     const onReorder = vi.fn();
     const twoCardGroup: QueueGroupEntry[] = [
@@ -204,5 +224,36 @@ describe("QueuePanel", () => {
       { mode: "flow-through", cards: [{ cardId: 10, cardName: "Counterspell" }] },
       { mode: "pause", cards: [{ cardId: 20, cardName: "Mana Drain" }] },
     ]);
+  });
+});
+
+describe("reorderEntryToSlot", () => {
+  const q: QueueGroupEntry[] = [
+    { mode: "pause", cards: [{ cardId: 1, cardName: "A" }] },
+    { mode: "pause", cards: [{ cardId: 2, cardName: "B" }] },
+    { mode: "pause", cards: [{ cardId: 3, cardName: "C" }] },
+  ];
+  const names = (queue: QueueGroupEntry[]) => queue.map((e) => e.cards[0].cardName);
+
+  it("returns null for no-op drops (same position)", () => {
+    expect(reorderEntryToSlot(q, 1, 1)).toBeNull(); // slot before self
+    expect(reorderEntryToSlot(q, 1, 2)).toBeNull(); // slot just after self
+  });
+
+  it("moves an entry down (slot index decremented past the removed entry)", () => {
+    // Move A (0) to the end slot (3) → B, C, A
+    expect(names(reorderEntryToSlot(q, 0, 3)!)).toEqual(["B", "C", "A"]);
+    // Move A (0) to slot 2 (before C) → B, A, C
+    expect(names(reorderEntryToSlot(q, 0, 2)!)).toEqual(["B", "A", "C"]);
+  });
+
+  it("moves an entry up (slot index unchanged)", () => {
+    // Move C (2) to slot 0 (top) → C, A, B
+    expect(names(reorderEntryToSlot(q, 2, 0)!)).toEqual(["C", "A", "B"]);
+  });
+
+  it("does not mutate the input queue", () => {
+    reorderEntryToSlot(q, 0, 3);
+    expect(names(q)).toEqual(["A", "B", "C"]);
   });
 });

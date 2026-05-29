@@ -477,7 +477,10 @@ export const useLiveStore = create<LiveStoreState>()(
     },
 
     reorderQueue: (entries: QueueGroupEntry[]) => {
-      syncQueue(set, get, entries);
+      const { queue: original } = get();
+      // Optimistic: reflect the reorder/group/eject immediately, revert on failure.
+      set({ queue: entries, queuedCardCounts: deriveQueuedCardCounts(entries) });
+      syncQueue(set, get, entries, original);
     },
 
     setEntryMode: (entryIndex: number, mode: 'pause' | 'flow-through') => {

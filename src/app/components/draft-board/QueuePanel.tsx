@@ -47,6 +47,24 @@ function parseSlotIndex(id: string): number | null {
   return p[0] === "slot" ? +p[1] : null;
 }
 
+/**
+ * Move entry `from` to drop-slot `slot` (slot N = before entry N; slot ===
+ * queue.length = after the last entry). Returns the reordered queue, or null
+ * when the move is a no-op (dropping back into the same position).
+ */
+export function reorderEntryToSlot(
+  queue: QueueGroupEntry[],
+  from: number,
+  slot: number,
+): QueueGroupEntry[] | null {
+  if (slot === from || slot === from + 1) return null;
+  const newQueue = [...queue];
+  const [moved] = newQueue.splice(from, 1);
+  const to = slot > from ? slot - 1 : slot;
+  newQueue.splice(to, 0, moved);
+  return newQueue;
+}
+
 // ─── Visual components ───────────────────────────────────────────────────────
 
 // Drop slot between entries. Has a small physical height so closestCenter can
@@ -318,13 +336,8 @@ export function QueuePanel({
       const slot = parseSlotIndex(slotId);
       if (slot === null) return;
 
-      let to = slot;
-      if (to === from || to === from + 1) return; // no-op
-      const newQueue = [...queue];
-      const [moved] = newQueue.splice(from, 1);
-      if (to > from) to--;
-      newQueue.splice(to, 0, moved);
-      onReorder(newQueue);
+      const newQueue = reorderEntryToSlot(queue, from, slot);
+      if (newQueue) onReorder(newQueue);
     },
     [queue, onReorder, activeSlotId],
   );

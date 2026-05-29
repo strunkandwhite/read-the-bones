@@ -92,8 +92,10 @@ The **⏸ / ▶ mode** toggle and per-card **× remove** are unchanged.
   cardIndex)`, and the drag-end reorder handler.
 - `QueuePanel.test.tsx` drives the buttons (group / eject / within-group move).
   Cover: group single+single, add single to group, group+group merge, eject to
-  standalone, group collapsing to a single on eject, and the disabled-on-first-
-  entry case. (Drag reordering is exercised by the existing live-draft e2e.)
+  standalone, group collapsing to a single on eject, within-group move, and the
+  disabled-on-first-entry case. The drag-reorder slot math is extracted into a
+  pure `reorderEntryToSlot` helper and unit-tested directly (the dnd-kit drag
+  *gesture* itself isn't automatable in jsdom, so it's verified manually).
 
 ### Resulting layout
 
