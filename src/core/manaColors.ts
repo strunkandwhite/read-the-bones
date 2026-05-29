@@ -2,7 +2,7 @@
  * WUBRG-tinted RGBA backgrounds keyed by single-letter color code.
  * Low alpha so light text stays readable on top.
  */
-export const WUBRG_BG: Record<string, string> = {
+const WUBRG_BG: Record<string, string> = {
   W: "rgba(248,231,185,0.15)",
   U: "rgba(14,104,171,0.20)",
   B: "rgba(130,100,160,0.20)",
