@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { useDraftStore, _resetPollingState } from "./draftStore";
+import { useDraftStore, _resetPollingState, POLL_INTERVAL_MS } from "./draftStore";
 
 function resetStore() {
   useDraftStore.setState({
@@ -723,6 +723,150 @@ describe("draftStore — polling", () => {
     await useDraftStore.getState().refreshNow(); // counter=5
     await useDraftStore.getState().refreshNow(); // counter=6 → fetches sync-status again (same data)
     expect(useDraftStore.getState().syncStatus).toBe(syncRef1);
+  });
+
+  // ---------------------------------------------------------------------------
+  // Visibility-based polling pause (Task 25)
+  // ---------------------------------------------------------------------------
+
+  it("hiding the tab clears the interval — no fetches occur while hidden", async () => {
+    mockFetchResponses(baseLiveData, baseSyncData);
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useDraftStore.getState().startPolling();
+    // Let the immediate fetch fire
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Simulate tab becoming hidden
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "hidden",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    const callCountAfterHide = vi.mocked(globalThis.fetch).mock.calls.length;
+
+    // Advance well past several poll intervals — no new fetches should fire
+    await vi.advanceTimersByTimeAsync(40_000);
+    expect(vi.mocked(globalThis.fetch).mock.calls.length).toBe(callCountAfterHide);
+
+    // Restore visibility state for subsequent tests
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "visible",
+    });
+  });
+
+  it("becoming visible triggers an immediate refresh and resumes polling", async () => {
+    mockFetchResponses(baseLiveData, baseSyncData);
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useDraftStore.getState().startPolling();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Hide the tab
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "hidden",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    const callCountHidden = vi.mocked(globalThis.fetch).mock.calls.length;
+
+    // Show the tab again
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "visible",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    // The immediate refreshNow fetch fires synchronously as a microtask
+    await vi.advanceTimersByTimeAsync(0);
+
+    // At least one new fetch should have been triggered by the visibility change
+    expect(vi.mocked(globalThis.fetch).mock.calls.length).toBeGreaterThan(callCountHidden);
+
+    // Polling should have resumed — another fetch fires after the interval
+    const callCountAfterVisible = vi.mocked(globalThis.fetch).mock.calls.length;
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS + 100);
+    expect(vi.mocked(globalThis.fetch).mock.calls.length).toBeGreaterThan(callCountAfterVisible);
+
+    // Restore
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "visible",
+    });
+  });
+
+  it("stopPolling removes the visibilitychange listener — hiding after stop causes no fetches", async () => {
+    mockFetchResponses(baseLiveData, baseSyncData);
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useDraftStore.getState().startPolling();
+    await vi.advanceTimersByTimeAsync(0);
+
+    useDraftStore.getState().stopPolling();
+    const callCountAfterStop = vi.mocked(globalThis.fetch).mock.calls.length;
+
+    // Even if visibility changes, nothing should fire because the listener was removed
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "hidden",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "visible",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(vi.mocked(globalThis.fetch).mock.calls.length).toBe(callCountAfterStop);
+  });
+
+  it("rapid hide/show does not register duplicate listeners or double-poll", async () => {
+    mockFetchResponses(baseLiveData, baseSyncData);
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useDraftStore.getState().startPolling();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Rapidly toggle visibility — should not stack up multiple interval timers
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "hidden",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "visible",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "hidden",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => "visible",
+    });
+    document.dispatchEvent(new Event("visibilitychange"));
+    await vi.advanceTimersByTimeAsync(0);
+
+    const callCountAfterFlap = vi.mocked(globalThis.fetch).mock.calls.length;
+
+    // After all the flapping, advancing exactly one interval should yield exactly
+    // one more interval-tick fetch (not N per stacked interval). We assert that
+    // only a bounded number of fetches occur (≤3 covers the interval tick + any
+    // micro-timing variance — what we're ruling out is an unbounded explosion).
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS + 100);
+    const newCalls = vi.mocked(globalThis.fetch).mock.calls.length - callCountAfterFlap;
+    expect(newCalls).toBeLessThanOrEqual(3);
   });
 });
 

@@ -106,7 +106,7 @@ interface DraftState {
 // Module-scoped polling state
 // ---------------------------------------------------------------------------
 
-const POLL_INTERVAL_MS = 10_000;
+export const POLL_INTERVAL_MS = 10_000;
 
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 let prevPickN = -1; // -1 = no previous data (first poll)
@@ -127,6 +127,10 @@ let appliedGeneration = -1;
 // When a seat token is present, the server includes a per-seat freshness marker
 // (~queueLen:floatCount) in the sig so cross-device queue/float changes also break it.
 let lastLiveSig: { pickN: number; sig: string } | null = null;
+
+// Visibility-change listener reference — stored so it can be removed in
+// stopPolling and _resetPollingState without leaking duplicate handlers.
+let visibilityHandler: (() => void) | null = null;
 
 // Provider callback registered by liveStore to supply the current seat token
 // without creating a circular import (draftStore → liveStore → draftStore).
@@ -174,6 +178,10 @@ export function _resetPollingState() {
   if (pollInterval) {
     clearInterval(pollInterval);
     pollInterval = null;
+  }
+  if (visibilityHandler && typeof document !== "undefined" && typeof document.removeEventListener === "function") {
+    document.removeEventListener("visibilitychange", visibilityHandler);
+    visibilityHandler = null;
   }
 }
 
@@ -496,12 +504,47 @@ export const useDraftStore = create<DraftState>()(
 
       if (pollInterval) clearInterval(pollInterval);
       pollInterval = setInterval(doFetch, POLL_INTERVAL_MS);
+
+      // Register a visibility listener if the environment supports it and one is
+      // not already registered. When the tab is hidden we stop the interval to
+      // avoid burning requests while the user isn't watching; when it becomes
+      // visible again we run an immediate refresh and restart the interval.
+      if (
+        typeof document !== "undefined" &&
+        typeof document.addEventListener === "function" &&
+        visibilityHandler === null
+      ) {
+        visibilityHandler = () => {
+          if (document.visibilityState === "hidden") {
+            if (pollInterval) {
+              clearInterval(pollInterval);
+              pollInterval = null;
+            }
+          } else {
+            // Visible again — refresh immediately then resume the interval.
+            // Only act when an activeDraft is still selected (the user may have
+            // navigated away or cleared the draft while the tab was hidden).
+            if (useDraftStore.getState().activeDraft) {
+              void useDraftStore.getState().refreshNow();
+              if (pollInterval) clearInterval(pollInterval);
+              pollInterval = setInterval(doFetch, POLL_INTERVAL_MS);
+            }
+          }
+        };
+        document.addEventListener("visibilitychange", visibilityHandler);
+      }
     },
 
     stopPolling: () => {
       if (pollInterval) {
         clearInterval(pollInterval);
         pollInterval = null;
+      }
+      // Remove the visibility listener when polling stops (draft deselected or
+      // component unmounted) so we never accumulate duplicate handlers.
+      if (visibilityHandler && typeof document !== "undefined" && typeof document.removeEventListener === "function") {
+        document.removeEventListener("visibilitychange", visibilityHandler);
+        visibilityHandler = null;
       }
     },
 
