@@ -54,6 +54,7 @@ function resetStores() {
     deckReady: false,
     deckSaveStatus: "idle",
     deckBuilderActive: false,
+    viewingSharedDeck: false,
   });
 }
 

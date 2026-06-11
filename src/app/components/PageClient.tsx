@@ -47,7 +47,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   // Minimal store reads needed for layout decisions
   const activeDraft = useDraftStore((s) => s.activeDraft);
   const selectedSeat = useDraftStore((s) => s.selectedSeat);
-  const setActiveDraft = useDraftStore((s) => s.setActiveDraft);
   const setSelectedSeat = useDraftStore((s) => s.setSelectedSeat);
 
   const cardData = useCardStore((s) => s.cardData);
@@ -69,7 +68,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   const setPickError = useLiveStore((s) => s.setPickError);
   const queuedCardCounts = useLiveStore((s) => s.queuedCardCounts);
   const floatedCards = useLiveStore((s) => s.floatedCards);
-  const dispatchDeck = useLiveStore((s) => s.dispatchDeck);
   const setDeckBuilderActive = useLiveStore((s) => s.setDeckBuilderActive);
   const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
 
@@ -125,9 +123,6 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   }, [mySeat]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useSharedDeckLoader({
-    setActiveDraft,
-    setSelectedSeat,
-    dispatch: dispatchDeck,
     setDeckBuilderActive,
     setDeckBuilderModalOpen,
   });

@@ -97,6 +97,7 @@ interface LiveStoreState {
   dispatchDeck: (action: DeckAction) => void;
   setDeckBuilderActive: (active: boolean) => void;
   fetchDeckState: () => Promise<void>;
+  enterSharedView: (draftId: string, seat: number, deckState: DeckState) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -164,8 +165,13 @@ async function syncQueue(set: SetState, get: GetState, newQueue: QueueGroupEntry
 }
 
 // ---------------------------------------------------------------------------
-// Module-scoped refs for deck save debounce
+// Module-scoped refs for deck save debounce + shared-view sequencing
 // ---------------------------------------------------------------------------
+
+// Set to true by enterSharedView before calling setActiveDraft so the
+// activeDraft subscription can tell that the draft switch is for shared-deck
+// viewing and must NOT reset viewingSharedDeck back to false.
+let enteringSharedView = false;
 
 let deckDirty = false;
 let deckInFlight = false;
@@ -626,6 +632,9 @@ export const useLiveStore = create<LiveStoreState>()(
         return;
       }
 
+      // Never persist edits while viewing someone else's shared deck snapshot.
+      if (get().viewingSharedDeck) return;
+
       if (justHydrated) {
         justHydrated = false;
         return; // first change after hydration — skip save
@@ -637,6 +646,32 @@ export const useLiveStore = create<LiveStoreState>()(
 
     setDeckBuilderActive: (active: boolean) => {
       set({ deckBuilderActive: active });
+    },
+
+    // -----------------------------------------------------------------------
+    // enterSharedView — atomically switch to shared-deck viewing mode.
+    //
+    // The activeDraft subscription resets ALL live state including
+    // viewingSharedDeck whenever the draft changes.  If the loader called
+    // setActiveDraft first and then set viewingSharedDeck, fetchDeckState
+    // (fired by the subscription) would see viewingSharedDeck=false and
+    // overwrite the shared snapshot with the viewer's own WIP deck.
+    //
+    // This action sets the module-scoped enteringSharedView flag BEFORE
+    // calling setActiveDraft so the subscription preserves viewingSharedDeck.
+    // -----------------------------------------------------------------------
+    enterSharedView: (draftId: string, seat: number, sharedDeckState: DeckState) => {
+      // Signal to the subscription that it must not clear viewingSharedDeck.
+      enteringSharedView = true;
+      try {
+        useDraftStore.getState().setActiveDraft(draftId);
+        useDraftStore.getState().setSelectedSeat(seat);
+      } finally {
+        enteringSharedView = false;
+      }
+      // The subscription fired synchronously above; viewingSharedDeck is now
+      // true (preserved by the flag).  Load the snapshot.
+      get().dispatchDeck({ type: "INIT_FROM_SNAPSHOT", snapshot: sharedDeckState });
     },
 
     fetchDeckState: async () => {
@@ -760,7 +795,10 @@ useDraftStore.subscribe(
         deckState: createEmptyDeckState("", 0),
         deckReady: false,
         deckSaveStatus: "idle",
-        viewingSharedDeck: false,
+        // When enterSharedView called setActiveDraft, this subscription fires
+        // synchronously.  The enteringSharedView flag tells us to preserve the
+        // shared-view intent so fetchDeckState (called below) sees it and bails.
+        viewingSharedDeck: enteringSharedView,
       });
       useLiveStore.getState().hydrateToken(activeDraft);
       useLiveStore.getState().fetchMySeat();
