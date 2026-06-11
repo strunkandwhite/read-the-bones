@@ -622,22 +622,49 @@ export const useLiveStore = create<LiveStoreState>()(
     // Deck builder actions
     // -----------------------------------------------------------------------
     dispatchDeck: (action: DeckAction) => {
+      // Invariant: justHydrated is set by INIT_FROM_SNAPSHOT and must be
+      // consumed by the very next REBUILD (the automatic sync that follows
+      // hydration) regardless of whether that REBUILD changes state.  If the
+      // user dispatches any non-REBUILD action while justHydrated is set, the
+      // flag is also cleared — that action is a real edit and must be saved.
+      //
+      // Why this ordering matters: deckReducer can return the same reference
+      // for a no-op REBUILD (zones are identical after hydration).  Without
+      // eager flag consumption, the no-op guard below would return before the
+      // justHydrated check, leaving the flag alive to eat the user's first
+      // real edit.
+      if (action.type === "INIT_FROM_SNAPSHOT") {
+        const prev = get().deckState;
+        const next = deckReducer(prev, action);
+        if (next !== prev) set({ deckState: next });
+        justHydrated = true;
+        return;
+      }
+
+      if (action.type === "REBUILD" && justHydrated) {
+        // Consume the post-hydration rebuild flag before the no-op guard so a
+        // no-op REBUILD (same reference returned) cannot leave the flag alive.
+        justHydrated = false;
+        const prev = get().deckState;
+        const next = deckReducer(prev, action);
+        if (next !== prev) set({ deckState: next });
+        // No dirty/save — this is the automatic sync, not a user edit.
+        return;
+      }
+
       const prev = get().deckState;
       const next = deckReducer(prev, action);
       if (next === prev) return; // reducer returned same reference = no change
       set({ deckState: next });
 
-      if (action.type === "INIT_FROM_SNAPSHOT") {
-        justHydrated = true;
-        return;
-      }
-
       // Never persist edits while viewing someone else's shared deck snapshot.
       if (get().viewingSharedDeck) return;
 
       if (justHydrated) {
+        // User acted before any REBUILD came (e.g. deck builder opened
+        // immediately after hydration with no picks loaded yet).  Consume the
+        // flag and save — this is a real edit.
         justHydrated = false;
-        return; // first change after hydration — skip save
       }
 
       deckDirty = true;

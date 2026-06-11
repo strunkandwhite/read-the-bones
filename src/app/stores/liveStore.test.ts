@@ -1487,6 +1487,135 @@ describe("liveStore — dispatchDeck", () => {
 
     vi.useRealTimers();
   });
+
+  // -------------------------------------------------------------------------
+  // justHydrated flag — first-edit loss regression tests (D7)
+  // -------------------------------------------------------------------------
+
+  it("hydrate → no-op REBUILD → user move → save fires", async () => {
+    // Scenario: deck is hydrated, syncDeckWithPicks fires a REBUILD that
+    // returns the same state (no picks yet), then the user moves a card.
+    // The save MUST fire — the no-op REBUILD must not leave justHydrated alive
+    // to swallow the user's edit.
+    vi.useFakeTimers();
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    // Hydrate with a deck that has a card we can move
+    const snapshot = createEmptyDeckState("draft-1", 1);
+    snapshot.zones.deck["mv-2"] = ["Lightning Bolt"];
+    useLiveStore.getState().dispatchDeck({ type: "INIT_FROM_SNAPSHOT", snapshot });
+
+    // Simulate a no-op REBUILD: same canonical cards as what's already in the deck.
+    // deckReducer will detect no zone change and return the same reference.
+    useLiveStore.getState().dispatchDeck({
+      type: "REBUILD",
+      canonicalCards: ["Lightning Bolt"],
+      scryfallData: new Map(),
+    });
+
+    // Now the user moves a card — this is the first real edit
+    useLiveStore.getState().dispatchDeck({
+      type: "MOVE_CARD",
+      cardName: "Lightning Bolt",
+      fromZone: "deck",
+      fromColumn: "mv-2",
+      toZone: "sideboard",
+      toColumn: "mv-2",
+      toIndex: 0,
+    });
+
+    // Advance past the debounce
+    vi.advanceTimersByTime(1000);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/drafts/draft-1/deck-state",
+      expect.objectContaining({ method: "PUT" }),
+    );
+
+    vi.useRealTimers();
+  });
+
+  it("hydrate → state-changing REBUILD → no save (existing behavior preserved)", () => {
+    // A REBUILD that actually changes state after hydration should still not
+    // trigger a save — it is the automatic sync, not a user edit.
+    vi.useFakeTimers();
+
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    // Hydrate with empty deck
+    useLiveStore.getState().dispatchDeck({
+      type: "INIT_FROM_SNAPSHOT",
+      snapshot: createEmptyDeckState("draft-1", 1),
+    });
+
+    // REBUILD that adds a card (state changes, new reference returned)
+    useLiveStore.getState().dispatchDeck({
+      type: "REBUILD",
+      canonicalCards: ["Lightning Bolt"],
+      scryfallData: new Map(),
+    });
+
+    vi.advanceTimersByTime(2000);
+
+    expect(globalThis.fetch).not.toHaveBeenCalledWith(
+      "/api/drafts/draft-1/deck-state",
+      expect.objectContaining({ method: "PUT" }),
+    );
+
+    vi.useRealTimers();
+  });
+
+  it("hydrate → user edit with NO intervening REBUILD → save fires", async () => {
+    // If the user dispatches a non-REBUILD action directly after hydration
+    // (e.g. deck builder opened before picks loaded), the flag must be cleared
+    // and the edit must be saved.
+    vi.useFakeTimers();
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    // Hydrate with a deck
+    const snapshot = createEmptyDeckState("draft-1", 1);
+    snapshot.zones.deck["mv-2"] = ["Lightning Bolt"];
+    useLiveStore.getState().dispatchDeck({ type: "INIT_FROM_SNAPSHOT", snapshot });
+
+    // User moves a card immediately — no REBUILD in between
+    useLiveStore.getState().dispatchDeck({
+      type: "MOVE_CARD",
+      cardName: "Lightning Bolt",
+      fromZone: "deck",
+      fromColumn: "mv-2",
+      toZone: "sideboard",
+      toColumn: "mv-2",
+      toIndex: 0,
+    });
+
+    vi.advanceTimersByTime(1000);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/drafts/draft-1/deck-state",
+      expect.objectContaining({ method: "PUT" }),
+    );
+
+    vi.useRealTimers();
+  });
 });
 
 // ---------------------------------------------------------------------------
