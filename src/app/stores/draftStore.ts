@@ -220,8 +220,12 @@ function getStoredSeat(draftId: string | null): number | null {
   if (!draftId) return null;
   const raw = localStorage.getItem("selectedSeats");
   if (!raw) return null;
-  const seatsMap = JSON.parse(raw) as Record<string, number>;
-  return draftId in seatsMap ? seatsMap[draftId] : null;
+  try {
+    const seatsMap = JSON.parse(raw) as Record<string, number>;
+    return draftId in seatsMap ? seatsMap[draftId] : null;
+  } catch {
+    return null;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -486,7 +490,14 @@ export const useDraftStore = create<DraftState>()(
       const { activeDraft } = get();
       if (!activeDraft) return;
       const raw = localStorage.getItem("selectedSeats");
-      const seatsMap: Record<string, number> = raw ? JSON.parse(raw) : {};
+      let seatsMap: Record<string, number> = {};
+      if (raw) {
+        try {
+          seatsMap = JSON.parse(raw) as Record<string, number>;
+        } catch {
+          seatsMap = {};
+        }
+      }
       if (seat === null) {
         delete seatsMap[activeDraft];
       } else {
@@ -510,8 +521,12 @@ export const useDraftStore = create<DraftState>()(
       if (draftId) {
         const storedSeats = localStorage.getItem("selectedSeats");
         if (storedSeats) {
-          const seatsMap = JSON.parse(storedSeats) as Record<string, number>;
-          if (draftId in seatsMap) selectedSeat = seatsMap[draftId];
+          try {
+            const seatsMap = JSON.parse(storedSeats) as Record<string, number>;
+            if (draftId in seatsMap) selectedSeat = seatsMap[draftId];
+          } catch {
+            // Corrupt localStorage — ignore and start with no seat selection
+          }
         }
       }
 

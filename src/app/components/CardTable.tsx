@@ -22,6 +22,7 @@ import { InfoTooltip } from "./InfoTooltip";
 import { useCardStore } from "../stores/cardStore";
 import { useCardStatuses } from "../stores/selectors";
 import { isLocalClient } from "@/core/isLocal";
+import { ciMarginPct } from "@/core/wilsonInterval";
 
 export interface CardTableProps {
   cards: EnrichedCardStats[];
@@ -210,7 +211,7 @@ export function CardTable({
               );
             }
             const ci = row.original.gpwrCi;
-            const margin = ci ? Math.round((ci.upper - ci.lower) * 50) : 0;
+            const margin = ci ? ciMarginPct(ci) : 0;
             return (
               <span className="font-mono text-sm text-zinc-800 dark:text-zinc-200">
                 <span className="font-semibold">{(gpwr * 100).toFixed(0)}%</span>

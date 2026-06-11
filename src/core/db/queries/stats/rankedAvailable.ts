@@ -3,7 +3,7 @@
  */
 
 import { getClient } from "../../client";
-import { getSeatsMatchingColors, placeholders } from "../helpers";
+import { fetchOptOuts, getSeatsMatchingColors, placeholders } from "../helpers";
 import { getAvailableCards } from "../picks";
 import { calculatePickWeight, round3, weightedGeometricMean } from "../../../utils";
 import { wilsonInterval } from "../../../wilsonInterval";
@@ -189,17 +189,7 @@ export async function rankAvailableCards(
   for (const row of winResult.rows) allDraftIds.add(row.draft_id as string);
 
   // Get opt-outs for all relevant drafts
-  const optedOut = new Set<string>();
-  if (allDraftIds.size > 0) {
-    const allDraftIdArr = [...allDraftIds];
-    const optOutResult = await client.execute({
-      sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${placeholders(allDraftIdArr.length)})`,
-      args: allDraftIdArr,
-    });
-    for (const row of optOutResult.rows) {
-      optedOut.add(`${row.draft_id}:${row.seat}`);
-    }
-  }
+  const optedOut = await fetchOptOuts(client, [...allDraftIds]);
 
   // If deck_colors is set, get matching seats across all relevant drafts
   let matchingSeats: Set<string> | null = null;

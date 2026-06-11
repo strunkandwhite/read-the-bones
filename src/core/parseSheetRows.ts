@@ -83,43 +83,6 @@ export function parsePoolRows(rows: string[][]): string[] {
 }
 
 /**
- * Parse pool rows to get unpicked cards with their colors.
- *
- * Row format:
- * - Column A (index 0): Checkmark (✓ if picked, empty if not)
- * - Column B (index 1): Card name
- * - Column D (index 3): Color
- * - Row 0: Header (skipped)
- */
-export function parseUnpickedCards(
-  rows: string[][]
-): Array<{ name: string; color: string }> {
-  const unpickedCards: Array<{ name: string; color: string }> = [];
-
-  // Skip header row (index 0)
-  for (let i = 1; i < rows.length; i++) {
-    const row = rows[i];
-    if (!row || row.length < 2) continue;
-
-    const checkMark = row[0]?.trim();
-    const cardName = row[1]?.trim();
-
-    if (!cardName) continue;
-
-    const normalizedName = normalizeCardName(cardName);
-    if (!normalizedName) continue;
-
-    // If not checked (no ✓), it's unpicked
-    if (checkMark !== "✓") {
-      const color = row[3]?.trim() || ""; // Color is in column D (index 3)
-      unpickedCards.push({ name: normalizedName, color });
-    }
-  }
-
-  return unpickedCards;
-}
-
-/**
  * Parse pick rows from a draft sheet.
  *
  * Row format:

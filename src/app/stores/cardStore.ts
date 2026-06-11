@@ -10,6 +10,7 @@ import { isLocalClient } from "@/core/isLocal";
 import { getFrontFace } from "@/core/cardNames";
 import { searchLocalCards } from "@/core/localSearch";
 import { hasScryfallOperators } from "@/core/searchUtils";
+import { DEFAULT_NUM_SEATS } from "@/core/constants";
 
 // ---------------------------------------------------------------------------
 // Empty defaults
@@ -285,7 +286,7 @@ function recompute() {
     name: cardData.draftMetadata[id]?.name || id,
     date: cardData.draftMetadata[id]?.date || "1970-01-01",
     isComplete: completedSet.has(id),
-    numDrafters: cardData.draftMetadata[id]?.numDrafters || 10,
+    numDrafters: cardData.draftMetadata[id]?.numDrafters || DEFAULT_NUM_SEATS,
   }));
 
   useCardStore.setState({
@@ -452,8 +453,12 @@ export const useCardStore = create<CardStoreState>()(
       if (!hasScryfallOperators(trimmed)) {
         set({ scryfallMatchNames: null });
         recompute();
-        setTimeout(() => {
-          track("search", { query_type: "name", result_count: -1 });
+        // Debounce the analytics event so only the settled query fires,
+        // not every intermediate keystroke. Compute the real result count
+        // at fire time (after the user has stopped typing and recompute ran).
+        searchTimeout = setTimeout(() => {
+          const resultCount = useCardStore.getState().searchFilteredCards.length;
+          track("search", { query_type: "name", result_count: resultCount });
         }, 500);
         return;
       }

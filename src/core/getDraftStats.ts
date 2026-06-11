@@ -51,6 +51,9 @@ async function computeWinRateBySeat(
   const result = await client.execute({
     sql: `
       WITH ten_seat_drafts AS (
+        -- 10 is baked into the SQL: seat position is only comparable across drafts
+        -- of the same size, and all historical drafts in production use 10 seats.
+        -- Update this filter if multi-size seat-win-rate aggregation is ever needed.
         SELECT draft_id FROM drafts WHERE num_seats = 10
       )
       SELECT seat, SUM(wins) AS total_wins, SUM(losses) AS total_losses

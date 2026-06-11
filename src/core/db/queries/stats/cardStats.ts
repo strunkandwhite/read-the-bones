@@ -5,7 +5,7 @@
 import { parseScryfallJson } from "../helpers";
 import { resolveCard } from "../cards";
 import { getCardPlayStats } from "../playStats";
-import { getCardWinStats } from "../winStats";
+import { getCardWinStats, type CardWinStatsResult } from "../winStats";
 import { wilsonInterval } from "../../../wilsonInterval";
 import { getCardPickStats } from "./pickStats";
 import { getPickHistory, type PickHistoryEntry } from "./pickHistory";
@@ -65,6 +65,30 @@ export interface CardStatsResult {
   times_banned: number;
   // Top color pair archetypes that maindeck this card
   color_pair_breakdown: ColorPairEntry[];
+}
+
+/**
+ * Build the win-rate section of CardStatsResult from a CardWinStatsResult.
+ * Returns null when the stats object is null or has no maindeck data.
+ * `filtered` indicates whether deck_colors was applied to produce these stats.
+ */
+function buildWinsResult(
+  stats: CardWinStatsResult | null,
+  filtered: boolean
+): CardStatsResult["wins"] {
+  if (!stats || stats.times_maindecked <= 0) return null;
+  const totalGames = stats.game_wins + stats.game_losses;
+  const ci = wilsonInterval(stats.game_wins, totalGames);
+  return {
+    seats_maindecked: stats.times_maindecked,
+    game_wins: stats.game_wins,
+    game_losses: stats.game_losses,
+    win_rate: stats.win_rate,
+    win_rate_ci: ci,
+    low_sample: stats.times_maindecked < MIN_SAMPLE_SIZE,
+    drafts_with_data: stats.drafts_with_data,
+    filtered,
+  };
 }
 
 /**
@@ -152,21 +176,8 @@ export async function getCardStats(
 
   // Build win stats with confidence interval.
   // When deck_colors is specified and filtered wins are empty, fall back to overall stats.
-  let wins: CardStatsResult["wins"] = null;
-  if (winStats && winStats.times_maindecked > 0) {
-    const totalGames = winStats.game_wins + winStats.game_losses;
-    const ci = wilsonInterval(winStats.game_wins, totalGames);
-    wins = {
-      seats_maindecked: winStats.times_maindecked,
-      game_wins: winStats.game_wins,
-      game_losses: winStats.game_losses,
-      win_rate: winStats.win_rate,
-      win_rate_ci: ci,
-      low_sample: winStats.times_maindecked < MIN_SAMPLE_SIZE,
-      drafts_with_data: winStats.drafts_with_data,
-      filtered: !!params.deck_colors,
-    };
-  } else if (params.deck_colors) {
+  let wins: CardStatsResult["wins"] = buildWinsResult(winStats, !!params.deck_colors);
+  if (!wins && params.deck_colors) {
     // Fallback: fetch overall win stats without color filter
     const overallWinStats = await getCardWinStats(client, {
       card_name: card.name,
@@ -174,20 +185,7 @@ export async function getCardStats(
       draft_id: params.draft_id,
       exclude_draft_id: params.exclude_draft_id,
     });
-    if (overallWinStats && overallWinStats.times_maindecked > 0) {
-      const totalGames = overallWinStats.game_wins + overallWinStats.game_losses;
-      const ci = wilsonInterval(overallWinStats.game_wins, totalGames);
-      wins = {
-        seats_maindecked: overallWinStats.times_maindecked,
-        game_wins: overallWinStats.game_wins,
-        game_losses: overallWinStats.game_losses,
-        win_rate: overallWinStats.win_rate,
-        win_rate_ci: ci,
-        low_sample: overallWinStats.times_maindecked < MIN_SAMPLE_SIZE,
-        drafts_with_data: overallWinStats.drafts_with_data,
-        filtered: false,
-      };
-    }
+    wins = buildWinsResult(overallWinStats, false);
   }
 
   return {

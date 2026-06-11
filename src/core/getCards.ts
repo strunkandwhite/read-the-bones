@@ -557,7 +557,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
   // Convert draftMetadata Map to plain object
   const draftMetadataObj: Record<string, { name: string; date: string; numDrafters: number }> = {};
   for (const [id, meta] of draftMetadataMap) {
-    draftMetadataObj[id] = { name: meta.name, date: meta.date, numDrafters: meta.numDrafters ?? 10 };
+    draftMetadataObj[id] = { name: meta.name, date: meta.date, numDrafters: meta.numDrafters ?? DEFAULT_NUM_SEATS };
   }
 
   // Query taken cards with seat info for active draft filtering

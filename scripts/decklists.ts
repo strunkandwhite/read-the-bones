@@ -23,6 +23,14 @@ import { slugify } from "./lib/slugify";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DECKLISTS_FILE = join(__dirname, "..", "data", "decklists.txt");
 
+// A decklist must share at least this fraction of the seat's picks to be considered
+// a match. Below this threshold the assignment is likely wrong (e.g. unsorted pool).
+const SEAT_MATCH_SCORE_THRESHOLD = 0.5;
+
+// Delay between sealeddeck.tech fetches (ms). sealeddeck.tech is a small site;
+// be a considerate client.
+const SEALEDDECK_RATE_LIMIT_MS = 200;
+
 const BASIC_LANDS = new Set([
   "plains",
   "island",
@@ -153,7 +161,7 @@ function matchDecksToSeats(
       }
     }
 
-    if (bestScore < 0.5) {
+    if (bestScore < SEAT_MATCH_SCORE_THRESHOLD) {
       console.warn(
         `  WARNING: Low match score for ${decklist.sealeddeckId}: ${(bestScore * 100).toFixed(1)}% (best seat: ${bestSeat})`,
       );
@@ -242,7 +250,7 @@ async function fetchAllDecklists(urls: string[]): Promise<DecklistEntry[]> {
       });
 
       // Rate limit: sealeddeck.tech is a small site
-      await new Promise((r) => setTimeout(r, 200));
+      await new Promise((r) => setTimeout(r, SEALEDDECK_RATE_LIMIT_MS));
     } catch (error) {
       console.error(`  ERROR fetching ${id}: ${error}`);
     }
@@ -272,6 +280,47 @@ async function resolveCard(
     cardCache.set(normalized, cardId);
   }
   return cardId;
+}
+
+// ============================================================================
+// Zone resolution helper
+// ============================================================================
+
+/**
+ * Resolve a list of card names for one deck zone into qtyMap entries.
+ *
+ * @param warnOnMiss - deck zone warns on unresolved names (they indicate real
+ *   data quality issues); sideboard silently ignores misses because basic lands
+ *   and other filtered-out cards legitimately appear there.
+ */
+async function resolveZoneCards(
+  client: Client,
+  cardCache: CardCache,
+  cardNames: string[],
+  zone: "deck" | "sideboard",
+  seat: number,
+  qtyMap: Map<string, { cardId: number; zone: "deck" | "sideboard"; qty: number }>,
+  warnOnMiss: boolean,
+): Promise<number> {
+  let warnings = 0;
+  for (const cardName of cardNames) {
+    const cardId = await resolveCard(client, cardCache, cardName);
+    if (cardId !== null) {
+      const key = `${cardId}:${zone}`;
+      const existing = qtyMap.get(key);
+      if (existing) {
+        existing.qty++;
+      } else {
+        qtyMap.set(key, { cardId, zone, qty: 1 });
+      }
+    } else if (warnOnMiss) {
+      warnings++;
+      console.warn(`  Warning: Card not found: "${cardName}" (seat ${seat} ${zone})`);
+    }
+    // When warnOnMiss is false (sideboard), misses are intentionally silent —
+    // basic lands and other filtered cards legitimately appear there.
+  }
+  return warnings;
 }
 
 // ============================================================================
@@ -357,37 +406,9 @@ async function main() {
 
       // Resolve card names and build insert batch, aggregating duplicates
       const qtyMap = new Map<string, { cardId: number; zone: "deck" | "sideboard"; qty: number }>();
-      let warnings = 0;
 
-      for (const cardName of entry.deck) {
-        const cardId = await resolveCard(client, cardCache, cardName);
-        if (cardId !== null) {
-          const key = `${cardId}:deck`;
-          const existing = qtyMap.get(key);
-          if (existing) {
-            existing.qty++;
-          } else {
-            qtyMap.set(key, { cardId, zone: "deck", qty: 1 });
-          }
-        } else {
-          warnings++;
-          console.warn(`  Warning: Card not found: "${cardName}" (seat ${seat} deck)`);
-        }
-      }
-
-      for (const cardName of entry.sideboard) {
-        const cardId = await resolveCard(client, cardCache, cardName);
-        if (cardId !== null) {
-          const key = `${cardId}:sideboard`;
-          const existing = qtyMap.get(key);
-          if (existing) {
-            existing.qty++;
-          } else {
-            qtyMap.set(key, { cardId, zone: "sideboard", qty: 1 });
-          }
-        }
-        // Sideboard misses are silent (may include basic lands already filtered)
-      }
+      const warnings = await resolveZoneCards(client, cardCache, entry.deck, "deck", seat, qtyMap, true);
+      await resolveZoneCards(client, cardCache, entry.sideboard, "sideboard", seat, qtyMap, false);
 
       const deckCards: DeckCardInsert[] = [...qtyMap.values()].map((e) => ({
         draftId,

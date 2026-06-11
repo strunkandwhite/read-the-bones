@@ -4,13 +4,14 @@
 // Usage: pnpm draft:admin <subcommand> <name> [options]
 //
 // Subcommands:
-//   undo-pick <name> [--pick <n>]          Delete most recent pick (or specific pick_n)
+//   undo-pick <name> [--pick <n>]              Delete most recent pick (or specific pick_n)
 //   edit-pick <name> --pick <n> --card <name>  Update card on a pick event
-//   regen-token <name> --seat <n>          Regenerate a seat token
-//   set-phase <name> --phase <phase>       Update draft phase
-//   add-ban <name> --card <name>           Add a card to banned list
-//   remove-ban <name> --card <name>        Remove a card from banned list
+//   regen-token <name> --seat <n>              Regenerate a seat token
+//   set-phase <name> --phase <phase>           Update draft phase
+//   add-ban <name> --card <name>               Add a card to banned list
+//   remove-ban <name> --card <name>            Remove a card from banned list
 //   enter-match <name> --seats 1,5 --wins 2,1  Record a match result
+//   reorder-seats <name> --order 3,1,4,2,...   Reorder seat pick positions (setup phase only)
 
 import { createClient, type Client } from "@libsql/client";
 import { loadEnv } from "../src/core/db/ingest/utils";
@@ -202,6 +203,21 @@ async function enterMatch(client: Client, draftId: string, args: string[]) {
   if (seatParts.some(isNaN)) throw new Error("--seats values must be numbers");
   if (winParts.some(isNaN)) throw new Error("--wins values must be numbers");
 
+  const rawSeat1 = seatParts[0];
+  const rawSeat2 = seatParts[1];
+
+  if (rawSeat1 === rawSeat2) throw new Error("--seats must be two different seat numbers");
+
+  // Validate seat bounds against the draft's num_seats
+  const draft = await client.execute({
+    sql: "SELECT num_seats FROM drafts WHERE draft_id = ?",
+    args: [draftId],
+  });
+  if (draft.rows.length === 0) throw new Error(`Draft "${draftId}" not found`);
+  const numSeats = draft.rows[0].num_seats as number;
+  if (rawSeat1 < 1 || rawSeat1 > numSeats) throw new Error(`Seat ${rawSeat1} out of range (1–${numSeats})`);
+  if (rawSeat2 < 1 || rawSeat2 > numSeats) throw new Error(`Seat ${rawSeat2} out of range (1–${numSeats})`);
+
   // Normalize seat order: seat1 < seat2, rearranging wins accordingly
   let [seat1, seat2] = seatParts;
   let [seat1Wins, seat2Wins] = winParts;
@@ -210,9 +226,13 @@ async function enterMatch(client: Client, draftId: string, args: string[]) {
     [seat1Wins, seat2Wins] = [seat2Wins, seat1Wins];
   }
 
+  // Record reported_by_seat as the lower-numbered seat (admin entry — both
+  // players are presumed to agree). This mirrors the convention in reportMatchResult.
+  const reportedBySeat = seat1;
+
   await client.execute({
-    sql: "INSERT OR REPLACE INTO match_events (draft_id, seat1, seat2, seat1_wins, seat2_wins) VALUES (?, ?, ?, ?, ?)",
-    args: [draftId, seat1, seat2, seat1Wins, seat2Wins],
+    sql: "INSERT OR REPLACE INTO match_events (draft_id, seat1, seat2, seat1_wins, seat2_wins, reported_by_seat) VALUES (?, ?, ?, ?, ?, ?)",
+    args: [draftId, seat1, seat2, seat1Wins, seat2Wins, reportedBySeat],
   });
 
   console.log(`Recorded match in draft "${draftId}": seat ${seat1} (${seat1Wins}W) vs seat ${seat2} (${seat2Wins}W)`);

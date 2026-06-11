@@ -5,7 +5,6 @@ import {
   isArrow,
   isDraftComplete,
   parsePoolRows,
-  parseUnpickedCards,
   parsePickRows,
   parseMatchRows,
 } from "./parseSheetRows";
@@ -197,55 +196,6 @@ describe("parsePoolRows", () => {
     ];
     const allCards = parsePoolRows(poolWithShortRows);
     expect(allCards).toHaveLength(1);
-  });
-});
-
-describe("parseUnpickedCards", () => {
-  const poolRows = [
-    ["✓", "Card", "Type", "Color"],
-    ["✓", "Phelia", "Creature", "W"],
-    ["", "Unpicked Card", "Instant", "U"],
-    ["✓", "Swords to Plowshares", "Instant", "W"],
-    ["", "Another Unpicked", "Sorcery", "BR"],
-  ];
-
-  it("should return only unpicked cards", () => {
-    const unpicked = parseUnpickedCards(poolRows);
-    expect(unpicked).toHaveLength(2);
-    expect(unpicked[0]).toEqual({ name: "Unpicked Card", color: "U" });
-    expect(unpicked[1]).toEqual({ name: "Another Unpicked", color: "BR" });
-  });
-
-  it("should handle empty rows", () => {
-    expect(parseUnpickedCards([])).toEqual([]);
-  });
-
-  it("should handle all cards picked", () => {
-    const allPicked = [
-      ["✓", "Card", "Type", "Color"],
-      ["✓", "Card1", "Creature", "W"],
-      ["✓", "Card2", "Instant", "U"],
-    ];
-    expect(parseUnpickedCards(allPicked)).toEqual([]);
-  });
-
-  it("should handle missing color column", () => {
-    const noColor = [
-      ["✓", "Card"],
-      ["", "Unpicked Card"],
-    ];
-    const unpicked = parseUnpickedCards(noColor);
-    expect(unpicked).toHaveLength(1);
-    expect(unpicked[0].color).toBe("");
-  });
-
-  it("should normalize card names", () => {
-    const withSuffix = [
-      ["✓", "Card", "Type", "Color"],
-      ["", "Scalding Tarn 2", "Land", "C"],
-    ];
-    const unpicked = parseUnpickedCards(withSuffix);
-    expect(unpicked[0].name).toBe("Scalding Tarn");
   });
 });
 

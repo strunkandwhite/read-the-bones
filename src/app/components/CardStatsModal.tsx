@@ -15,6 +15,11 @@ import { ColorPills } from "./ManaSymbols";
 import type { DraftScore } from "@/core/types";
 
 import type { CardStatus } from "@/core/cardStatus";
+import { ciMarginPct } from "@/core/wilsonInterval";
+
+// Minimum duration (ms) to show the disabled state after a queue/pick/float action,
+// so the UI change is perceptible even if the server responds instantly.
+const ACTION_PENDING_MIN_MS = 600;
 
 export function CardStatsModal() {
   // Card store
@@ -84,7 +89,7 @@ export function CardStatsModal() {
       minimumElapsedRef.current = true;
       // If cardStatus already changed while we were waiting, re-enable now
       setActionPending(false);
-    }, 600);
+    }, ACTION_PENDING_MIN_MS);
   }, []);
 
   const handlePick = useCallback(async () => {
@@ -279,7 +284,7 @@ function StatsContent({ data, isLocal }: { data: StatsData; isLocal?: boolean })
           <StatRow
             label="GPWR"
             value={`${(wins.win_rate * 100).toFixed(0)}%`}
-            annotation={`\u00b1${Math.round((wins.win_rate_ci.upper - wins.win_rate_ci.lower) * 50)}%`}
+            annotation={`\u00b1${ciMarginPct(wins.win_rate_ci)}%`}
           />
         )}
       </div>

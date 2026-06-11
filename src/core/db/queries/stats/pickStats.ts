@@ -4,7 +4,7 @@
 
 import type { Client } from "@libsql/client";
 import { resolveCard } from "../cards";
-import { parseBannedCards, placeholders } from "../helpers";
+import { fetchOptOuts, parseBannedCards, placeholders } from "../helpers";
 import { calculatePickWeight, round3, weightedGeometricMean } from "../../../utils";
 import { DEFAULT_POOL_SIZE } from "../../../types";
 import { statsPhaseFilter } from "../../../draftPhases";
@@ -156,7 +156,7 @@ export async function getCardPickStats(
 
   // picks, opt-outs, and deck_cards all depend on draftIds — run in parallel
   const ph = placeholders(draftIds.length);
-  const [picksResult, optOutResult, deckCardsResult] = await Promise.all([
+  const [picksResult, optedOut, deckCardsResult] = await Promise.all([
     client.execute({
       sql: `SELECT pe.draft_id, pe.pick_n, pe.seat
             FROM pick_events pe
@@ -164,10 +164,7 @@ export async function getCardPickStats(
             ORDER BY pe.draft_id, pe.pick_n`,
       args: [card_id, ...draftIds],
     }),
-    client.execute({
-      sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${ph})`,
-      args: draftIds,
-    }),
+    fetchOptOuts(client, draftIds),
     client.execute({
       sql: `SELECT dc.draft_id, dc.seat, dc.zone
             FROM deck_cards dc
@@ -175,11 +172,6 @@ export async function getCardPickStats(
       args: [card_id, ...draftIds],
     }),
   ]);
-
-  const optedOut = new Set<string>();
-  for (const row of optOutResult.rows) {
-    optedOut.add(`${row.draft_id}:${row.seat}`);
-  }
 
   // For cards that appear multiple times in a draft, track copy numbers
   const picksByDraft = new Map<string, { pick_n: number; seat: number }[]>();

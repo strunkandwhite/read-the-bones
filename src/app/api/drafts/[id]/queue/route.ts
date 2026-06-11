@@ -7,6 +7,10 @@ import { getRemainingCopies } from "@/core/db/queries/helpers";
 import { addFloatedCards, removeFloatedCards } from "@/core/db/queries/floatedCards";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
+// Maximum number of cards a seat's queue may contain. This bounds DB row count
+// and prevents accidental queue bloat from scripted or buggy clients.
+const QUEUE_CARD_CAP = 500;
+
 export const GET = withApiErrors(
   async (
     request: NextRequest,
@@ -53,8 +57,8 @@ export const PUT = withApiErrors(
 
     // Flatten card names for total count check
     const allCardNames = normalizedEntries.flatMap((e) => e.cardNames);
-    if (allCardNames.length > 500) {
-      return NextResponse.json({ error: "Queue cannot exceed 500 cards" }, { status: 400 });
+    if (allCardNames.length > QUEUE_CARD_CAP) {
+      return NextResponse.json({ error: `Queue cannot exceed ${QUEUE_CARD_CAP} cards` }, { status: 400 });
     }
 
     // Batch resolve card names to IDs

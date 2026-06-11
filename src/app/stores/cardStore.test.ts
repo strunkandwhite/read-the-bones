@@ -976,3 +976,68 @@ describe("cardStore — card stats modal", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Analytics debounce (Q11)
+// ---------------------------------------------------------------------------
+
+describe("cardStore — analytics debounce for plain-name search", () => {
+  let trackMock: ReturnType<typeof vi.fn>;
+
+  beforeEach(async () => {
+    resetStores();
+    vi.useFakeTimers();
+    const mod = await import("@vercel/analytics/react");
+    trackMock = mod.track as ReturnType<typeof vi.fn>;
+    trackMock.mockClear();
+
+    // Seed a card so searchFilteredCards has a real count
+    useCardStore.setState({
+      cardData: {
+        ...EMPTY_CARD_DATA,
+        cards: [makeCard("Lightning Bolt"), makeCard("Counterspell")],
+      },
+      searchFilteredCards: [makeCard("Lightning Bolt")],
+      displayCards: [makeCard("Lightning Bolt"), makeCard("Counterspell")],
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    _resetSearchState();
+  });
+
+  it("fires exactly one analytics event after the debounce settles", () => {
+    // Type 3 characters quickly
+    useCardStore.getState().setSearchQuery("l");
+    useCardStore.getState().setSearchQuery("li");
+    useCardStore.getState().setSearchQuery("lig");
+    expect(trackMock).not.toHaveBeenCalled();
+
+    vi.advanceTimersByTime(500);
+    expect(trackMock).toHaveBeenCalledTimes(1);
+    expect(trackMock).toHaveBeenCalledWith("search", expect.objectContaining({ query_type: "name" }));
+  });
+
+  it("cancels pending analytics event when query changes", () => {
+    useCardStore.getState().setSearchQuery("bol");
+    vi.advanceTimersByTime(200); // Not settled yet
+    useCardStore.getState().setSearchQuery("bolt");
+    vi.advanceTimersByTime(500); // Only the second event should fire
+    expect(trackMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("result_count reflects settled searchFilteredCards length (not -1)", () => {
+    // searchFilteredCards is pre-seeded with 1 card above
+    useCardStore.getState().setSearchQuery("bolt");
+    vi.advanceTimersByTime(500);
+    expect(trackMock).toHaveBeenCalledWith(
+      "search",
+      expect.objectContaining({ result_count: expect.not.stringMatching(/-1/) }),
+    );
+    // result_count should be a number (not the old -1 placeholder)
+    const call = trackMock.mock.calls[0][1] as { result_count: unknown };
+    expect(typeof call.result_count).toBe("number");
+    expect(call.result_count).not.toBe(-1);
+  });
+});

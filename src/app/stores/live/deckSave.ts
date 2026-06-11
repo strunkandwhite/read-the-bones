@@ -35,6 +35,9 @@ let syncDeckTimer: ReturnType<typeof setTimeout> | null = null;
 
 const DECK_SAVE_DEBOUNCE_MS = 1000;
 const DECK_SAVE_STATUS_RESET_MS = 2000;
+// After a network error, wait before retrying the save so a brief outage
+// doesn't immediately hammer the server.
+const DECK_SAVE_RETRY_DELAY_MS = 5000;
 
 // ---------------------------------------------------------------------------
 // Exported flag accessors (for wiring.ts subscriptions and activeDraft handler)
@@ -103,7 +106,7 @@ async function flushDeckSave(
     getLiveStore().setState({ deckSaveStatus: "idle" });
     setTimeout(() => {
       if (deckDirty) void flushDeckSave(scheduledForDraft, getLiveStore);
-    }, 5000);
+    }, DECK_SAVE_RETRY_DELAY_MS);
   }
 
   deckInFlight = false;

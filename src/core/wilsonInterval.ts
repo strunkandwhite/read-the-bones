@@ -6,6 +6,15 @@
 import { round3 } from "./utils";
 
 /**
+ * Compute the ±margin percentage from a Wilson confidence interval.
+ * Returns an integer (e.g. 8 means "±8%").
+ * Formula: (upper − lower) × 50, which is half the interval width as a percentage.
+ */
+export function ciMarginPct(ci: { lower: number; upper: number }): number {
+  return Math.round((ci.upper - ci.lower) * 50);
+}
+
+/**
  * Calculate Wilson score confidence interval.
  * @param wins Number of successes
  * @param total Total number of trials

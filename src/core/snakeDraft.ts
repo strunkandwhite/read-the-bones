@@ -9,12 +9,16 @@ interface SnakeDraftOpts {
   picksPerPlayer: number;
 }
 
+// The last quarter of rounds use double-picks (each player picks twice per round).
+// Given N rounds total, floor(N/4) rounds are double-pick rounds at the end.
+const DOUBLE_PICK_FINAL_FRACTION = 4;
+
 export function derivePickSeat(
   pickNumber: number,
   opts: SnakeDraftOpts,
 ): PickSeatResult {
   const { numSeats, picksPerPlayer } = opts;
-  const doublePickRounds = Math.floor(picksPerPlayer / 4);
+  const doublePickRounds = Math.floor(picksPerPlayer / DOUBLE_PICK_FINAL_FRACTION);
   const singlePickRounds = picksPerPlayer - 2 * doublePickRounds;
   const singlePickTotal = singlePickRounds * numSeats;
   const doublePickTotal = doublePickRounds * numSeats * 2;

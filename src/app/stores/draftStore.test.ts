@@ -158,6 +158,42 @@ describe("draftStore — selection state", () => {
 });
 
 // ---------------------------------------------------------------------------
+// JSON.parse guards (corrupt localStorage)
+// ---------------------------------------------------------------------------
+describe("draftStore — corrupt localStorage resilience", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStore();
+  });
+
+  it("getStoredSeat (via setActiveDraft) returns null on corrupt selectedSeats", () => {
+    localStorage.setItem("selectedSeats", "not-valid-json{{{");
+    // setActiveDraft calls getStoredSeat internally
+    useDraftStore.getState().setActiveDraft("draft-1");
+    expect(useDraftStore.getState().selectedSeat).toBeNull();
+  });
+
+  it("setSelectedSeat overwrites corrupt selectedSeats without throwing", () => {
+    localStorage.setItem("selectedSeats", "corrupt");
+    useDraftStore.getState().setActiveDraft("draft-1");
+    expect(() => useDraftStore.getState().setSelectedSeat(3)).not.toThrow();
+    expect(useDraftStore.getState().selectedSeat).toBe(3);
+    const stored = JSON.parse(localStorage.getItem("selectedSeats")!);
+    expect(stored["draft-1"]).toBe(3);
+  });
+
+  it("hydrate ignores corrupt selectedSeats and leaves selectedSeat null", () => {
+    localStorage.setItem("activeDraft", "draft-1");
+    localStorage.setItem("selectedSeats", "{bad json");
+    expect(() =>
+      useDraftStore.getState().hydrate({ completedDraftIds: ["draft-1"] })
+    ).not.toThrow();
+    expect(useDraftStore.getState().selectedSeat).toBeNull();
+    expect(useDraftStore.getState().activeDraft).toBe("draft-1");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // poolAsOfDraft
 // ---------------------------------------------------------------------------
 describe("draftStore — poolAsOfDraft", () => {
