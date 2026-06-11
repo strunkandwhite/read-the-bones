@@ -4,7 +4,8 @@
 
 import type { Client } from "@libsql/client";
 import type { Card } from "../schema";
-import { rowToCard, parseScryfallJson, fetchFromScryfallApi, placeholders, type LookupCardResult } from "./helpers";
+import { rowToCard, parseScryfallJson, placeholders, type LookupCardResult } from "./helpers";
+import { fetchFromScryfallApi } from "../../scryfallApi";
 
 /**
  * Resolve a card by name (case-insensitive).
@@ -98,10 +99,10 @@ export async function resolveCardFuzzy(client: Client, cardName: string): Promis
 
 /**
  * Look up a card by name and return parsed Scryfall data.
- * First checks the local database, then falls back to the Scryfall API.
- * Returns structured card information.
+ * First checks the local database. If not found, falls back to a live Scryfall
+ * API call — callers should be aware this may make a network request.
  */
-export async function lookupCard(
+export async function lookupCardWithApiFallback(
   client: Client,
   cardName: string
 ): Promise<LookupCardResult | null> {
@@ -119,7 +120,7 @@ export async function lookupCard(
     };
   }
 
-  // Fallback: query the Scryfall API directly
+  // Fallback: query the Scryfall API directly when the card isn't in the DB
   return fetchFromScryfallApi(cardName);
 }
 

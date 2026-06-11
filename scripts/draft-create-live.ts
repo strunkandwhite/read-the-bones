@@ -4,20 +4,14 @@
 // Usage: pnpm draft:create-live --name "Tarkir Rotisserie" --date 2026-04-01 --seats 10 --picks-per-player 45 --pool cubecobra:modern_cube_id [--banned-cards "Card A,Card B"]
 
 import { createClient } from "@libsql/client";
-import { loadEnv, generateOracleId, computeCubeHash } from "../src/core/db/ingest/utils";
+import { loadEnv, computeCubeHash } from "../src/core/db/ingest/utils";
 import { loadCardPool } from "../src/core/cubecobra";
 import { CardCache } from "../src/core/db/sync/card-cache";
 import { batchInsertCubeSnapshotCards } from "../src/core/db/sync/batch";
 import { generateSeatTokens } from "../src/core/db/queries/seatTokens";
 import { loadScryfallCache } from "../src/core/db/ingest/scryfall";
-import { cardNameKey } from "../src/core/parseSheetRows";
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
+import { resolveCardNamesToCache } from "../src/core/db/ingest/serializeScryfall";
+import { slugify } from "./lib/slugify";
 
 function parseArgs(args: string[]) {
   let name = "",
@@ -92,33 +86,8 @@ async function main() {
   }
   const uniqueNames = Array.from(nameCounts.keys());
 
-  // Resolve each unique card name
-  for (const cardName of uniqueNames) {
-    if (cardCache.get(cardName) !== undefined) continue;
-
-    const key = cardNameKey(cardName);
-    const scryfallEntry = scryfallCache.get(key);
-
-    if (scryfallEntry) {
-      const oracleId = generateOracleId(cardName);
-      const scryfallJson = JSON.stringify({
-        name: scryfallEntry.name,
-        color_identity: scryfallEntry.colorIdentity,
-        colors: scryfallEntry.colors,
-        type_line: scryfallEntry.typeLine,
-        oracle_text: scryfallEntry.oracleText,
-        mana_cost: scryfallEntry.manaCost,
-        cmc: scryfallEntry.manaValue,
-        image_uris: scryfallEntry.imageUri
-          ? { normal: scryfallEntry.imageUri }
-          : undefined,
-      });
-      cardCache.markMissing(cardName, oracleId, scryfallJson);
-    } else {
-      const oracleId = generateOracleId(cardName);
-      cardCache.markMissing(cardName, oracleId, null);
-    }
-  }
+  // Resolve each unique card name against the Scryfall cache
+  resolveCardNamesToCache(uniqueNames, cardCache, scryfallCache);
 
   await cardCache.flushMissing(client);
   console.log(`  ${cardCache.size} cards in cache after resolution`);

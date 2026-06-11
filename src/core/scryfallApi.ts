@@ -118,6 +118,48 @@ export async function fetchCard(cardName: string): Promise<ScryCard | null> {
 }
 
 /**
+ * Shape returned by fetchFromScryfallApi: a slim snake_case representation
+ * matching the LookupCardResult contract used by the API search route.
+ */
+export interface LookupCardResult {
+  name: string;
+  oracle_text: string | null;
+  type_line: string | null;
+  mana_cost: string | null;
+  color_identity: string[];
+}
+
+/**
+ * Fetch card data from the Scryfall API and return a slim LookupCardResult.
+ * Use this when the card is not in the local database (last-resort fallback).
+ * For callers that have DB access, prefer lookupCardWithApiFallback in queries/cards.ts.
+ */
+export async function fetchFromScryfallApi(
+  cardName: string
+): Promise<LookupCardResult | null> {
+  const encodedName = encodeURIComponent(cardName);
+  const url = `${SCRYFALL_API_BASE}/cards/named?exact=${encodedName}`;
+
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as ScryfallApiResponse;
+    const card = transformApiResponse(data);
+
+    return {
+      name: card.name,
+      oracle_text: card.oracleText || null,
+      type_line: card.typeLine || null,
+      mana_cost: card.manaCost || null,
+      color_identity: card.colorIdentity || [],
+    };
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Fetch a single card using Scryfall's fuzzy name matching.
  * Handles Omen Paths digital names and other alternate names.
  */

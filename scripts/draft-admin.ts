@@ -13,18 +13,12 @@
 //   enter-match <name> --seats 1,5 --wins 2,1  Record a match result
 
 import { createClient, type Client } from "@libsql/client";
-import { loadEnv, generateOracleId } from "../src/core/db/ingest/utils";
+import { loadEnv } from "../src/core/db/ingest/utils";
 import { regenerateToken } from "../src/core/db/queries/seatTokens";
 import { CardCache } from "../src/core/db/sync/card-cache";
 import { loadScryfallCache } from "../src/core/db/ingest/scryfall";
-import { cardNameKey } from "../src/core/parseSheetRows";
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
+import { resolveCardNamesToCache } from "../src/core/db/ingest/serializeScryfall";
+import { slugify } from "./lib/slugify";
 
 function getArg(args: string[], flag: string): string | undefined {
   const idx = args.indexOf(flag);
@@ -95,27 +89,7 @@ async function editPick(client: Client, draftId: string, args: string[]) {
   if (cardId === undefined) {
     // Try resolving via Scryfall cache
     const scryfallCache = loadScryfallCache();
-    const key = cardNameKey(cardName);
-    const scryfallEntry = scryfallCache.get(key);
-
-    const oracleId = generateOracleId(cardName);
-    if (scryfallEntry) {
-      const scryfallJson = JSON.stringify({
-        name: scryfallEntry.name,
-        color_identity: scryfallEntry.colorIdentity,
-        colors: scryfallEntry.colors,
-        type_line: scryfallEntry.typeLine,
-        oracle_text: scryfallEntry.oracleText,
-        mana_cost: scryfallEntry.manaCost,
-        cmc: scryfallEntry.manaValue,
-        image_uris: scryfallEntry.imageUri
-          ? { normal: scryfallEntry.imageUri }
-          : undefined,
-      });
-      cardCache.markMissing(cardName, oracleId, scryfallJson);
-    } else {
-      cardCache.markMissing(cardName, oracleId, null);
-    }
+    resolveCardNamesToCache([cardName], cardCache, scryfallCache);
     await cardCache.flushMissing(client);
     cardId = cardCache.get(cardName);
   }

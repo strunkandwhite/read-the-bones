@@ -2,6 +2,14 @@
  * Shared helper functions used across query modules.
  */
 
+import type { Client } from "@libsql/client";
+import type { Card, ScryfallCardData } from "../schema";
+import type { ScryCard } from "../../types";
+import { inferDeckColor } from "../../inferDeckColor";
+
+// Re-export so callers that import LookupCardResult from here keep working.
+export type { LookupCardResult } from "../../scryfallApi";
+
 /**
  * Build a SQL placeholder string for n parameters (e.g., "?, ?, ?").
  */
@@ -35,12 +43,6 @@ export function parseBannedCardNames(json: string | null): string[] {
     return [];
   }
 }
-import type { Card, ScryfallCardData } from "../schema";
-import type { ScryCard } from "../../types";
-import { inferDeckColor } from "../../inferDeckColor";
-import { SCRYFALL_API_BASE, transformApiResponse, type ScryfallApiResponse } from "../../scryfallApi";
-
-import type { Client } from "@libsql/client";
 
 /**
  * Fetch privacy opt-outs for a set of drafts, returned as "draftId:seat" pairs.
@@ -214,24 +216,6 @@ export async function getSeatsMatchingColors(
 }
 
 /**
- * Return type for lookupCard — uses snake_case intentionally because
- * this shape is returned as JSON from the API, matching Scryfall's
- * convention. Compare with ScryCard which uses camelCase for the UI.
- */
-export interface LookupCardResult {
-  name: string;
-  oracle_text: string | null;
-  type_line: string | null;
-  mana_cost: string | null;
-  color_identity: string[];
-}
-
-/**
- * Fetch card data from Scryfall API.
- * Delegates DFC handling to the shared transformApiResponse, then maps to
- * the slim LookupCardResult shape used by the API.
- */
-/**
  * Transform Scryfall JSON from database to the full ScryCard type (camelCase)
  * with image URI and DFC handling. Companion to parseScryfallJson which returns
  * the minimal snake_case ScryfallCardData shape for DB-level filtering.
@@ -264,27 +248,3 @@ export function transformScryfallJson(json: string | null, cardName: string): Sc
   }
 }
 
-export async function fetchFromScryfallApi(
-  cardName: string
-): Promise<LookupCardResult | null> {
-  const encodedName = encodeURIComponent(cardName);
-  const url = `${SCRYFALL_API_BASE}/cards/named?exact=${encodedName}`;
-
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return null;
-
-    const data = (await response.json()) as ScryfallApiResponse;
-    const card = transformApiResponse(data);
-
-    return {
-      name: card.name,
-      oracle_text: card.oracleText || null,
-      type_line: card.typeLine || null,
-      mana_cost: card.manaCost || null,
-      color_identity: card.colorIdentity || [],
-    };
-  } catch {
-    return null;
-  }
-}

@@ -11,7 +11,6 @@ import {
   parsePickRows,
   parseMatchRows,
   normalizeCardName,
-  cardNameKey,
 } from "../../parseSheetRows";
 import {
   hashPool,
@@ -29,7 +28,6 @@ import {
 import type { PickInsert, MatchInsert } from "./batch";
 import { CardCache } from "./card-cache";
 import {
-  generateOracleId,
   computeCubeHash,
   loadEnv,
   log,
@@ -40,6 +38,7 @@ import {
   loadScryfallCache,
   backfillScryfallData,
 } from "../ingest/scryfall";
+import { resolveCardNamesToCache } from "../ingest/serializeScryfall";
 import { fetchDraftTabsRaw } from "../../sheets";
 import { loadOptOutNames } from "../../optOuts";
 import { isSyncPhaseTransitionLegal } from "../../draftPhases";
@@ -276,35 +275,8 @@ async function syncPool(
 
   const uniqueNames = Array.from(nameCounts.keys());
 
-  // Resolve each unique card name
-  for (const name of uniqueNames) {
-    if (cardCache.get(name) !== undefined) continue;
-
-    // Look up in Scryfall cache
-    const key = cardNameKey(name);
-    const scryfallEntry = scryfallCache.get(key);
-
-    if (scryfallEntry) {
-      const oracleId = generateOracleId(name);
-      const scryfallJson = JSON.stringify({
-        name: scryfallEntry.name,
-        color_identity: scryfallEntry.colorIdentity,
-        colors: scryfallEntry.colors,
-        type_line: scryfallEntry.typeLine,
-        oracle_text: scryfallEntry.oracleText,
-        mana_cost: scryfallEntry.manaCost,
-        cmc: scryfallEntry.manaValue,
-        image_uris: scryfallEntry.imageUri
-          ? { normal: scryfallEntry.imageUri }
-          : undefined,
-      });
-      cardCache.markMissing(name, oracleId, scryfallJson);
-    } else {
-      // Not in Scryfall cache either — generate oracle_id, mark missing
-      const oracleId = generateOracleId(name);
-      cardCache.markMissing(name, oracleId, null);
-    }
-  }
+  // Resolve each unique card name against the Scryfall cache
+  resolveCardNamesToCache(uniqueNames, cardCache, scryfallCache);
 
   // Flush newly discovered cards to DB
   await cardCache.flushMissing(client);

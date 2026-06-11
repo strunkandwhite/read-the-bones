@@ -16,7 +16,7 @@ import { getClient } from "./client";
 import {
   resolveCard,
   resolveCardFuzzy,
-  lookupCard,
+  lookupCardWithApiFallback as lookupCard,
   listDrafts,
   getDraft,
   getPicks,
@@ -289,10 +289,10 @@ describe("resolveCardFuzzy", () => {
 });
 
 // ============================================================================
-// lookupCard Tests
+// lookupCardWithApiFallback Tests
 // ============================================================================
 
-describe("lookupCard", () => {
+describe("lookupCardWithApiFallback", () => {
   let mockClient: ReturnType<typeof createMockClient>;
   let originalFetch: typeof global.fetch;
 

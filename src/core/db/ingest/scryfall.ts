@@ -3,6 +3,7 @@ import type { ScryCard } from "../../types";
 import { getFrontFace } from "../../cardNames";
 import { loadCache } from "../../../build/scryfall";
 import { PROJECT_ROOT } from "./utils";
+import { serializeScryfallEntry } from "./serializeScryfall";
 
 const SCRYFALL_CACHE_PATH = join(PROJECT_ROOT, "cache", "scryfall.json");
 
@@ -54,16 +55,7 @@ export async function backfillScryfallData(
       scryfallCache.get(name);
 
     if (scryfallData) {
-      const scryfallJson = JSON.stringify({
-        name: scryfallData.name,
-        color_identity: scryfallData.colorIdentity,
-        colors: scryfallData.colors,
-        type_line: scryfallData.typeLine,
-        oracle_text: scryfallData.oracleText,
-        mana_cost: scryfallData.manaCost,
-        cmc: scryfallData.manaValue,
-        image_uris: scryfallData.imageUri ? { normal: scryfallData.imageUri } : undefined,
-      });
+      const scryfallJson = serializeScryfallEntry(scryfallData);
 
       await client.execute({
         sql: "UPDATE cards SET scryfall_json = ? WHERE card_id = ?",

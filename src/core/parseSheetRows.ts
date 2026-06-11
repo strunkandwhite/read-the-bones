@@ -1,10 +1,8 @@
 /**
  * Row-based sheet parsing module.
  *
- * Operates on string[][] row arrays (the native format from Google Sheets API),
- * eliminating the CSV serialization/deserialization roundtrip that parseCsv.ts requires.
- *
- * Ports all logic from parseCsv.ts and parseMatches.ts.
+ * Operates on string[][] row arrays (the native format from Google Sheets API).
+ * Parses pool, pick, and match rows from Google Sheets tab data.
  */
 
 import type { CardPick, MatchResult } from "./types";

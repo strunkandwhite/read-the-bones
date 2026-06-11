@@ -5,13 +5,7 @@
 
 import { createClient } from "@libsql/client";
 import { loadEnv } from "../src/core/db/ingest/utils";
-
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-}
+import { slugify } from "./lib/slugify";
 
 function parseArgs(args: string[]) {
   let name = "",

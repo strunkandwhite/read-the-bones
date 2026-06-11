@@ -18,6 +18,7 @@ import { batchInsertDeckCards, type DeckCardInsert } from "../src/core/db/sync/b
 import { CardCache } from "../src/core/db/sync/card-cache";
 import { normalizeCardName } from "../src/core/parseSheetRows";
 import { resolveCardNameToId } from "../src/core/sync";
+import { slugify } from "./lib/slugify";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DECKLISTS_FILE = join(__dirname, "..", "data", "decklists.txt");
@@ -209,10 +210,7 @@ async function resolveDraftId(
   if (result.rows.length > 0) return result.rows[0].draft_id as string;
 
   // Try slugified version
-  const slugified = label
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
+  const slugified = slugify(label);
   result = await client.execute({
     sql: "SELECT draft_id FROM drafts WHERE draft_id = ?",
     args: [slugified],
