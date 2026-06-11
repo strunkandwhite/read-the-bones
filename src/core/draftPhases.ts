@@ -21,9 +21,6 @@
 /** Phases that count as "completed for stats" — picks are fully locked in. */
 export const STATS_COMPLETE_PHASES = ["complete", "playing"] as const;
 
-// All known draft phases, for documentation. Not re-exported to keep knip happy until used.
-type _DraftPhase = "setup" | "drafting" | "playing" | "complete";
-
 /**
  * Returns true when a draft's picks should be counted in statistics.
  * Both 'complete' (post-match) and 'playing' (drafting done, matches ongoing)
@@ -60,7 +57,8 @@ export function statsPhaseFilter(column: string): { fragment: string; args: stri
  * admin has manually advanced to 'playing' or 'complete' back to 'drafting'.
  *
  * Legal writes:
- *   any → complete   (picks finished — always safe to mark complete)
+ *   any → complete       (picks finished — always safe to mark complete)
+ *   setup → drafting     (first sync of a newly created Sheets draft)
  *   drafting → drafting  (no-op, harmless)
  *
  * Illegal (would clobber admin intent):
@@ -73,8 +71,10 @@ export function isSyncPhaseTransitionLegal(
 ): boolean {
   // Always legal to mark complete (picks are done)
   if (targetPhase === "complete") return true;
-  // Drafting→drafting is a no-op (allowed but not useful)
-  if (targetPhase === "drafting" && currentPhase === "drafting") return true;
+  // Forward progress into (or within) drafting is fine
+  if (targetPhase === "drafting") {
+    return currentPhase === "setup" || currentPhase === "drafting";
+  }
   // Anything else would demote playing/complete back to drafting — illegal
   return false;
 }

@@ -84,8 +84,10 @@ describe("isSyncPhaseTransitionLegal", () => {
     expect(isSyncPhaseTransitionLegal("complete", "drafting")).toBe(false);
   });
 
-  it("blocks setup → drafting (sync should not drive setup transition)", () => {
-    expect(isSyncPhaseTransitionLegal("setup", "drafting")).toBe(false);
+  it("allows setup → drafting (first sync of a new Sheets draft)", () => {
+    // draft:create inserts Sheets drafts in 'setup'; the first sync with
+    // in-progress picks must be able to promote them to 'drafting'.
+    expect(isSyncPhaseTransitionLegal("setup", "drafting")).toBe(true);
   });
 
   it("allows setup → complete", () => {
