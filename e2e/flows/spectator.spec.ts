@@ -8,10 +8,18 @@ import {
   openDraftBoard,
   openDeckBuilder,
 } from "../helpers/assertions";
-import { expectCardVisible } from "../helpers/card-table";
+import { expectCardVisible, scrollCardTable } from "../helpers/card-table";
 
 test.describe("Spectator (unauthenticated)", () => {
   test.beforeEach(async ({ page }) => {
+    // hideTaken defaults to true, which hides all taken cards from the card table.
+    // The branch now derives taken-card state from board.picks (populated by the
+    // first live poll) instead of from the slower /api/cards response, so taken
+    // cards are hidden sooner. Spectator tests need to see taken cards with "Picked"
+    // icons, so explicitly disable hide-taken for these tests.
+    await page.addInitScript(() => {
+      localStorage.setItem("hideTaken", "false");
+    });
     await createMockContext(page, "spectator");
   });
 
@@ -24,26 +32,29 @@ test.describe("Spectator (unauthenticated)", () => {
     await selectSeat(page, 1);
     await closeSettings(page);
 
-    // Seat 1 picked Sol Ring (#1), Elspeth Knight-Errant (#20), Mother of Runes (#21)
-    // These should show the "Picked" status icon (emerald check)
+    // Seat 1 picked Sol Ring (row 1 of 40), Mother of Runes (row 12), Elspeth (row 33).
+    // With hideTaken=false the table shows all 40 cards; the virtualizer only renders
+    // ~22 rows from the current scroll position (visible + overscan:10). Elspeth at
+    // row 33 is beyond that initial range, so we verify early-row cards first while
+    // the table is at the top, then scroll to bring Elspeth into the rendered window.
+
+    // Wait for board data to arrive and check Sol Ring + Mother of Runes (top of list)
     await expect(async () => {
       await expectCardVisible(page, "Sol Ring");
-      await expectCardVisible(page, "Elspeth, Knight-Errant");
       await expectCardVisible(page, "Mother of Runes");
     }).toPass({ timeout: 5000 });
 
-    // Verify picked status icons are present (title="Picked")
-    for (const cardName of [
-      "Sol Ring",
-      "Elspeth, Knight-Errant",
-      "Mother of Runes",
-    ]) {
-      const row = page
-        .locator("tbody tr")
-        .filter({ hasText: cardName })
-        .first();
-      await expect(row.locator('[title="Picked"]')).toBeVisible();
-    }
+    const solRingRow = page.locator("tbody tr").filter({ hasText: "Sol Ring" }).first();
+    await expect(solRingRow.locator('[title="Picked"]')).toBeVisible();
+    const momRow = page.locator("tbody tr").filter({ hasText: "Mother of Runes" }).first();
+    await expect(momRow.locator('[title="Picked"]')).toBeVisible();
+
+    // Scroll near the bottom of the table to bring Elspeth (row 33/40) into the
+    // virtualizer's rendered window, then verify its Picked icon.
+    await scrollCardTable(page, 9999);
+    await expectCardVisible(page, "Elspeth, Knight-Errant");
+    const elspethRow = page.locator("tbody tr").filter({ hasText: "Elspeth, Knight-Errant" }).first();
+    await expect(elspethRow.locator('[title="Picked"]')).toBeVisible();
   });
 
   test("seat deck in deck builder shows picked cards", async ({ page }) => {
@@ -78,10 +89,12 @@ test.describe("Spectator (unauthenticated)", () => {
     // Open the deck builder
     await openDeckBuilder(page);
 
-    // The deck builder rebuilds from picks — seat 1 has Sol Ring, Elspeth, Mother of Runes
+    // The deck builder rebuilds from picks — seat 1 has Sol Ring, Elspeth, Mother of Runes.
+    // Cards with imageUris render as <img alt="name"> inside a role="button" wrapper,
+    // so getByRole("button") is the correct selector (getByText won't match alt attrs).
     await expect(async () => {
-      await expect(page.getByText("Sol Ring")).toBeVisible();
-      await expect(page.getByText("Mother of Runes")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Sol Ring" }).first()).toBeVisible();
+      await expect(page.getByRole("button", { name: "Mother of Runes" }).first()).toBeVisible();
     }).toPass({ timeout: 5000 });
   });
 
@@ -105,10 +118,12 @@ test.describe("Spectator (unauthenticated)", () => {
     await expect(page.getByText("Alice").first()).toBeVisible();
     await expect(page.getByText("Carol").first()).toBeVisible();
 
-    // Verify picks are shown in the matrix
-    await expect(page.getByText("Sol Ring")).toBeVisible();
-    await expect(page.getByText("Mana Crypt")).toBeVisible();
-    await expect(page.getByText("Brainstorm")).toBeVisible();
+    // Verify picks are shown in the matrix.
+    // hideTaken=false means the card table behind the modal also shows these cards,
+    // so use .first() to avoid strict-mode violations from duplicate text matches.
+    await expect(page.getByText("Sol Ring").first()).toBeVisible();
+    await expect(page.getByText("Mana Crypt").first()).toBeVisible();
+    await expect(page.getByText("Brainstorm").first()).toBeVisible();
   });
 
   test("switching seats updates the card table", async ({ page }) => {
@@ -134,26 +149,32 @@ test.describe("Spectator (unauthenticated)", () => {
     await selectSeat(page, 5);
     await closeSettings(page);
 
-    // Seat 5 picked Scalding Tarn (#5) and Liliana of the Veil (#16)
+    // Seat 5 picked Scalding Tarn (row 8/40) and Liliana of the Veil (row 26/40).
+    // Scalding Tarn is within the initial rendered window; Liliana is beyond it.
+    // Check Tarn and verify Sol Ring is no longer "Picked" before scrolling away.
     await expect(async () => {
       const tarnRow = page
         .locator("tbody tr")
         .filter({ hasText: "Scalding Tarn" })
         .first();
       await expect(tarnRow.locator('[title="Picked"]')).toBeVisible();
-
-      const lilianaRow = page
-        .locator("tbody tr")
-        .filter({ hasText: "Liliana of the Veil" })
-        .first();
-      await expect(lilianaRow.locator('[title="Picked"]')).toBeVisible();
     }).toPass({ timeout: 5000 });
 
-    // Seat 1's picks should no longer show as "Picked" for this seat
+    // Sol Ring (row 1) is still in the rendered window at this point — verify it
+    // no longer shows as "Picked" for seat 5 before scrolling down to Liliana.
     const solRingRow = page
       .locator("tbody tr")
       .filter({ hasText: "Sol Ring" })
       .first();
     await expect(solRingRow.locator('[title="Picked"]')).toHaveCount(0);
+
+    // Scroll to bring Liliana (row 26/40) into the virtualizer's rendered window.
+    // Use a value past the midpoint to ensure Liliana is above the viewport center.
+    await scrollCardTable(page, 9999);
+    const lilianaRow = page
+      .locator("tbody tr")
+      .filter({ hasText: "Liliana of the Veil" })
+      .first();
+    await expect(lilianaRow.locator('[title="Picked"]')).toBeVisible();
   });
 });

@@ -47,10 +47,12 @@ test.describe("Deck builder", () => {
     // Wait for the deck builder panel to render with cards.
     // Picked cards: Brainstorm, Cryptic Command (seat 3's picks from board)
     // Floated cards: Phyrexian Arena, Growth Spiral (from live-floats fixture)
-    await expect(page.getByText("Brainstorm").first()).toBeVisible({ timeout: 10000 });
-    await expect(page.getByText("Cryptic Command").first()).toBeVisible();
-    await expect(page.getByText("Phyrexian Arena").first()).toBeVisible();
-    await expect(page.getByText("Growth Spiral").first()).toBeVisible();
+    // Cards render as <img alt="name"> inside a role="button" wrapper when imageUri
+    // is present; getByRole("button") is the correct selector here.
+    await expect(page.getByRole("button", { name: "Brainstorm" }).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole("button", { name: "Cryptic Command" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Phyrexian Arena" }).first()).toBeVisible();
+    await expect(page.getByRole("button", { name: "Growth Spiral" }).first()).toBeVisible();
   });
 
   test("move card between zones", async ({ page }) => {
@@ -224,8 +226,8 @@ test.describe("Deck builder", () => {
 
     await openDeckBuilder(page);
 
-    // Wait for deck to load
-    await expect(page.getByText("Brainstorm").first()).toBeVisible({ timeout: 10000 });
+    // Wait for deck to load (cards render as role="button" wrappers around card images)
+    await expect(page.getByRole("button", { name: "Brainstorm" }).first()).toBeVisible({ timeout: 10000 });
 
     // Click "Add Basic Lands" button
     await page.getByRole("button", { name: "Add Basic Lands" }).click();
@@ -255,8 +257,8 @@ test.describe("Deck builder", () => {
 
     await openDeckBuilder(page);
 
-    // Wait for cards to load
-    await expect(page.getByText("Brainstorm").first()).toBeVisible({ timeout: 10000 });
+    // Wait for cards to load (cards render as role="button" wrappers around card images)
+    await expect(page.getByRole("button", { name: "Brainstorm" }).first()).toBeVisible({ timeout: 10000 });
 
     // Click "Clear Deck" button
     await page.getByRole("button", { name: "Clear Deck" }).click();
@@ -289,7 +291,8 @@ test.describe("Deck builder", () => {
     await expect(page.locator("table")).toBeVisible();
 
     await openDeckBuilder(page);
-    await expect(page.getByText("Brainstorm").first()).toBeVisible({ timeout: 10000 });
+    // Wait for deck to load (cards render as role="button" wrappers around card images)
+    await expect(page.getByRole("button", { name: "Brainstorm" }).first()).toBeVisible({ timeout: 10000 });
 
     // Click "Share Deck" button
     const shareBtn = page.getByRole("button", { name: "Share Deck" });
@@ -336,7 +339,8 @@ test.describe("Deck builder", () => {
     await expect(page.locator("table")).toBeVisible();
 
     await openDeckBuilder(page);
-    await expect(page.getByText("Brainstorm").first()).toBeVisible({ timeout: 10000 });
+    // Wait for deck to load (cards render as role="button" wrappers around card images)
+    await expect(page.getByRole("button", { name: "Brainstorm" }).first()).toBeVisible({ timeout: 10000 });
 
     // Modify the deck — clear it to trigger a save
     await page.getByRole("button", { name: "Clear Deck" }).click();
