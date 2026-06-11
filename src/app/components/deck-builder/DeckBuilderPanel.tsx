@@ -142,25 +142,16 @@ export function DeckBuilderPanel({
     [state, dispatch]
   );
 
+  const shareDeck = useLiveStore((s) => s.shareDeck);
   const [shareStatus, setShareStatus] = useState<"idle" | "sharing" | "shared">("idle");
 
   const handleShareDeck = useCallback(async () => {
     setShareStatus("sharing");
     try {
-      const response = await fetch("/api/deck", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(state),
-      });
-      if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error ?? "Server error");
-      }
-      const { deckId } = await response.json();
+      const url = await shareDeck();
       const totalCards = Object.values(state.zones.deck).flat().length
         + Object.values(state.zones.sideboard).flat().length;
       track("deck_shared", { draft: draftName, card_count: totalCards });
-      const url = `${window.location.origin}/?deck=${deckId}`;
       await navigator.clipboard.writeText(url);
       setShareStatus("shared");
       setTimeout(() => setShareStatus("idle"), 2000);
@@ -169,7 +160,7 @@ export function DeckBuilderPanel({
       setShareStatus("idle");
       alert("Failed to share deck. Please try again.");
     }
-  }, [state, draftName]);
+  }, [shareDeck, state.zones, draftName]);
 
   const handleSetBasics = useCallback(
     (basics: BasicLandCounts) => {

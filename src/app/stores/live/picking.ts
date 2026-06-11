@@ -133,3 +133,54 @@ export function makeSetPickError(set: SetState) {
     set({ pickError: error });
   };
 }
+
+// ---------------------------------------------------------------------------
+// makeReportMatch — POST match result, then refresh standings
+// ---------------------------------------------------------------------------
+
+export interface MatchReportParams {
+  opponentSeat: number;
+  wins: number;
+  losses: number;
+}
+
+/**
+ * Reports a match result via POST /api/drafts/[id]/match.
+ * Token plumbing follows the same pattern as handlePick and queueFloat mutations —
+ * reads seatToken from get() and activeDraft from draftStore.
+ *
+ * Returns an error message string on failure, or null on success.
+ */
+export function makeReportMatch(get: GetState) {
+  return async ({ opponentSeat, wins, losses }: MatchReportParams): Promise<string | null> => {
+    const { seatToken } = get();
+    const activeDraft = useDraftStore.getState().activeDraft;
+    if (!seatToken || !activeDraft) return "Not authenticated";
+
+    try {
+      const res = await fetch(`/api/drafts/${activeDraft}/match`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Seat-Token": seatToken,
+        },
+        body: JSON.stringify({
+          opponent_seat: opponentSeat,
+          wins,
+          losses,
+        }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({ error: "Request failed" }));
+        return (data.error as string | undefined) ?? `HTTP ${res.status}`;
+      }
+
+      // Refresh standings after a successful report
+      await useDraftStore.getState().fetchStandings();
+      return null;
+    } catch (err) {
+      return err instanceof Error ? err.message : "Unknown error";
+    }
+  };
+}

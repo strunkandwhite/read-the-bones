@@ -30,6 +30,8 @@ import {
   makeRecomputePicking,
   makeHandlePick,
   makeSetPickError,
+  makeReportMatch,
+  type MatchReportParams,
 } from "./live/picking";
 import {
   resetDeckSaveState,
@@ -40,9 +42,10 @@ import {
   makeFetchDeckState,
   makeSyncDeckWithPicks,
   makeDebouncedSyncDeckWithPicks,
+  makeShareDeck,
 } from "./live/deckSave";
 
-export type { DeckAction };
+export type { DeckAction, MatchReportParams };
 
 // ---------------------------------------------------------------------------
 // Types
@@ -108,12 +111,15 @@ export interface LiveStoreState {
   // Pick actions
   handlePick: (cardName: string) => Promise<void>;
   setPickError: (error: string | null) => void;
+  reportMatch: (params: MatchReportParams) => Promise<string | null>;
 
   // Deck builder actions
   dispatchDeck: (action: DeckAction) => void;
   setDeckBuilderActive: (active: boolean) => void;
   fetchDeckState: () => Promise<void>;
   enterSharedView: (draftId: string, seat: number, deckState: DeckState) => void;
+  /** Creates a shareable deck snapshot via POST /api/deck. Returns the share URL. */
+  shareDeck: () => Promise<string>;
 }
 
 // ---------------------------------------------------------------------------
@@ -202,12 +208,14 @@ export const useLiveStore = create<LiveStoreState>()(
       // Pick actions
       handlePick: makeHandlePick(boundSet, get),
       setPickError: makeSetPickError(boundSet),
+      reportMatch: makeReportMatch(get),
 
       // Deck builder actions
       dispatchDeck: makeDispatchDeck(boundSet, get, getLiveStoreRef),
       setDeckBuilderActive: makeSetDeckBuilderActive(boundSet),
       enterSharedView: makeEnterSharedView(get),
       fetchDeckState: makeFetchDeckState(boundSet, get),
+      shareDeck: makeShareDeck(get),
     };
   }),
 );

@@ -5,6 +5,23 @@ import { subscribeWithSelector } from "zustand/middleware";
 // Types
 // ---------------------------------------------------------------------------
 
+export interface StandingsRow {
+  seat: number;
+  matchWins: number;
+  matchLosses: number;
+  gameWins: number;
+  gameLosses: number;
+  omwPct: number | null;
+  ogwPct: number | null;
+}
+
+export interface MatchRecord {
+  seat1: number;
+  seat2: number;
+  seat1Wins: number;
+  seat2Wins: number;
+}
+
 export interface LiveDraftStatus {
   // Fields unique to liveDraftStatus (not present in BoardData)
   latestPickN: number;
@@ -78,6 +95,16 @@ interface DraftState {
   // non-ok response). Reset to false on next successful poll. Components may
   // show a subtle indicator when this is true.
   pollFailed: boolean;
+
+  // Standings — fetched from /api/drafts/[id]/standings, keyed on matchCount.
+  // fetchStandings() populates these; StandingsSection subscribes instead of
+  // fetching directly.
+  standings: StandingsRow[];
+  standingsMatches: MatchRecord[];
+  standingsLoading: boolean;
+
+  // Standings actions
+  fetchStandings: () => Promise<void>;
 
   // Selection actions
   setSelectedDrafts: (drafts: Set<string>) => void;
@@ -389,6 +416,9 @@ export const useDraftStore = create<DraftState>()(
     poolAsOfDraft: null,
     syncStatus: { lastSyncedAt: "0", syncInProgress: false, activeDrafts: [] },
     pollFailed: false,
+    standings: [],
+    standingsMatches: [],
+    standingsLoading: false,
 
     // --- Data actions ---
 
@@ -398,6 +428,39 @@ export const useDraftStore = create<DraftState>()(
       set((state) => state.board ? {
         board: { ...state.board, seatNames: { ...state.board.seatNames, [String(seat)]: name } }
       } : {});
+    },
+
+    fetchStandings: async () => {
+      const { activeDraft } = get();
+      if (!activeDraft) return;
+
+      set({ standingsLoading: true });
+      try {
+        const res = await fetch(`/api/drafts/${activeDraft}/standings`);
+        if (res.ok) {
+          const data = await res.json() as { standings?: unknown[]; matches?: unknown[] };
+          if (Array.isArray(data.standings)) {
+            set({
+              standings: data.standings.map((row: unknown) => {
+                const r = row as Record<string, unknown>;
+                return {
+                  seat: r.seat as number,
+                  matchWins: (r.matchWins ?? 0) as number,
+                  matchLosses: (r.matchLosses ?? 0) as number,
+                  gameWins: (r.gameWins ?? 0) as number,
+                  gameLosses: (r.gameLosses ?? 0) as number,
+                  omwPct: (r.omwPct as number | null) ?? null,
+                  ogwPct: (r.ogwPct as number | null) ?? null,
+                } satisfies StandingsRow;
+              }),
+            });
+          }
+          if (Array.isArray(data.matches)) {
+            set({ standingsMatches: data.matches as MatchRecord[] });
+          }
+        }
+      } catch { /* ignore network errors */ }
+      set({ standingsLoading: false });
     },
 
     getEffectivePoolAsOfDraft: () => {
@@ -574,6 +637,8 @@ useDraftStore.subscribe(
     useDraftStore.getState().stopPolling();
     prevPickN = -1;
     lastLiveSig = null; // draft switched — never reuse a sig from the previous draft
+    // Reset standings so the previous draft's data isn't shown while loading.
+    useDraftStore.setState({ standings: [], standingsMatches: [], standingsLoading: false });
     if (activeDraft) useDraftStore.getState().startPolling();
   },
 );

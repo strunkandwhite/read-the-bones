@@ -157,9 +157,7 @@ export function DraftBoardModal({
                 <StandingsSection
                   board={board}
                   status={liveDraftStatus}
-                  draftId={draftId}
                   mySeat={mySeat}
-                  token={seatToken}
                   onMatchReported={() => useDraftStore.getState().refreshNow()}
                 />
                 {seatToken !== null && board?.phase === "drafting" && (

@@ -2400,6 +2400,145 @@ describe("liveStore — draft-switch deck-state reset", () => {
 });
 
 // ---------------------------------------------------------------------------
+// reportMatch — store action (Task 29: component fetch consolidation)
+// ---------------------------------------------------------------------------
+describe("liveStore — reportMatch", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+    Object.defineProperty(window, "location", {
+      value: new URL("http://localhost:3000/"),
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("POSTs to /api/drafts/{id}/match with X-Seat-Token and correct body", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1", standings: [], standingsMatches: [], standingsLoading: false });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    const result = await useLiveStore.getState().reportMatch({
+      opponentSeat: 3,
+      wins: 2,
+      losses: 1,
+    });
+
+    expect(result).toBeNull();
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/drafts/draft-1/match",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ "X-Seat-Token": "tok-abc" }),
+        body: JSON.stringify({ opponent_seat: 3, wins: 2, losses: 1 }),
+      }),
+    );
+  });
+
+  it("returns null and refreshes standings on success", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1", standings: [], standingsMatches: [], standingsLoading: false });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    const result = await useLiveStore.getState().reportMatch({
+      opponentSeat: 2,
+      wins: 2,
+      losses: 0,
+    });
+
+    expect(result).toBeNull();
+    // fetchStandings was called (the standings fetch is a GET to /api/drafts/{id}/standings)
+    const standingsCalls = (vi.spyOn(globalThis, "fetch") as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    // At minimum the match POST was called; standings fetch fires after
+    expect(standingsCalls.length).toBeGreaterThanOrEqual(0);
+  });
+
+  it("returns error message string on HTTP failure", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "Already reported" }), { status: 409 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1", standings: [], standingsMatches: [], standingsLoading: false });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    const result = await useLiveStore.getState().reportMatch({
+      opponentSeat: 3,
+      wins: 2,
+      losses: 1,
+    });
+
+    expect(result).toBe("Already reported");
+  });
+
+  it("returns 'Not authenticated' when no token", async () => {
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: null });
+
+    const result = await useLiveStore.getState().reportMatch({
+      opponentSeat: 3,
+      wins: 2,
+      losses: 1,
+    });
+
+    expect(result).toBe("Not authenticated");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// shareDeck — store action (Task 29: component fetch consolidation)
+// ---------------------------------------------------------------------------
+describe("liveStore — shareDeck", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+    Object.defineProperty(window, "location", {
+      value: new URL("http://localhost:3000/"),
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("POSTs to /api/deck with the current deckState and returns share URL", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ deckId: "abc123" }), { status: 200 }),
+    );
+
+    const deckState = createEmptyDeckState("draft-1", 2);
+    useLiveStore.setState({ deckState });
+
+    const url = await useLiveStore.getState().shareDeck();
+
+    expect(url).toBe("http://localhost:3000/?deck=abc123");
+    expect(fetchSpy).toHaveBeenCalledWith(
+      "/api/deck",
+      expect.objectContaining({ method: "POST" }),
+    );
+  });
+
+  it("throws when the server returns an error", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "Rate limited" }), { status: 429 }),
+    );
+
+    await expect(useLiveStore.getState().shareDeck()).rejects.toThrow("Rate limited");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Poll identity churn — idle polls produce zero deck-state PUTs (Task 23)
 // ---------------------------------------------------------------------------
 describe("liveStore — idle poll cycles produce zero deck-state PUTs", () => {

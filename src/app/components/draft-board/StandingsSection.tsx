@@ -1,34 +1,16 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { BoardData, LiveDraftStatus } from "@/app/stores/draftStore";
+import { useDraftStore } from "@/app/stores/draftStore";
+import { useLiveStore } from "@/app/stores/liveStore";
 import { MatchMatrix } from "./MatchMatrix";
 
 interface StandingsSectionProps {
   board: BoardData;
   status: LiveDraftStatus | null;
-  draftId: string;
   mySeat: number | null;
-  token: string | null;
   onMatchReported: () => void;
-}
-
-interface StandingsRow {
-  seat: number;
-  displayName: string;
-  matchWins: number;
-  matchLosses: number;
-  gameWins: number;
-  gameLosses: number;
-  omwPct: number | null;
-  ogwPct: number | null;
-}
-
-interface MatchRecord {
-  seat1: number;
-  seat2: number;
-  seat1Wins: number;
-  seat2Wins: number;
 }
 
 interface MatchReportData {
@@ -76,9 +58,7 @@ function DraftProgress({
 export function StandingsSection({
   board,
   status,
-  draftId,
   mySeat,
-  token,
   onMatchReported,
 }: StandingsSectionProps) {
   const phase = board.phase;
@@ -99,87 +79,68 @@ export function StandingsSection({
   // Playing/complete: show standings
   return (
     <StandingsTable
-      draftId={draftId}
       board={board}
       status={status}
       mySeat={mySeat}
-      token={token}
       onMatchReported={onMatchReported}
     />
   );
 }
 
 function StandingsTable({
-  draftId,
   board,
   status,
   mySeat,
-  token,
   onMatchReported,
 }: {
-  draftId: string;
   board: BoardData;
   status: LiveDraftStatus | null;
   mySeat: number | null;
-  token: string | null;
   onMatchReported: () => void;
 }) {
-  const [standings, setStandings] = useState<StandingsRow[]>([]);
-  const [matches, setMatches] = useState<MatchRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Subscribe to draftStore standings — no direct fetch here
+  const standings = useDraftStore((s) => s.standings);
+  const standingsMatches = useDraftStore((s) => s.standingsMatches);
+  const standingsLoading = useDraftStore((s) => s.standingsLoading);
+  const fetchStandings = useDraftStore((s) => s.fetchStandings);
+
+  // reportMatch is the single store action that POSTs the result and refreshes standings
+  const reportMatch = useLiveStore((s) => s.reportMatch);
+
   // Pending state shown immediately after reporting a match while the refetch
   // is in flight — avoids stale OMW%/OGW% from an optimistic local recompute.
   const [reportPending, setReportPending] = useState(false);
 
-  const fetchStandings = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/drafts/${draftId}/standings`);
-      if (!res.ok) return;
-      const data = await res.json();
-      if (Array.isArray(data.standings)) {
-        setStandings(data.standings.map((row: Record<string, unknown>) => ({
-          seat: row.seat as number,
-          displayName: board.seatNames[String(row.seat)] || `Seat ${row.seat}`,
-          matchWins: (row.matchWins ?? 0) as number,
-          matchLosses: (row.matchLosses ?? 0) as number,
-          gameWins: (row.gameWins ?? 0) as number,
-          gameLosses: (row.gameLosses ?? 0) as number,
-          omwPct: (row.omwPct as number) ?? null,
-          ogwPct: (row.ogwPct as number) ?? null,
-        })));
-      }
-      if (Array.isArray(data.matches)) {
-        setMatches(data.matches as MatchRecord[]);
-      }
-    } catch { /* ignore */ }
-    setLoading(false);
-  }, [draftId, board.seatNames]);
-
-  /* eslint-disable react-hooks/set-state-in-effect -- syncing from external system (API fetch) */
+  // Initial load — fetch once when the table mounts
   useEffect(() => {
-    fetchStandings();
+    void fetchStandings();
   }, [fetchStandings]);
 
   // Re-fetch when matchCount changes (a match was reported on any device)
   useEffect(() => {
-    if (status) fetchStandings();
+    if (status) void fetchStandings();
   }, [status?.matchCount, fetchStandings]); // eslint-disable-line react-hooks/exhaustive-deps
-  /* eslint-enable react-hooks/set-state-in-effect */
 
-  const handleMatchReported = useCallback(async (_data: MatchReportData) => {
-    // Show a pending state immediately, then refetch server truth.
-    // Refetching ensures OMW%/OGW% are correct — local recompute leaves them stale.
+  const handleMatchReported = useCallback((_data: MatchReportData) => {
+    // Show a pending state immediately; standings will refresh after the action completes.
     setReportPending(true);
     onMatchReported();
-    await fetchStandings();
-    setReportPending(false);
-  }, [onMatchReported, fetchStandings]);
+  }, [onMatchReported]);
 
-  const handleMatchReverted = useCallback(() => {
-    fetchStandings();
+  const handleMatchReverted = useCallback(async () => {
+    await fetchStandings();
   }, [fetchStandings]);
 
-  if (loading) {
+  const handleReportMatch = useCallback(
+    async (params: { opponentSeat: number; wins: number; losses: number }) => {
+      const err = await reportMatch(params);
+      setReportPending(false);
+      return err;
+    },
+    [reportMatch],
+  );
+
+  if (standingsLoading && standings.length === 0) {
     return (
       <div className="py-3 text-zinc-500 text-xs">
         Loading standings...
@@ -216,7 +177,9 @@ function StandingsTable({
                     key={row.seat}
                     className={row.seat === mySeat ? "bg-blue-500/10" : ""}
                   >
-                    <td className="px-1.5 py-1 whitespace-nowrap">{row.displayName}</td>
+                    <td className="px-1.5 py-1 whitespace-nowrap">
+                      {board.seatNames[String(row.seat)] || `Seat ${row.seat}`}
+                    </td>
                     <td className="px-1.5 py-1 text-center whitespace-nowrap">
                       {row.matchWins}-{row.matchLosses}
                     </td>
@@ -224,10 +187,10 @@ function StandingsTable({
                       {row.gameWins}-{row.gameLosses}
                     </td>
                     <td className="px-1.5 py-1 text-center text-zinc-400 whitespace-nowrap">
-                      {row.omwPct !== null ? (row.omwPct * 100).toFixed(1) + "%" : "\u2014"}
+                      {row.omwPct !== null ? (row.omwPct * 100).toFixed(1) + "%" : "—"}
                     </td>
                     <td className="px-1.5 py-1 text-center text-zinc-400 whitespace-nowrap">
-                      {row.ogwPct !== null ? (row.ogwPct * 100).toFixed(1) + "%" : "\u2014"}
+                      {row.ogwPct !== null ? (row.ogwPct * 100).toFixed(1) + "%" : "—"}
                     </td>
                   </tr>
                 ))}
@@ -248,13 +211,12 @@ function StandingsTable({
             </span>
           </h3>
           <MatchMatrix
-            matches={matches}
+            matches={standingsMatches}
             numSeats={board.numSeats}
             seatNames={board.seatNames}
             mySeat={mySeat}
-            token={token}
-            draftId={draftId}
             phase={board.phase}
+            onReportMatch={handleReportMatch}
             onMatchReported={handleMatchReported}
             onMatchReverted={handleMatchReverted}
           />

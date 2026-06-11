@@ -227,6 +227,31 @@ export function makeEnterSharedView(get: GetState) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// makeShareDeck — POST /api/deck to create a shareable deck snapshot
+// ---------------------------------------------------------------------------
+
+/**
+ * Posts the current deck state to /api/deck to create an immutable shareable
+ * snapshot.  Returns the deck URL (ready to copy) on success, or throws on error.
+ */
+export function makeShareDeck(get: GetState) {
+  return async (): Promise<string> => {
+    const { deckState } = get();
+    const response = await fetch("/api/deck", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(deckState),
+    });
+    if (!response.ok) {
+      const data = await response.json().catch(() => ({}));
+      throw new Error((data as { error?: string }).error ?? "Server error");
+    }
+    const { deckId } = await response.json() as { deckId: string };
+    return `${window.location.origin}/?deck=${deckId}`;
+  };
+}
+
 export function makeFetchDeckState(set: SetState, get: GetState) {
   return async (): Promise<void> => {
     if (get().viewingSharedDeck) return;

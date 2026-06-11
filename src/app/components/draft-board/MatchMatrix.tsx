@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import type { MatchReportParams } from "@/app/stores/liveStore";
 
 export interface MatchMatrixProps {
   matches: Array<{
@@ -12,9 +13,12 @@ export interface MatchMatrixProps {
   numSeats: number;
   seatNames: Record<string, string>;
   mySeat: number | null;
-  token: string | null;
-  draftId: string;
   phase: string;
+  /**
+   * Store action that POSTs the match result and refreshes standings.
+   * Returns an error message string on failure, or null on success.
+   */
+  onReportMatch: (params: MatchReportParams) => Promise<string | null>;
   onMatchReported: (data: {
     mySeat: number;
     opponent: number;
@@ -63,9 +67,8 @@ export function MatchMatrix({
   numSeats,
   seatNames,
   mySeat,
-  token,
-  draftId,
   phase,
+  onReportMatch,
   onMatchReported,
   onMatchReverted,
 }: MatchMatrixProps) {
@@ -73,7 +76,7 @@ export function MatchMatrix({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const seats = Array.from({ length: numSeats }, (_, i) => i + 1);
-  const canEdit = (phase === "playing" || phase === "complete") && mySeat !== null && token !== null;
+  const canEdit = (phase === "playing" || phase === "complete") && mySeat !== null;
 
   useEffect(() => {
     if (editing && inputRef.current) {
@@ -124,38 +127,24 @@ export function MatchMatrix({
         onMatchReported({ mySeat: state.row, opponent: state.col, wins, losses });
       }
 
-      try {
-        const res = await fetch(`/api/drafts/${draftId}/match`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Seat-Token": token!,
-          },
-          body: JSON.stringify({
-            opponent_seat: state.col,
-            wins,
-            losses,
-          }),
-        });
+      const errorMsg = await onReportMatch({
+        opponentSeat: state.col,
+        wins,
+        losses,
+      });
 
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({ error: "Request failed" }));
-          throw new Error(data.error ?? `HTTP ${res.status}`);
-        }
-
+      if (errorMsg === null) {
         setEditing(null);
-
-        // For corrections, trigger a full refetch
+        // For corrections, trigger a revert (standings already refreshed by the action)
         if (isCorrection) {
           onMatchReverted();
         }
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Unknown error";
-        setEditing((prev) => (prev ? { ...prev, saving: false, error: message } : null));
+      } else {
+        setEditing((prev) => (prev ? { ...prev, saving: false, error: errorMsg } : null));
         onMatchReverted();
       }
     },
-    [matches, draftId, token, onMatchReported, onMatchReverted],
+    [matches, onReportMatch, onMatchReported, onMatchReverted],
   );
 
   const handleKeyDown = useCallback(
