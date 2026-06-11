@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDraftStats } from "@/core/getDraftStats";
 import { decomposeColorPairs } from "@/core/colorDecomposition";
+import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
-export async function GET(request: NextRequest) {
-  try {
+export const GET = withApiErrors(
+  async (request: NextRequest) => {
     const { searchParams } = request.nextUrl;
     const draftIdsParam = searchParams.get("draft_ids");
     const draftIds = draftIdsParam?.split(",").filter(Boolean) ?? undefined;
@@ -19,11 +20,6 @@ export async function GET(request: NextRequest) {
     }, {
       headers: { "Cache-Control": "public, s-maxage=300" },
     });
-  } catch (error) {
-    console.error("[/api/stats] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to load overall stats" },
-      { status: 500 },
-    );
-  }
-}
+  },
+  "[/api/stats] Error:",
+);

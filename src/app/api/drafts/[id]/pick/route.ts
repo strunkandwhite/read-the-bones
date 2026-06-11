@@ -2,17 +2,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
 import { processPick } from "@/core/processPick";
-import { AppError } from "@/core/errors";
 import { resolveCardId } from "@/core/db/queries/cards";
+import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { id: draftId } = await params;
-  const client = await getClient();
+export const POST = withApiErrors(
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
+    const { id: draftId } = await params;
+    const client = await getClient();
 
-  try {
     const { seat } = await authenticateSeat(client, request, draftId);
     const body = await request.json();
     const { card_name } = body;
@@ -33,11 +33,6 @@ export async function POST(
     });
 
     return NextResponse.json(result);
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    console.error("[/api/drafts/[id]/pick] Error:", error);
-    return NextResponse.json({ error: "Pick failed" }, { status: 500 });
-  }
-}
+  },
+  "[/api/drafts/[id]/pick] Error:",
+);

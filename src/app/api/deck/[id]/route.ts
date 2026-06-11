@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { getSnapshot } from "@/core/db/queries/decks";
+import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
+export const GET = withApiErrors(
+  async (
+    _request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+  ) => {
     const { id } = await params;
     const client = await getClient();
     const result = await getSnapshot(client, id);
@@ -20,11 +21,6 @@ export async function GET(
         "Cache-Control": "public, s-maxage=31536000, immutable",
       },
     });
-  } catch (error) {
-    console.error("[/api/deck/[id]] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to load shared deck" },
-      { status: 500 }
-    );
-  }
-}
+  },
+  "[/api/deck/[id]] Error:",
+);

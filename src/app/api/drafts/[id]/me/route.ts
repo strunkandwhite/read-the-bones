@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
-import { AppError } from "@/core/errors";
 import { extractToken } from "@/core/tokenAuth";
 import { resolveToken } from "@/core/db/queries/seatTokens";
+import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
+export const GET = withApiErrors(
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
     const { id: draftId } = await params;
     const token = extractToken(request);
     if (!token) {
@@ -26,11 +26,6 @@ export async function GET(
       autoPick: resolved.autoPick,
       displayName: resolved.displayName,
     });
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    console.error("[/api/drafts/[id]/me] Error:", error);
-    return NextResponse.json({ error: "Failed to resolve seat" }, { status: 500 });
-  }
-}
+  },
+  "[/api/drafts/[id]/me] Error:",
+);

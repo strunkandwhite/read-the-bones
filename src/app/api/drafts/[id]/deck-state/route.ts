@@ -3,15 +3,15 @@ import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
 import { getWipDeck, upsertWipDeck } from "@/core/db/queries/decks";
 import { validateDeckState } from "@/core/validateDeckState";
-import { AppError } from "@/core/errors";
+import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 const MAX_BODY_SIZE = 100 * 1024; // 100KB
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
+export const GET = withApiErrors(
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
     const { id: draftId } = await params;
     const client = await getClient();
     const { seat } = await authenticateSeat(client, request, draftId);
@@ -22,20 +22,15 @@ export async function GET(
     }
 
     return NextResponse.json(result.deckState);
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    console.error("[/api/drafts/[id]/deck-state] GET Error:", error);
-    return NextResponse.json({ error: "Failed to load deck state" }, { status: 500 });
-  }
-}
+  },
+  "[/api/drafts/[id]/deck-state] GET Error:",
+);
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
+export const PUT = withApiErrors(
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
     const { id: draftId } = await params;
     const client = await getClient();
     const { seat } = await authenticateSeat(client, request, draftId);
@@ -59,11 +54,6 @@ export async function PUT(
 
     await upsertWipDeck(client, draftId, seat, deckState);
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    console.error("[/api/drafts/[id]/deck-state] PUT Error:", error);
-    return NextResponse.json({ error: "Failed to save deck state" }, { status: 500 });
-  }
-}
+  },
+  "[/api/drafts/[id]/deck-state] PUT Error:",
+);

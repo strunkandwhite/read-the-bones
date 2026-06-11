@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as queries from "@/core/db/queries";
-import { AppError } from "@/core/errors";
+import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
-export async function GET(request: NextRequest) {
-  try {
+export const GET = withApiErrors(
+  async (request: NextRequest) => {
     const { searchParams } = request.nextUrl;
     const cardName = searchParams.get("card_name");
     if (!cardName) {
@@ -34,14 +34,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(result, {
       headers: { "Cache-Control": "public, s-maxage=300" },
     });
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    console.error("[/api/cards/stats] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to load card stats" },
-      { status: 500 },
-    );
-  }
-}
+  },
+  "[/api/cards/stats] Error:",
+);

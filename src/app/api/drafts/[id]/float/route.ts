@@ -6,28 +6,23 @@ import {
   addFloatedCard,
   removeFloatedCard,
 } from "@/core/db/queries/floatedCards";
-import { AppError } from "@/core/errors";
+import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 type Params = { params: Promise<{ id: string }> };
 
-export async function GET(request: NextRequest, { params }: Params) {
-  try {
+export const GET = withApiErrors(
+  async (request: NextRequest, { params }: Params) => {
     const { id: draftId } = await params;
     const client = await getClient();
     const { seat } = await authenticateSeat(client, request, draftId);
     const cards = await getFloatedCards(client, draftId, seat);
     return NextResponse.json({ cards });
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    console.error("[/api/drafts/[id]/float] GET Error:", error);
-    return NextResponse.json({ error: "Failed to load floated cards" }, { status: 500 });
-  }
-}
+  },
+  "[/api/drafts/[id]/float] GET Error:",
+);
 
-export async function PUT(request: NextRequest, { params }: Params) {
-  try {
+export const PUT = withApiErrors(
+  async (request: NextRequest, { params }: Params) => {
     const { id: draftId } = await params;
     const client = await getClient();
     const { seat } = await authenticateSeat(client, request, draftId);
@@ -39,17 +34,12 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     await addFloatedCard(client, draftId, seat, body.card_name);
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    console.error("[/api/drafts/[id]/float] PUT Error:", error);
-    return NextResponse.json({ error: "Failed to add floated card" }, { status: 500 });
-  }
-}
+  },
+  "[/api/drafts/[id]/float] PUT Error:",
+);
 
-export async function DELETE(request: NextRequest, { params }: Params) {
-  try {
+export const DELETE = withApiErrors(
+  async (request: NextRequest, { params }: Params) => {
     const { id: draftId } = await params;
     const client = await getClient();
     const { seat } = await authenticateSeat(client, request, draftId);
@@ -61,11 +51,6 @@ export async function DELETE(request: NextRequest, { params }: Params) {
 
     await removeFloatedCard(client, draftId, seat, body.card_name);
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    console.error("[/api/drafts/[id]/float] DELETE Error:", error);
-    return NextResponse.json({ error: "Failed to remove floated card" }, { status: 500 });
-  }
-}
+  },
+  "[/api/drafts/[id]/float] DELETE Error:",
+);

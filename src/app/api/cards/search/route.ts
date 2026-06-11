@@ -3,9 +3,10 @@ import * as queries from "@/core/db/queries";
 import { searchLocalCards } from "@/core/localSearch";
 import { transformScryfallJson } from "@/core/db/queries/helpers";
 import type { ScryCard } from "@/core/types";
+import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
-export async function GET(request: NextRequest) {
-  try {
+export const GET = withApiErrors(
+  async (request: NextRequest) => {
     const { searchParams } = request.nextUrl;
     const q = searchParams.get("q");
     const draftId = searchParams.get("draft_id");
@@ -93,11 +94,6 @@ export async function GET(request: NextRequest) {
       },
       { headers: { "Cache-Control": cacheControl } },
     );
-  } catch (error) {
-    console.error("[/api/cards/search] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to search cards" },
-      { status: 500 },
-    );
-  }
-}
+  },
+  "[/api/cards/search] Error:",
+);

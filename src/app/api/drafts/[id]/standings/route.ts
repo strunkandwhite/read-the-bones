@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as queries from "@/core/db/queries";
-import { AppError } from "@/core/errors";
+import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
+export const GET = withApiErrors(
+  async (
+    _request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
     const { id } = await params;
     const draft = await queries.getDraft(id);
     const numSeats = draft?.num_seats;
@@ -16,14 +16,6 @@ export async function GET(
     return NextResponse.json(result, {
       headers: { "Cache-Control": "public, s-maxage=60" },
     });
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    console.error("[/api/drafts/[id]/standings] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to load standings" },
-      { status: 500 },
-    );
-  }
-}
+  },
+  "[/api/drafts/[id]/standings] Error:",
+);

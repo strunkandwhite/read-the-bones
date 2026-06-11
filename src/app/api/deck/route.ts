@@ -3,11 +3,12 @@ import { getClient } from "@/core/db/client";
 import { createSnapshot } from "@/core/db/queries/decks";
 import type { DeckState } from "@/core/types";
 import { validateDeckState } from "@/core/validateDeckState";
+import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 const MAX_BODY_SIZE = 100 * 1024; // 100KB
 
-export async function POST(request: NextRequest) {
-  try {
+export const POST = withApiErrors(
+  async (request: NextRequest) => {
     const text = await request.text();
     if (text.length > MAX_BODY_SIZE) {
       return NextResponse.json(
@@ -37,11 +38,6 @@ export async function POST(request: NextRequest) {
     const client = await getClient();
     const { deckId } = await createSnapshot(client, deckState);
     return NextResponse.json({ deckId });
-  } catch (error) {
-    console.error("[/api/deck] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to create shared deck" },
-      { status: 500 }
-    );
-  }
-}
+  },
+  "[/api/deck] Error:",
+);

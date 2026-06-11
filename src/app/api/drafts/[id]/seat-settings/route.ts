@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
 import { updateAutoPick, updateDisplayName, getSeatSettings } from "@/core/db/queries/seatTokens";
-import { AppError } from "@/core/errors";
+import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
+export const PUT = withApiErrors(
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
     const { id: draftId } = await params;
     const client = await getClient();
     const { seat } = await authenticateSeat(client, request, draftId);
@@ -40,11 +40,6 @@ export async function PUT(
       autoPick: settings!.autoPick,
       displayName: settings!.displayName,
     });
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    console.error("[/api/drafts/[id]/seat-settings] Error:", error);
-    return NextResponse.json({ error: "Failed to update settings" }, { status: 500 });
-  }
-}
+  },
+  "[/api/drafts/[id]/seat-settings] Error:",
+);

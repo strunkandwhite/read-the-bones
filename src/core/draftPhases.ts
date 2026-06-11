@@ -22,7 +22,7 @@
 export const STATS_COMPLETE_PHASES = ["complete", "playing"] as const;
 
 // All known draft phases, for documentation. Not re-exported to keep knip happy until used.
-type DraftPhase = "setup" | "drafting" | "playing" | "complete";
+type _DraftPhase = "setup" | "drafting" | "playing" | "complete";
 
 /**
  * Returns true when a draft's picks should be counted in statistics.

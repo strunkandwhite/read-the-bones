@@ -4,32 +4,27 @@ import { authenticateSeat } from "@/core/tokenAuth";
 import { getQueue, setQueue, type QueueEntry } from "@/core/db/queries/pickQueue";
 import { resolveCardIds } from "@/core/db/queries/cards";
 import { getRemainingCopies } from "@/core/db/queries/helpers";
-import { AppError } from "@/core/errors";
+import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
+export const GET = withApiErrors(
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
     const { id: draftId } = await params;
     const client = await getClient();
     const { seat } = await authenticateSeat(client, request, draftId);
     const queue = await getQueue(client, draftId, seat);
     return NextResponse.json({ queue });
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    console.error("[/api/drafts/[id]/queue] GET Error:", error);
-    return NextResponse.json({ error: "Failed to load queue" }, { status: 500 });
-  }
-}
+  },
+  "[/api/drafts/[id]/queue] GET Error:",
+);
 
-export async function PUT(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
+export const PUT = withApiErrors(
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
     const { id: draftId } = await params;
     const client = await getClient();
     const { seat } = await authenticateSeat(client, request, draftId);
@@ -133,11 +128,6 @@ export async function PUT(
 
     const queue = await getQueue(client, draftId, seat);
     return NextResponse.json({ queue });
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    console.error("[/api/drafts/[id]/queue] PUT Error:", error);
-    return NextResponse.json({ error: "Failed to update queue" }, { status: 500 });
-  }
-}
+  },
+  "[/api/drafts/[id]/queue] PUT Error:",
+);

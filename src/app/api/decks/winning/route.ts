@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as queries from "@/core/db/queries";
+import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 const VALID_COLOR_PAIR = /^[WUBRG]{1,2}$|^C$/;
 const WUBRG = "WUBRG";
@@ -12,8 +13,8 @@ function normalizeColorPair(input: string): string | null {
   return upper.split("").sort((a, b) => WUBRG.indexOf(a) - WUBRG.indexOf(b)).join("");
 }
 
-export async function GET(request: NextRequest) {
-  try {
+export const GET = withApiErrors(
+  async (request: NextRequest) => {
     const { searchParams } = request.nextUrl;
     const colorPair = searchParams.get("color_pair");
 
@@ -42,11 +43,6 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(result, {
       headers: { "Cache-Control": "public, s-maxage=300" },
     });
-  } catch (error) {
-    console.error("[/api/decks/winning] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to load winning decks" },
-      { status: 500 },
-    );
-  }
-}
+  },
+  "[/api/decks/winning] Error:",
+);

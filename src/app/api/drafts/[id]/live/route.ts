@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
-import { AppError } from "@/core/errors";
 import { getNextPick } from "@/core/snakeDraft";
 import { getLatestPickNumber, getRecentPicks, getPicksWithCardDetails } from "@/core/db/queries/picks";
 import { getSeatDisplayNames } from "@/core/db/queries/seatTokens";
 import { getMatchCount } from "@/core/db/queries/matches";
 import { parseBannedCardNames } from "@/core/db/queries/helpers";
+import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
-export async function GET(
-  _request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
+export const GET = withApiErrors(
+  async (
+    _request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
     const { id: draftId } = await params;
     const client = await getClient();
 
@@ -58,11 +58,6 @@ export async function GET(
       picks,
       bannedCards,
     }, { headers: { "Cache-Control": "no-cache" } });
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    console.error("[/api/drafts/[id]/live] Error:", error);
-    return NextResponse.json({ error: "Failed to load live data" }, { status: 500 });
-  }
-}
+  },
+  "[/api/drafts/[id]/live] Error:",
+);

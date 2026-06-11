@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as queries from "@/core/db/queries";
 import { intParam } from "@/app/api/_utils";
+import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
+export const GET = withApiErrors(
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
     const { id } = await params;
     const { searchParams } = request.nextUrl;
     const result = await queries.getPicks({
@@ -19,11 +20,6 @@ export async function GET(
     return NextResponse.json(result, {
       headers: { "Cache-Control": "public, s-maxage=60" },
     });
-  } catch (error) {
-    console.error("[/api/drafts/[id]/picks] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to load picks" },
-      { status: 500 },
-    );
-  }
-}
+  },
+  "[/api/drafts/[id]/picks] Error:",
+);

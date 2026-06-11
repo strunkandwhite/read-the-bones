@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
-import { AppError } from "@/core/errors";
 import { reportMatchResult } from "@/core/db/queries/matches";
 import { validateMatchResult } from "@/core/match-validation";
+import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
-export async function POST(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  try {
+export const POST = withApiErrors(
+  async (
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> },
+  ) => {
     const { id: draftId } = await params;
     const client = await getClient();
     const { seat: mySeat } = await authenticateSeat(client, request, draftId);
@@ -54,11 +54,6 @@ export async function POST(
     await reportMatchResult(client, draftId, seat1, seat2, seat1Wins, seat2Wins, mySeat);
 
     return NextResponse.json({ success: true, seat1, seat2, seat1Wins, seat2Wins });
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    console.error("[/api/drafts/[id]/match] Error:", error);
-    return NextResponse.json({ error: "Failed to report match" }, { status: 500 });
-  }
-}
+  },
+  "[/api/drafts/[id]/match] Error:",
+);
