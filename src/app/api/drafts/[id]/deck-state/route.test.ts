@@ -133,6 +133,48 @@ describe("PUT /api/drafts/[id]/deck-state", () => {
     expect(mockUpsertWipDeck).not.toHaveBeenCalled();
   });
 
+  it("returns 413 when request body exceeds 100KB", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1 });
+
+    // Build a body larger than 100KB
+    const bigBody = "x".repeat(100 * 1024 + 1);
+    const req = new NextRequest(new URL("http://localhost:3000/api/drafts/test/deck-state"), {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Seat-Token": "test-token",
+      },
+      body: bigBody,
+    });
+
+    const res = await PUT(req, params);
+    const body = await res.json();
+
+    expect(res.status).toBe(413);
+    expect(body.error).toBe("Request body too large");
+    expect(mockUpsertWipDeck).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 on malformed JSON body", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1 });
+
+    const req = new NextRequest(new URL("http://localhost:3000/api/drafts/test/deck-state"), {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Seat-Token": "test-token",
+      },
+      body: "{ not valid json",
+    });
+
+    const res = await PUT(req, params);
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("Invalid JSON body");
+    expect(mockUpsertWipDeck).not.toHaveBeenCalled();
+  });
+
   it("returns 401 on invalid token", async () => {
     mockAuthenticateSeat.mockRejectedValueOnce(new AuthError("Missing seat token"));
 

@@ -78,6 +78,37 @@ describe("POST /api/deck", () => {
     expect(res.status).toBe(500);
   });
 
+  it("returns 413 when request body exceeds 100KB", async () => {
+    const bigBody = "x".repeat(100 * 1024 + 1);
+    const req = new NextRequest(new URL("http://localhost:3000/api/deck"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: bigBody,
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(413);
+    expect(body.error).toBe("Request body too large");
+    expect(mockCreateSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 on malformed JSON body", async () => {
+    const req = new NextRequest(new URL("http://localhost:3000/api/deck"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{ not valid json",
+    });
+
+    const res = await POST(req);
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("Invalid JSON body");
+    expect(mockCreateSnapshot).not.toHaveBeenCalled();
+  });
+
   it("returns 429 when rate limit exceeded", async () => {
     mockValidateDeckState.mockReturnValue({ valid: true });
     mockGetDraft.mockResolvedValue({ draft_id: "draft-rl" });

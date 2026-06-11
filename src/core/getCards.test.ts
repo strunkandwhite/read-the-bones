@@ -434,6 +434,156 @@ describe("getCards", () => {
     expect(result.ingestionHash).toMatch(/^[a-f0-9]+$/);
   });
 
+  it("skips banned cards when generating unpicked pool entries (banned card gets 0 timesAvailable)", async () => {
+    // Set up a draft with 2 cards in the cube, one of which is banned.
+    // The banned card is skipped in buildAllPicks (no unpicked pool entry).
+    // It still appears in result.cards as a new-card stub with weightedGeomean:Infinity
+    // and timesAvailable:0 — but importantly it does NOT affect stats via unpicked entries.
+    setupMockExecute({
+      draftRows: [
+        draftRow("d1", {
+          cubeSnapshotId: 1,
+          bannedCards: JSON.stringify(["Black Lotus"]),
+        }),
+      ],
+      pickRows: [],
+      cubeCardRows: [
+        cubeCardRow(1, 1, "Lightning Bolt"),
+        cubeCardRow(1, 2, "Black Lotus"),
+      ],
+      cubeSizeRows: [cubeSizeRow(1, 200)],
+    });
+
+    const result = await getCards({});
+
+    const names = result.cards.map((c) => c.cardName);
+    expect(names).toContain("Lightning Bolt");
+    // Black Lotus is banned — no unpicked pool entry is generated, so timesAvailable = 0
+    const bannedCard = result.cards.find((c) => c.cardName === "Black Lotus");
+    expect(bannedCard).toBeDefined(); // appears as a stub (in display cube)
+    expect(bannedCard!.timesAvailable).toBe(0); // no unpicked entries generated
+    // Lightning Bolt (not banned) gets a normal unpicked entry
+    const bolt = result.cards.find((c) => c.cardName === "Lightning Bolt");
+    expect(bolt).toBeDefined();
+    expect(bolt!.timesAvailable).toBe(1);
+  });
+
+  it("assigns copyNumber correctly for multiple copies of the same card in one draft", async () => {
+    // Two picks of Mishra's Bauble in d1 (qty=2 in cube).
+    // copyNumber for the first pick should be 1, second pick should be 2.
+    setupMockExecute({
+      draftRows: [draftRow("d1", { cubeSnapshotId: 1 })],
+      pickRows: [
+        pickRow("d1", "Mishra's Bauble", 5, 1, 10),
+        pickRow("d1", "Mishra's Bauble", 12, 2, 10),
+      ],
+      cubeCardRows: [cubeCardRow(1, 10, "Mishra's Bauble", 2)],
+      cubeSizeRows: [cubeSizeRow(1, 200)],
+      scryfallRows: [
+        { card_id: 10, name: "Mishra's Bauble", scryfall_json: scryfallJson("Mishra's Bauble") },
+      ],
+    });
+
+    const result = await getCards({});
+
+    // Both copies were picked, so the card should appear in stats
+    const card = result.cards.find((c) => c.cardName === "Mishra's Bauble");
+    expect(card).toBeDefined();
+    // 2 picks, both in the same draft
+    expect(card!.draftsPickedIn).toBe(1);
+    expect(card!.maxCopiesInDraft).toBe(2);
+  });
+
+  it("generates multiple unpicked entries when cube qty > 1 and cards are not picked", async () => {
+    // Cube has Mishra's Bauble with qty=3. No picks.
+    // buildAllPicks generates 3 CardPick entries (one per copy) for the same draftId.
+    // calculateStats uses uniqueDraftIds for timesAvailable (size=1 for a single draft)
+    // but maxCopiesInDraft counts the copies within that draft.
+    setupMockExecute({
+      draftRows: [draftRow("d1", { cubeSnapshotId: 1 })],
+      pickRows: [],
+      cubeCardRows: [cubeCardRow(1, 10, "Mishra's Bauble", 3)],
+      cubeSizeRows: [cubeSizeRow(1, 200)],
+      scryfallRows: [
+        { card_id: 10, name: "Mishra's Bauble", scryfall_json: scryfallJson("Mishra's Bauble") },
+      ],
+    });
+
+    const result = await getCards({});
+
+    const card = result.cards.find((c) => c.cardName === "Mishra's Bauble");
+    expect(card).toBeDefined();
+    // 1 draft, 3 unpicked entries — timesAvailable is unique-draft-count = 1
+    expect(card!.timesAvailable).toBe(1);
+    expect(card!.draftsPickedIn).toBe(0);
+    // maxCopiesInDraft reflects the qty=3 from the cube
+    expect(card!.maxCopiesInDraft).toBe(3);
+  });
+
+  it("generates unpicked entries only for remaining copies when some are picked", async () => {
+    // qty=3, picks=1 → 2 unpicked entries. The card appears once in picks + 2 unpicked.
+    // timesAvailable = 1 (same draft); draftsPickedIn = 1; maxCopiesInDraft = 3.
+    setupMockExecute({
+      draftRows: [draftRow("d1", { cubeSnapshotId: 1 })],
+      pickRows: [pickRow("d1", "Mishra's Bauble", 5, 1, 10)],
+      cubeCardRows: [cubeCardRow(1, 10, "Mishra's Bauble", 3)],
+      cubeSizeRows: [cubeSizeRow(1, 200)],
+      scryfallRows: [
+        { card_id: 10, name: "Mishra's Bauble", scryfall_json: scryfallJson("Mishra's Bauble") },
+      ],
+    });
+
+    const result = await getCards({});
+
+    const card = result.cards.find((c) => c.cardName === "Mishra's Bauble");
+    expect(card).toBeDefined();
+    // All entries (1 picked + 2 unpicked) share the same draft d1
+    expect(card!.timesAvailable).toBe(1);
+    expect(card!.draftsPickedIn).toBe(1);
+    // maxCopiesInDraft = 3 (1 picked + 2 remaining unpicked entries)
+    expect(card!.maxCopiesInDraft).toBe(3);
+  });
+
+  it("new cards (in current cube with no historical picks) have weightedGeomean of Infinity", async () => {
+    // Card exists in the most-recent cube snapshot but has NEVER appeared in any
+    // completed draft — it has no pick events and no unpicked pool entries from
+    // completed drafts.  assembleCardStats() creates a stub entry with
+    // weightedGeomean: Infinity for it.
+    //
+    // To trigger this: the card is in the display cube (mostRecentCubeSnapshotId)
+    // but NOT in any of the selectedDraftIds' cube snapshots (so no unpicked
+    // entries are generated for it during buildAllPicks).
+    setupMockExecute({
+      draftRows: [
+        draftRow("d1", { cubeSnapshotId: 1 }),    // completed, selected
+        draftRow("d2", { cubeSnapshotId: 2, phase: "drafting" }),  // not completed — excluded
+      ],
+      pickRows: [pickRow("d1", "Lightning Bolt", 3, 1, 1)],
+      cubeCardRows: [
+        // snapshot 1: old cube (for selected draft d1)
+        cubeCardRow(1, 1, "Lightning Bolt"),
+        // snapshot 2: new cube (display cube, has Counterspell as a new card)
+        cubeCardRow(2, 1, "Lightning Bolt"),
+        cubeCardRow(2, 2, "Counterspell"),
+      ],
+      cubeSizeRows: [cubeSizeRow(1, 200), cubeSizeRow(2, 200)],
+      scryfallRows: [
+        { card_id: 1, name: "Lightning Bolt", scryfall_json: scryfallJson("Lightning Bolt", ["R"]) },
+        { card_id: 2, name: "Counterspell", scryfall_json: scryfallJson("Counterspell", ["U"]) },
+      ],
+    });
+
+    // Use poolAsOfDraft=d2 to make snapshot 2 the display cube
+    const result = await getCards({ poolAsOfDraft: "d2" });
+
+    // Counterspell appears in the display cube but has no historical data
+    const newCard = result.cards.find((c) => c.cardName === "Counterspell");
+    expect(newCard).toBeDefined();
+    expect(newCard!.weightedGeomean).toBe(Infinity);
+    expect(newCard!.timesAvailable).toBe(0);
+    expect(newCard!.draftsPickedIn).toBe(0);
+  });
+
   it("Scryfall data is loaded once per distinct card_id (SQL no longer joins scryfall_json onto every pick/cube row)", async () => {
     // Both pick rows reference the same card_id (10). The scryfall batch query
     // is called once with {10} and returns scryfall data for "Counterspell".

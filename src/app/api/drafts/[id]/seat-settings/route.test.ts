@@ -99,6 +99,48 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
     expect(res.status).toBe(401);
   });
 
+  it("returns 400 when display_name is not a string", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+
+    const res = await PUT(
+      makeRequest({ display_name: 42 }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("display_name must be a string");
+    expect(mockUpdateDisplayName).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when display_name exceeds 50 characters", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+
+    const res = await PUT(
+      makeRequest({ display_name: "a".repeat(51) }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("display_name must be 50 characters or fewer");
+    expect(mockUpdateDisplayName).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when auto_pick is not a boolean", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+
+    const res = await PUT(
+      makeRequest({ auto_pick: "yes" }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("auto_pick must be a boolean");
+    expect(mockUpdateAutoPick).not.toHaveBeenCalled();
+  });
+
   it("updates both auto_pick and display_name together", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 3, autoPick: false });
     mockUpdateAutoPick.mockResolvedValueOnce(undefined);

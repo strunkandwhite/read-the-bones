@@ -267,6 +267,97 @@ describe("deckReducer", () => {
       expect(result.zones.deck["mv-0-1"]).toContain("Lightning Bolt");
     });
 
+    it("places two copies of the same card when canonicalCards has it twice", () => {
+      const state = createEmptyDeckState("tarkir", 1);
+      const result = deckReducer(state, {
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt", "Lightning Bolt"],
+        scryfallData,
+      });
+      const boltsInDeck = result.zones.deck["mv-0-1"].filter((c: string) => c === "Lightning Bolt");
+      expect(boltsInDeck).toHaveLength(2);
+      // Sideboard stays empty
+      expect(result.zones.sideboard["mv-0-1"]).toEqual([]);
+    });
+
+    it("two copies picked — one in maindeck, one in sideboard — rebuild preserves placement", () => {
+      // Start with both copies in deck via first REBUILD
+      let state = createEmptyDeckState("tarkir", 1);
+      state = deckReducer(state, {
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt", "Lightning Bolt"],
+        scryfallData,
+      });
+      // Move one copy to sideboard
+      state = deckReducer(state, {
+        type: "MOVE_CARD",
+        cardName: "Lightning Bolt",
+        fromZone: "deck",
+        toZone: "sideboard",
+        fromColumn: "mv-0-1",
+        toColumn: "mv-0-1",
+        toIndex: 0,
+      });
+      // Now: 1 in deck, 1 in sideboard
+      expect(state.zones.deck["mv-0-1"].filter((c: string) => c === "Lightning Bolt")).toHaveLength(1);
+      expect(state.zones.sideboard["mv-0-1"].filter((c: string) => c === "Lightning Bolt")).toHaveLength(1);
+
+      // REBUILD with same 2 copies — must preserve arrangement
+      const result = deckReducer(state, {
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt", "Lightning Bolt"],
+        scryfallData,
+      });
+      expect(result.zones.deck["mv-0-1"].filter((c: string) => c === "Lightning Bolt")).toHaveLength(1);
+      expect(result.zones.sideboard["mv-0-1"].filter((c: string) => c === "Lightning Bolt")).toHaveLength(1);
+    });
+
+    it("copy removed upstream — rebuild drops the right one (excess removed, remaining kept)", () => {
+      // Start with 2 copies
+      let state = createEmptyDeckState("tarkir", 1);
+      state = deckReducer(state, {
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt", "Lightning Bolt"],
+        scryfallData,
+      });
+      // Move one to sideboard
+      state = deckReducer(state, {
+        type: "MOVE_CARD",
+        cardName: "Lightning Bolt",
+        fromZone: "deck",
+        toZone: "sideboard",
+        fromColumn: "mv-0-1",
+        toColumn: "mv-0-1",
+        toIndex: 0,
+      });
+      // Now rebuild with only 1 copy canonical — one copy should be dropped
+      const result = deckReducer(state, {
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt"],
+        scryfallData,
+      });
+      const totalBolts =
+        result.zones.deck["mv-0-1"].filter((c: string) => c === "Lightning Bolt").length +
+        result.zones.sideboard["mv-0-1"].filter((c: string) => c === "Lightning Bolt").length;
+      expect(totalBolts).toBe(1);
+    });
+
+    it("does not create duplicates when rebuilding with same multi-copy canonical list twice", () => {
+      let state = createEmptyDeckState("tarkir", 1);
+      state = deckReducer(state, {
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt", "Lightning Bolt"],
+        scryfallData,
+      });
+      // Second REBUILD with same list should return same state reference (no change)
+      const result = deckReducer(state, {
+        type: "REBUILD",
+        canonicalCards: ["Lightning Bolt", "Lightning Bolt"],
+        scryfallData,
+      });
+      expect(result).toBe(state);
+    });
+
     it("preserves basic lands during rebuild", () => {
       let state = createEmptyDeckState("tarkir", 1);
       state = deckReducer(state, {

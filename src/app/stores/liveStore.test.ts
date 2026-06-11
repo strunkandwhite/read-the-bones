@@ -2,8 +2,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { useLiveStore, recomputePicking, _resetDeckState, _applyMeDataForTest } from "./liveStore";
 import { useDraftStore, _resetPollingState } from "./draftStore";
-import { _resetSearchState } from "./cardStore";
+import { _resetSearchState, useCardStore } from "./cardStore";
 import { createEmptyDeckState } from "@/core/deckBuilder";
+import { makeSyncDeckWithPicks } from "./live/deckSave";
 
 vi.mock("@vercel/analytics/react", () => ({ track: vi.fn() }));
 vi.mock("@/core/isLocal", () => ({ isLocalClient: () => false }));
@@ -2926,5 +2927,182 @@ describe("liveStore — idle poll cycles produce zero deck-state PUTs", () => {
       (c) => String(c[0]).includes("deck-state") && (c[1] as RequestInit)?.method === "PUT",
     );
     expect(deckStatePuts).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// syncDeckWithPicks — auth gating, speculative dedup, identity handling
+// ---------------------------------------------------------------------------
+describe("liveStore — syncDeckWithPicks", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("does not rebuild when deckBuilderActive is false", () => {
+    // Arrange: deck builder not open
+    useLiveStore.setState({
+      deckBuilderActive: false,
+      deckReady: true,
+      mySeat: 1,
+    });
+    useDraftStore.setState({ selectedSeat: 1 });
+    useCardStore.setState({ seatCardList: ["Lightning Bolt"], scryfallDataMap: new Map() });
+
+    const initialDeckState = useLiveStore.getState().deckState;
+
+    // Build the sync function from the factory (same as liveStore.ts module-level wiring)
+    const syncDeck = makeSyncDeckWithPicks(useLiveStore.getState);
+    syncDeck();
+
+    // deckState must be unchanged
+    expect(useLiveStore.getState().deckState).toBe(initialDeckState);
+  });
+
+  it("does not rebuild when deckReady is false", () => {
+    useLiveStore.setState({
+      deckBuilderActive: true,
+      deckReady: false,
+      mySeat: 1,
+    });
+    useDraftStore.setState({ selectedSeat: 1 });
+    useCardStore.setState({ seatCardList: ["Lightning Bolt"], scryfallDataMap: new Map() });
+
+    const initialDeckState = useLiveStore.getState().deckState;
+    const syncDeck = makeSyncDeckWithPicks(useLiveStore.getState);
+    syncDeck();
+
+    expect(useLiveStore.getState().deckState).toBe(initialDeckState);
+  });
+
+  it("does not rebuild when viewingSharedDeck is true", () => {
+    useLiveStore.setState({
+      deckBuilderActive: true,
+      deckReady: true,
+      viewingSharedDeck: true,
+      mySeat: 1,
+    });
+    useDraftStore.setState({ selectedSeat: 1 });
+    useCardStore.setState({ seatCardList: ["Lightning Bolt"], scryfallDataMap: new Map() });
+
+    const initialDeckState = useLiveStore.getState().deckState;
+    const syncDeck = makeSyncDeckWithPicks(useLiveStore.getState);
+    syncDeck();
+
+    expect(useLiveStore.getState().deckState).toBe(initialDeckState);
+  });
+
+  it("includes picks in canonical cards when authed (mySeat === selectedSeat)", () => {
+    useLiveStore.setState({
+      deckBuilderActive: true,
+      deckReady: true,
+      viewingSharedDeck: false,
+      mySeat: 2,
+      floatedCards: [],
+      queue: [],
+    });
+    useDraftStore.setState({ selectedSeat: 2 });
+    useCardStore.setState({ seatCardList: ["Lightning Bolt", "Counterspell"], scryfallDataMap: new Map() });
+
+    const syncDeck = makeSyncDeckWithPicks(useLiveStore.getState);
+    syncDeck();
+
+    const { deckState } = useLiveStore.getState();
+    const allCards = Object.values(deckState.zones.deck).flat();
+    expect(allCards).toContain("Lightning Bolt");
+    expect(allCards).toContain("Counterspell");
+  });
+
+  it("auth-gated: excludes floated/queued cards when mySeat !== selectedSeat", () => {
+    useLiveStore.setState({
+      deckBuilderActive: true,
+      deckReady: true,
+      viewingSharedDeck: false,
+      mySeat: 1,   // authed as seat 1
+      floatedCards: ["Force of Will"],
+      queue: [{ mode: "pause", cards: [{ cardId: 9, cardName: "Brainstorm" }] }],
+    });
+    // Viewing seat 2's deck — not authed
+    useDraftStore.setState({ selectedSeat: 2 });
+    useCardStore.setState({ seatCardList: ["Lightning Bolt"], scryfallDataMap: new Map() });
+
+    const syncDeck = makeSyncDeckWithPicks(useLiveStore.getState);
+    syncDeck();
+
+    const { deckState } = useLiveStore.getState();
+    const allCards = Object.values(deckState.zones.deck).flat();
+    expect(allCards).toContain("Lightning Bolt"); // picks still included
+    // Speculative cards excluded because not authed for this seat
+    expect(allCards).not.toContain("Force of Will");
+    expect(allCards).not.toContain("Brainstorm");
+  });
+
+  it("auth-gated: includes floated/queued cards when mySeat === selectedSeat", () => {
+    useLiveStore.setState({
+      deckBuilderActive: true,
+      deckReady: true,
+      viewingSharedDeck: false,
+      mySeat: 3,
+      floatedCards: ["Force of Will"],
+      queue: [{ mode: "flow-through", cards: [{ cardId: 5, cardName: "Brainstorm" }] }],
+    });
+    useDraftStore.setState({ selectedSeat: 3 });
+    useCardStore.setState({ seatCardList: ["Lightning Bolt"], scryfallDataMap: new Map() });
+
+    const syncDeck = makeSyncDeckWithPicks(useLiveStore.getState);
+    syncDeck();
+
+    const { deckState } = useLiveStore.getState();
+    const allCards = Object.values(deckState.zones.deck).flat();
+    expect(allCards).toContain("Lightning Bolt");
+    expect(allCards).toContain("Force of Will");
+    expect(allCards).toContain("Brainstorm");
+  });
+
+  it("deduplicates speculative cards: a card queued AND floated counts once", () => {
+    useLiveStore.setState({
+      deckBuilderActive: true,
+      deckReady: true,
+      viewingSharedDeck: false,
+      mySeat: 4,
+      floatedCards: ["Brainstorm"],  // also in queue
+      queue: [{ mode: "flow-through", cards: [{ cardId: 5, cardName: "Brainstorm" }] }],
+    });
+    useDraftStore.setState({ selectedSeat: 4 });
+    useCardStore.setState({ seatCardList: [], scryfallDataMap: new Map() });
+
+    const syncDeck = makeSyncDeckWithPicks(useLiveStore.getState);
+    syncDeck();
+
+    const { deckState } = useLiveStore.getState();
+    const allCards = Object.values(deckState.zones.deck).flat();
+    const brainstormCount = allCards.filter((c) => c === "Brainstorm").length;
+    expect(brainstormCount).toBe(1); // deduplicated to one copy
+  });
+
+  it("deduplicates speculative cards against picks: queued card already picked counts once", () => {
+    useLiveStore.setState({
+      deckBuilderActive: true,
+      deckReady: true,
+      viewingSharedDeck: false,
+      mySeat: 5,
+      floatedCards: [],
+      queue: [{ mode: "flow-through", cards: [{ cardId: 1, cardName: "Lightning Bolt" }] }],
+    });
+    useDraftStore.setState({ selectedSeat: 5 });
+    // Lightning Bolt is both picked AND in queue
+    useCardStore.setState({ seatCardList: ["Lightning Bolt"], scryfallDataMap: new Map() });
+
+    const syncDeck = makeSyncDeckWithPicks(useLiveStore.getState);
+    syncDeck();
+
+    const { deckState } = useLiveStore.getState();
+    const allCards = Object.values(deckState.zones.deck).flat();
+    const boltCount = allCards.filter((c) => c === "Lightning Bolt").length;
+    expect(boltCount).toBe(1); // pick wins, queue dedup removes the speculative copy
   });
 });

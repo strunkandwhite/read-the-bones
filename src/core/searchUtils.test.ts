@@ -132,4 +132,46 @@ describe("hasScryfallOperators", () => {
       expect(hasScryfallOperators("CMC>3")).toBe(true);
     });
   });
+
+  describe("branch isolation — negation/OR/parentheses without other operators", () => {
+    // The plan notes that existing tests for these branches all contain t:/c: which
+    // satisfies the OPERATOR regex on its own, making the branch-specific pattern
+    // invisible. These inputs isolate each branch by containing NO t:/c:/mv:/etc.
+    // operators — only the one feature under test.
+
+    it("OR keyword alone triggers the syntax branch", () => {
+      // Pure card name search using OR — no type/color/mv operators
+      expect(hasScryfallOperators("bolt or snap")).toBe(true);
+    });
+
+    it("parentheses alone trigger the syntax branch", () => {
+      // Grouped name search — no operators, just parens
+      expect(hasScryfallOperators("(bolt)")).toBe(true);
+    });
+
+    it("negation mid-query triggers the space-dash-word pattern", () => {
+      // 'bolt -snap' contains ' -s' (space-dash-word) but no t:/c:/mv: operators
+      expect(hasScryfallOperators("bolt -snap")).toBe(true);
+    });
+
+    it("plain word with OR as substring does NOT trigger (case-sensitive boundary)", () => {
+      // 'orange' contains 'or' but not as a whole word
+      expect(hasScryfallOperators("orange")).toBe(false);
+    });
+
+    it("dash at start of word without preceding space does NOT trigger negation", () => {
+      // '-snap' at the start has no space before the dash — should not match \\s-\\w
+      expect(hasScryfallOperators("-snap")).toBe(false);
+    });
+
+    it("open paren in card name substring does trigger parentheses branch", () => {
+      // Entering '(' alone should count as Scryfall syntax
+      expect(hasScryfallOperators("(")).toBe(true);
+    });
+
+    it("plain card name with no operators returns false (regression guard)", () => {
+      expect(hasScryfallOperators("ancestral recall")).toBe(false);
+      expect(hasScryfallOperators("force of will")).toBe(false);
+    });
+  });
 });

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import { CardStatsModal } from "./CardStatsModal";
 import { useCardStore } from "@/app/stores/cardStore";
 import { useDraftStore } from "@/app/stores/draftStore";
@@ -180,5 +180,197 @@ describe("CardStatsModal", () => {
     render(<CardStatsModal />);
     expect(screen.queryByText("Hold to Pick")).toBeNull();
     expect(screen.queryByText("Queue")).toBeNull();
+  });
+
+  describe("action button interactions", () => {
+    async function setupWithActions() {
+      const { useCardStatus, useIsAuthed } = await import("@/app/stores/selectors");
+      (useCardStatus as ReturnType<typeof vi.fn>).mockReturnValue({ status: "none" });
+      (useIsAuthed as ReturnType<typeof vi.fn>).mockReturnValue(true);
+
+      const addToQueue = vi.fn();
+      const addFloat = vi.fn();
+      const handlePick = vi.fn().mockResolvedValue(undefined);
+      const clearSelectedCard = vi.fn();
+
+      (useCardStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (selector: (state: Record<string, unknown>) => unknown) =>
+          selector({
+            selectedCard: "Lightning Bolt",
+            clearSelectedCard,
+            cardStatsDetail: mockCardStatsData,
+            cardStatsLoading: false,
+            selectCard: vi.fn(),
+          }),
+      );
+      (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (selector: (state: Record<string, unknown>) => unknown) =>
+          selector({ activeDraft: "test-draft", board: { phase: "drafting" }, selectedSeat: 1 }),
+      );
+      (useLiveStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (selector: (state: Record<string, unknown>) => unknown) =>
+          selector({
+            mySeat: 1,
+            isMyTurn: true,
+            queue: [],
+            autoPick: false,
+            handlePick,
+            addToQueue,
+            removeFromQueue: vi.fn(),
+            addFloat,
+            removeFloat: vi.fn(),
+          }),
+      );
+      return { addToQueue, addFloat, handlePick, clearSelectedCard };
+    }
+
+    it("clicking Queue button calls addToQueue with the selected card", async () => {
+      const { addToQueue } = await setupWithActions();
+      render(<CardStatsModal />);
+
+      const queueBtn = screen.getByText("Queue");
+      fireEvent.click(queueBtn);
+
+      expect(addToQueue).toHaveBeenCalledWith("Lightning Bolt");
+    });
+
+    it("clicking Float button calls addFloat with the selected card", async () => {
+      const { addFloat } = await setupWithActions();
+      render(<CardStatsModal />);
+
+      const floatBtn = screen.getByText("Float");
+      fireEvent.click(floatBtn);
+
+      expect(addFloat).toHaveBeenCalledWith("Lightning Bolt");
+    });
+
+    it("clicking Queue disables buttons (actionPending) for at least ACTION_PENDING_MIN_MS", async () => {
+      vi.useFakeTimers();
+      await setupWithActions();
+      render(<CardStatsModal />);
+
+      const queueBtn = screen.getByText("Queue") as HTMLButtonElement;
+      expect(queueBtn.disabled).toBe(false);
+
+      await act(async () => {
+        fireEvent.click(queueBtn);
+        // Flush promises — actionPending is set synchronously
+        await Promise.resolve();
+      });
+
+      // Immediately after click — the button should be disabled (actionPending)
+      expect((screen.getByText("Queue") as HTMLButtonElement).disabled).toBe(true);
+
+      // After timer fires, actionPending clears
+      await act(async () => {
+        vi.advanceTimersByTime(700);
+        await Promise.resolve();
+      });
+
+      vi.useRealTimers();
+    });
+  });
+
+  describe("close behaviour", () => {
+    it("pressing Escape calls clearSelectedCard", async () => {
+      const clearSelectedCard = vi.fn();
+      (useCardStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (selector: (state: Record<string, unknown>) => unknown) =>
+          selector({
+            selectedCard: "Lightning Bolt",
+            clearSelectedCard,
+            cardStatsDetail: mockCardStatsData,
+            cardStatsLoading: false,
+            selectCard: vi.fn(),
+          }),
+      );
+      (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (selector: (state: Record<string, unknown>) => unknown) =>
+          selector({ activeDraft: null, board: null, selectedSeat: null }),
+      );
+      (useLiveStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (selector: (state: Record<string, unknown>) => unknown) =>
+          selector({
+            mySeat: null, isMyTurn: false, queue: [], autoPick: false,
+            handlePick: vi.fn(), addToQueue: vi.fn(), removeFromQueue: vi.fn(),
+            addFloat: vi.fn(), removeFloat: vi.fn(),
+          }),
+      );
+
+      render(<CardStatsModal />);
+
+      fireEvent.keyDown(document, { key: "Escape" });
+
+      expect(clearSelectedCard).toHaveBeenCalled();
+    });
+
+    it("clicking the backdrop (overlay div) calls clearSelectedCard", () => {
+      const clearSelectedCard = vi.fn();
+      (useCardStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (selector: (state: Record<string, unknown>) => unknown) =>
+          selector({
+            selectedCard: "Lightning Bolt",
+            clearSelectedCard,
+            cardStatsDetail: mockCardStatsData,
+            cardStatsLoading: false,
+            selectCard: vi.fn(),
+          }),
+      );
+      (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (selector: (state: Record<string, unknown>) => unknown) =>
+          selector({ activeDraft: null, board: null, selectedSeat: null }),
+      );
+      (useLiveStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (selector: (state: Record<string, unknown>) => unknown) =>
+          selector({
+            mySeat: null, isMyTurn: false, queue: [], autoPick: false,
+            handlePick: vi.fn(), addToQueue: vi.fn(), removeFromQueue: vi.fn(),
+            addFloat: vi.fn(), removeFloat: vi.fn(),
+          }),
+      );
+
+      const { container } = render(<CardStatsModal />);
+
+      // The backdrop is the outermost div with bg-black/60 class
+      const backdrop = container.firstElementChild as HTMLElement;
+      expect(backdrop).toBeTruthy();
+      fireEvent.click(backdrop);
+
+      expect(clearSelectedCard).toHaveBeenCalled();
+    });
+
+    it("clicking inside the modal content does NOT call clearSelectedCard", () => {
+      const clearSelectedCard = vi.fn();
+      (useCardStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (selector: (state: Record<string, unknown>) => unknown) =>
+          selector({
+            selectedCard: "Lightning Bolt",
+            clearSelectedCard,
+            cardStatsDetail: mockCardStatsData,
+            cardStatsLoading: false,
+            selectCard: vi.fn(),
+          }),
+      );
+      (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (selector: (state: Record<string, unknown>) => unknown) =>
+          selector({ activeDraft: null, board: null, selectedSeat: null }),
+      );
+      (useLiveStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (selector: (state: Record<string, unknown>) => unknown) =>
+          selector({
+            mySeat: null, isMyTurn: false, queue: [], autoPick: false,
+            handlePick: vi.fn(), addToQueue: vi.fn(), removeFromQueue: vi.fn(),
+            addFloat: vi.fn(), removeFloat: vi.fn(),
+          }),
+      );
+
+      render(<CardStatsModal />);
+
+      // Click the stats value (inside modal content) — should NOT close
+      const pickScore = screen.getByText("12.4");
+      fireEvent.click(pickScore);
+
+      expect(clearSelectedCard).not.toHaveBeenCalled();
+    });
   });
 });
