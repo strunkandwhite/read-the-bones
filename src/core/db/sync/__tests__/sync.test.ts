@@ -727,4 +727,193 @@ describe("syncDraft", () => {
       expect(client.batch).not.toHaveBeenCalled();
     });
   });
+
+  describe("partial-failure invariant: hash NOT updated when batch insert throws", () => {
+    it("does not call updateDomainHashes when batchInsertPicks throws", async () => {
+      const rawData: DraftSheetRawData = {
+        pool: buildPoolRows(["Lightning Bolt"]),
+        picks: buildPickRows(["Alice"], [
+          ["1", "→", "Lightning Bolt", "R"],
+        ]),
+        matches: null,
+      };
+
+      // Return mismatched picks hash to trigger a replace
+      const { hashPool: hp } = await import("../domains");
+      const { parsePoolRows: ppr } = await import("../../../parseSheetRows");
+      const poolHash = hp(ppr(rawData.pool!));
+
+      const client = mockClient((params) => {
+        if (params.sql.includes("pool_hash")) {
+          return {
+            rows: [{
+              pool_hash: poolHash,
+              picks_hash: "stale-picks-hash", // mismatch triggers replace
+              matches_hash: null,
+            }],
+          };
+        }
+        if (params.sql.includes("SELECT cube_snapshot_id FROM cube_snapshots")) {
+          return { rows: [{ cube_snapshot_id: 1 }] };
+        }
+        if (params.sql.includes("SELECT card_id, qty FROM cube_snapshot_cards")) {
+          return { rows: [{ card_id: 1, qty: 1 }] };
+        }
+        return { rows: [] };
+      });
+
+      // Make batch() throw after deleteDomainData succeeds — simulates a DB
+      // error during the pick batch insert
+      client.batch.mockRejectedValue(new Error("batch insert failed"));
+
+      const cache = populatedCache([["Lightning Bolt", 1]]);
+
+      const result = await syncDraft(
+        client as any,
+        "test-draft",
+        rawData,
+        cache,
+        emptyScryfallCache,
+        emptyOptOuts,
+      );
+
+      // Error is captured in result, not thrown
+      expect(result.error).toContain("batch insert failed");
+
+      // updateDomainHashes must NOT have been called — the hash UPDATE SQL
+      // contains "pool_hash" / "picks_hash" / "matches_hash" SET clauses
+      const executeCalls = client.execute.mock.calls.map(
+        (c: any[]) => c[0].sql as string,
+      );
+      // The only execute call that writes hashes uses SET picks_hash / pool_hash
+      const hashUpdateCalls = executeCalls.filter(
+        (sql: string) =>
+          sql.includes("SET") &&
+          (sql.includes("picks_hash") || sql.includes("pool_hash") || sql.includes("matches_hash")),
+      );
+      expect(hashUpdateCalls).toHaveLength(0);
+    });
+  });
+
+  describe("hash-persistence invariant: updateDomainHashes called with new hash after replace", () => {
+    it("calls updateDomainHashes with the newly computed picks hash after a successful replace", async () => {
+      const rawData: DraftSheetRawData = {
+        pool: buildPoolRows(["Lightning Bolt", "Counterspell"]),
+        picks: buildPickRows(["Alice", "Bob"], [
+          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
+        ]),
+        matches: null,
+      };
+
+      const { hashPool: hp, hashPicks: hpk } = await import("../domains");
+      const { parsePoolRows: ppr, parsePickRows: ppkr } = await import("../../../parseSheetRows");
+      const poolHash = hp(ppr(rawData.pool!));
+      const parsed = ppkr(rawData.picks!, "test-draft");
+      const expectedPicksHash = hpk(parsed.picks.filter((p) => p.wasPicked));
+
+      const client = mockClient((params) => {
+        if (params.sql.includes("pool_hash")) {
+          return {
+            rows: [{
+              pool_hash: poolHash, // pool unchanged
+              picks_hash: "stale-picks-hash", // triggers replace
+              matches_hash: null,
+            }],
+          };
+        }
+        if (params.sql.includes("SELECT cube_snapshot_id FROM cube_snapshots")) {
+          return { rows: [{ cube_snapshot_id: 1 }] };
+        }
+        if (params.sql.includes("SELECT card_id, qty FROM cube_snapshot_cards")) {
+          return {
+            rows: [
+              { card_id: 1, qty: 1 },
+              { card_id: 2, qty: 1 },
+            ],
+          };
+        }
+        return { rows: [] };
+      });
+
+      const cache = populatedCache([
+        ["Lightning Bolt", 1],
+        ["Counterspell", 2],
+      ]);
+
+      await syncDraft(
+        client as any,
+        "test-draft",
+        rawData,
+        cache,
+        emptyScryfallCache,
+        emptyOptOuts,
+      );
+
+      // Find the execute call that writes the hash update
+      const executeCalls = client.execute.mock.calls;
+      const hashUpdateCall = executeCalls.find(
+        (c: any[]) =>
+          (c[0].sql as string).includes("SET") &&
+          (c[0].sql as string).includes("picks_hash"),
+      );
+
+      expect(hashUpdateCall).toBeDefined();
+      // The args for the UPDATE must contain the NEW picks hash, not the stale one
+      const updateArgs = hashUpdateCall![0].args as unknown[];
+      expect(updateArgs).toContain(expectedPicksHash);
+      expect(updateArgs).not.toContain("stale-picks-hash");
+    });
+
+    it("does NOT call updateDomainHashes when the domain is skipped (hashes match)", async () => {
+      const { hashPool: hp, hashPicks: hpk } = await import("../domains");
+      const { parsePoolRows: ppr, parsePickRows: ppkr } = await import("../../../parseSheetRows");
+
+      const rawData: DraftSheetRawData = {
+        pool: buildPoolRows(["Lightning Bolt"]),
+        picks: buildPickRows(["Alice"], [
+          ["1", "→", "Lightning Bolt", "R"],
+        ]),
+        matches: null,
+      };
+
+      const poolHash = hp(ppr(rawData.pool!));
+      const parsed = ppkr(rawData.picks!, "test-draft");
+      const picksHash = hpk(parsed.picks.filter((p) => p.wasPicked));
+
+      const client = mockClient((params) => {
+        if (params.sql.includes("pool_hash")) {
+          return {
+            rows: [{
+              pool_hash: poolHash,
+              picks_hash: picksHash, // matches current → skip
+              matches_hash: null,
+            }],
+          };
+        }
+        return { rows: [] };
+      });
+
+      const cache = populatedCache([["Lightning Bolt", 1]]);
+
+      await syncDraft(
+        client as any,
+        "test-draft",
+        rawData,
+        cache,
+        emptyScryfallCache,
+        emptyOptOuts,
+      );
+
+      const executeCalls = client.execute.mock.calls.map(
+        (c: any[]) => c[0].sql as string,
+      );
+      const hashUpdateCalls = executeCalls.filter(
+        (sql: string) =>
+          sql.includes("SET") &&
+          (sql.includes("picks_hash") || sql.includes("pool_hash") || sql.includes("matches_hash")),
+      );
+      // No hash update — domain was skipped
+      expect(hashUpdateCalls).toHaveLength(0);
+    });
+  });
 });
