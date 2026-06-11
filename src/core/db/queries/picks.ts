@@ -508,16 +508,22 @@ export async function getLiveStateSig(
   // Fetch phase + match count in one query
   const metaResult = await client.execute({
     sql: `SELECT d.phase,
-                 (SELECT COUNT(*) FROM match_events WHERE draft_id = d.draft_id) AS match_count,
-                 (SELECT GROUP_CONCAT(COALESCE(display_name, ''), ':' ORDER BY seat) FROM seat_tokens WHERE draft_id = d.draft_id) AS seat_names_csv
+                 (SELECT COUNT(*) FROM match_events WHERE draft_id = d.draft_id) AS match_count
           FROM drafts d WHERE d.draft_id = ?`,
+    args: [draftId],
+  });
+
+  // Seat names are fetched separately: SQLite/libSQL doesn't support ORDER BY
+  // inside GROUP_CONCAT, and the sig must be deterministic across polls.
+  const namesResult = await client.execute({
+    sql: `SELECT COALESCE(display_name, '') AS name FROM seat_tokens WHERE draft_id = ? ORDER BY seat`,
     args: [draftId],
   });
 
   const meta = metaResult.rows[0];
   const phase = (meta?.phase as string | null) ?? "";
   const matchCount = (meta?.match_count as number | null) ?? 0;
-  const seatNamesCsv = (meta?.seat_names_csv as string | null) ?? "";
+  const seatNamesCsv = namesResult.rows.map((r) => r.name as string).join(":");
 
   // Compose sig: pipe-delimited so it's unambiguous to compare as a string.
   // A rename changes seatNamesCsv; a phase change changes phase; a new match

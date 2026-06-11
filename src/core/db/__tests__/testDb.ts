@@ -93,6 +93,28 @@ export async function createTestSchema(client: Client): Promise<void> {
       PRIMARY KEY (draft_id, seat)
     )
   `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS seat_tokens (
+      draft_id TEXT NOT NULL,
+      seat INTEGER NOT NULL,
+      token TEXT NOT NULL UNIQUE,
+      display_name TEXT,
+      auto_pick INTEGER NOT NULL DEFAULT 1,
+      queue_json TEXT,
+      PRIMARY KEY (draft_id, seat)
+    )
+  `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS floated_cards (
+      draft_id TEXT NOT NULL,
+      seat INTEGER NOT NULL,
+      card_name TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (draft_id, seat, card_name)
+    )
+  `);
 }
 
 /**
@@ -217,5 +239,36 @@ export async function insertPrivacyOptOut(
   await client.execute({
     sql: `INSERT INTO privacy_opt_outs (draft_id, seat) VALUES (?, ?)`,
     args: [draftId, seat],
+  });
+}
+
+export async function insertSeatToken(
+  client: Client,
+  draftId: string,
+  seat: number,
+  opts: { displayName?: string | null; autoPick?: boolean; queueJson?: string | null } = {}
+): Promise<void> {
+  await client.execute({
+    sql: `INSERT INTO seat_tokens (draft_id, seat, token, display_name, auto_pick, queue_json) VALUES (?, ?, ?, ?, ?, ?)`,
+    args: [
+      draftId,
+      seat,
+      `token-${draftId}-${seat}`,
+      opts.displayName ?? null,
+      opts.autoPick === false ? 0 : 1,
+      opts.queueJson ?? null,
+    ],
+  });
+}
+
+export async function insertFloatedCard(
+  client: Client,
+  draftId: string,
+  seat: number,
+  cardName: string
+): Promise<void> {
+  await client.execute({
+    sql: `INSERT INTO floated_cards (draft_id, seat, card_name) VALUES (?, ?, ?)`,
+    args: [draftId, seat, cardName],
   });
 }

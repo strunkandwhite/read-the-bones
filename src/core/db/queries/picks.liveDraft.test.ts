@@ -6,6 +6,14 @@ import {
   getPicksWithCardDetails,
   getLiveStateSig,
 } from "./picks";
+import {
+  createMemDb,
+  insertDraft,
+  insertSeatToken,
+  insertMatch,
+  insertPickEvent,
+  insertFloatedCard,
+} from "../__tests__/testDb";
 
 function createMockClient() {
   return { execute: vi.fn() } as unknown as Client & { execute: ReturnType<typeof vi.fn> };
@@ -277,74 +285,84 @@ describe("getPicksWithCardDetails", () => {
 
 // ---------------------------------------------------------------------------
 // getLiveStateSig
+//
+// These tests execute the production SQL against an in-memory libsql database
+// rather than mocking client.execute — a mocked version of this suite let a
+// dialect error (GROUP_CONCAT ... ORDER BY, a MySQL-ism) ship and 500 every
+// /live request in production.
 // ---------------------------------------------------------------------------
 
 describe("getLiveStateSig", () => {
-  let client: ReturnType<typeof createMockClient>;
-  beforeEach(() => { client = createMockClient(); });
-
   it("returns latestPickN and a composite sig from phase+matchCount+seatNames", async () => {
-    // First execute: pick MAX query
-    client.execute
-      .mockResolvedValueOnce({ rows: [{ latest: 7 }] })
-      // Second execute: meta query (phase, match_count, seat_names_csv)
-      .mockResolvedValueOnce({
-        rows: [{ phase: "drafting", match_count: 2, seat_names_csv: "Alice:Bob" }],
-      });
+    const db = await createMemDb();
+    await insertDraft(db, "draft-1", { phase: "drafting" });
+    await insertSeatToken(db, "draft-1", 1, { displayName: "Alice" });
+    await insertSeatToken(db, "draft-1", 2, { displayName: "Bob" });
+    await insertMatch(db, "draft-1", 1, 2, 2, 1);
+    await insertMatch(db, "draft-1", 1, 3, 2, 0);
+    for (let pickN = 1; pickN <= 7; pickN++) {
+      await insertPickEvent(db, "draft-1", pickN, ((pickN - 1) % 2) + 1, 100 + pickN);
+    }
 
-    const result = await getLiveStateSig(client, "draft-1");
+    const result = await getLiveStateSig(db, "draft-1");
 
     expect(result.latestPickN).toBe(7);
     expect(result.sig).toBe("drafting|2|Alice:Bob");
   });
 
-  it("returns pickN=0 and empty-ish sig when draft has no data", async () => {
-    // When phase/seat_names are null but match_count is null → defaults to 0 per ?? 0
-    client.execute
-      .mockResolvedValueOnce({ rows: [{ latest: 0 }] })
-      .mockResolvedValueOnce({
-        rows: [{ phase: null, match_count: null, seat_names_csv: null }],
-      });
+  it("returns pickN=0 and empty-ish sig when the draft does not exist", async () => {
+    const db = await createMemDb();
 
-    const result = await getLiveStateSig(client, "draft-1");
+    const result = await getLiveStateSig(db, "draft-1");
 
     expect(result.latestPickN).toBe(0);
-    // phase defaults to "", match_count to 0, seatNamesCsv to "" → sig = "|0|"
     expect(result.sig).toBe("|0|");
   });
 
-  it("uses different sigs for different phase, matchCount, and seatNames", async () => {
-    const makeClient = () => {
-      const c = createMockClient();
-      return c;
-    };
+  it("orders seat names by seat regardless of insertion order, with '' for unnamed seats", async () => {
+    const db = await createMemDb();
+    await insertDraft(db, "draft-1", { phase: "drafting" });
+    await insertSeatToken(db, "draft-1", 3, { displayName: null });
+    await insertSeatToken(db, "draft-1", 1, { displayName: "Alice" });
+    await insertSeatToken(db, "draft-1", 2, { displayName: "Bob" });
 
-    const cases: Array<{
-      pickN: number;
-      phase: string;
-      matchCount: number;
-      seatNamesCsv: string;
-      expectedSig: string;
-    }> = [
-      { pickN: 0, phase: "setup", matchCount: 0, seatNamesCsv: "", expectedSig: "setup|0|" },
-      { pickN: 5, phase: "drafting", matchCount: 0, seatNamesCsv: "Alice:Bob", expectedSig: "drafting|0|Alice:Bob" },
-      { pickN: 5, phase: "drafting", matchCount: 1, seatNamesCsv: "Alice:Bob", expectedSig: "drafting|1|Alice:Bob" },
-      { pickN: 5, phase: "playing", matchCount: 1, seatNamesCsv: "Alice:Bob", expectedSig: "playing|1|Alice:Bob" },
-    ];
+    const result = await getLiveStateSig(db, "draft-1");
+
+    expect(result.sig).toBe("drafting|0|Alice:Bob:");
+  });
+
+  it("appends a per-seat freshness marker that changes on queue and float changes", async () => {
+    const db = await createMemDb();
+    await insertDraft(db, "draft-1", { phase: "drafting" });
+    const queueJson = JSON.stringify([{ mode: "pause", cards: ["Bolt"] }]);
+    await insertSeatToken(db, "draft-1", 1, { displayName: "Alice", queueJson });
+
+    const before = await getLiveStateSig(db, "draft-1", 1);
+    expect(before.sig).toBe(`drafting|0|Alice~${queueJson.length}:0`);
+
+    await insertFloatedCard(db, "draft-1", 1, "Counterspell");
+    const after = await getLiveStateSig(db, "draft-1", 1);
+    expect(after.sig).toBe(`drafting|0|Alice~${queueJson.length}:1`);
+    expect(after.sig).not.toBe(before.sig);
+  });
+
+  it("produces distinct sigs for phase, match-count, and seat-name changes", async () => {
+    const db = await createMemDb();
+    await insertDraft(db, "draft-1", { phase: "drafting" });
+    await insertSeatToken(db, "draft-1", 1, { displayName: "Alice" });
 
     const sigs = new Set<string>();
-    for (const c of cases) {
-      const cl = makeClient();
-      cl.execute
-        .mockResolvedValueOnce({ rows: [{ latest: c.pickN }] })
-        .mockResolvedValueOnce({
-          rows: [{ phase: c.phase, match_count: c.matchCount, seat_names_csv: c.seatNamesCsv }],
-        });
-      const res = await getLiveStateSig(cl, "draft-1");
-      expect(res.sig).toBe(c.expectedSig);
-      sigs.add(res.sig);
-    }
-    // All four cases produce unique sigs
+    sigs.add((await getLiveStateSig(db, "draft-1")).sig);
+
+    await db.execute({ sql: "UPDATE drafts SET phase = 'playing' WHERE draft_id = ?", args: ["draft-1"] });
+    sigs.add((await getLiveStateSig(db, "draft-1")).sig);
+
+    await insertMatch(db, "draft-1", 1, 2, 2, 1);
+    sigs.add((await getLiveStateSig(db, "draft-1")).sig);
+
+    await db.execute({ sql: "UPDATE seat_tokens SET display_name = 'Alicia' WHERE draft_id = ? AND seat = 1", args: ["draft-1"] });
+    sigs.add((await getLiveStateSig(db, "draft-1")).sig);
+
     expect(sigs.size).toBe(4);
   });
 });
