@@ -91,12 +91,22 @@ let prevSeatNamesKey = "";
 let prevSyncedAt = "0";
 let syncPollCounter = 0;
 
+// Fetch-generation counter: each poll fetch captures the generation at START.
+// refreshNow() bumps the generation so any interval response that was in-flight
+// before the refreshNow fetch is considered stale and discarded by applyPollResults.
+// This prevents a slow interval response from regressing liveDraftStatus/board to
+// pre-pick data after a faster refreshNow response has already committed newer state.
+let fetchGeneration = 0;
+let appliedGeneration = -1;
+
 /** Reset module-scoped polling state (for tests). */
 export function _resetPollingState() {
   prevPickN = -1;
   prevSeatNamesKey = "";
   prevSyncedAt = "0";
   syncPollCounter = 0;
+  fetchGeneration = 0;
+  appliedGeneration = -1;
   if (pollInterval) {
     clearInterval(pollInterval);
     pollInterval = null;
@@ -119,7 +129,7 @@ function getStoredSeat(draftId: string | null): number | null {
 // Fetch helpers
 // ---------------------------------------------------------------------------
 
-async function fetchPollData(draftId: string) {
+async function fetchPollData(draftId: string, generation: number) {
   // Only fetch sync-status every 3rd poll cycle (~30s) since it rarely changes
   syncPollCounter++;
   const shouldFetchSync = syncPollCounter % 3 === 0;
@@ -142,13 +152,20 @@ async function fetchPollData(draftId: string) {
     syncData = await syncRes.json();
   }
 
-  return { liveData, syncData };
+  return { liveData, syncData, generation };
 }
 
 function applyPollResults(
   liveData: Record<string, unknown> | null,
   syncData: SyncStatusData | null,
+  generation: number,
 ) {
+  // Discard responses from a generation older than the last applied generation.
+  // This prevents a slow interval response that started before a refreshNow() call
+  // from overwriting the newer state that refreshNow already committed.
+  if (generation < appliedGeneration) return;
+  appliedGeneration = generation;
+
   const state = useDraftStore.getState();
   let versionBump = false;
 
@@ -177,9 +194,13 @@ function applyPollResults(
     // Detect pick changes. prevPickN === -1 means "first poll, no previous data" —
     // skip the version bump to avoid double-fetching card data (SSR hydration already
     // provided initial data). Subsequent changes (including 0→1) correctly bump.
-    if ((status.latestPickN as number) !== prevPickN) {
-      if (prevPickN !== -1) versionBump = true;
-      prevPickN = status.latestPickN;
+    // prevPickN must never regress: only advance it when the incoming value is higher
+    // (or equal on first poll), ensuring stale responses that slipped through the
+    // generation guard (same-generation concurrent fetches) can't roll back state.
+    const incomingPickN = status.latestPickN as number;
+    if (incomingPickN !== prevPickN) {
+      if (prevPickN !== -1 && incomingPickN > prevPickN) versionBump = true;
+      if (incomingPickN > prevPickN || prevPickN === -1) prevPickN = incomingPickN;
     }
 
     const seatNamesKey = JSON.stringify(status.seatNames ?? {});
@@ -301,9 +322,12 @@ export const useDraftStore = create<DraftState>()(
       const doFetch = async () => {
         const { activeDraft: currentDraft } = useDraftStore.getState();
         if (!currentDraft) return;
+        // Capture the generation at the START of the fetch so a concurrent
+        // refreshNow() that bumps the generation will make this response stale.
+        const gen = fetchGeneration;
         try {
-          const { liveData, syncData } = await fetchPollData(currentDraft);
-          applyPollResults(liveData, syncData);
+          const { liveData, syncData } = await fetchPollData(currentDraft, gen);
+          applyPollResults(liveData, syncData, gen);
         } catch {
           // Silently ignore transient fetch errors during polling
         }
@@ -325,9 +349,11 @@ export const useDraftStore = create<DraftState>()(
     refreshNow: async () => {
       const { activeDraft } = get();
       if (!activeDraft) return;
+      // Bump the generation so any in-flight interval fetch becomes stale.
+      const gen = ++fetchGeneration;
       try {
-        const { liveData, syncData } = await fetchPollData(activeDraft);
-        applyPollResults(liveData, syncData);
+        const { liveData, syncData } = await fetchPollData(activeDraft, gen);
+        applyPollResults(liveData, syncData, gen);
       } catch {
         // Silently ignore
       }

@@ -378,5 +378,66 @@ describe("draftStore — polling", () => {
     await vi.advanceTimersByTimeAsync(30_000);
     expect(vi.mocked(globalThis.fetch).mock.calls.length).toBe(callCountAfterStop);
   });
+
+  it("stale interval response resolving after refreshNow is discarded — no state regression, no spurious dataVersion bump", async () => {
+    // Simulate the race: an interval tick starts a fetch (generation 0) that is
+    // still in-flight when refreshNow() fires (generation 1, resolves first with
+    // newer pick data). The interval response then resolves — it should be
+    // discarded entirely, leaving the board at the refreshNow state.
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+
+    // Controlled promise for the interval fetch (will resolve LAST with stale data)
+    let resolveInterval!: (r: Response) => void;
+    const intervalPromise = new Promise<Response>((res) => { resolveInterval = res; });
+
+    // Controlled promise for the refreshNow fetch (will resolve FIRST with newer data)
+    let resolveRefresh!: (r: Response) => void;
+    const refreshPromise = new Promise<Response>((res) => { resolveRefresh = res; });
+
+    const staleData = { ...baseLiveData, latestPickN: 5 };
+    const freshData = { ...baseLiveData, latestPickN: 10 };
+
+    let fetchCallCount = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input: string | URL | Request) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      if (!url.includes("/live")) {
+        return new Response(JSON.stringify(baseSyncData), { status: 200 });
+      }
+      fetchCallCount++;
+      if (fetchCallCount === 1) {
+        // First call: the interval fetch — return the controlled promise (stale, resolves last)
+        return intervalPromise;
+      }
+      // Second call: refreshNow fetch — return the controlled promise (fresh, resolves first)
+      return refreshPromise;
+    });
+
+    // Start polling — triggers the interval's immediate fetch (generation 0, call #1)
+    useDraftStore.getState().startPolling();
+
+    // Kick off refreshNow concurrently — bumps generation to 1, starts call #2
+    const refreshDone = useDraftStore.getState().refreshNow();
+
+    // Resolve refreshNow (generation 1) FIRST with the newer pick data
+    resolveRefresh(new Response(JSON.stringify(freshData), { status: 200 }));
+    await refreshDone;
+
+    const afterRefresh = useDraftStore.getState();
+    expect(afterRefresh.liveDraftStatus?.latestPickN).toBe(10);
+    const versionAfterRefresh = afterRefresh.dataVersion;
+
+    // Now resolve the stale interval response (generation 0) — should be discarded
+    resolveInterval(new Response(JSON.stringify(staleData), { status: 200 }));
+    // Let all microtasks/promises flush
+    await vi.advanceTimersByTimeAsync(0);
+
+    const afterStale = useDraftStore.getState();
+    // Board must NOT regress to the stale pick count
+    expect(afterStale.liveDraftStatus?.latestPickN).toBe(10);
+    expect(afterStale.board?.picks).toEqual(freshData.picks);
+    // No spurious dataVersion bump from the stale response
+    expect(afterStale.dataVersion).toBe(versionAfterRefresh);
+  });
 });
 
