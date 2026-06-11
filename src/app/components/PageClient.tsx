@@ -32,6 +32,9 @@ import { useDraftStore } from "../stores/draftStore";
 import { useCardStore } from "../stores/cardStore";
 import { useLiveStore } from "../stores/liveStore";
 import { useIsAuthed, useMyDeckCardNames } from "../stores/selectors";
+// Explicit cross-store wiring — ensures initialization order is documented.
+// All stores are initialized by this import chain.
+import "../stores/wiring";
 
 
 export interface PageClientProps {

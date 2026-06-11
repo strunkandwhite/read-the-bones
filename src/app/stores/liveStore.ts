@@ -3,7 +3,6 @@ import { subscribeWithSelector } from "zustand/middleware";
 import { useDraftStore, registerSeatTokenProvider, registerApplyMeData } from "./draftStore";
 import type { LiveMeData } from "./draftStore";
 import { useCardStore } from "./cardStore";
-import { getMyDeckCardNames } from "./selectors";
 import {
   deckReducer,
   createEmptyDeckState,
@@ -37,9 +36,20 @@ export interface QueueGroupEntry {
   cards: QueueCard[];
 }
 
-// Server-side queue format (id/name fields)
-interface ServerQueueCard { id?: number; cardId?: number; name?: string; cardName?: string; }
+// Server-side queue format — server always sends { id, name }
+interface ServerQueueCard { id: number; name: string; }
 interface ServerQueueEntry { mode: 'pause' | 'flow-through'; cards: ServerQueueCard[]; }
+
+/**
+ * Normalise the server's { id, name } queue format to the client's QueueGroupEntry shape.
+ * Single canonical conversion used by fetchQueue, syncQueue (PUT response), and applyMeFromPoll.
+ */
+function parseServerQueue(raw: ServerQueueEntry[]): QueueGroupEntry[] {
+  return raw.map((e) => ({
+    mode: e.mode,
+    cards: e.cards.map((c) => ({ cardId: c.id, cardName: c.name })),
+  }));
+}
 
 interface LiveStoreState {
   // Auth
@@ -128,11 +138,7 @@ async function syncQueue(set: SetState, get: GetState, newQueue: QueueGroupEntry
     });
     if (res.ok) {
       const data = await res.json();
-      // Server returns { mode, cards: [{ id, name }] } format
-      const queue: QueueGroupEntry[] = (data.queue as ServerQueueEntry[]).map((e) => ({
-        mode: e.mode,
-        cards: e.cards.map((c) => ({ cardId: c.id ?? c.cardId ?? 0, cardName: c.name ?? c.cardName ?? "" })),
-      }));
+      const queue = parseServerQueue(data.queue as ServerQueueEntry[]);
       set({
         queue,
         queuedCardCounts: deriveQueuedCardCounts(queue),
@@ -161,6 +167,44 @@ async function syncQueue(set: SetState, get: GetState, newQueue: QueueGroupEntry
     }
   }
   set({ queueLoading: false });
+}
+
+// ---------------------------------------------------------------------------
+// mutateFloat — shared helper for add/remove float (same logic, different HTTP method)
+// ---------------------------------------------------------------------------
+
+async function mutateFloat(
+  set: SetState,
+  get: GetState,
+  cardName: string,
+  method: "PUT" | "DELETE",
+): Promise<void> {
+  const { seatToken, floatedCards: previous } = get();
+  const activeDraft = useDraftStore.getState().activeDraft;
+  if (!seatToken || !activeDraft) return;
+
+  const next =
+    method === "PUT"
+      ? [...previous, cardName]
+      : previous.filter((c) => c !== cardName);
+  set({ floatedCards: next, floatedCardsSet: new Set(next) });
+
+  try {
+    const res = await fetch(`/api/drafts/${activeDraft}/float`, {
+      method,
+      headers: {
+        "X-Seat-Token": seatToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ card_name: cardName }),
+    });
+    // On failure, refetch server truth instead of restoring a potentially
+    // stale snapshot — a concurrent op may have succeeded between our
+    // optimistic update and this response.
+    if (!res.ok) await useLiveStore.getState().fetchFloatedCards();
+  } catch {
+    await useLiveStore.getState().fetchFloatedCards();
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -423,11 +467,7 @@ export const useLiveStore = create<LiveStoreState>()(
         });
         if (res.ok) {
           const data = await res.json();
-          // Server returns { mode, cards: [{ id, name }] } format
-          const queue: QueueGroupEntry[] = (data.queue as ServerQueueEntry[]).map((e) => ({
-            mode: e.mode,
-            cards: e.cards.map((c) => ({ cardId: c.id ?? c.cardId ?? 0, cardName: c.name ?? c.cardName ?? "" })),
-          }));
+          const queue = parseServerQueue(data.queue as ServerQueueEntry[]);
           // Deep-compare with current queue to avoid churn on idle polls —
           // keep the existing reference when content is identical.
           const prevQueue = get().queue;
@@ -540,54 +580,9 @@ export const useLiveStore = create<LiveStoreState>()(
       }
     },
 
-    addFloat: async (cardName: string) => {
-      const { seatToken, floatedCards: previous } = get();
-      const activeDraft = useDraftStore.getState().activeDraft;
-      if (!seatToken || !activeDraft) return;
+    addFloat: (cardName: string) => mutateFloat(set, get, cardName, "PUT"),
 
-      const next = [...previous, cardName];
-      set({ floatedCards: next, floatedCardsSet: new Set(next) });
-      try {
-        const res = await fetch(`/api/drafts/${activeDraft}/float`, {
-          method: "PUT",
-          headers: {
-            "X-Seat-Token": seatToken,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ card_name: cardName }),
-        });
-        // On failure, refetch server truth instead of restoring a potentially
-        // stale snapshot — a concurrent op may have succeeded between our
-        // optimistic update and this response.
-        if (!res.ok) await useLiveStore.getState().fetchFloatedCards();
-      } catch {
-        await useLiveStore.getState().fetchFloatedCards();
-      }
-    },
-
-    removeFloat: async (cardName: string) => {
-      const { seatToken, floatedCards: previous } = get();
-      const activeDraft = useDraftStore.getState().activeDraft;
-      if (!seatToken || !activeDraft) return;
-
-      const next = previous.filter((c) => c !== cardName);
-      set({ floatedCards: next, floatedCardsSet: new Set(next) });
-      try {
-        const res = await fetch(`/api/drafts/${activeDraft}/float`, {
-          method: "DELETE",
-          headers: {
-            "X-Seat-Token": seatToken,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ card_name: cardName }),
-        });
-        // On failure, refetch server truth rather than restoring a snapshot
-        // that may have been overtaken by a concurrent successful operation.
-        if (!res.ok) await useLiveStore.getState().fetchFloatedCards();
-      } catch {
-        await useLiveStore.getState().fetchFloatedCards();
-      }
-    },
+    removeFloat: (cardName: string) => mutateFloat(set, get, cardName, "DELETE"),
 
     // -----------------------------------------------------------------------
     // handlePick — submit a pick to the server
@@ -941,10 +936,7 @@ function applyMeFromPoll(me: LiveMeData): void {
 
   // queue — deep-compare before updating (Task 23 reference-stability)
   if (me.queue !== null && me.queue !== undefined) {
-    const incoming: QueueGroupEntry[] = (me.queue as Array<{ mode: 'pause' | 'flow-through'; cards: Array<{ id?: number; cardId?: number; name?: string; cardName?: string }> }>).map((e) => ({
-      mode: e.mode,
-      cards: e.cards.map((c) => ({ cardId: c.id ?? c.cardId ?? 0, cardName: c.name ?? c.cardName ?? "" })),
-    }));
+    const incoming = parseServerQueue(me.queue as ServerQueueEntry[]);
     const prevQueue = get().queue;
     if (JSON.stringify(incoming) !== JSON.stringify(prevQueue)) {
       set({
@@ -987,15 +979,29 @@ useDraftStore.subscribe(
 // ---------------------------------------------------------------------------
 
 function syncDeckWithPicks() {
-  const { deckBuilderActive, deckReady, dispatchDeck } = useLiveStore.getState();
-  const { scryfallDataMap } = useCardStore.getState();
+  const { deckBuilderActive, deckReady, dispatchDeck, mySeat, floatedCards, queue, viewingSharedDeck } = useLiveStore.getState();
+  const { scryfallDataMap, seatCardList } = useCardStore.getState();
+  const { selectedSeat } = useDraftStore.getState();
 
-  if (!deckBuilderActive || !deckReady || useLiveStore.getState().viewingSharedDeck) return;
+  if (!deckBuilderActive || !deckReady || viewingSharedDeck) return;
 
-  // getMyDeckCardNames() is the canonical union (picks + speculative, auth-gated,
-  // deduplicated) shared with the mobile deck filter in PageClient.
-  // Set preserves insertion order: picks first, then speculative (queue, then floats).
-  const canonicalCards = [...getMyDeckCardNames()];
+  // Inline the "my deck cards" union (picks + speculative, auth-gated, deduplicated).
+  // Mirrors getMyDeckCardNames() in selectors.ts — kept inline here to avoid the
+  // circular import that would arise from liveStore → selectors → liveStore.
+  const isAuthed = mySeat !== null && mySeat === selectedSeat;
+  const picks = seatCardList ?? [];
+  const authFloated = isAuthed ? floatedCards : [];
+  const authQueued = isAuthed ? queue.flatMap((entry) => entry.cards.map((c) => c.cardName)) : [];
+
+  const seen = new Set(picks);
+  const speculative: string[] = [];
+  for (const name of [...authQueued, ...authFloated]) {
+    if (!seen.has(name)) {
+      seen.add(name);
+      speculative.push(name);
+    }
+  }
+  const canonicalCards = [...picks, ...speculative];
 
   dispatchDeck({
     type: "REBUILD",
