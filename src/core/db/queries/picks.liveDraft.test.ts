@@ -4,6 +4,7 @@ import {
   getLatestPickNumber,
   getRecentPicks,
   getPicksWithCardDetails,
+  getLiveStateSig,
 } from "./picks";
 
 function createMockClient() {
@@ -119,14 +120,18 @@ describe("getPicksWithCardDetails", () => {
   let client: ReturnType<typeof createMockClient>;
   beforeEach(() => { client = createMockClient(); });
 
-  it("returns picks with parsed scryfall data", async () => {
+  // The query now uses json_extract to pull color_identity and mana_cost from
+  // scryfall_json rather than fetching the full blob. Mock rows must use the
+  // aliased column names: color_identity_json (serialized JSON array) and mana_cost.
+  it("returns picks with slim json_extract fields", async () => {
     client.execute.mockResolvedValueOnce({
       rows: [{
         pick_n: 1,
         seat: 1,
         name: "Lightning Bolt",
         oracle_id: "abc-123",
-        scryfall_json: JSON.stringify({ color_identity: ["R"], mana_cost: "{R}" }),
+        color_identity_json: JSON.stringify(["R"]),
+        mana_cost: "{R}",
       }],
     });
 
@@ -140,16 +145,24 @@ describe("getPicksWithCardDetails", () => {
       colorIdentity: ["R"],
       manaCost: "{R}",
     }]);
+    // Verify the query uses json_extract and the new aliases
+    expect(client.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining("json_extract"),
+        args: ["draft-1"],
+      })
+    );
   });
 
-  it("handles null scryfall_json gracefully", async () => {
+  it("handles null color_identity_json gracefully", async () => {
     client.execute.mockResolvedValueOnce({
       rows: [{
         pick_n: 1,
         seat: 1,
         name: "Mystery Card",
         oracle_id: "xyz",
-        scryfall_json: null,
+        color_identity_json: null,
+        mana_cost: null,
       }],
     });
 
@@ -159,14 +172,15 @@ describe("getPicksWithCardDetails", () => {
     expect(result[0].manaCost).toBe("");
   });
 
-  it("handles invalid scryfall_json gracefully", async () => {
+  it("handles invalid color_identity_json gracefully", async () => {
     client.execute.mockResolvedValueOnce({
       rows: [{
         pick_n: 1,
         seat: 1,
         name: "Mystery Card",
         oracle_id: "xyz",
-        scryfall_json: "not valid json",
+        color_identity_json: "not valid json",
+        mana_cost: null,
       }],
     });
 
@@ -184,21 +198,24 @@ describe("getPicksWithCardDetails", () => {
           seat: 1,
           name: "Lightning Bolt",
           oracle_id: "abc-123",
-          scryfall_json: JSON.stringify({ color_identity: ["R"], mana_cost: "{R}" }),
+          color_identity_json: JSON.stringify(["R"]),
+          mana_cost: "{R}",
         },
         {
           pick_n: 2,
           seat: 2,
           name: "Dark Ritual",
           oracle_id: "def-456",
-          scryfall_json: JSON.stringify({ color_identity: ["B"], mana_cost: "{B}" }),
+          color_identity_json: JSON.stringify(["B"]),
+          mana_cost: "{B}",
         },
         {
           pick_n: 3,
           seat: 1,
           name: "Brainstorm",
           oracle_id: "ghi-789",
-          scryfall_json: JSON.stringify({ color_identity: ["U"], mana_cost: "{U}" }),
+          color_identity_json: JSON.stringify(["U"]),
+          mana_cost: "{U}",
         },
       ],
     });
@@ -245,7 +262,8 @@ describe("getPicksWithCardDetails", () => {
           seat: 1,
           name: "Lightning Bolt",
           oracle_id: "abc-123",
-          scryfall_json: JSON.stringify({ color_identity: ["R"], mana_cost: "{R}" }),
+          color_identity_json: JSON.stringify(["R"]),
+          mana_cost: "{R}",
         }],
       });
 
@@ -254,5 +272,79 @@ describe("getPicksWithCardDetails", () => {
     expect(result[0].cardName).toBe("[REDACTED]");
     expect(result[0].oracleId).toBe("");
     expect(result[0].colorIdentity).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getLiveStateSig
+// ---------------------------------------------------------------------------
+
+describe("getLiveStateSig", () => {
+  let client: ReturnType<typeof createMockClient>;
+  beforeEach(() => { client = createMockClient(); });
+
+  it("returns latestPickN and a composite sig from phase+matchCount+seatNames", async () => {
+    // First execute: pick MAX query
+    client.execute
+      .mockResolvedValueOnce({ rows: [{ latest: 7 }] })
+      // Second execute: meta query (phase, match_count, seat_names_csv)
+      .mockResolvedValueOnce({
+        rows: [{ phase: "drafting", match_count: 2, seat_names_csv: "Alice:Bob" }],
+      });
+
+    const result = await getLiveStateSig(client, "draft-1");
+
+    expect(result.latestPickN).toBe(7);
+    expect(result.sig).toBe("drafting|2|Alice:Bob");
+  });
+
+  it("returns pickN=0 and empty-ish sig when draft has no data", async () => {
+    // When phase/seat_names are null but match_count is null → defaults to 0 per ?? 0
+    client.execute
+      .mockResolvedValueOnce({ rows: [{ latest: 0 }] })
+      .mockResolvedValueOnce({
+        rows: [{ phase: null, match_count: null, seat_names_csv: null }],
+      });
+
+    const result = await getLiveStateSig(client, "draft-1");
+
+    expect(result.latestPickN).toBe(0);
+    // phase defaults to "", match_count to 0, seatNamesCsv to "" → sig = "|0|"
+    expect(result.sig).toBe("|0|");
+  });
+
+  it("uses different sigs for different phase, matchCount, and seatNames", async () => {
+    const makeClient = () => {
+      const c = createMockClient();
+      return c;
+    };
+
+    const cases: Array<{
+      pickN: number;
+      phase: string;
+      matchCount: number;
+      seatNamesCsv: string;
+      expectedSig: string;
+    }> = [
+      { pickN: 0, phase: "setup", matchCount: 0, seatNamesCsv: "", expectedSig: "setup|0|" },
+      { pickN: 5, phase: "drafting", matchCount: 0, seatNamesCsv: "Alice:Bob", expectedSig: "drafting|0|Alice:Bob" },
+      { pickN: 5, phase: "drafting", matchCount: 1, seatNamesCsv: "Alice:Bob", expectedSig: "drafting|1|Alice:Bob" },
+      { pickN: 5, phase: "playing", matchCount: 1, seatNamesCsv: "Alice:Bob", expectedSig: "playing|1|Alice:Bob" },
+    ];
+
+    const sigs = new Set<string>();
+    for (const c of cases) {
+      const cl = makeClient();
+      cl.execute
+        .mockResolvedValueOnce({ rows: [{ latest: c.pickN }] })
+        .mockResolvedValueOnce({
+          rows: [{ phase: c.phase, match_count: c.matchCount, seat_names_csv: c.seatNamesCsv }],
+        });
+      const res = await getLiveStateSig(cl, "draft-1");
+      expect(res.sig).toBe(c.expectedSig);
+      sigs.add(res.sig);
+    }
+    // All four cases produce unique sigs
+    expect(sigs.size).toBe(4);
   });
 });

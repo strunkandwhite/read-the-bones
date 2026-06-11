@@ -3,7 +3,7 @@
  */
 
 import type { Client } from "@libsql/client";
-import { getOptedOutSeats, parseScryfallJson, matchesColorFilter, parseBannedCards, transformScryfallJson } from "./helpers";
+import { getOptedOutSeats, parseScryfallJson, matchesColorFilter, parseBannedCards } from "./helpers";
 import { aggregateMatchRecords, computeTiebreakers } from "./matches";
 import { getFrontFace } from "../../cardNames";
 
@@ -421,6 +421,11 @@ export interface PickWithCardDetails {
  * Get all picks for a draft with Scryfall card details (color identity, mana cost).
  * Used by the draft board to render the pick matrix.
  * Redacts card names for opted-out seats.
+ *
+ * Uses json_extract to pull only the three fields needed by the pick matrix
+ * instead of selecting the full scryfall_json blob (~1-3 MB per request).
+ * color_identity is a JSON array in SQLite; json_extract returns the serialized
+ * array string (e.g. '["R","G"]'), which we JSON.parse into string[].
  */
 export async function getPicksWithCardDetails(
   client: Client,
@@ -429,7 +434,10 @@ export async function getPicksWithCardDetails(
 ): Promise<PickWithCardDetails[]> {
   const resolvedOptedOutSeats = optedOutSeats ?? await getOptedOutSeats(client, draftId);
   const result = await client.execute({
-    sql: `SELECT pe.pick_n, pe.seat, c.name, c.oracle_id, c.scryfall_json
+    sql: `SELECT pe.pick_n, pe.seat, c.name,
+                 c.oracle_id,
+                 json_extract(c.scryfall_json, '$.color_identity') AS color_identity_json,
+                 json_extract(c.scryfall_json, '$.mana_cost') AS mana_cost
           FROM pick_events pe
           JOIN cards c ON c.card_id = pe.card_id
           WHERE pe.draft_id = ?
@@ -439,14 +447,72 @@ export async function getPicksWithCardDetails(
   return result.rows.map((r) => {
     const seat = r.seat as number;
     const isRedacted = resolvedOptedOutSeats.has(seat);
-    const sf = isRedacted ? undefined : transformScryfallJson(r.scryfall_json as string | null, r.name as string);
+
+    let colorIdentity: string[] = [];
+    if (!isRedacted) {
+      const raw = r.color_identity_json as string | null;
+      if (raw) {
+        try {
+          colorIdentity = JSON.parse(raw) as string[];
+        } catch {
+          colorIdentity = [];
+        }
+      }
+    }
+
     return {
       pickN: r.pick_n as number,
       seat,
       cardName: isRedacted ? "[REDACTED]" : (r.name as string),
-      oracleId: isRedacted ? "" : (r.oracle_id as string),
-      colorIdentity: sf?.colorIdentity ?? [],
-      manaCost: sf?.manaCost ?? "",
+      oracleId: isRedacted ? "" : (r.oracle_id as string ?? ""),
+      colorIdentity,
+      manaCost: isRedacted ? "" : ((r.mana_cost as string | null) ?? ""),
     };
   });
+}
+
+/**
+ * Compute a cheap state signature for the /live short-circuit.
+ *
+ * Returns a combined snapshot of: latest pick number, draft phase, match count,
+ * and seat display names. The caller (route) assembles these into the "sig"
+ * string that the client echoes back on subsequent polls. If everything is
+ * identical on the next poll, the route can skip the heavy board queries.
+ *
+ * NOTE: This function is intentionally kept minimal (two fast queries: picks
+ * MAX + a single-row draft join + seat_tokens scan). Task 24 will fold per-seat
+ * token data (queue/floatedCards) into /live for authenticated callers — at that
+ * point the signature may need to incorporate per-seat state or be split into a
+ * public sig (this one) and a per-seat sig; plan accordingly.
+ */
+export async function getLiveStateSig(
+  client: Client,
+  draftId: string,
+): Promise<{ latestPickN: number; sig: string }> {
+  // Fetch latest pick number
+  const pickResult = await client.execute({
+    sql: "SELECT COALESCE(MAX(pick_n), 0) as latest FROM pick_events WHERE draft_id = ?",
+    args: [draftId],
+  });
+  const latestPickN = pickResult.rows[0].latest as number;
+
+  // Fetch phase + match count in one query
+  const metaResult = await client.execute({
+    sql: `SELECT d.phase,
+                 (SELECT COUNT(*) FROM match_events WHERE draft_id = d.draft_id) AS match_count,
+                 (SELECT GROUP_CONCAT(COALESCE(display_name, ''), ':' ORDER BY seat) FROM seat_tokens WHERE draft_id = d.draft_id) AS seat_names_csv
+          FROM drafts d WHERE d.draft_id = ?`,
+    args: [draftId],
+  });
+
+  const meta = metaResult.rows[0];
+  const phase = (meta?.phase as string | null) ?? "";
+  const matchCount = (meta?.match_count as number | null) ?? 0;
+  const seatNamesCsv = (meta?.seat_names_csv as string | null) ?? "";
+
+  // Compose sig: pipe-delimited so it's unambiguous to compare as a string.
+  // A rename changes seatNamesCsv; a phase change changes phase; a new match
+  // changes matchCount; a new pick changes latestPickN (checked separately).
+  const sig = `${phase}|${matchCount}|${seatNamesCsv}`;
+  return { latestPickN, sig };
 }

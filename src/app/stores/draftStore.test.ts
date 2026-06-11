@@ -17,6 +17,7 @@ function resetStore() {
     board: null,
     poolAsOfDraft: null,
     syncStatus: { lastSyncedAt: "0", syncInProgress: false, activeDrafts: [] },
+    pollFailed: false,
   });
   _resetPollingState();
 }
@@ -485,6 +486,144 @@ describe("draftStore — polling", () => {
     expect(afterStale.board?.picks).toEqual(freshData.picks);
     // No spurious dataVersion bump from the stale response
     expect(afterStale.dataVersion).toBe(versionAfterRefresh);
+  });
+
+  it("{unchanged:true} response is a no-op: state, pickVersion, dataVersion and pollCount are unchanged", async () => {
+    // Set up the spy BEFORE setState so the background doFetch from startPolling
+    // consumes a controlled response rather than an unhandled fetch (which would
+    // set pollFailed=true and contaminate the test assertions).
+    const fullData = { ...baseLiveData, liveSig: "drafting|0|Alice:Bob" };
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    // background doFetch from startPolling + our explicit refreshNow — both get fullData
+    fetchSpy.mockResolvedValue(
+      new Response(JSON.stringify(fullData), { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useDraftStore.getState().stopPolling();
+    // Let any pending microtasks from doFetch flush before proceeding
+    await vi.advanceTimersByTimeAsync(0);
+    // Reset pollFailed in case the background doFetch failed before spy was ready
+    useDraftStore.setState({ pollFailed: false });
+    // Reset counts so the assertions below are relative to a clean baseline
+    const stateBaseline = useDraftStore.getState();
+    const pickVersionBaseline = stateBaseline.pickVersion;
+    const dataVersionBaseline = stateBaseline.dataVersion;
+
+    // First explicit refreshNow: server returns full data with liveSig
+    await useDraftStore.getState().refreshNow();
+
+    const stateAfterFirst = useDraftStore.getState();
+    const pickVersionAfterFirst = stateAfterFirst.pickVersion;
+    const dataVersionAfterFirst = stateAfterFirst.dataVersion;
+    const pollCountAfterFirst = stateAfterFirst.pollCount;
+    expect(stateAfterFirst.liveDraftStatus?.latestPickN).toBe(5);
+    // Sanity: the versions match baseline (no pick bump on first poll since prevPickN=-1→5)
+    expect(pickVersionAfterFirst).toBe(pickVersionBaseline);
+    expect(dataVersionAfterFirst).toBe(dataVersionBaseline);
+
+    // Second refreshNow: server returns {unchanged:true}
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ unchanged: true }), { status: 200 }),
+    );
+
+    await useDraftStore.getState().refreshNow();
+
+    const stateAfterUnchanged = useDraftStore.getState();
+    // State must be identical — no bumps, no board changes, no pollCount increment
+    expect(stateAfterUnchanged.pickVersion).toBe(pickVersionAfterFirst);
+    expect(stateAfterUnchanged.dataVersion).toBe(dataVersionAfterFirst);
+    expect(stateAfterUnchanged.pollCount).toBe(pollCountAfterFirst);
+    expect(stateAfterUnchanged.liveDraftStatus?.latestPickN).toBe(5);
+    expect(stateAfterUnchanged.pollFailed).toBe(false);
+  });
+
+  it("second poll sends ?since=<pickN>&sig=<sig> when liveSig was returned", async () => {
+    const liveSig = "drafting|0|Alice:Bob";
+    const fullData = { ...baseLiveData, latestPickN: 7, liveSig };
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    // Seed spy BEFORE activeDraft change so background doFetch is handled
+    fetchSpy.mockResolvedValue(
+      new Response(JSON.stringify(fullData), { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useDraftStore.getState().stopPolling();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Reset polling module state (clears lastLiveSig) so the first explicit
+    // refreshNow below is a clean "first poll" with no since/sig params.
+    _resetPollingState();
+
+    // Clear previous calls so we only see the two explicit refreshNow calls
+    fetchSpy.mockClear();
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify(fullData), { status: 200 }),
+    );
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ unchanged: true }), { status: 200 }),
+    );
+
+    await useDraftStore.getState().refreshNow();
+    await useDraftStore.getState().refreshNow();
+
+    // The second call's URL should carry since=7 and the encoded sig
+    const liveCallUrls = fetchSpy.mock.calls
+      .map((c) => {
+        const input = c[0];
+        return typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      })
+      .filter((u) => u.includes("/live"));
+
+    expect(liveCallUrls).toHaveLength(2);
+    // First call: no since/sig (first poll after reset — lastLiveSig was null)
+    expect(liveCallUrls[0]).not.toContain("since=");
+    // Second call: since + sig echoed from the first response
+    expect(liveCallUrls[1]).toContain("since=7");
+    expect(liveCallUrls[1]).toContain(encodeURIComponent(liveSig));
+  });
+
+  it("draft switch resets lastLiveSig so next poll does not send stale since/sig", async () => {
+    const liveSig = "drafting|0|Alice";
+    const fullData = { ...baseLiveData, latestPickN: 3, liveSig };
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    // Seed spy BEFORE activeDraft change so background doFetch is handled
+    fetchSpy.mockResolvedValue(
+      new Response(JSON.stringify(fullData), { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useDraftStore.getState().stopPolling();
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Explicit refreshNow for draft-1 — caches the sig
+    fetchSpy.mockClear();
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify(fullData), { status: 200 }),
+    );
+    await useDraftStore.getState().refreshNow();
+
+    // Switch to draft-2 — subscription resets lastLiveSig before starting new polling
+    fetchSpy.mockReset();
+    fetchSpy.mockResolvedValue(
+      new Response(JSON.stringify({ ...fullData }), { status: 200 }),
+    );
+    useDraftStore.getState().setActiveDraft("draft-2");
+    // Wait for the subscription's auto-start polling immediate fetch
+    await vi.advanceTimersByTimeAsync(0);
+
+    // All URLs for draft-2 must NOT contain since/sig
+    const draft2LiveCalls = fetchSpy.mock.calls
+      .map((c) => {
+        const input = c[0];
+        return typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      })
+      .filter((u) => u.includes("draft-2") && u.includes("/live"));
+
+    expect(draft2LiveCalls.length).toBeGreaterThan(0);
+    for (const url of draft2LiveCalls) {
+      expect(url).not.toContain("since=");
+    }
   });
 });
 

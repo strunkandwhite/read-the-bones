@@ -121,6 +121,14 @@ let syncPollCounter = 0;
 let fetchGeneration = 0;
 let appliedGeneration = -1;
 
+// Last acknowledged /live state signature, echoed back to the server as ?since=&sig=
+// for the change short-circuit. null means "no previous successful response" (first
+// poll or draft switch) — ensures the first poll always fetches the full payload.
+// NOTE: Task 24 will add per-seat data (queue/floatedCards) to /live for token callers;
+// if that per-seat data changes between polls, the sig alone won't catch it — at that
+// point this tracking will need a companion per-seat sig or be bypassed for authed polls.
+let lastLiveSig: { pickN: number; sig: string } | null = null;
+
 /** Reset module-scoped polling state (for tests). */
 export function _resetPollingState() {
   prevPickN = -1;
@@ -128,6 +136,7 @@ export function _resetPollingState() {
   syncPollCounter = 0;
   fetchGeneration = 0;
   appliedGeneration = -1;
+  lastLiveSig = null;
   if (pollInterval) {
     clearInterval(pollInterval);
     pollInterval = null;
@@ -155,8 +164,16 @@ async function fetchPollData(draftId: string, generation: number) {
   syncPollCounter++;
   const shouldFetchSync = syncPollCounter % 3 === 0;
 
+  // Build the /live URL with change short-circuit params if we have a prior sig.
+  // The server runs two cheap queries and returns {unchanged:true} when nothing moved,
+  // avoiding the heavy board queries on the common idle-poll path.
+  let liveUrl = `/api/drafts/${draftId}/live`;
+  if (lastLiveSig !== null) {
+    liveUrl += `?since=${lastLiveSig.pickN}&sig=${encodeURIComponent(lastLiveSig.sig)}`;
+  }
+
   const fetches: [Promise<Response>, Promise<Response> | null] = [
-    fetch(`/api/drafts/${draftId}/live`),
+    fetch(liveUrl),
     shouldFetchSync ? fetch("/api/sync-status") : null,
   ];
 
@@ -168,7 +185,14 @@ async function fetchPollData(draftId: string, generation: number) {
 
   const liveFailed = !liveRes.ok;
   if (liveRes.ok) {
-    liveData = await liveRes.json();
+    const json = await liveRes.json() as Record<string, unknown>;
+    // Server returns {unchanged:true} when nothing changed — treat as a no-op.
+    // Do NOT update lastLiveSig (it's already current), and return null liveData
+    // so applyPollResults skips the board/status update and generation counters
+    // are not bumped wrongly. pollFailed is also not set (response was 200 ok).
+    if (!json.unchanged) {
+      liveData = json;
+    }
   }
   if (syncRes?.ok) {
     syncData = await syncRes.json();
@@ -225,6 +249,14 @@ function applyPollResults(
     // Seat-name changes are intentionally NOT bumped into any version signal.
     // Board consumers receive updated seat names directly from the poll response
     // — no card or stats refetch is needed for a rename.
+
+    // Capture the server's state sig so the next poll can send it back for the
+    // change short-circuit. The sig is opaque to the client — we store it and
+    // echo it without recomputing.
+    const liveSig = liveData.liveSig as string | undefined;
+    if (liveSig !== undefined) {
+      lastLiveSig = { pickN: incomingPickN, sig: liveSig };
+    }
 
     useDraftStore.setState({ liveDraftStatus: status, board, pollCount: useDraftStore.getState().pollCount + 1 });
 
@@ -416,6 +448,7 @@ useDraftStore.subscribe(
   (activeDraft) => {
     useDraftStore.getState().stopPolling();
     prevPickN = -1;
+    lastLiveSig = null; // draft switched — never reuse a sig from the previous draft
     if (activeDraft) useDraftStore.getState().startPolling();
   },
 );
