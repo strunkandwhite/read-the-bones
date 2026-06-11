@@ -10,23 +10,31 @@ src/
     db/           # Turso database client, migrations
       queries/    # Domain-based query modules (cards, decks, decklists, drafts, floatedCards, helpers, matches, pickQueue, picks, playStats, pool, search, seatTokens, stats/, winStats, winningDecks)
       ingest/     # Ingestion helpers (Scryfall resolution, db-helpers, utils)
-      sync/       # Unified sync pipeline (domain hashing, batch ops, card cache, orchestrator)
+      sync/       # Unified sync pipeline (incremental.ts, lock.ts, syncActiveDraft.ts, domain hashing, batch ops, card cache)
+    draftPhases.ts      # Shared draft-phase predicates (isCompletedForStats, STATS_COMPLETE_PHASES)
+    manaColors.ts       # WUBRG color-identity normalization (normalizeColorIdentity)
   build/          # Build-time utilities (Scryfall cache)
   app/            # Next.js web app
+    api/
+      _lib/
+        withApiErrors.ts  # Shared route error handler (AppError → status, everything else → 500)
     components/   # React components
       deck-builder/ # Deck builder panel and card management
       draft-board/  # Draft board modal and related components
     hooks/        # Custom hooks (useHoldToConfirm, useModalManagement, useScrollLock, useSharedDeckLoader, useSlowRenderTracking)
-    stores/       # Zustand stores (draftStore, cardStore, liveStore, selectors, hydration)
+    stores/       # Zustand stores (draftStore, cardStore, liveStore, selectors, hydration, wiring)
+      live/       # liveStore action modules (auth, deckSave, picking, queueFloat)
+      computeMyDeckCardNames.ts  # Shared "my deck cards" union (picks + floats + queue)
+      wiring.ts   # Explicit cross-store subscription registration
     api/          # API routes (internal + REST)
-scripts/          # CLI tools (sync, draft:create, draft:reset, decklists)
+scripts/          # CLI tools (sync, draft-create, draft-create-live, draft-start, draft-admin, draft-delete, decklists, backfill-scryfall)
 ```
 
 ## Key Commands
 
 ```bash
 pnpm dev         # Start dev server
-pnpm build       # Build for production (dynamic SSR, no prebuild step)
+pnpm build       # Build for production (statically prerendered, no prebuild step)
 pnpm test        # Run tests
 pnpm test:e2e    # Run Playwright e2e tests (requires chromium: npx playwright install chromium)
 pnpm screenshot  # Take screenshot (requires dev server running)
@@ -48,10 +56,11 @@ pnpm draft:reset <draft-name>  # Reset a draft (clear all data, re-sync from scr
 pnpm draft:delete <draft-id>   # Permanently delete a draft and all associated data
 
 # Draft lifecycle (live — for running rotisserie drafts in-app)
-pnpm draft:create-live --name "Name" --date 2026-04-01 --seats 10 --picks-per-player 45 --pool cubecobra:<id>
+pnpm draft:create-live --name "Name" --date 2026-04-01 --seats 10 --picks-per-player 45 --pool cubecobra:<id> [--banned-cards "Card A,Card B"]
+# --pool accepts cubecobra:<id> or file:<path>
 # Default cube ID for new drafts: cubecobra:samp
 pnpm draft:start <name>              # Start drafting (setup → drafting)
-pnpm draft:admin <subcommand>        # Admin tools (undo-pick, edit-pick, regen-token, set-phase, add-ban, remove-ban, enter-match)
+pnpm draft:admin <subcommand>        # Admin tools (undo-pick, edit-pick, regen-token, set-phase, add-ban, remove-ban, enter-match, reorder-seats)
 
 # Decklists
 pnpm decklists                 # Fetch decklists from sealeddeck.tech and write to Turso
@@ -85,10 +94,10 @@ The app exposes REST API routes under `/api/` for querying draft data. All route
 | `/api/drafts/[id]/available` | Cards available at a pick. Response: `{ cards: [{ card_name, remaining_qty }] }` | `before_pick_n` (required), `color`, `type_contains` |
 | `/api/drafts/[id]/available/ranked` | Ranked available cards | `before_pick_n` (required), `color`, `type_contains`, `deck_colors`, `limit`, `sort_by` |
 | `/api/drafts/[id]/standings` | Match standings | — |
-| `/api/drafts/[id]/pool` | Full draft pool | `include_draft_results`, `include_card_details`, `group_by`, `color`, `type_contains` |
+| `/api/drafts/[id]/pool` | Full draft pool | `include_draft_results`, `include_card_details`, `group_by`, `color`, `type_contains`, `name_contains` |
 | `/api/drafts/[id]/deck` | Decklist for a seat | `seat` (required) |
 | `/api/cards/search` | Scryfall-style card search | `q` (required), `draft_id`, `available_only`, `before_pick_n` |
-| `/api/cards/stats` | Card statistics | `card_name` (required), `draft_id`, `date_from`, `date_to`, `deck_colors` |
+| `/api/cards/stats` | Card statistics | `card_name` (required), `draft_id`, `exclude_draft_id`, `draft_name`, `date_from`, `date_to`, `deck_colors` |
 | `/api/stats` | Overall draft statistics | `draft_ids` (comma-separated) |
 | `/api/decks/winning` | Top 4 winning decks for a color archetype | `color_pair` (required), `draft_ids` (comma-separated) |
 
@@ -96,20 +105,23 @@ The app exposes REST API routes under `/api/` for querying draft data. All route
 
 | Route | Method | Auth | Description |
 |-------|--------|------|-------------|
-| `/api/drafts/[id]/live` | GET | None | Merged status + board data (phase, picks, seatNames, bannedCards) |
-| `/api/drafts/[id]/me` | GET | Token | Resolve seat from token: `{ seat, autoPick, autoPickMode, displayName }` |
-| `/api/drafts/[id]/pick` | POST | Token | Submit a pick. Body: `{ card_name: string }` (snake_case, not camelCase) |
+| `/api/drafts/[id]/live` | GET | None/Token | Merged status + board data (phase, picks, seatNames, bannedCards). Accepts `?since=<pickN>&sig=<sig>` for change short-circuit (`{ unchanged: true }`). With a valid `X-Seat-Token`, the response includes `me: { seat, autoPick, displayName, queue, floatedCards }`. |
+| `/api/drafts/[id]/me` | GET | Token | Resolve seat from token: `{ seat, autoPick, displayName }` |
+| `/api/drafts/[id]/pick` | POST | Token | Submit a pick. Body: `{ card_name: string }` or `{ auto: true }` to trigger server-side auto-pick cascade. |
 | `/api/drafts/[id]/queue` | GET/PUT | Token | Manage player's pick queue |
 | `/api/drafts/[id]/match` | POST | Token | Report a match result |
 | `/api/drafts/[id]/seat-settings` | PUT | Token | Update auto-pick toggle, display name |
 | `/api/drafts/[id]/float` | GET/PUT/DELETE | Token | Manage floated (speculative) cards |
-| `/api/drafts/[id]/deck-state` | GET/PUT | Token | WIP deck state persistence |
+| `/api/drafts/[id]/deck-state` | GET/PUT | Token | WIP deck state persistence. PUT body must include matching `draftId` and `seat` or the request is rejected (400). |
+
+**Token auth:** All token-authenticated routes accept the seat token via the `X-Seat-Token` header only. Query-param tokens (`?token=`) are not accepted on API routes (URL tokens appear in logs).
 
 **Internal routes** (used by the web app, not part of the public API):
 - `/api/cards` — Card data for client-side rendering
 - `/api/draft-stats` — Draft stats for client-side rendering
 - `/api/deck` — Shared deck snapshots (create/retrieve)
-- `/api/sync`, `/api/sync-status` — Active draft sync polling
+- `/api/sync` — Vercel cron sync endpoint (GET only, authenticated via `CRON_SECRET`). Runs every 10 minutes via Vercel cron (`vercel.json`). No manual POST endpoint exists.
+- `/api/sync-status` — Returns current sync lock state
 
 ## Deploying
 
@@ -162,13 +174,16 @@ Search is debounced (500ms) and runs locally against cached card data. Server-si
 
 ## Key Features
 
-- **Active draft sync:** Drafts linked to a Google Sheet (`sheetId` in metadata) sync picks live via polling. The UI shows sync status and a "Sync Now" button.
+- **Active draft sync:** Drafts linked to a Google Sheet (`sheetId` in metadata) are synced automatically by a Vercel cron job that calls `GET /api/sync` every 10 minutes, authenticated via `CRON_SECRET`. There is no manual "Sync Now" button — use `pnpm sync <name>` from the CLI for on-demand syncs.
 - **Banned cards:** Drafts can specify banned cards in metadata. Banned cards are visually marked in the card table and excluded from available card queries.
 - **Deck builder:** Per-seat deck building panel with drag-and-drop, maindeck/sideboard zones, server-side persistence with save status indicator, and shareable deck snapshots via `/api/deck`.
 - **Shared decks:** Immutable deck snapshots stored in the `decks` table (kind = 'snapshot'), accessible via short URLs.
 - **Seat selection:** View picks and deck data for individual seats within a draft.
-- **Decklist win rate:** Localhost-only data showing actual win rates in the card stats modal.
+- **Decklist win rate:** Dev-only data (disabled in production via `NODE_ENV !== "production"`) showing actual win rates in the card stats modal.
 - **Live drafts:** Run rotisserie drafts in-app with snake order, pick queues, and auto-pick cascades. Created via `pnpm draft:create-live`, managed via seat tokens for player identity. Draft board modal shows pick matrix, standings, and match reporting.
+- **Head-to-head match matrix:** Interactive grid in the draft board showing all pairwise results with inline editing and OMW%/OGW% tiebreaker columns in standings.
+- **Queue groups with per-entry modes:** Queue entries can be grouped (buttons-only, not drag) so the auto-pick cascade treats grouped cards as interchangeable alternatives. Each entry supports pause mode (stops cascade at that entry) or flow-through mode (cascade continues past it).
+- **Multi-copy queue support:** Queue entries reference cards by ID; multiple copies of the same card are tracked correctly through the cascade.
 
 ## Terminology: Picks vs Rounds
 
@@ -205,10 +220,13 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/specs/2026-03-23-server-side-oracle-search-design.md` - Server-side oracle search design
 - `docs/superpowers/specs/2026-03-27-inline-name-editing-design.md` - Inline name editing in live draft pod view
 - `docs/superpowers/specs/2026-03-27-card-table-and-live-draft-ux-design.md` - Card table rework, stats modal, hold-to-pick, float state, queue management
-- `docs/superpowers/specs/2026-03-27-inline-pick-autocomplete-design.md` - Inline pick autocomplete design
 - `docs/superpowers/specs/2026-03-27-server-side-deck-persistence-design.md` - Server-side deck persistence design
 - `docs/superpowers/specs/2026-03-29-data-flow-consolidation-design.md` - Data flow consolidation (Zustand stores, polling, SSR hydration)
 - `docs/superpowers/specs/2026-03-29-multi-copy-card-picks-design.md` - Multi-copy card picks design
+- `docs/superpowers/specs/2026-03-31-multi-copy-queue-design.md` - Multi-copy queue support design
+- `docs/superpowers/specs/2026-03-31-queue-groups-and-per-entry-modes-design.md` - Queue groups with per-entry pause/flow-through modes
+- `docs/superpowers/specs/2026-04-03-e2e-test-suite-design.md` - End-to-end test suite design
+- `docs/superpowers/specs/2026-04-13-head-to-head-match-matrix-design.md` - Head-to-head match matrix with inline editing and OMW%/OGW% tiebreakers
 - `docs/superpowers/specs/2026-05-28-queue-panel-ux-design.md` - Queue panel UX: how-to section + buttons-only grouping
 
 ### Superpowers Plans
@@ -229,7 +247,7 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/plans/2026-03-23-server-side-oracle-search.md` - Server-side oracle search implementation
 - `docs/superpowers/plans/2026-03-26-live-draft-e2e-feedback.md` - Live draft e2e feedback fixes
 - `docs/superpowers/plans/2026-03-26-live-draft-gap-closure.md` - Live draft gap closure
-- `docs/superpowers/plans/2026-03-27-deep-clean-fixes.md` - Deep clean fixes (this audit)
+- `docs/superpowers/plans/2026-03-27-deep-clean-fixes.md` - Deep clean fixes (2026-03-27 audit)
 - `docs/superpowers/plans/2026-03-27-inline-name-editing.md` - Inline name editing implementation
 - `docs/superpowers/plans/2026-03-27-card-table-and-live-draft-ux.md` - Card table and live draft UX implementation
 - `docs/superpowers/plans/2026-03-26-live-draft-ux-fixes.md` - Live draft UX fixes
@@ -242,3 +260,9 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/plans/2026-03-29-data-flow-consolidation.md` - Data flow consolidation implementation
 - `docs/superpowers/plans/2026-03-29-live-draft-ux-fixes.md` - Live draft UX fixes
 - `docs/superpowers/plans/2026-03-29-spectator-auth-gating.md` - Spectator auth gating
+- `docs/superpowers/plans/2026-03-30-deep-clean-fixes.md` - Deep clean fixes (2026-03-30 audit)
+- `docs/superpowers/plans/2026-03-31-multi-copy-queue.md` - Multi-copy queue support implementation
+- `docs/superpowers/plans/2026-03-31-queue-groups-and-per-entry-modes.md` - Queue groups and per-entry pause/flow-through modes implementation
+- `docs/superpowers/plans/2026-04-03-e2e-test-suite.md` - End-to-end test suite implementation
+- `docs/superpowers/plans/2026-04-13-head-to-head-match-matrix.md` - Head-to-head match matrix implementation
+- `docs/superpowers/plans/2026-06-11-deep-clean-fixes.md` - Deep clean fixes (2026-06-11 audit, this plan)
