@@ -1,5 +1,6 @@
 // src/core/db/sync/batch.ts
 import type { Client } from "@libsql/client";
+import type { MatchResult } from "../../parseSheetRows";
 
 export interface PickInsert {
   draftId: string;
@@ -66,6 +67,24 @@ export async function batchInsertCubeSnapshotCards(
       args: [snapshotId, c.cardId, c.qty],
     })),
   );
+}
+
+/**
+ * Convert 0-indexed MatchResult rows (from parseMatchRows) to 1-indexed MatchInsert rows
+ * ready for batchInsertMatches.
+ *
+ * This is THE single location of the seat1+1 / seat2+1 off-by-one adjustment.
+ * Both the CLI path (syncDraft in index.ts) and the cron path (syncActiveDraft) call
+ * this helper — there is exactly one copy of this mapping in the codebase.
+ */
+export function buildMatchInserts(draftId: string, matches: MatchResult[]): MatchInsert[] {
+  return matches.map((m) => ({
+    draftId,
+    seat1: m.seat1 + 1, // 0-indexed → 1-indexed
+    seat2: m.seat2 + 1,
+    seat1GamesWon: m.seat1GamesWon,
+    seat2GamesWon: m.seat2GamesWon,
+  }));
 }
 
 export async function deleteDomainData(

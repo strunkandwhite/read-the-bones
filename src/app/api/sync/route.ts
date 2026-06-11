@@ -6,21 +6,8 @@ import {
   releaseSyncLock,
   updateLastSyncedAt,
   getActiveDrafts,
-  incrementalIngest,
-} from "@/core/sync";
-import { fetchDraftTabsRaw } from "@/core/sheets";
-import { parsePickRows, parseMatchRows } from "@/core/parseSheetRows";
-import {
-  hashMatches,
-  getDomainHashes,
-  compareDomainHash,
-  updateDomainHashes,
-} from "@/core/db/sync/domains";
-import {
-  batchInsertMatches,
-  deleteDomainData,
-} from "@/core/db/sync/batch";
-import type { MatchInsert } from "@/core/db/sync/batch";
+} from "@/core/db/sync/lock";
+import { syncActiveDraft } from "@/core/db/sync/syncActiveDraft";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 async function runSync(): Promise<NextResponse> {
@@ -53,62 +40,9 @@ async function runSync(): Promise<NextResponse> {
 
     for (const draft of activeDrafts) {
       try {
-        // Fetch row data from Google Sheets
-        const sheetData = await fetchDraftTabsRaw(draft.sheetId, apiKey);
-
-        if (!sheetData.picks) {
-          console.warn(`[sync] No picks tab found for draft ${draft.draftId}`);
-          continue;
-        }
-
-        // Parse rows and run incremental pick ingestion
-        const parsedPicks = parsePickRows(sheetData.picks, draft.draftId);
-        const result = await incrementalIngest(
-          client,
-          draft.draftId,
-          parsedPicks,
-        );
+        const result = await syncActiveDraft(client, draft, apiKey);
         totalPicksInserted += result.picksInserted;
-
-        if (result.status === "diverged") {
-          console.warn(
-            `[sync] Draft ${draft.draftId} has diverged data — run pnpm sync to fix`,
-          );
-        }
-
-        // Sync matches via hash-compare + replace
-        const matches = parseMatchRows(
-          sheetData.matches,
-          parsedPicks.drafterNames,
-        );
-        if (matches.length > 0) {
-          const newMatchesHash = hashMatches(matches);
-          const stored = await getDomainHashes(client, draft.draftId);
-          const storedMatchesHash = stored?.matchesHash ?? null;
-
-          if (compareDomainHash(newMatchesHash, storedMatchesHash) === "replace") {
-            await deleteDomainData(client, draft.draftId, "matches");
-
-            const matchInserts: MatchInsert[] = matches.map((m) => ({
-              draftId: draft.draftId,
-              seat1: m.seat1 + 1,
-              seat2: m.seat2 + 1,
-              seat1GamesWon: m.seat1GamesWon,
-              seat2GamesWon: m.seat2GamesWon,
-            }));
-
-            await batchInsertMatches(client, matchInserts);
-            await updateDomainHashes(client, draft.draftId, {
-              matchesHash: newMatchesHash,
-            });
-
-            totalMatchesReplaced += matchInserts.length;
-            // eslint-disable-next-line no-console
-            console.log(
-              `[sync] Replaced ${matchInserts.length} matches for draft ${draft.draftId}`,
-            );
-          }
-        }
+        totalMatchesReplaced += result.matchesReplaced;
       } catch (error) {
         console.error(`[sync] Error syncing draft ${draft.draftId}:`, error);
         // Continue with other drafts

@@ -1,3 +1,8 @@
+/**
+ * Tests for incremental pick ingestion and sync lock management.
+ * These functions live in core/db/sync/incremental.ts and core/db/sync/lock.ts.
+ */
+
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   detectNewPicks,
@@ -7,12 +12,14 @@ import {
   insertNewPicks,
   markDraftComplete,
   incrementalIngest,
+} from "../db/sync/incremental";
+import {
   acquireSyncLock,
   releaseSyncLock,
   updateLastSyncedAt,
   getSyncStatus,
   getActiveDrafts,
-} from "../sync";
+} from "../db/sync/lock";
 import type { CardPick } from "../types";
 
 // Mock Scryfall fetch to avoid network calls in tests

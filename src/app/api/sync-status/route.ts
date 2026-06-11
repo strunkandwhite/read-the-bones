@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
-import { getSyncStatus, getActiveDraftInfo } from "@/core/sync";
+import { getSyncStatus, getActiveDraftInfo } from "@/core/db/sync/lock";
 
 export async function GET() {
   try {

@@ -5,7 +5,7 @@ vi.mock("@/core/db/client", () => ({
   getClient: vi.fn().mockResolvedValue(mockClient),
 }));
 
-vi.mock("@/core/sync", () => ({
+vi.mock("@/core/db/sync/lock", () => ({
   getSyncStatus: vi.fn().mockResolvedValue({
     lastSyncedAt: "1700000000",
     syncInProgress: false,
@@ -16,7 +16,7 @@ vi.mock("@/core/sync", () => ({
 }));
 
 import { GET } from "./route";
-import { getSyncStatus, getActiveDraftInfo } from "@/core/sync";
+import { getSyncStatus, getActiveDraftInfo } from "@/core/db/sync/lock";
 
 beforeEach(() => {
   vi.clearAllMocks();

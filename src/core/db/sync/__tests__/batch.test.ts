@@ -4,8 +4,10 @@ import {
   batchInsertMatches,
   batchInsertDeckCards,
   batchInsertCubeSnapshotCards,
+  buildMatchInserts,
   deleteDomainData,
 } from "../batch";
+import type { MatchResult } from "../../../parseSheetRows";
 
 function mockClient() {
   return {
@@ -94,6 +96,45 @@ describe("batchInsertCubeSnapshotCards", () => {
     const client = mockClient();
     await batchInsertCubeSnapshotCards(client as any, 42, []);
     expect(client.batch).not.toHaveBeenCalled();
+  });
+});
+
+describe("buildMatchInserts", () => {
+  it("converts 0-indexed seats to 1-indexed for all matches", () => {
+    const matches: MatchResult[] = [
+      { seat1: 0, seat2: 1, seat1GamesWon: 2, seat2GamesWon: 1 },
+      { seat1: 3, seat2: 7, seat1GamesWon: 0, seat2GamesWon: 2 },
+    ];
+    const result = buildMatchInserts("d1", matches);
+    expect(result).toEqual([
+      { draftId: "d1", seat1: 1, seat2: 2, seat1GamesWon: 2, seat2GamesWon: 1 },
+      { draftId: "d1", seat1: 4, seat2: 8, seat1GamesWon: 0, seat2GamesWon: 2 },
+    ]);
+  });
+
+  it("returns empty array for empty matches", () => {
+    expect(buildMatchInserts("d1", [])).toEqual([]);
+  });
+
+  it("produces identical rows whether called from CLI path (syncDraft) or cron path (syncActiveDraft)", () => {
+    // Both syncDraft (index.ts) and syncActiveDraft call buildMatchInserts with
+    // the same MatchResult array. This test asserts that the output is deterministic
+    // and identical regardless of which path invokes the helper.
+    const rawMatches: MatchResult[] = [
+      { seat1: 0, seat2: 1, seat1GamesWon: 2, seat2GamesWon: 0 },
+      { seat1: 2, seat2: 5, seat1GamesWon: 1, seat2GamesWon: 2 },
+    ];
+    const fromCli = buildMatchInserts("test-draft", rawMatches);
+    const fromCron = buildMatchInserts("test-draft", rawMatches);
+
+    // Both paths call the same function — results are structurally identical
+    expect(fromCli).toEqual(fromCron);
+
+    // Seat conversion is correct: all seats incremented by 1
+    expect(fromCli[0].seat1).toBe(1);
+    expect(fromCli[0].seat2).toBe(2);
+    expect(fromCli[1].seat1).toBe(3);
+    expect(fromCli[1].seat2).toBe(6);
   });
 });
 

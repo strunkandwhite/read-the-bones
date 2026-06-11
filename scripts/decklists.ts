@@ -17,7 +17,7 @@ import { loadEnv, log, logIndent } from "../src/core/db/ingest/utils";
 import { batchInsertDeckCards, type DeckCardInsert } from "../src/core/db/sync/batch";
 import { CardCache } from "../src/core/db/sync/card-cache";
 import { normalizeCardName } from "../src/core/parseSheetRows";
-import { resolveCardNameToId } from "../src/core/sync";
+import { resolveCardNameToId } from "../src/core/db/sync/incremental";
 import { slugify } from "./lib/slugify";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));

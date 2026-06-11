@@ -1,7 +1,20 @@
 // src/core/db/sync/index.ts
 //
-// Unified sync orchestrator: fetches Sheets data, parses, hashes, compares,
-// and replaces domain data per-draft using per-domain hash comparison.
+// Full-domain sync orchestrator for the CLI entry point (scripts/sync.ts).
+//
+// Entry points:
+//   syncAll / syncDraft  — Full-domain replacement (pool + picks + matches +
+//                          cube snapshots + opt-outs + Scryfall backfill).
+//                          Used by: pnpm sync (CLI), pnpm draft:reset.
+//                          Must be used when the pool changes or a full reimport
+//                          is needed (e.g. after a divergence warning).
+//
+//   syncActiveDraft      — Incremental cron path (append picks + hash-compare
+//   (syncActiveDraft.ts)   matches only, no pool/cube/opt-out rebuild).
+//                          Used by: GET /api/sync (Vercel cron, every 10 min).
+//
+// Both paths share buildMatchInserts (batch.ts) for the 0-indexed → 1-indexed
+// seat conversion, ensuring a single copy of that mapping in the codebase.
 
 import type { Client } from "@libsql/client";
 import type { DraftSheetRawData } from "../../sheets";
@@ -23,9 +36,10 @@ import {
 import {
   batchInsertPicks,
   batchInsertMatches,
+  buildMatchInserts,
   deleteDomainData,
 } from "./batch";
-import type { PickInsert, MatchInsert } from "./batch";
+import type { PickInsert } from "./batch";
 import { CardCache } from "./card-cache";
 import {
   computeCubeHash,
@@ -191,14 +205,7 @@ export async function syncDraft(
     if (result.matchesAction === "replace") {
       await deleteDomainData(client, draftId, "matches");
 
-      const matchInserts: MatchInsert[] = matches.map((m) => ({
-        draftId,
-        seat1: m.seat1 + 1, // 0-indexed -> 1-indexed
-        seat2: m.seat2 + 1,
-        seat1GamesWon: m.seat1GamesWon,
-        seat2GamesWon: m.seat2GamesWon,
-      }));
-
+      const matchInserts = buildMatchInserts(draftId, matches);
       await batchInsertMatches(client, matchInserts);
       result.matchesCount = matchInserts.length;
 
