@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import { track } from "@vercel/analytics/react";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -62,7 +61,6 @@ interface DraftState {
   board: BoardData | null;
   poolAsOfDraft: string | null;
   syncStatus: SyncStatusData;
-  manualSyncInFlight: boolean;
 
   // Selection actions
   setSelectedDrafts: (drafts: Set<string>) => void;
@@ -79,9 +77,6 @@ interface DraftState {
   startPolling: () => void;
   stopPolling: () => void;
   refreshNow: () => Promise<void>;
-
-  // Sync actions
-  triggerSync: () => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -228,7 +223,6 @@ export const useDraftStore = create<DraftState>()(
     board: null,
     poolAsOfDraft: null,
     syncStatus: { lastSyncedAt: "0", syncInProgress: false, activeDrafts: [] },
-    manualSyncInFlight: false,
 
     // --- Data actions ---
 
@@ -339,57 +333,6 @@ export const useDraftStore = create<DraftState>()(
       }
     },
 
-    // --- Sync actions ---
-
-    triggerSync: async () => {
-      set({ manualSyncInFlight: true });
-      const start = performance.now();
-      const { activeDraft } = get();
-      try {
-        const res = await fetch("/api/sync", { method: "POST" });
-        let syncCompleted = false;
-        if (res.ok) {
-          const data = await res.json();
-          if (data.lastSyncedAt) {
-            prevSyncedAt = data.lastSyncedAt;
-          }
-          syncCompleted = data.status === "completed";
-        } else {
-          track("sync_failed", {
-            error: `HTTP ${res.status}`,
-            draft: activeDraft ?? "unknown",
-          });
-        }
-
-        // Refetch status
-        if (activeDraft) {
-          try {
-            const syncRes = await fetch("/api/sync-status");
-            if (syncRes.ok) {
-              const syncData: SyncStatusData = await syncRes.json();
-              prevSyncedAt = syncData.lastSyncedAt;
-              set({ syncStatus: syncData });
-            }
-          } catch {
-            // ignore
-          }
-        }
-
-        if (syncCompleted) {
-          track("sync_completed", {
-            duration_ms: Math.round(performance.now() - start),
-          });
-          set({ dataVersion: get().dataVersion + 1 });
-        }
-      } catch (err) {
-        track("sync_failed", {
-          error: String(err).slice(0, 255),
-          draft: activeDraft ?? "unknown",
-        });
-      } finally {
-        set({ manualSyncInFlight: false });
-      }
-    },
   })),
 );
 

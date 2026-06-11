@@ -19,7 +19,6 @@ function resetStores() {
     board: null,
     poolAsOfDraft: null,
     syncStatus: { lastSyncedAt: "0", syncInProgress: false, activeDrafts: [] },
-    manualSyncInFlight: false,
   });
 
   useCardStore.setState({

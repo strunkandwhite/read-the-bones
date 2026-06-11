@@ -246,10 +246,9 @@ export async function incrementalIngest(
   return { status: "updated", picksInserted: insertedCount };
 }
 
-// --- Lock management, rate limiting, and active draft queries ---
+// --- Lock management and active draft queries ---
 
 const LOCK_TIMEOUT_SECONDS = 120; // 2 minutes stale-lock timeout
-const RATE_LIMIT_SECONDS = 30;
 
 /**
  * Attempt to acquire the sync lock using compare-and-swap.
@@ -319,20 +318,6 @@ export async function getSyncStatus(client: Client): Promise<{
   }
 
   return { lastSyncedAt, syncInProgress };
-}
-
-/**
- * Check if a sync was performed recently (for rate limiting POST requests).
- */
-export async function isRateLimited(client: Client): Promise<boolean> {
-  const result = await client.execute({
-    sql: `SELECT value FROM ingestion_meta WHERE key = 'last_synced_at'`,
-    args: [],
-  });
-  if (result.rows.length === 0) return false;
-  const lastSynced = parseInt(result.rows[0].value as string, 10);
-  const now = Math.floor(Date.now() / 1000);
-  return now - lastSynced < RATE_LIMIT_SECONDS;
 }
 
 /**

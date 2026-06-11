@@ -68,7 +68,6 @@ function resetStores() {
       syncInProgress: false,
       activeDrafts: [],
     },
-    manualSyncInFlight: false,
   });
 
   useCardStore.setState({

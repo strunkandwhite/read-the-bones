@@ -1,9 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { useDraftStore, _resetPollingState } from "./draftStore";
-import { track } from "@vercel/analytics/react";
-
-vi.mock("@vercel/analytics/react", () => ({ track: vi.fn() }));
 
 function resetStore() {
   useDraftStore.setState({
@@ -19,7 +16,6 @@ function resetStore() {
     board: null,
     poolAsOfDraft: null,
     syncStatus: { lastSyncedAt: "0", syncInProgress: false, activeDrafts: [] },
-    manualSyncInFlight: false,
   });
   _resetPollingState();
 }
@@ -384,122 +380,3 @@ describe("draftStore — polling", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// triggerSync
-// ---------------------------------------------------------------------------
-describe("draftStore — triggerSync", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    resetStore();
-    vi.mocked(track).mockClear();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("POSTs to /api/sync", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch");
-    fetchSpy.mockImplementation(async (input: string | URL | Request) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      if (url === "/api/sync") {
-        return new Response(JSON.stringify({ status: "completed", lastSyncedAt: "t1" }), { status: 200 });
-      }
-      // sync-status follow-up
-      return new Response(
-        JSON.stringify({ lastSyncedAt: "t1", syncInProgress: false, activeDrafts: [] }),
-        { status: 200 },
-      );
-    });
-
-    useDraftStore.setState({ activeDraft: "draft-1" });
-    await useDraftStore.getState().triggerSync();
-
-    const syncCall = fetchSpy.mock.calls.find((c) => {
-      const url = typeof c[0] === "string" ? c[0] : c[0] instanceof URL ? c[0].toString() : (c[0] as Request).url;
-      return url === "/api/sync";
-    });
-    expect(syncCall).toBeDefined();
-    expect((syncCall![1] as RequestInit).method).toBe("POST");
-  });
-
-  it("sets manualSyncInFlight during operation", async () => {
-    let resolveSync: () => void;
-    const syncPromise = new Promise<void>((r) => { resolveSync = r; });
-
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input: string | URL | Request) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      if (url === "/api/sync") {
-        await syncPromise;
-        return new Response(JSON.stringify({ status: "completed", lastSyncedAt: "t1" }), { status: 200 });
-      }
-      return new Response(
-        JSON.stringify({ lastSyncedAt: "t1", syncInProgress: false, activeDrafts: [] }),
-        { status: 200 },
-      );
-    });
-
-    useDraftStore.setState({ activeDraft: "draft-1" });
-    const p = useDraftStore.getState().triggerSync();
-
-    // Should be in-flight
-    expect(useDraftStore.getState().manualSyncInFlight).toBe(true);
-
-    resolveSync!();
-    await p;
-
-    expect(useDraftStore.getState().manualSyncInFlight).toBe(false);
-  });
-
-  it("increments dataVersion after successful sync", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input: string | URL | Request) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      if (url === "/api/sync") {
-        return new Response(JSON.stringify({ status: "completed", lastSyncedAt: "t1" }), { status: 200 });
-      }
-      return new Response(
-        JSON.stringify({ lastSyncedAt: "t1", syncInProgress: false, activeDrafts: [] }),
-        { status: 200 },
-      );
-    });
-
-    useDraftStore.setState({ activeDraft: "draft-1" });
-    const before = useDraftStore.getState().dataVersion;
-    await useDraftStore.getState().triggerSync();
-    expect(useDraftStore.getState().dataVersion).toBeGreaterThan(before);
-  });
-
-  it("fires track('sync_completed') on success", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input: string | URL | Request) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      if (url === "/api/sync") {
-        return new Response(JSON.stringify({ status: "completed", lastSyncedAt: "t1" }), { status: 200 });
-      }
-      return new Response(
-        JSON.stringify({ lastSyncedAt: "t1", syncInProgress: false, activeDrafts: [] }),
-        { status: 200 },
-      );
-    });
-
-    useDraftStore.setState({ activeDraft: "draft-1" });
-    await useDraftStore.getState().triggerSync();
-    expect(track).toHaveBeenCalledWith("sync_completed", expect.objectContaining({ duration_ms: expect.any(Number) }));
-  });
-
-  it("fires track('sync_failed') on error", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async (input: string | URL | Request) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
-      if (url === "/api/sync") {
-        return new Response("error", { status: 500 });
-      }
-      return new Response(
-        JSON.stringify({ lastSyncedAt: "0", syncInProgress: false, activeDrafts: [] }),
-        { status: 200 },
-      );
-    });
-
-    useDraftStore.setState({ activeDraft: "draft-1" });
-    await useDraftStore.getState().triggerSync();
-    expect(track).toHaveBeenCalledWith("sync_failed", expect.objectContaining({ error: "HTTP 500" }));
-  });
-});

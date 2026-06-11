@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { timingSafeEqual } from "crypto";
 import { getClient } from "@/core/db/client";
 import {
   acquireSyncLock,
@@ -6,7 +7,6 @@ import {
   updateLastSyncedAt,
   getActiveDrafts,
   incrementalIngest,
-  isRateLimited,
 } from "@/core/sync";
 import { fetchDraftTabsRaw } from "@/core/sheets";
 import { parsePickRows, parseMatchRows } from "@/core/parseSheetRows";
@@ -136,49 +136,29 @@ async function runSync(): Promise<NextResponse> {
 }
 
 /**
- * GET /api/sync — Called by Vercel cron job.
+ * Constant-time string equality to prevent timing-based secret extraction.
+ * Returns false immediately on length mismatch to avoid buffer allocation risk,
+ * then delegates to crypto.timingSafeEqual for equal-length strings.
+ */
+function timingSafeStringEqual(a: string, b: string): boolean {
+  const aBuf = Buffer.from(a);
+  const bBuf = Buffer.from(b);
+  if (aBuf.length !== bBuf.length) return false;
+  return timingSafeEqual(aBuf, bBuf);
+}
+
+/**
+ * GET /api/sync — Called by Vercel cron job every 10 minutes.
  * Requires CRON_SECRET authorization.
  */
 export const GET = withApiErrors(
   async (request: NextRequest) => {
-    // Verify cron secret
+    // Verify cron secret using constant-time comparison to resist timing attacks
     const authHeader = request.headers.get("authorization");
     const cronSecret = process.env.CRON_SECRET;
 
-    if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+    if (!cronSecret || !timingSafeStringEqual(authHeader ?? "", `Bearer ${cronSecret}`)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    return await runSync();
-  },
-  "[sync] Unexpected error:",
-);
-
-/**
- * POST /api/sync — Called by "Sync Now" button.
- * Rate-limited to prevent quota exhaustion.
- */
-export const POST = withApiErrors(
-  async (request: NextRequest) => {
-    // Accept auth from either header (cron) or from a known origin (UI button)
-    const authHeader = request.headers.get("authorization");
-    const cronSecret = process.env.CRON_SECRET;
-
-    // Allow if valid CRON_SECRET is provided, OR if request comes from same origin
-    const origin = request.headers.get("origin") ?? "";
-    const host = request.headers.get("host") ?? "";
-    const isSameOrigin = host.length > 0 && (origin === `https://${host}` || origin === `http://${host}`);
-    const isAuthedByCron = cronSecret && authHeader === `Bearer ${cronSecret}`;
-
-    if (!isAuthedByCron && !isSameOrigin) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const client = await getClient();
-
-    // Rate limiting
-    if (await isRateLimited(client)) {
-      return NextResponse.json({ status: "rate_limited" }, { status: 429 });
     }
 
     return await runSync();

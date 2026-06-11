@@ -2,7 +2,6 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   detectNewPicks,
   detectDivergence,
-  isRateLimited,
   getDbMaxPickN,
   resolveCardNameToId,
   insertNewPicks,
@@ -76,33 +75,6 @@ describe("detectDivergence", () => {
 
   it("no divergence when counts are equal", () => {
     expect(detectDivergence(3, 3)).toBe(false);
-  });
-});
-
-describe("isRateLimited", () => {
-  it("returns false when no last_synced_at exists", async () => {
-    const client = { execute: vi.fn().mockResolvedValue({ rows: [] }) };
-    expect(await isRateLimited(client as any)).toBe(false);
-  });
-
-  it("returns true when synced recently", async () => {
-    const recentTimestamp = Math.floor(Date.now() / 1000) - 10; // 10 seconds ago
-    const client = {
-      execute: vi.fn().mockResolvedValue({
-        rows: [{ value: String(recentTimestamp) }],
-      }),
-    };
-    expect(await isRateLimited(client as any)).toBe(true);
-  });
-
-  it("returns false when synced long ago", async () => {
-    const oldTimestamp = Math.floor(Date.now() / 1000) - 60; // 60 seconds ago
-    const client = {
-      execute: vi.fn().mockResolvedValue({
-        rows: [{ value: String(oldTimestamp) }],
-      }),
-    };
-    expect(await isRateLimited(client as any)).toBe(false);
   });
 });
 

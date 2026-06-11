@@ -101,7 +101,6 @@ describe("PageClient", () => {
       board: null,
       poolAsOfDraft: null,
       syncStatus: { lastSyncedAt: "0", syncInProgress: false, activeDrafts: [] },
-      manualSyncInFlight: false,
     });
     useCardStore.setState({
       cardData: EMPTY_CARD_DATA,

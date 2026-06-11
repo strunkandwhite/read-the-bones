@@ -14,7 +14,6 @@ vi.mock("@/core/sync", () => ({
   updateLastSyncedAt: vi.fn().mockResolvedValue("1234567890"),
   getActiveDrafts: vi.fn().mockResolvedValue([]),
   incrementalIngest: vi.fn().mockResolvedValue({ status: "no_change", picksInserted: 0 }),
-  isRateLimited: vi.fn().mockResolvedValue(false),
 }));
 
 vi.mock("@/core/sheets", () => ({
@@ -38,8 +37,8 @@ vi.mock("@/core/db/sync/batch", () => ({
   deleteDomainData: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { GET, POST } from "./route";
-import { getActiveDrafts, incrementalIngest, isRateLimited } from "@/core/sync";
+import { GET } from "./route";
+import { getActiveDrafts, incrementalIngest } from "@/core/sync";
 import { fetchDraftTabsRaw } from "@/core/sheets";
 import { parsePickRows, parseMatchRows } from "@/core/parseSheetRows";
 import { hashMatches, getDomainHashes, compareDomainHash, updateDomainHashes } from "@/core/db/sync/domains";
@@ -68,27 +67,6 @@ describe("GET /api/sync (cron)", () => {
     const res = await GET(cronRequest());
     const body = await res.json();
     expect(body.status).toBe("no_active_drafts");
-  });
-});
-
-// Helper to create a same-origin POST request
-function sameOriginRequest(): NextRequest {
-  return new NextRequest(new URL("http://localhost:3000/api/sync"), {
-    method: "POST",
-    headers: { origin: "http://localhost:3000", host: "localhost:3000" },
-  });
-}
-
-describe("POST /api/sync (manual)", () => {
-  it("returns 401 when request is not same-origin and no cron secret", async () => {
-    const res = await POST(new NextRequest(new URL("http://localhost:3000/api/sync"), { method: "POST" }));
-    expect(res.status).toBe(401);
-  });
-
-  it("returns 429 when rate limited", async () => {
-    vi.mocked(isRateLimited).mockResolvedValueOnce(true);
-    const res = await POST(sameOriginRequest());
-    expect(res.status).toBe(429);
   });
 });
 
