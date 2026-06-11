@@ -39,6 +39,10 @@ interface SyncStatusData {
   lastSyncedAt: string;
   syncInProgress: boolean;
   activeDrafts: ActiveDraftInfo[];
+  // Server's current ingestion hash — used by cardStore as the ?v= cache-buster
+  // when refetching /api/cards, so the param reflects the data the client WANTS
+  // (server's current state) rather than what it already has.
+  ingestionHash?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -55,6 +59,18 @@ interface DraftState {
   hydrated: boolean;
 
   // Polling / data
+  //
+  // Two separate change signals let subscribers react with the right scope:
+  //   pickVersion  — a live pick landed (latestPickN advanced). Card data may
+  //                  change (taken cards). Draft-stats do NOT change — they cover
+  //                  completed drafts only.  Task 21 will stop triggering
+  //                  fetchCardData here once card data is derived client-side.
+  //   dataVersion  — ingestion/sync data changed (lastSyncedAt advanced). Both
+  //                  card data AND draft-stats must be refetched.
+  //
+  // Seat-name changes do NOT bump either version — board consumers already
+  // receive updated names directly from the poll response.
+  pickVersion: number;
   dataVersion: number;
   pollCount: number;
   liveDraftStatus: LiveDraftStatus | null;
@@ -87,7 +103,6 @@ const POLL_INTERVAL_MS = 10_000;
 
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 let prevPickN = -1; // -1 = no previous data (first poll)
-let prevSeatNamesKey = "";
 let prevSyncedAt = "0";
 let syncPollCounter = 0;
 
@@ -102,7 +117,6 @@ let appliedGeneration = -1;
 /** Reset module-scoped polling state (for tests). */
 export function _resetPollingState() {
   prevPickN = -1;
-  prevSeatNamesKey = "";
   prevSyncedAt = "0";
   syncPollCounter = 0;
   fetchGeneration = 0;
@@ -198,18 +212,21 @@ function applyPollResults(
     // (or equal on first poll), ensuring stale responses that slipped through the
     // generation guard (same-generation concurrent fetches) can't roll back state.
     const incomingPickN = status.latestPickN as number;
+    let pickBump = false;
     if (incomingPickN !== prevPickN) {
-      if (prevPickN !== -1 && incomingPickN > prevPickN) versionBump = true;
+      if (prevPickN !== -1 && incomingPickN > prevPickN) pickBump = true;
       if (incomingPickN > prevPickN || prevPickN === -1) prevPickN = incomingPickN;
     }
 
-    const seatNamesKey = JSON.stringify(status.seatNames ?? {});
-    if (prevSeatNamesKey && seatNamesKey !== prevSeatNamesKey) {
-      versionBump = true;
-    }
-    prevSeatNamesKey = seatNamesKey;
+    // Seat-name changes are intentionally NOT bumped into any version signal.
+    // Board consumers receive updated seat names directly from the poll response
+    // — no card or stats refetch is needed for a rename.
 
     useDraftStore.setState({ liveDraftStatus: status, board, pollCount: useDraftStore.getState().pollCount + 1 });
+
+    if (pickBump) {
+      useDraftStore.setState({ pickVersion: state.pickVersion + 1 });
+    }
   }
 
   if (syncData) {
@@ -238,6 +255,7 @@ export const useDraftStore = create<DraftState>()(
     hideTaken: true,
     completedDraftIds: [],
     hydrated: false,
+    pickVersion: 0,
     dataVersion: 0,
     pollCount: 0,
     liveDraftStatus: null,
@@ -302,11 +320,21 @@ export const useDraftStore = create<DraftState>()(
         }
       }
 
+      // Only update selectedDrafts when the hydrated set differs from current.
+      // On initial page load the store already holds the SSR completedDraftIds as
+      // its default, so a same-content Set would fire the cardStore subscription
+      // and trigger a duplicate fetch of data already baked into the SSR snapshot.
+      const currentDrafts = get().selectedDrafts;
+      const newDrafts = new Set(completedDraftIds);
+      const setsEqual =
+        currentDrafts.size === newDrafts.size &&
+        [...newDrafts].every((id) => currentDrafts.has(id));
+
       set({
         activeDraft: draftId,
         hideTaken,
         selectedSeat,
-        selectedDrafts: new Set(completedDraftIds),
+        ...(setsEqual ? {} : { selectedDrafts: newDrafts }),
         completedDraftIds,
         hydrated: true,
       });
@@ -371,7 +399,6 @@ useDraftStore.subscribe(
   (activeDraft) => {
     useDraftStore.getState().stopPolling();
     prevPickN = -1;
-    prevSeatNamesKey = "";
     if (activeDraft) useDraftStore.getState().startPolling();
   },
 );

@@ -9,6 +9,7 @@
 
 import type { Client } from "@libsql/client";
 import { DEFAULT_NUM_SEATS } from "../../constants";
+import { computeIngestionHash } from "./domains";
 
 const LOCK_TIMEOUT_SECONDS = 120; // 2 minutes stale-lock timeout
 
@@ -48,6 +49,24 @@ export async function updateLastSyncedAt(client: Client): Promise<string> {
     args: [now],
   });
   return now;
+}
+
+/**
+ * Get the current ingestion hash from the drafts table.
+ *
+ * The hash is computed from pool/picks/matches hashes across all drafts — the
+ * same computation used by getCards/getDraftStats. Clients use this as a ?v=
+ * cache-buster when refetching /api/cards: they want the server's CURRENT hash
+ * (the data they need), not their own stale hash (the data they already have).
+ */
+export async function getServerIngestionHash(client: Client): Promise<string> {
+  const result = await client.execute({
+    sql: `SELECT pool_hash, picks_hash, matches_hash FROM drafts`,
+    args: [],
+  });
+  return computeIngestionHash(
+    result.rows as unknown as Array<{ pool_hash: unknown; picks_hash: unknown; matches_hash: unknown }>
+  );
 }
 
 /**

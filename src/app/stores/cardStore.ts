@@ -130,7 +130,11 @@ interface CardStoreState {
   cardStatsLoading: boolean;
 
   // Actions
-  fetchCardData: () => Promise<void>;
+  //
+  // fetchCardData({ includeDraftStats }) — pass false to skip the /api/draft-stats
+  // request. Draft-stats cover completed drafts only and do not change mid-draft;
+  // pick-driven refetches can safely omit them (saves one request per pick).
+  fetchCardData: (opts?: { includeDraftStats?: boolean }) => Promise<void>;
   hydrate: (initial: CardStatsResponse, draftStats: DraftStatsResponse) => void;
   setSearchQuery: (query: string) => void;
   setColorFilter: (colors: string[]) => void;
@@ -305,7 +309,7 @@ export const useCardStore = create<CardStoreState>()(
       recompute();
     },
 
-    fetchCardData: async () => {
+    fetchCardData: async ({ includeDraftStats = true } = {}) => {
       // If a fetch is already in flight, record that another run is needed
       // and return — the in-flight fetch will re-run on completion.
       if (fetchInFlight) {
@@ -342,28 +346,44 @@ export const useCardStore = create<CardStoreState>()(
 
       set({ isLoading: true });
       try {
+        // Use the server's known ingestionHash (from the last sync-status response)
+        // as the ?v= cache-buster. This represents the data the client WANTS, not
+        // the data it already has — so the edge cache is busted toward new data.
+        // Fall back to the client's current hash when the server hash is unavailable
+        // (e.g. before the first sync-status poll).
+        const serverHash = useDraftStore.getState().syncStatus.ingestionHash;
+        const currentHash = serverHash ?? get().cardData.ingestionHash;
+
         const params = new URLSearchParams();
         params.set("drafts", [...selectedDrafts].join(","));
-        params.set("v", get().cardData.ingestionHash);
+        params.set("v", currentHash);
         if (isLocalClient()) params.set("local", "1");
         if (activeDraft) params.set("activeDraft", activeDraft);
         if (effectivePool) params.set("poolAsOfDraft", effectivePool);
 
-        const statsParams = new URLSearchParams();
-        statsParams.set("drafts", [...selectedDrafts].join(","));
-        statsParams.set("v", get().cardData.ingestionHash);
-
-        const [cardsRes, statsRes] = await Promise.all([
+        // Draft-stats cover completed drafts only and cannot change mid-draft.
+        // Skip the /api/draft-stats request when a pick triggered this fetch
+        // (the caller sets includeDraftStats=false for pick-driven refetches).
+        const fetches: [Promise<Response>, Promise<Response> | null] = [
           fetch(`/api/cards?${params}`),
-          fetch(`/api/draft-stats?${statsParams}`),
-        ]);
+          includeDraftStats
+            ? (() => {
+                const statsParams = new URLSearchParams();
+                statsParams.set("drafts", [...selectedDrafts].join(","));
+                statsParams.set("v", currentHash);
+                return fetch(`/api/draft-stats?${statsParams}`);
+              })()
+            : null,
+        ];
+
+        const [cardsRes, statsRes] = await Promise.all(fetches);
 
         // Only commit if this response is still the latest request.
         // A superseded response (requestId < fetchRequestId) is discarded
         // so stale data from an old selection never overwrites new state.
         if (requestId === fetchRequestId) {
-          if (cardsRes.ok) set({ cardData: await cardsRes.json() });
-          if (statsRes.ok) set({ draftStats: await statsRes.json() });
+          if (cardsRes?.ok) set({ cardData: await cardsRes.json() });
+          if (statsRes?.ok) set({ draftStats: await statsRes.json() });
           recompute();
         }
       } catch (error) {
@@ -468,7 +488,16 @@ useDraftStore.subscribe(
   () => useCardStore.getState().fetchCardData(),
 );
 
-// Refetch when dataVersion changes (sync completed, live draft picks)
+// pickVersion: a live pick landed — refetch card data only.
+// Draft-stats cover completed drafts only and cannot change mid-draft,
+// so skip /api/draft-stats here. Task 21 will remove this subscription
+// entirely once pick-driven card state is derived from board.picks.
+useDraftStore.subscribe(
+  (state) => state.pickVersion,
+  () => useCardStore.getState().fetchCardData({ includeDraftStats: false }),
+);
+
+// dataVersion: ingestion/sync data changed — refetch BOTH card data and draft-stats.
 useDraftStore.subscribe(
   (state) => state.dataVersion,
   () => useCardStore.getState().fetchCardData(),

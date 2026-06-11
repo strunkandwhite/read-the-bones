@@ -10,6 +10,7 @@ function resetStore() {
     hideTaken: true,
     completedDraftIds: [],
     hydrated: false,
+    pickVersion: 0,
     dataVersion: 0,
     pollCount: 0,
     liveDraftStatus: null,
@@ -111,6 +112,44 @@ describe("draftStore — selection state", () => {
   it("hydrate falls back to SSR completedDraftIds for selectedDrafts", () => {
     useDraftStore.getState().hydrate({ completedDraftIds: ["d1", "d2"] });
     expect(useDraftStore.getState().selectedDrafts).toEqual(new Set(["d1", "d2"]));
+  });
+
+  it("hydrate with identical completedDraftIds does NOT replace selectedDrafts reference (no spurious subscription fire)", () => {
+    // Pre-populate the store with the same set the SSR default would have
+    const initialSet = new Set(["d1", "d2"]);
+    useDraftStore.setState({ selectedDrafts: initialSet });
+
+    // Track subscription fires
+    let subscriptionFired = false;
+    const unsub = useDraftStore.subscribe(
+      (s) => s.selectedDrafts,
+      () => { subscriptionFired = true; },
+    );
+
+    useDraftStore.getState().hydrate({ completedDraftIds: ["d1", "d2"] });
+    unsub();
+
+    // selectedDrafts reference unchanged — the subscription must not have fired
+    expect(subscriptionFired).toBe(false);
+    // The set content is still correct
+    expect(useDraftStore.getState().selectedDrafts).toEqual(new Set(["d1", "d2"]));
+  });
+
+  it("hydrate with a different completedDraftIds DOES update selectedDrafts and fires subscription", () => {
+    const initialSet = new Set(["d1"]);
+    useDraftStore.setState({ selectedDrafts: initialSet });
+
+    let subscriptionFired = false;
+    const unsub = useDraftStore.subscribe(
+      (s) => s.selectedDrafts,
+      () => { subscriptionFired = true; },
+    );
+
+    useDraftStore.getState().hydrate({ completedDraftIds: ["d1", "d2", "d3"] });
+    unsub();
+
+    expect(subscriptionFired).toBe(true);
+    expect(useDraftStore.getState().selectedDrafts).toEqual(new Set(["d1", "d2", "d3"]));
   });
 });
 
@@ -268,12 +307,13 @@ describe("draftStore — polling", () => {
     expect(useDraftStore.getState().liveDraftStatus).not.toBeNull();
   });
 
-  it("dataVersion increments when latestPickN changes", async () => {
+  it("pickVersion increments when latestPickN changes (dataVersion does not)", async () => {
     const fetchSpy = mockFetchResponses(baseLiveData, baseSyncData);
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     await useDraftStore.getState().refreshNow();
-    const v1 = useDraftStore.getState().dataVersion;
+    const pv1 = useDraftStore.getState().pickVersion;
+    const dv1 = useDraftStore.getState().dataVersion;
 
     // Change latestPickN
     fetchSpy.mockImplementation(async (input: string | URL | Request) => {
@@ -285,15 +325,18 @@ describe("draftStore — polling", () => {
     });
 
     await useDraftStore.getState().refreshNow();
-    expect(useDraftStore.getState().dataVersion).toBe(v1 + 1);
+    // A pick bumps pickVersion only — dataVersion is reserved for ingestion/sync changes
+    expect(useDraftStore.getState().pickVersion).toBe(pv1 + 1);
+    expect(useDraftStore.getState().dataVersion).toBe(dv1);
   });
 
-  it("dataVersion increments when seatNames changes", async () => {
+  it("seat-name-only change does NOT bump pickVersion or dataVersion, but board updates", async () => {
     const fetchSpy = mockFetchResponses(baseLiveData, baseSyncData);
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     await useDraftStore.getState().refreshNow();
-    const v1 = useDraftStore.getState().dataVersion;
+    const pv1 = useDraftStore.getState().pickVersion;
+    const dv1 = useDraftStore.getState().dataVersion;
 
     fetchSpy.mockImplementation(async (input: string | URL | Request) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
@@ -307,7 +350,11 @@ describe("draftStore — polling", () => {
     });
 
     await useDraftStore.getState().refreshNow();
-    expect(useDraftStore.getState().dataVersion).toBe(v1 + 1);
+    // Neither version should bump for a rename — card/stats data is unaffected
+    expect(useDraftStore.getState().pickVersion).toBe(pv1);
+    expect(useDraftStore.getState().dataVersion).toBe(dv1);
+    // But the board must still carry the updated seat names
+    expect(useDraftStore.getState().board?.seatNames["1"]).toBe("Charlie");
   });
 
   it("dataVersion increments when lastSyncedAt changes", async () => {

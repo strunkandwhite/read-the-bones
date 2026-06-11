@@ -13,17 +13,18 @@ vi.mock("@/core/db/sync/lock", () => ({
   getActiveDraftInfo: vi.fn().mockResolvedValue([
     { id: "draft-1", numSeats: 10 },
   ]),
+  getServerIngestionHash: vi.fn().mockResolvedValue("abc123def456abcd"),
 }));
 
 import { GET } from "./route";
-import { getSyncStatus, getActiveDraftInfo } from "@/core/db/sync/lock";
+import { getSyncStatus, getActiveDraftInfo, getServerIngestionHash } from "@/core/db/sync/lock";
 
 beforeEach(() => {
   vi.clearAllMocks();
 });
 
 describe("GET /api/sync-status", () => {
-  it("returns combined sync status and active drafts", async () => {
+  it("returns combined sync status, active drafts, and ingestionHash", async () => {
     const res = await GET();
     const body = await res.json();
 
@@ -31,14 +32,16 @@ describe("GET /api/sync-status", () => {
       lastSyncedAt: "1700000000",
       syncInProgress: false,
       activeDrafts: [{ id: "draft-1", numSeats: 10 }],
+      ingestionHash: "abc123def456abcd",
     });
   });
 
-  it("calls getSyncStatus and getActiveDraftInfo", async () => {
+  it("calls getSyncStatus, getActiveDraftInfo, and getServerIngestionHash", async () => {
     await GET();
 
     expect(getSyncStatus).toHaveBeenCalledWith(mockClient);
     expect(getActiveDraftInfo).toHaveBeenCalledWith(mockClient);
+    expect(getServerIngestionHash).toHaveBeenCalledWith(mockClient);
   });
 
   it("returns 500 on error", async () => {

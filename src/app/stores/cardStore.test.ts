@@ -59,6 +59,7 @@ function resetStores() {
     hideTaken: true,
     completedDraftIds: [],
     hydrated: false,
+    pickVersion: 0,
     dataVersion: 0,
     liveDraftStatus: null,
     board: null,
@@ -304,6 +305,84 @@ describe("cardStore — fetchCardData", () => {
     expect(cardsUrl).toContain("v=hash123");
     const statsUrl = String(fetchSpy.mock.calls[1][0]);
     expect(statsUrl).toContain("v=hash123");
+  });
+
+  it("uses server ingestionHash from syncStatus as v param when available", async () => {
+    useCardStore.setState({
+      cardData: { ...EMPTY_CARD_DATA, ingestionHash: "client-hash" },
+    });
+    useDraftStore.setState({
+      selectedDrafts: new Set(["d1"]),
+      syncStatus: { lastSyncedAt: "0", syncInProgress: false, activeDrafts: [], ingestionHash: "server-hash" },
+    });
+
+    await useCardStore.getState().fetchCardData();
+
+    const cardsUrl = String(fetchSpy.mock.calls[0][0]);
+    // Server hash takes precedence — busts toward new data rather than re-requesting old data
+    expect(cardsUrl).toContain("v=server-hash");
+  });
+
+  it("pick-driven fetch (includeDraftStats=false) only calls /api/cards, not /api/draft-stats", async () => {
+    useDraftStore.setState({ selectedDrafts: new Set(["d1"]) });
+
+    // Wait for any subscription-triggered fetch to settle
+    await vi.waitFor(() => expect(useCardStore.getState().isLoading).toBe(false));
+    fetchSpy.mockClear();
+
+    await useCardStore.getState().fetchCardData({ includeDraftStats: false });
+
+    const urls = fetchSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(urls.some((u: string) => u.includes("/api/cards"))).toBe(true);
+    expect(urls.every((u: string) => !u.includes("/api/draft-stats"))).toBe(true);
+  });
+
+  it("default fetch (includeDraftStats=true) calls both /api/cards and /api/draft-stats", async () => {
+    useDraftStore.setState({ selectedDrafts: new Set(["d1"]) });
+
+    // Wait for any subscription-triggered fetch to settle
+    await vi.waitFor(() => expect(useCardStore.getState().isLoading).toBe(false));
+    fetchSpy.mockClear();
+
+    await useCardStore.getState().fetchCardData();
+
+    const urls = fetchSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(urls.some((u: string) => u.includes("/api/cards"))).toBe(true);
+    expect(urls.some((u: string) => u.includes("/api/draft-stats"))).toBe(true);
+  });
+
+  it("pickVersion bump triggers card-only fetch (no /api/draft-stats)", async () => {
+    useDraftStore.setState({ selectedDrafts: new Set(["d1"]) });
+
+    // Wait for subscription-triggered fetch to settle
+    await vi.waitFor(() => expect(useCardStore.getState().isLoading).toBe(false));
+    fetchSpy.mockClear();
+
+    // Bump pickVersion (simulates a pick landing)
+    useDraftStore.setState({ pickVersion: 1 });
+
+    await vi.waitFor(() => expect(useCardStore.getState().isLoading).toBe(false));
+
+    const urls = fetchSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(urls.some((u: string) => u.includes("/api/cards"))).toBe(true);
+    expect(urls.every((u: string) => !u.includes("/api/draft-stats"))).toBe(true);
+  });
+
+  it("dataVersion bump triggers both card and draft-stats fetch", async () => {
+    useDraftStore.setState({ selectedDrafts: new Set(["d1"]) });
+
+    // Wait for subscription-triggered fetch to settle
+    await vi.waitFor(() => expect(useCardStore.getState().isLoading).toBe(false));
+    fetchSpy.mockClear();
+
+    // Bump dataVersion (simulates ingestion/sync change)
+    useDraftStore.setState({ dataVersion: 1 });
+
+    await vi.waitFor(() => expect(useCardStore.getState().isLoading).toBe(false));
+
+    const urls = fetchSpy.mock.calls.map((c: unknown[]) => String(c[0]));
+    expect(urls.some((u: string) => u.includes("/api/cards"))).toBe(true);
+    expect(urls.some((u: string) => u.includes("/api/draft-stats"))).toBe(true);
   });
 
   it("discards a stale response when a newer fetch supersedes it — committed state reflects the LATEST selection", async () => {
