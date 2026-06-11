@@ -3,6 +3,7 @@ import type { CardStatusResult } from "@/core/cardStatus";
 import { useDraftStore } from "./draftStore";
 import { useCardStore } from "./cardStore";
 import { useLiveStore } from "./liveStore";
+import { computeMyDeckCardNames } from "./computeMyDeckCardNames";
 
 export function getIsAuthed(): boolean {
   const { mySeat } = useLiveStore.getState();
@@ -175,12 +176,10 @@ export function getImageUrl(cardName: string | null): string | undefined {
  * Canonical "my deck cards" union: picks + speculative (floats + queued),
  * auth-gated, deduplicated.
  *
- * Rules (shared across PageClient mobile filter, syncDeckWithPicks, DeckBuilderPanel):
- * - Picks are authoritative.
- * - Auth-gated: floats and queued cards are included only when authed
- *   (mySeat === selectedSeat).
- * - Speculative cards deduplicate against each other and against picks:
- *   queue first, then floats; a card that is both queued and floated counts once.
+ * Delegates to computeMyDeckCardNames (pure function, no store imports) so
+ * this selector and liveStore.ts can both call the same logic without a
+ * circular dependency.
+ *
  * Returns a Set<string> of card names.
  */
 export function getMyDeckCardNames(): Set<string> {
@@ -188,21 +187,7 @@ export function getMyDeckCardNames(): Set<string> {
   const { floatedCards, queue } = useLiveStore.getState();
   const isAuthed = getIsAuthed();
 
-  const picks = seatCardList ?? [];
-  const authFloated = isAuthed ? floatedCards : [];
-  const authQueued = isAuthed
-    ? queue.flatMap((entry) => entry.cards.map((c) => c.cardName))
-    : [];
-
-  const seen = new Set(picks);
-  const speculative: string[] = [];
-  for (const name of [...authQueued, ...authFloated]) {
-    if (!seen.has(name)) {
-      seen.add(name);
-      speculative.push(name);
-    }
-  }
-  return new Set([...picks, ...speculative]);
+  return new Set(computeMyDeckCardNames({ picks: seatCardList ?? [], isAuthed, floatedCards, queue }));
 }
 
 /**
@@ -217,20 +202,6 @@ export function useMyDeckCardNames(): Set<string> {
 
   return useMemo(() => {
     const isAuthed = mySeat !== null && mySeat === selectedSeat;
-    const picks = seatCardList ?? [];
-    const authFloated = isAuthed ? floatedCards : [];
-    const authQueued = isAuthed
-      ? queue.flatMap((entry) => entry.cards.map((c) => c.cardName))
-      : [];
-
-    const seen = new Set(picks);
-    const speculative: string[] = [];
-    for (const name of [...authQueued, ...authFloated]) {
-      if (!seen.has(name)) {
-        seen.add(name);
-        speculative.push(name);
-      }
-    }
-    return new Set([...picks, ...speculative]);
+    return new Set(computeMyDeckCardNames({ picks: seatCardList ?? [], isAuthed, floatedCards, queue }));
   }, [seatCardList, floatedCards, queue, mySeat, selectedSeat]);
 }

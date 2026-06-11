@@ -3,24 +3,46 @@ import { subscribeWithSelector } from "zustand/middleware";
 import { useDraftStore, registerSeatTokenProvider, registerApplyMeData } from "./draftStore";
 import type { LiveMeData } from "./draftStore";
 import { useCardStore } from "./cardStore";
-import {
-  deckReducer,
-  createEmptyDeckState,
-  type DeckAction,
-} from "@/core/deckBuilder";
+import { createEmptyDeckState, type DeckAction } from "@/core/deckBuilder";
 import type { DeckState } from "@/core/types";
 
-export type { DeckAction };
+// Action modules
+import {
+  makeHydrateToken,
+  makeFetchMySeat,
+  makeToggleAutoPick,
+  makeUpdateDisplayName,
+  makeRefreshSettings,
+} from "./live/auth";
+import {
+  deriveQueuedCardCounts,
+  parseServerQueue,
+  makeFetchQueue,
+  makeAddToQueue,
+  makeRemoveFromQueue,
+  makeReorderQueue,
+  makeSetEntryMode,
+  makeFetchFloatedCards,
+  makeAddFloat,
+  makeRemoveFloat,
+} from "./live/queueFloat";
+import {
+  makeRecomputePicking,
+  makeHandlePick,
+  makeSetPickError,
+} from "./live/picking";
+import {
+  resetDeckSaveState,
+  getEnteringSharedView,
+  makeDispatchDeck,
+  makeSetDeckBuilderActive,
+  makeEnterSharedView,
+  makeFetchDeckState,
+  makeSyncDeckWithPicks,
+  makeDebouncedSyncDeckWithPicks,
+} from "./live/deckSave";
 
-function deriveQueuedCardCounts(queue: QueueGroupEntry[]): Map<string, number> {
-  const counts = new Map<string, number>();
-  for (const entry of queue) {
-    for (const card of entry.cards) {
-      counts.set(card.cardName, (counts.get(card.cardName) ?? 0) + 1);
-    }
-  }
-  return counts;
-}
+export type { DeckAction };
 
 // ---------------------------------------------------------------------------
 // Types
@@ -32,26 +54,11 @@ export interface QueueCard {
 }
 
 export interface QueueGroupEntry {
-  mode: 'pause' | 'flow-through';
+  mode: "pause" | "flow-through";
   cards: QueueCard[];
 }
 
-// Server-side queue format — server always sends { id, name }
-interface ServerQueueCard { id: number; name: string; }
-interface ServerQueueEntry { mode: 'pause' | 'flow-through'; cards: ServerQueueCard[]; }
-
-/**
- * Normalise the server's { id, name } queue format to the client's QueueGroupEntry shape.
- * Single canonical conversion used by fetchQueue, syncQueue (PUT response), and applyMeFromPoll.
- */
-function parseServerQueue(raw: ServerQueueEntry[]): QueueGroupEntry[] {
-  return raw.map((e) => ({
-    mode: e.mode,
-    cards: e.cards.map((c) => ({ cardId: c.id, cardName: c.name })),
-  }));
-}
-
-interface LiveStoreState {
+export interface LiveStoreState {
   // Auth
   seatToken: string | null;
   mySeat: number | null;
@@ -91,7 +98,7 @@ interface LiveStoreState {
   addToQueue: (cardName: string) => void;
   removeFromQueue: (cardName: string) => void;
   reorderQueue: (entries: QueueGroupEntry[]) => void;
-  setEntryMode: (entryIndex: number, mode: 'pause' | 'flow-through') => void;
+  setEntryMode: (entryIndex: number, mode: "pause" | "flow-through") => void;
 
   // Float actions
   fetchFloatedCards: () => Promise<void>;
@@ -110,196 +117,33 @@ interface LiveStoreState {
 }
 
 // ---------------------------------------------------------------------------
-// Internal helper: sync queue to server with optimistic revert
+// SetState / GetState convenience types (used by action modules)
 // ---------------------------------------------------------------------------
 
-type SetState = (partial: Partial<LiveStoreState>) => void;
-type GetState = () => LiveStoreState;
-
-async function syncQueue(set: SetState, get: GetState, newQueue: QueueGroupEntry[], previousQueue?: QueueGroupEntry[], fallbackFloats?: string[]) {
-  const { seatToken } = get();
-  const fallbackQueue = previousQueue ?? get().queue;
-  const activeDraft = useDraftStore.getState().activeDraft;
-  if (!seatToken || !activeDraft) return;
-
-  set({ queueLoading: true });
-  try {
-    const body = newQueue.map((entry) => ({
-      mode: entry.mode,
-      cards: entry.cards.map((c) => c.cardName),
-    }));
-    const res = await fetch(`/api/drafts/${activeDraft}/queue`, {
-      method: "PUT",
-      headers: {
-        "X-Seat-Token": seatToken,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const queue = parseServerQueue(data.queue as ServerQueueEntry[]);
-      set({
-        queue,
-        queuedCardCounts: deriveQueuedCardCounts(queue),
-        queueError: null,
-      });
-      // Refresh floated cards to pick up any server-side auto-float/unfloat side effects
-      void useLiveStore.getState().fetchFloatedCards();
-    } else {
-      set({
-        queue: fallbackQueue,
-        queuedCardCounts: deriveQueuedCardCounts(fallbackQueue),
-        queueError: "Failed to sync queue",
-      });
-      if (fallbackFloats !== undefined) {
-        set({ floatedCards: fallbackFloats, floatedCardsSet: new Set(fallbackFloats) });
-      }
-    }
-  } catch {
-    set({
-      queue: fallbackQueue,
-      queuedCardCounts: deriveQueuedCardCounts(fallbackQueue),
-      queueError: "Failed to sync queue",
-    });
-    if (fallbackFloats !== undefined) {
-      set({ floatedCards: fallbackFloats, floatedCardsSet: new Set(fallbackFloats) });
-    }
-  }
-  set({ queueLoading: false });
-}
+export type SetState = (partial: Partial<LiveStoreState>) => void;
+export type GetState = () => LiveStoreState;
 
 // ---------------------------------------------------------------------------
-// mutateFloat — shared helper for add/remove float (same logic, different HTTP method)
+// _resetDeckState — exported for tests
 // ---------------------------------------------------------------------------
-
-async function mutateFloat(
-  set: SetState,
-  get: GetState,
-  cardName: string,
-  method: "PUT" | "DELETE",
-): Promise<void> {
-  const { seatToken, floatedCards: previous } = get();
-  const activeDraft = useDraftStore.getState().activeDraft;
-  if (!seatToken || !activeDraft) return;
-
-  const next =
-    method === "PUT"
-      ? [...previous, cardName]
-      : previous.filter((c) => c !== cardName);
-  set({ floatedCards: next, floatedCardsSet: new Set(next) });
-
-  try {
-    const res = await fetch(`/api/drafts/${activeDraft}/float`, {
-      method,
-      headers: {
-        "X-Seat-Token": seatToken,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ card_name: cardName }),
-    });
-    // On failure, refetch server truth instead of restoring a potentially
-    // stale snapshot — a concurrent op may have succeeded between our
-    // optimistic update and this response.
-    if (!res.ok) await useLiveStore.getState().fetchFloatedCards();
-  } catch {
-    await useLiveStore.getState().fetchFloatedCards();
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Module-scoped refs for deck save debounce + shared-view sequencing
-// ---------------------------------------------------------------------------
-
-// Set to true by enterSharedView before calling setActiveDraft so the
-// activeDraft subscription can tell that the draft switch is for shared-deck
-// viewing and must NOT reset viewingSharedDeck back to false.
-let enteringSharedView = false;
-
-let deckDirty = false;
-let deckInFlight = false;
-let deckPendingSave = false;
-let deckSaveTimer: ReturnType<typeof setTimeout> | null = null;
-let justHydrated = false;
-
-const DECK_SAVE_DEBOUNCE_MS = 1000;
-const DECK_SAVE_STATUS_RESET_MS = 2000;
-
-let syncDeckTimer: ReturnType<typeof setTimeout> | null = null;
 
 export function _resetDeckState() {
-  deckDirty = false;
-  deckInFlight = false;
-  deckPendingSave = false;
-  justHydrated = false;
-  if (deckSaveTimer) {
-    clearTimeout(deckSaveTimer);
-    deckSaveTimer = null;
-  }
-  if (syncDeckTimer) {
-    clearTimeout(syncDeckTimer);
-    syncDeckTimer = null;
-  }
+  resetDeckSaveState();
 }
 
-async function flushDeckSave(scheduledForDraft: string) {
-  const { seatToken, deckState } = useLiveStore.getState();
-  const activeDraft = useDraftStore.getState().activeDraft;
-  // Belt-and-braces: if the user switched drafts between schedule and flush, discard the save
-  if (activeDraft !== scheduledForDraft) return;
-  if (!seatToken || !activeDraft || !deckDirty || deckInFlight) return;
+// ---------------------------------------------------------------------------
+// getLiveStoreRef — lazy accessor passed to modules needing setState/getState.
+// Using a function (not a direct variable) breaks the circular reference at
+// module evaluation time: modules capture the function reference; liveStore
+// is created before any call is actually made.
+// ---------------------------------------------------------------------------
 
-  deckInFlight = true;
-  useLiveStore.setState({ deckSaveStatus: "saving" });
-
-  try {
-    const res = await fetch(`/api/drafts/${activeDraft}/deck-state`, {
-      method: "PUT",
-      headers: {
-        "X-Seat-Token": seatToken,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(deckState),
-    });
-    if (res.ok) {
-      deckDirty = false;
-      useLiveStore.setState({ deckSaveStatus: "saved" });
-      setTimeout(() => {
-        if (useLiveStore.getState().deckSaveStatus === "saved") {
-          useLiveStore.setState({ deckSaveStatus: "idle" });
-        }
-      }, DECK_SAVE_STATUS_RESET_MS);
-    } else {
-      useLiveStore.setState({ deckSaveStatus: "idle" });
-    }
-  } catch {
-    useLiveStore.setState({ deckSaveStatus: "idle" });
-    // Retry in 5s if still dirty
-    setTimeout(() => {
-      if (deckDirty) flushDeckSave(scheduledForDraft);
-    }, 5000);
-  }
-
-  deckInFlight = false;
-
-  if (deckPendingSave) {
-    deckPendingSave = false;
-    await flushDeckSave(scheduledForDraft);
-  }
-}
-
-function scheduleDeckSave() {
-  if (deckInFlight) {
-    deckPendingSave = true;
-    return;
-  }
-  // Capture the draftId at schedule time; flushDeckSave will abort if it has changed by flush time.
-  const draftIdAtSchedule = useDraftStore.getState().activeDraft ?? "";
-  if (deckSaveTimer) clearTimeout(deckSaveTimer);
-  deckSaveTimer = setTimeout(() => {
-    deckSaveTimer = null;
-    flushDeckSave(draftIdAtSchedule);
-  }, DECK_SAVE_DEBOUNCE_MS);
+function getLiveStoreRef() {
+  return {
+    getState: useLiveStore.getState,
+    setState: useLiveStore.setState as SetState,
+    fetchFloatedCards: () => useLiveStore.getState().fetchFloatedCards(),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -307,525 +151,80 @@ function scheduleDeckSave() {
 // ---------------------------------------------------------------------------
 
 export const useLiveStore = create<LiveStoreState>()(
-  subscribeWithSelector((set, get) => ({
-    // Initial state
-    seatToken: null,
-    mySeat: null,
-    autoPick: true,
-    displayName: null,
+  subscribeWithSelector((set, get): LiveStoreState => {
+    // recomputePicking must be created first — auth and picking actions reference it.
+    const boundSet = set as unknown as SetState;
+    const recomputePicking = makeRecomputePicking(boundSet, get);
 
-    // Queue state
-    queue: [],
-    queuedCardCounts: new Map(),
-    queueLoading: false,
-    queueError: null,
+    return {
+      // Initial state
+      seatToken: null,
+      mySeat: null,
+      autoPick: true,
+      displayName: null,
 
-    // Float state
-    floatedCards: [],
-    floatedCardsSet: new Set<string>(),
+      queue: [],
+      queuedCardCounts: new Map(),
+      queueLoading: false,
+      queueError: null,
 
-    // Picking state
-    pickError: null,
-    isMyTurn: false,
+      floatedCards: [],
+      floatedCardsSet: new Set<string>(),
 
-    // Deck builder state
-    deckState: createEmptyDeckState("", 0),
-    deckReady: false,
-    deckSaveStatus: "idle",
-    deckBuilderActive: false,
-    viewingSharedDeck: false,
+      pickError: null,
+      isMyTurn: false,
 
-    // -----------------------------------------------------------------------
-    // hydrateToken — reads token from URL then localStorage
-    // -----------------------------------------------------------------------
-    hydrateToken: (draftId: string) => {
-      const url = new URL(window.location.href);
-      const urlToken = url.searchParams.get("token");
-      if (urlToken) {
-        localStorage.setItem(`seatToken:${draftId}`, urlToken);
-        url.searchParams.delete("token");
-        window.history.replaceState({}, "", url.toString());
-        set({ seatToken: urlToken });
-      } else {
-        const stored = localStorage.getItem(`seatToken:${draftId}`);
-        set({ seatToken: stored });
-      }
-    },
+      deckState: createEmptyDeckState("", 0),
+      deckReady: false,
+      deckSaveStatus: "idle",
+      deckBuilderActive: false,
+      viewingSharedDeck: false,
 
-    // -----------------------------------------------------------------------
-    // fetchMySeat — resolves seat from token
-    // -----------------------------------------------------------------------
-    fetchMySeat: async () => {
-      const { seatToken } = get();
-      const activeDraft = useDraftStore.getState().activeDraft;
-      if (!seatToken || !activeDraft) return;
+      // Auth actions
+      hydrateToken: makeHydrateToken(boundSet),
+      fetchMySeat: makeFetchMySeat(boundSet, get, recomputePicking),
+      toggleAutoPick: makeToggleAutoPick(boundSet, get, recomputePicking),
+      updateDisplayName: makeUpdateDisplayName(boundSet, get),
+      refreshSettings: makeRefreshSettings(boundSet, get),
 
-      try {
-        const res = await fetch(`/api/drafts/${activeDraft}/me`, {
-          headers: { "X-Seat-Token": seatToken },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        set({
-          mySeat: data.seat,
-          autoPick: data.autoPick,
-          displayName: data.displayName,
-        });
-        recomputePicking();
-      } catch {
-        // Token invalid or network error — remain as spectator
-      }
-    },
+      // Queue actions
+      fetchQueue: makeFetchQueue(boundSet, get),
+      addToQueue: makeAddToQueue(boundSet, get, getLiveStoreRef),
+      removeFromQueue: makeRemoveFromQueue(boundSet, get, getLiveStoreRef),
+      reorderQueue: makeReorderQueue(boundSet, get, getLiveStoreRef),
+      setEntryMode: makeSetEntryMode(boundSet, get, getLiveStoreRef),
 
-    // -----------------------------------------------------------------------
-    // toggleAutoPick
-    // -----------------------------------------------------------------------
-    toggleAutoPick: async () => {
-      const { seatToken, autoPick } = get();
-      const activeDraft = useDraftStore.getState().activeDraft;
-      if (!seatToken || !activeDraft) return;
+      // Float actions
+      fetchFloatedCards: makeFetchFloatedCards(boundSet, get),
+      addFloat: makeAddFloat(boundSet, get, getLiveStoreRef),
+      removeFloat: makeRemoveFloat(boundSet, get, getLiveStoreRef),
 
-      const newValue = !autoPick;
-      try {
-        const res = await fetch(`/api/drafts/${activeDraft}/seat-settings`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Seat-Token": seatToken,
-          },
-          body: JSON.stringify({ auto_pick: newValue }),
-        });
-        if (res.ok) {
-          set({ autoPick: newValue });
-          recomputePicking();
-        }
-      } catch {
-        // ignore
-      }
-    },
+      // Pick actions
+      handlePick: makeHandlePick(boundSet, get),
+      setPickError: makeSetPickError(boundSet),
 
-    // -----------------------------------------------------------------------
-    // updateDisplayName — optimistic update, reverts on failure
-    // -----------------------------------------------------------------------
-    updateDisplayName: async (name: string) => {
-      const { seatToken, displayName: previous } = get();
-      const activeDraft = useDraftStore.getState().activeDraft;
-      if (!seatToken || !activeDraft) return;
-
-      const newValue = name || null;
-      set({ displayName: newValue });
-
-      try {
-        const res = await fetch(`/api/drafts/${activeDraft}/seat-settings`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            "X-Seat-Token": seatToken,
-          },
-          body: JSON.stringify({ display_name: name }),
-        });
-        if (!res.ok) set({ displayName: previous });
-      } catch {
-        set({ displayName: previous });
-      }
-    },
-
-    // -----------------------------------------------------------------------
-    // refreshSettings — re-fetches seat settings from server
-    // -----------------------------------------------------------------------
-    refreshSettings: async () => {
-      const { seatToken } = get();
-      const activeDraft = useDraftStore.getState().activeDraft;
-      if (!seatToken || !activeDraft) return;
-
-      try {
-        const res = await fetch(`/api/drafts/${activeDraft}/me`, {
-          headers: { "X-Seat-Token": seatToken },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
-        set({
-          autoPick: data.autoPick,
-        });
-      } catch {
-        // ignore
-      }
-    },
-
-    // -----------------------------------------------------------------------
-    // Queue actions
-    // -----------------------------------------------------------------------
-    fetchQueue: async () => {
-      const { seatToken } = get();
-      const activeDraft = useDraftStore.getState().activeDraft;
-      if (!seatToken || !activeDraft) return;
-
-      set({ queueLoading: true });
-      try {
-        const res = await fetch(`/api/drafts/${activeDraft}/queue`, {
-          headers: { "X-Seat-Token": seatToken },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          const queue = parseServerQueue(data.queue as ServerQueueEntry[]);
-          // Deep-compare with current queue to avoid churn on idle polls —
-          // keep the existing reference when content is identical.
-          const prevQueue = get().queue;
-          const queueChanged = JSON.stringify(queue) !== JSON.stringify(prevQueue);
-          if (queueChanged) {
-            set({
-              queue,
-              queuedCardCounts: deriveQueuedCardCounts(queue),
-              queueError: null,
-            });
-          } else {
-            set({ queueError: null });
-          }
-        }
-      } catch {
-        set({ queueError: "Failed to load queue" });
-      }
-      set({ queueLoading: false });
-    },
-
-    addToQueue: (cardName: string) => {
-      const { queue: original, floatedCards } = get();
-      // Optimistic update: add card as a new pause entry at the end
-      const optimisticQueue: QueueGroupEntry[] = [...original, { mode: 'pause', cards: [{ cardId: 0, cardName }] }];
-      set({
-        queue: optimisticQueue,
-        queuedCardCounts: deriveQueuedCardCounts(optimisticQueue),
-      });
-      // Queue supersedes float — optimistically remove from float list
-      if (floatedCards.includes(cardName)) {
-        const nextFloats = floatedCards.filter((c) => c !== cardName);
-        set({ floatedCards: nextFloats, floatedCardsSet: new Set(nextFloats) });
-      }
-      syncQueue(set, get, optimisticQueue, original, floatedCards);
-    },
-
-    removeFromQueue: (cardName: string) => {
-      const { queue: original, floatedCards } = get();
-      // Find the first entry containing this card, remove the card from it; remove empty entries
-      let found = false;
-      const optimisticQueue: QueueGroupEntry[] = original
-        .map((entry) => {
-          if (!found) {
-            const cardIndex = entry.cards.findIndex((c) => c.cardName === cardName);
-            if (cardIndex !== -1) {
-              found = true;
-              return { ...entry, cards: entry.cards.filter((_, i) => i !== cardIndex) };
-            }
-          }
-          return entry;
-        })
-        .filter((entry) => entry.cards.length > 0);
-      if (!found) return;
-      // Optimistically demote to float (mirrors the server-side auto-float behavior)
-      const nextFloats = floatedCards.includes(cardName) ? floatedCards : [...floatedCards, cardName];
-      set({
-        queue: optimisticQueue,
-        queuedCardCounts: deriveQueuedCardCounts(optimisticQueue),
-        floatedCards: nextFloats,
-        floatedCardsSet: new Set(nextFloats),
-      });
-      syncQueue(set, get, optimisticQueue, original, floatedCards);
-    },
-
-    reorderQueue: (entries: QueueGroupEntry[]) => {
-      const { queue: original } = get();
-      // Optimistic: reflect the reorder/group/eject immediately, revert on failure.
-      set({ queue: entries, queuedCardCounts: deriveQueuedCardCounts(entries) });
-      syncQueue(set, get, entries, original);
-    },
-
-    setEntryMode: (entryIndex: number, mode: 'pause' | 'flow-through') => {
-      const { queue: original } = get();
-      const newQueue = original.map((entry, i) =>
-        i === entryIndex ? { ...entry, mode } : entry
-      );
-      set({ queue: newQueue, queuedCardCounts: deriveQueuedCardCounts(newQueue) });
-      syncQueue(set, get, newQueue, original);
-    },
-
-    // -----------------------------------------------------------------------
-    // Float actions
-    // -----------------------------------------------------------------------
-    fetchFloatedCards: async () => {
-      const { seatToken } = get();
-      const activeDraft = useDraftStore.getState().activeDraft;
-      if (!seatToken || !activeDraft) return;
-
-      try {
-        const res = await fetch(`/api/drafts/${activeDraft}/float`, {
-          headers: { "X-Seat-Token": seatToken },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (data?.cards) {
-            // Deep-compare with current floats to avoid churn on idle polls —
-            // keep the existing reference when content is identical.
-            const incoming: string[] = data.cards;
-            const prevFloats = get().floatedCards;
-            const floatsChanged =
-              incoming.length !== prevFloats.length ||
-              incoming.some((c, i) => c !== prevFloats[i]);
-            if (floatsChanged) {
-              set({ floatedCards: incoming, floatedCardsSet: new Set(incoming) });
-            }
-          }
-        }
-      } catch {
-        // ignore
-      }
-    },
-
-    addFloat: (cardName: string) => mutateFloat(set, get, cardName, "PUT"),
-
-    removeFloat: (cardName: string) => mutateFloat(set, get, cardName, "DELETE"),
-
-    // -----------------------------------------------------------------------
-    // handlePick — submit a pick to the server
-    // -----------------------------------------------------------------------
-    handlePick: async (cardName: string) => {
-      const { seatToken, autoPick } = get();
-      const activeDraft = useDraftStore.getState().activeDraft;
-      if (!seatToken || !activeDraft) return;
-
-      try {
-        const res = await fetch(`/api/drafts/${activeDraft}/pick`, {
-          method: "POST",
-          headers: {
-            "X-Seat-Token": seatToken,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ card_name: cardName }),
-        });
-
-        if (res.ok) {
-          set({ pickError: null });
-          // Remove picked card from floats (client-side cleanup)
-          const { floatedCards } = get();
-          if (floatedCards.includes(cardName)) {
-            const updated = floatedCards.filter((c) => c !== cardName);
-            set({ floatedCards: updated, floatedCardsSet: new Set(updated) });
-          }
-          await useDraftStore.getState().refreshNow();
-        } else {
-          const data = await res.json().catch(() => ({ error: "Pick failed" }));
-          const errorMsg = data.error || "Pick failed";
-
-          if (autoPick && errorMsg.includes("already been picked")) {
-            // Suppress error when auto-picking — card was taken, refresh will trigger next pick
-            set({ pickError: null });
-            await useDraftStore.getState().refreshNow();
-          } else {
-            set({ pickError: errorMsg });
-          }
-        }
-      } catch {
-        set({ pickError: "Network error — pick may not have been submitted" });
-      }
-    },
-
-    // -----------------------------------------------------------------------
-    // setPickError
-    // -----------------------------------------------------------------------
-    setPickError: (error: string | null) => {
-      set({ pickError: error });
-    },
-
-    // -----------------------------------------------------------------------
-    // Deck builder actions
-    // -----------------------------------------------------------------------
-    dispatchDeck: (action: DeckAction) => {
-      // Invariant: justHydrated is set by INIT_FROM_SNAPSHOT and must be
-      // consumed by the very next REBUILD (the automatic sync that follows
-      // hydration) regardless of whether that REBUILD changes state.  If the
-      // user dispatches any non-REBUILD action while justHydrated is set, the
-      // flag is also cleared — that action is a real edit and must be saved.
-      //
-      // Why this ordering matters: deckReducer can return the same reference
-      // for a no-op REBUILD (zones are identical after hydration).  Without
-      // eager flag consumption, the no-op guard below would return before the
-      // justHydrated check, leaving the flag alive to eat the user's first
-      // real edit.
-      if (action.type === "INIT_FROM_SNAPSHOT") {
-        const prev = get().deckState;
-        const next = deckReducer(prev, action);
-        if (next !== prev) set({ deckState: next });
-        justHydrated = true;
-        return;
-      }
-
-      if (action.type === "REBUILD" && justHydrated) {
-        // Consume the post-hydration rebuild flag before the no-op guard so a
-        // no-op REBUILD (same reference returned) cannot leave the flag alive.
-        justHydrated = false;
-        const prev = get().deckState;
-        const next = deckReducer(prev, action);
-        if (next !== prev) set({ deckState: next });
-        // No dirty/save — this is the automatic sync, not a user edit.
-        return;
-      }
-
-      const prev = get().deckState;
-      const next = deckReducer(prev, action);
-      if (next === prev) return; // reducer returned same reference = no change
-      set({ deckState: next });
-
-      // Never persist edits while viewing someone else's shared deck snapshot.
-      if (get().viewingSharedDeck) return;
-
-      if (justHydrated) {
-        // User acted before any REBUILD came (e.g. deck builder opened
-        // immediately after hydration with no picks loaded yet).  Consume the
-        // flag and save — this is a real edit.
-        justHydrated = false;
-      }
-
-      deckDirty = true;
-      scheduleDeckSave();
-    },
-
-    setDeckBuilderActive: (active: boolean) => {
-      set({ deckBuilderActive: active });
-    },
-
-    // -----------------------------------------------------------------------
-    // enterSharedView — atomically switch to shared-deck viewing mode.
-    //
-    // The activeDraft subscription resets ALL live state including
-    // viewingSharedDeck whenever the draft changes.  If the loader called
-    // setActiveDraft first and then set viewingSharedDeck, fetchDeckState
-    // (fired by the subscription) would see viewingSharedDeck=false and
-    // overwrite the shared snapshot with the viewer's own WIP deck.
-    //
-    // This action sets the module-scoped enteringSharedView flag BEFORE
-    // calling setActiveDraft so the subscription preserves viewingSharedDeck.
-    // -----------------------------------------------------------------------
-    enterSharedView: (draftId: string, seat: number, sharedDeckState: DeckState) => {
-      // Signal to the subscription that it must not clear viewingSharedDeck.
-      enteringSharedView = true;
-      try {
-        useDraftStore.getState().setActiveDraft(draftId);
-        useDraftStore.getState().setSelectedSeat(seat);
-      } finally {
-        enteringSharedView = false;
-      }
-      // The subscription fired synchronously above; viewingSharedDeck is now
-      // true (preserved by the flag).  Load the snapshot.
-      get().dispatchDeck({ type: "INIT_FROM_SNAPSHOT", snapshot: sharedDeckState });
-    },
-
-    fetchDeckState: async () => {
-      if (get().viewingSharedDeck) return;
-      const { seatToken } = get();
-      const activeDraft = useDraftStore.getState().activeDraft;
-      if (!activeDraft) return;
-
-      if (seatToken) {
-        try {
-          const res = await fetch(`/api/drafts/${activeDraft}/deck-state`, {
-            headers: { "X-Seat-Token": seatToken },
-          });
-          if (res.ok) {
-            const snapshot = await res.json();
-            // Ensure identity (draftId/seat) is correct at load time so
-            // syncDeckWithPicks never needs to patch it after the fact.
-            const mySeat = get().mySeat ?? useDraftStore.getState().selectedSeat;
-            const identifiedSnapshot = {
-              ...snapshot,
-              draftId: activeDraft,
-              seat: mySeat ?? snapshot.seat,
-            };
-            get().dispatchDeck({ type: "INIT_FROM_SNAPSHOT", snapshot: identifiedSnapshot });
-          } else {
-            // No saved state (404) — create an empty deck with correct identity
-            const mySeat = get().mySeat ?? useDraftStore.getState().selectedSeat;
-            const emptyDeck = createEmptyDeckState(activeDraft, mySeat ?? 0);
-            get().dispatchDeck({ type: "INIT_FROM_SNAPSHOT", snapshot: emptyDeck });
-          }
-        } catch {
-          // Network error — stay with empty state
-        }
-      }
-
-      deckDirty = false;
-      set({ deckReady: true });
-    },
-  })),
+      // Deck builder actions
+      dispatchDeck: makeDispatchDeck(boundSet, get, getLiveStoreRef),
+      setDeckBuilderActive: makeSetDeckBuilderActive(boundSet),
+      enterSharedView: makeEnterSharedView(get),
+      fetchDeckState: makeFetchDeckState(boundSet, get),
+    };
+  }),
 );
 
 // ---------------------------------------------------------------------------
-// Derived picking state
+// Exported recomputePicking — used in tests and subscriptions.
+//
+// This mirrors the store-internal recomputePicking (makeRecomputePicking bound
+// to set/get) but operates directly on useLiveStore.getState/setState, so it
+// can be called from outside the store creator without capturing stale closures.
 // ---------------------------------------------------------------------------
 
-let autoPickInFlight = false;
-
-/**
- * Client-side auto-pick trigger: checks the trigger condition (my turn +
- * autoPick enabled + not in flight) then delegates ALL queue-traversal and
- * candidate selection to the server via POST /api/drafts/[id]/pick with
- * `{ auto: true }`.  The server runs the same logic as the cascade path so
- * both paths are guaranteed to make identical picks for the same queue state.
- *
- * On conflict (pick_n already taken — cascade fired first): the server returns
- * 409, which we treat as "already handled — just refresh".
- */
-async function triggerAutoPick() {
-  if (autoPickInFlight) return;
-  autoPickInFlight = true;
-  try {
-    const { seatToken, autoPick } = useLiveStore.getState();
-    if (!autoPick) return;
-
-    const activeDraft = useDraftStore.getState().activeDraft;
-    if (!seatToken || !activeDraft) return;
-
-    const res = await fetch(`/api/drafts/${activeDraft}/pick`, {
-      method: "POST",
-      headers: {
-        "X-Seat-Token": seatToken,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ auto: true }),
-    });
-
-    if (res.ok) {
-      const data = await res.json() as { autoPickDisabled?: boolean; pickedCard?: unknown };
-      if (data.autoPickDisabled) {
-        // Server disabled auto-pick due to pause-mode exhaustion — reflect locally
-        useLiveStore.setState({ autoPick: false });
-      }
-      // Refresh to pick up the new pick (or the disabled-autoPick state)
-      await useDraftStore.getState().refreshNow();
-    } else if (res.status === 409) {
-      // Conflict: cascade already fired for this pick_n — refresh to catch up
-      await useDraftStore.getState().refreshNow();
-    }
-    // Other errors (not my turn, queue empty, etc.) are silent — the next poll
-    // will recompute isMyTurn and re-trigger if still appropriate.
-  } finally {
-    autoPickInFlight = false;
-  }
-}
-
-export function recomputePicking() {
-  const { mySeat, autoPick, queue } = useLiveStore.getState();
-  const { liveDraftStatus } = useDraftStore.getState();
-
-  const isMyTurn = mySeat !== null && liveDraftStatus?.nextSeat === mySeat;
-
-  useLiveStore.setState({ isMyTurn });
-
-  // Auto-pick trigger — only fire when the queue is non-empty (client-side
-  // pre-check to avoid a round-trip when there is obviously nothing to pick).
-  // The server validates the candidate independently so this is just an
-  // optimisation, not a correctness gate.
-  if (isMyTurn && autoPick && queue.length > 0) {
-    triggerAutoPick();
-  }
+export function recomputePicking(): void {
+  const get = useLiveStore.getState;
+  const set = useLiveStore.setState as SetState;
+  // Delegate to the same logic as the in-store version via a fresh binding.
+  makeRecomputePicking(set, get)();
 }
 
 // ---------------------------------------------------------------------------
@@ -836,11 +235,7 @@ useDraftStore.subscribe(
   (state) => state.activeDraft,
   (activeDraft) => {
     if (activeDraft) {
-      // Reset ALL per-draft state (auth, queue, float, AND deck builder) before loading
-      // for the new draft so nothing from the previous draft bleeds in.  Cancel any
-      // pending debounced save so a flush scheduled for the old draft cannot overwrite
-      // the new draft's deck-state endpoint.
-      _resetDeckState();
+      resetDeckSaveState();
       useLiveStore.setState({
         seatToken: null,
         mySeat: null,
@@ -853,10 +248,8 @@ useDraftStore.subscribe(
         deckState: createEmptyDeckState("", 0),
         deckReady: false,
         deckSaveStatus: "idle",
-        // When enterSharedView called setActiveDraft, this subscription fires
-        // synchronously.  The enteringSharedView flag tells us to preserve the
-        // shared-view intent so fetchDeckState (called below) sees it and bails.
-        viewingSharedDeck: enteringSharedView,
+        // Preserve viewingSharedDeck when enterSharedView signalled this switch
+        viewingSharedDeck: getEnteringSharedView(),
       });
       useLiveStore.getState().hydrateToken(activeDraft);
       useLiveStore.getState().fetchMySeat();
@@ -864,7 +257,7 @@ useDraftStore.subscribe(
       useLiveStore.getState().fetchFloatedCards();
       useLiveStore.getState().fetchDeckState();
     } else {
-      _resetDeckState();
+      resetDeckSaveState();
       useLiveStore.setState({
         seatToken: null,
         mySeat: null,
@@ -895,30 +288,25 @@ useDraftStore.subscribe(
 // apply it to the live store here — eliminating separate /queue, /float, and /me
 // poll requests. The server-side sig includes a per-seat freshness marker so
 // cross-device queue/float changes break the short-circuit and deliver fresh data.
-//
-// The standalone /queue and /float endpoints remain for mutations (they return the
-// authoritative server state after writes). The subscriptions below that called
-// fetchQueue/fetchFloatedCards on every pollCount and refreshSettings on every pick
-// are replaced by this single callback path.
+
+// Server-side queue format — server always sends { id, name }
+interface ServerQueueCard { id: number; name: string; }
+interface ServerQueueEntry { mode: "pause" | "flow-through"; cards: ServerQueueCard[]; }
 
 function applyMeFromPoll(me: LiveMeData): void {
   const set = useLiveStore.setState;
   const get = useLiveStore.getState;
 
   // Guard against stale responses: if mySeat is already resolved and differs from
-  // the incoming seat, this response is from a different draft/token context — skip.
-  // When mySeat is null (first poll after draft switch), accept the response and
-  // use it to resolve mySeat, superseding the fetchMySeat() async call.
+  // the incoming seat, skip.
   const { mySeat } = get();
   if (mySeat !== null && me.seat !== mySeat) return;
 
   // Resolve mySeat from the first authenticated /live response if not yet set.
   if (mySeat === null) {
     set({ mySeat: me.seat });
-    // recomputePicking is called below after applying all me fields
   }
 
-  // autoPick — apply unconditionally (simple scalar)
   if (me.autoPick !== null && me.autoPick !== undefined) {
     const prev = get().autoPick;
     if (me.autoPick !== prev) {
@@ -926,7 +314,6 @@ function applyMeFromPoll(me: LiveMeData): void {
     }
   }
 
-  // displayName — apply unconditionally (simple scalar)
   if (me.displayName !== undefined) {
     const prev = get().displayName;
     if (me.displayName !== prev) {
@@ -934,7 +321,6 @@ function applyMeFromPoll(me: LiveMeData): void {
     }
   }
 
-  // queue — deep-compare before updating (Task 23 reference-stability)
   if (me.queue !== null && me.queue !== undefined) {
     const incoming = parseServerQueue(me.queue as ServerQueueEntry[]);
     const prevQueue = get().queue;
@@ -946,7 +332,6 @@ function applyMeFromPoll(me: LiveMeData): void {
     }
   }
 
-  // floatedCards — deep-compare before updating
   if (me.floatedCards !== null && me.floatedCards !== undefined) {
     const incoming = me.floatedCards;
     const prev = get().floatedCards;
@@ -956,12 +341,10 @@ function applyMeFromPoll(me: LiveMeData): void {
     }
   }
 
-  // Recompute auto-pick eligibility after all fields are applied.
   recomputePicking();
 }
 
 // Register providers with draftStore — avoids circular imports.
-// These run at module load time (after both stores are initialized).
 registerSeatTokenProvider(() => useLiveStore.getState().seatToken);
 registerApplyMeData(applyMeFromPoll);
 
@@ -975,45 +358,11 @@ useDraftStore.subscribe(
 );
 
 // ---------------------------------------------------------------------------
-// Deck builder sync (absorbed from useDeckBuilderSync hook)
+// Deck builder sync (subscriptions absorbed from useDeckBuilderSync hook)
 // ---------------------------------------------------------------------------
 
-function syncDeckWithPicks() {
-  const { deckBuilderActive, deckReady, dispatchDeck, mySeat, floatedCards, queue, viewingSharedDeck } = useLiveStore.getState();
-  const { scryfallDataMap, seatCardList } = useCardStore.getState();
-  const { selectedSeat } = useDraftStore.getState();
-
-  if (!deckBuilderActive || !deckReady || viewingSharedDeck) return;
-
-  // Inline the "my deck cards" union (picks + speculative, auth-gated, deduplicated).
-  // Mirrors getMyDeckCardNames() in selectors.ts — kept inline here to avoid the
-  // circular import that would arise from liveStore → selectors → liveStore.
-  const isAuthed = mySeat !== null && mySeat === selectedSeat;
-  const picks = seatCardList ?? [];
-  const authFloated = isAuthed ? floatedCards : [];
-  const authQueued = isAuthed ? queue.flatMap((entry) => entry.cards.map((c) => c.cardName)) : [];
-
-  const seen = new Set(picks);
-  const speculative: string[] = [];
-  for (const name of [...authQueued, ...authFloated]) {
-    if (!seen.has(name)) {
-      seen.add(name);
-      speculative.push(name);
-    }
-  }
-  const canonicalCards = [...picks, ...speculative];
-
-  dispatchDeck({
-    type: "REBUILD",
-    canonicalCards,
-    scryfallData: scryfallDataMap,
-  });
-}
-
-function debouncedSyncDeckWithPicks() {
-  if (syncDeckTimer) clearTimeout(syncDeckTimer);
-  syncDeckTimer = setTimeout(syncDeckWithPicks, 50);
-}
+const syncDeckWithPicks = makeSyncDeckWithPicks(useLiveStore.getState);
+const debouncedSyncDeckWithPicks = makeDebouncedSyncDeckWithPicks(syncDeckWithPicks);
 
 // Sync deck with picks when card data changes
 useCardStore.subscribe(
