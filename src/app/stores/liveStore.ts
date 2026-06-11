@@ -193,9 +193,11 @@ export function _resetDeckState() {
   }
 }
 
-async function flushDeckSave() {
+async function flushDeckSave(scheduledForDraft: string) {
   const { seatToken, deckState } = useLiveStore.getState();
   const activeDraft = useDraftStore.getState().activeDraft;
+  // Belt-and-braces: if the user switched drafts between schedule and flush, discard the save
+  if (activeDraft !== scheduledForDraft) return;
   if (!seatToken || !activeDraft || !deckDirty || deckInFlight) return;
 
   deckInFlight = true;
@@ -225,7 +227,7 @@ async function flushDeckSave() {
     useLiveStore.setState({ deckSaveStatus: "idle" });
     // Retry in 5s if still dirty
     setTimeout(() => {
-      if (deckDirty) flushDeckSave();
+      if (deckDirty) flushDeckSave(scheduledForDraft);
     }, 5000);
   }
 
@@ -233,7 +235,7 @@ async function flushDeckSave() {
 
   if (deckPendingSave) {
     deckPendingSave = false;
-    await flushDeckSave();
+    await flushDeckSave(scheduledForDraft);
   }
 }
 
@@ -242,10 +244,12 @@ function scheduleDeckSave() {
     deckPendingSave = true;
     return;
   }
+  // Capture the draftId at schedule time; flushDeckSave will abort if it has changed by flush time.
+  const draftIdAtSchedule = useDraftStore.getState().activeDraft ?? "";
   if (deckSaveTimer) clearTimeout(deckSaveTimer);
   deckSaveTimer = setTimeout(() => {
     deckSaveTimer = null;
-    flushDeckSave();
+    flushDeckSave(draftIdAtSchedule);
   }, DECK_SAVE_DEBOUNCE_MS);
 }
 
@@ -739,8 +743,11 @@ useDraftStore.subscribe(
   (state) => state.activeDraft,
   (activeDraft) => {
     if (activeDraft) {
-      // Reset per-seat state before loading for the new draft so stale auth
-      // from a previous draft never bleeds into the newly selected one.
+      // Reset ALL per-draft state (auth, queue, float, AND deck builder) before loading
+      // for the new draft so nothing from the previous draft bleeds in.  Cancel any
+      // pending debounced save so a flush scheduled for the old draft cannot overwrite
+      // the new draft's deck-state endpoint.
+      _resetDeckState();
       useLiveStore.setState({
         seatToken: null,
         mySeat: null,
@@ -750,6 +757,10 @@ useDraftStore.subscribe(
         queuedCardCounts: new Map(),
         floatedCards: [],
         floatedCardsSet: new Set<string>(),
+        deckState: createEmptyDeckState("", 0),
+        deckReady: false,
+        deckSaveStatus: "idle",
+        viewingSharedDeck: false,
       });
       useLiveStore.getState().hydrateToken(activeDraft);
       useLiveStore.getState().fetchMySeat();

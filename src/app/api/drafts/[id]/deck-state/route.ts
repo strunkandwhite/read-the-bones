@@ -52,6 +52,15 @@ export const PUT = withApiErrors(
       return NextResponse.json({ error: "Invalid deck state" }, { status: 400 });
     }
 
+    // Guard against cross-draft writes: the body must identify the same draft and seat
+    // that the route and token resolve to.
+    if (deckState.draftId !== draftId) {
+      return NextResponse.json({ error: "draftId mismatch" }, { status: 400 });
+    }
+    if (deckState.seat !== seat) {
+      return NextResponse.json({ error: "seat mismatch" }, { status: 400 });
+    }
+
     await upsertWipDeck(client, draftId, seat, deckState);
     return NextResponse.json({ ok: true });
   },

@@ -81,7 +81,8 @@ describe("PUT /api/drafts/[id]/deck-state", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("saves valid deck state", async () => {
-    const deckState = { mainboard: ["Lightning Bolt"], sideboard: [] };
+    // Body must carry draftId/seat matching the route param and authed seat
+    const deckState = { draftId: "test", seat: 1, mainboard: ["Lightning Bolt"], sideboard: [] };
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1 });
     mockValidateDeckState.mockReturnValueOnce({ valid: true });
     mockUpsertWipDeck.mockResolvedValueOnce(undefined);
@@ -101,6 +102,35 @@ describe("PUT /api/drafts/[id]/deck-state", () => {
     const res = await PUT(makePutRequest({ bad: "data" }), params);
 
     expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when body.draftId does not match route draftId", async () => {
+    // body.draftId is "other-draft", route param is "test"
+    const deckState = { draftId: "other-draft", seat: 1, mainboard: [] };
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1 });
+    mockValidateDeckState.mockReturnValueOnce({ valid: true });
+
+    const res = await PUT(makePutRequest(deckState), params);
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("draftId mismatch");
+    // Must not persist — upsert should never be called
+    expect(mockUpsertWipDeck).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when body.seat does not match authenticated seat", async () => {
+    // body.seat is 9, but token authenticates seat 1
+    const deckState = { draftId: "test", seat: 9, mainboard: [] };
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1 });
+    mockValidateDeckState.mockReturnValueOnce({ valid: true });
+
+    const res = await PUT(makePutRequest(deckState), params);
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("seat mismatch");
+    expect(mockUpsertWipDeck).not.toHaveBeenCalled();
   });
 
   it("returns 401 on invalid token", async () => {

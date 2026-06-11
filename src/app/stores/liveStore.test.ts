@@ -1783,3 +1783,116 @@ describe("liveStore — pollCount subscription", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// Draft-switch deck-state reset (Task 13)
+// ---------------------------------------------------------------------------
+describe("liveStore — draft-switch deck-state reset", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+    Object.defineProperty(window, "location", {
+      value: new URL("http://localhost:3000/"),
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("cancels a pending debounced save when switching drafts — no PUT fires", async () => {
+    vi.useFakeTimers();
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-A" });
+    useLiveStore.setState({ seatToken: "tok-A" });
+
+    // Trigger a deck change to schedule a debounced save for draft-A
+    useLiveStore.getState().dispatchDeck({
+      type: "SET_BASICS",
+      basics: { Plains: 1, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
+      scryfallData: new Map(),
+    });
+
+    // Switch to draft-B before the debounce fires (still within 1s window)
+    useDraftStore.getState().setActiveDraft("draft-B");
+
+    // Advance past the debounce timer
+    await vi.advanceTimersByTimeAsync(1500);
+
+    // No deck-state PUT should have been made — the save was for draft-A but
+    // activeDraft is now draft-B
+    const deckStatePuts = fetchSpy.mock.calls.filter(
+      (c) => String(c[0]).includes("deck-state") && (c[1] as RequestInit)?.method === "PUT",
+    );
+    expect(deckStatePuts).toHaveLength(0);
+  });
+
+  it("resets deck-builder state when switching to a new draft", async () => {
+    // Set up draft-A with a non-empty deck state
+    useDraftStore.setState({ activeDraft: "draft-A" });
+    useLiveStore.setState({
+      seatToken: "tok-A",
+      deckState: { ...createEmptyDeckState("draft-A", 3), zones: { deck: { "mv-2": ["Bolt"] }, sideboard: {} } },
+      deckReady: true,
+      deckSaveStatus: "saved",
+      viewingSharedDeck: true,
+    });
+
+    // Mock fetch: return 404 for deck-state (no saved state) so fetchDeckState
+    // completes without loading new content
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 404 }),
+    );
+
+    // Switch to draft-B — synchronous reset must wipe deck state immediately
+    useDraftStore.getState().setActiveDraft("draft-B");
+
+    // The synchronous part of the subscription resets state immediately
+    // (deckSaveStatus and viewingSharedDeck are synchronous)
+    expect(useLiveStore.getState().deckSaveStatus).toBe("idle");
+    expect(useLiveStore.getState().viewingSharedDeck).toBe(false);
+    expect(useLiveStore.getState().deckState.draftId).toBe("");
+    // mv-2 zone from draft-A must be empty (reset wipes all cards)
+    expect(useLiveStore.getState().deckState.zones.deck["mv-2"]).toEqual([]);
+
+    // After async fetchDeckState runs (404 = no state, still marks ready)
+    await new Promise((r) => setTimeout(r, 0));
+    expect(useLiveStore.getState().deckReady).toBe(true);
+  });
+
+  it("leaves deck builder empty when draft-B has no token, deckReady becomes true", async () => {
+    // draft-A was loaded with a deck
+    useDraftStore.setState({ activeDraft: "draft-A" });
+    useLiveStore.setState({
+      seatToken: "tok-A",
+      deckState: { ...createEmptyDeckState("draft-A", 2), zones: { deck: { "mv-3": ["Counterspell"] }, sideboard: {} } },
+      deckReady: true,
+    });
+
+    // Switch to draft-B where no token is stored in localStorage
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.getState().setActiveDraft("draft-B");
+
+    // Give async actions (hydrateToken, fetchDeckState) a tick to run
+    await new Promise((r) => setTimeout(r, 0));
+
+    const s = useLiveStore.getState();
+    // No token for draft-B, so fetchDeckState skips the server fetch
+    // but must still mark deckReady true with an EMPTY deck (no draft-A content)
+    expect(s.deckReady).toBe(true);
+    expect(s.seatToken).toBeNull();
+    // draft-A's zones must not bleed through — either absent or empty
+    const mv3Zone = s.deckState.zones.deck["mv-3"];
+    expect(mv3Zone === undefined || mv3Zone.length === 0).toBe(true);
+  });
+});
