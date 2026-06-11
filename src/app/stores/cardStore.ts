@@ -49,8 +49,15 @@ function classifyQueryType(query: string): string {
 // Module-scoped debounce state
 let searchTimeout: ReturnType<typeof setTimeout> | null = null;
 
-// Module-scoped in-flight guard to prevent duplicate fetchCardData calls
+// Module-scoped request identity for fetchCardData.
+// Each call increments the counter and captures its own ID. On resolve,
+// a response is committed only if its ID matches the latest — stale
+// responses from superseded fetches are discarded harmlessly.
+// If a trigger arrives while a fetch is in flight, a trailing re-run is
+// queued (pendingFetch = true) so the trigger is never lost.
+let fetchRequestId = 0;
 let fetchInFlight = false;
+let pendingFetch = false;
 
 // Module-scoped cache for recompute map rebuilds
 let lastCardDataRef: CardStatsResponse | null = null;
@@ -63,7 +70,9 @@ export function _resetSearchState() {
     clearTimeout(searchTimeout);
     searchTimeout = null;
   }
+  fetchRequestId = 0;
   fetchInFlight = false;
+  pendingFetch = false;
   lastCardDataRef = null;
   cachedScryfallDataMap = new Map();
   cachedCardStatsMap = new Map();
@@ -297,9 +306,17 @@ export const useCardStore = create<CardStoreState>()(
     },
 
     fetchCardData: async () => {
-      if (fetchInFlight) return;
+      // If a fetch is already in flight, record that another run is needed
+      // and return — the in-flight fetch will re-run on completion.
+      if (fetchInFlight) {
+        pendingFetch = true;
+        return;
+      }
       fetchInFlight = true;
 
+      // Capture a monotonically increasing request ID and read all fetch
+      // parameters at the START of this fetch, before any awaits.
+      const requestId = ++fetchRequestId;
       const { selectedDrafts, activeDraft, poolAsOfDraft } =
         useDraftStore.getState();
       const effectivePool = activeDraft ?? poolAsOfDraft;
@@ -315,6 +332,11 @@ export const useCardStore = create<CardStoreState>()(
         }));
         recompute();
         fetchInFlight = false;
+        // If a trigger arrived while we were clearing, re-run immediately.
+        if (pendingFetch) {
+          pendingFetch = false;
+          useCardStore.getState().fetchCardData();
+        }
         return;
       }
 
@@ -336,14 +358,24 @@ export const useCardStore = create<CardStoreState>()(
           fetch(`/api/draft-stats?${statsParams}`),
         ]);
 
-        if (cardsRes.ok) set({ cardData: await cardsRes.json() });
-        if (statsRes.ok) set({ draftStats: await statsRes.json() });
-        recompute();
+        // Only commit if this response is still the latest request.
+        // A superseded response (requestId < fetchRequestId) is discarded
+        // so stale data from an old selection never overwrites new state.
+        if (requestId === fetchRequestId) {
+          if (cardsRes.ok) set({ cardData: await cardsRes.json() });
+          if (statsRes.ok) set({ draftStats: await statsRes.json() });
+          recompute();
+        }
       } catch (error) {
         console.error("Failed to fetch card data:", error);
       } finally {
         set({ isLoading: false });
         fetchInFlight = false;
+        // If a trigger arrived while this fetch was in flight, run it now.
+        if (pendingFetch) {
+          pendingFetch = false;
+          useCardStore.getState().fetchCardData();
+        }
       }
     },
 

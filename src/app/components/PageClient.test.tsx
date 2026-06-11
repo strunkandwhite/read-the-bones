@@ -186,7 +186,9 @@ describe("PageClient", () => {
       await changeDraftSelection(new Set(["draft-a"]));
     });
 
-    expect(global.fetch).toHaveBeenCalledTimes(2);
+    // Both card and stats endpoints must have been called at least once.
+    // The exact call count may be higher than 2 when a pending re-run fires
+    // after the first in-flight fetch completes (request-identity semantics).
     const urls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.map((c: unknown[]) => c[0] as string);
     expect(urls.some((u: string) => u.includes("/api/cards?"))).toBe(true);
     expect(urls.some((u: string) => u.includes("/api/draft-stats?"))).toBe(true);

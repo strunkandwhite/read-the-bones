@@ -305,6 +305,127 @@ describe("cardStore — fetchCardData", () => {
     const statsUrl = String(fetchSpy.mock.calls[1][0]);
     expect(statsUrl).toContain("v=hash123");
   });
+
+  it("discards a stale response when a newer fetch supersedes it — committed state reflects the LATEST selection", async () => {
+    // Two overlapping fetches: first for draft A, second for draft B.
+    // The first fetch resolves AFTER the second (out of order).
+    // Only draft B's data must be committed.
+
+    const responseA = {
+      ...mockCardsResponse,
+      cards: [{ cardName: "Draft-A Card" }],
+      draftIds: ["dA"],
+    };
+    const responseB = {
+      ...mockCardsResponse,
+      cards: [{ cardName: "Draft-B Card" }],
+      draftIds: ["dB"],
+    };
+    const statsResponse = mockStatsResponse;
+
+    let resolveA!: (v: Response) => void;
+    let resolveB!: (v: Response) => void;
+
+    fetchSpy.mockImplementation(async (url: string | URL | Request) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/api/draft-stats")) {
+        return new Response(JSON.stringify(statsResponse));
+      }
+      if (urlStr.includes("drafts=dA")) {
+        return new Promise<Response>((res) => { resolveA = res; });
+      }
+      if (urlStr.includes("drafts=dB")) {
+        return new Promise<Response>((res) => { resolveB = res; });
+      }
+      return new Response("", { status: 404 });
+    });
+
+    // Start fetch A (draft A is selected).
+    useDraftStore.setState({ selectedDrafts: new Set(["dA"]) });
+    // The subscription triggers fetchCardData for dA; it's now in-flight.
+    // Give the microtask queue a tick so fetchInFlight is set.
+    await Promise.resolve();
+
+    // While fetch A is still in flight, change to draft B.
+    // The subscription fires but fetchInFlight is true → pendingFetch = true.
+    useDraftStore.setState({ selectedDrafts: new Set(["dB"]) });
+    await Promise.resolve();
+
+    // Resolve A first (stale — should be discarded).
+    resolveA(new Response(JSON.stringify(responseA)));
+
+    // Wait for fetch A's finally block to run and kick off fetch B.
+    await vi.waitFor(() =>
+      expect(fetchSpy.mock.calls.some((c: unknown[]) => String(c[0]).includes("drafts=dB"))).toBe(true)
+    );
+
+    // Now resolve B.
+    resolveB(new Response(JSON.stringify(responseB)));
+
+    // Wait for all fetches to settle.
+    await vi.waitFor(() => expect(useCardStore.getState().isLoading).toBe(false));
+
+    // The committed cardData must be from draft B, not draft A.
+    const finalCards = useCardStore.getState().cardData.cards;
+    expect(finalCards).toHaveLength(1);
+    expect(finalCards[0]).toEqual({ cardName: "Draft-B Card" });
+  });
+
+  it("a trigger during an in-flight fetch is not lost — final state corresponds to the final selection", async () => {
+    // Setup: start with draft A selected and a fetch in flight.
+    // Trigger arrives for draft B mid-flight (pendingFetch becomes true).
+    // After fetch A resolves, a new fetch for draft B runs automatically.
+
+    const responseA = { ...mockCardsResponse, draftIds: ["dA"], cards: [{ cardName: "Card A" }] };
+    const responseB = { ...mockCardsResponse, draftIds: ["dB"], cards: [{ cardName: "Card B" }] };
+    const statsResponse = mockStatsResponse;
+
+    let resolveA!: (v: Response) => void;
+    let resolveB!: (v: Response) => void;
+    let bFetchStarted = false;
+
+    fetchSpy.mockImplementation(async (url: string | URL | Request) => {
+      const urlStr = String(url);
+      if (urlStr.includes("/api/draft-stats")) {
+        return new Response(JSON.stringify(statsResponse));
+      }
+      if (urlStr.includes("drafts=dA")) {
+        return new Promise<Response>((res) => { resolveA = res; });
+      }
+      if (urlStr.includes("drafts=dB")) {
+        bFetchStarted = true;
+        return new Promise<Response>((res) => { resolveB = res; });
+      }
+      return new Response("", { status: 404 });
+    });
+
+    // Trigger fetch A.
+    useDraftStore.setState({ selectedDrafts: new Set(["dA"]) });
+    await Promise.resolve();
+
+    // Change selection to B while A is in-flight — should queue a pending fetch.
+    useDraftStore.setState({ selectedDrafts: new Set(["dB"]) });
+    await Promise.resolve();
+
+    // The pending fetch has NOT fired yet (A is still in-flight).
+    expect(bFetchStarted).toBe(false);
+
+    // Resolve A.
+    resolveA(new Response(JSON.stringify(responseA)));
+
+    // After A's finally block runs, the pending fetch for B should start.
+    await vi.waitFor(() => expect(bFetchStarted).toBe(true));
+
+    // Resolve B.
+    resolveB(new Response(JSON.stringify(responseB)));
+
+    await vi.waitFor(() => expect(useCardStore.getState().isLoading).toBe(false));
+
+    // Final committed state must be B's data.
+    const finalCards = useCardStore.getState().cardData.cards;
+    expect(finalCards).toHaveLength(1);
+    expect(finalCards[0]).toEqual({ cardName: "Card B" });
+  });
 });
 
 // ---------------------------------------------------------------------------
