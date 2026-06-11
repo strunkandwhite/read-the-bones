@@ -115,6 +115,27 @@ export async function createTestSchema(client: Client): Promise<void> {
       PRIMARY KEY (draft_id, seat, card_name)
     )
   `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS decks (
+      id TEXT PRIMARY KEY,
+      draft_id TEXT NOT NULL,
+      seat INTEGER NOT NULL,
+      deck_state TEXT NOT NULL,
+      kind TEXT NOT NULL CHECK (kind IN ('wip', 'snapshot')),
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    )
+  `);
+
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS deck_hashes (
+      draft_id TEXT NOT NULL,
+      seat INTEGER NOT NULL,
+      hash TEXT NOT NULL,
+      PRIMARY KEY (draft_id, seat)
+    )
+  `);
 }
 
 /**

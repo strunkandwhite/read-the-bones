@@ -5,6 +5,7 @@
 
 import { createClient } from "@libsql/client";
 import { loadEnv } from "../src/core/db/ingest/utils";
+import { deleteDraft } from "./lib/deleteDraft";
 
 async function main() {
   loadEnv();
@@ -16,60 +17,17 @@ async function main() {
     authToken: process.env.TURSO_AUTH_TOKEN!,
   });
 
-  const result = await client.execute({
-    sql: "SELECT draft_id, draft_name, cube_snapshot_id FROM drafts WHERE draft_id = ?",
-    args: [draftId],
-  });
-  if (result.rows.length === 0) throw new Error(`Draft not found: ${draftId}`);
+  const result = await deleteDraft(client, draftId);
 
-  const draftName = result.rows[0].draft_name as string;
-  const cubeSnapshotId = result.rows[0].cube_snapshot_id as number;
-
-  // Delete in dependency order
-  const tables = [
-    "pick_queue",
-    "floated_cards",
-    "match_events",
-    "pick_events",
-    "deck_cards",
-    "deck_hashes",
-    "privacy_opt_outs",
-    "decks",
-    "seat_tokens",
-  ];
-  for (const table of tables) {
-    const r = await client.execute({
-      sql: `DELETE FROM ${table} WHERE draft_id = ?`,
-      args: [draftId],
-    });
-    if (r.rowsAffected > 0) console.log(`  ${table}: ${r.rowsAffected} rows deleted`);
+  for (const [table, rows] of Object.entries(result.rowsDeletedByTable)) {
+    if (rows > 0) console.log(`  ${table}: ${rows} rows deleted`);
   }
-
-  // Delete the draft record
-  await client.execute({
-    sql: "DELETE FROM drafts WHERE draft_id = ?",
-    args: [draftId],
-  });
   console.log(`  drafts: deleted`);
-
-  // Clean up orphaned cube snapshot (if no other draft references it)
-  const refs = await client.execute({
-    sql: "SELECT count(*) as cnt FROM drafts WHERE cube_snapshot_id = ?",
-    args: [cubeSnapshotId],
-  });
-  if ((refs.rows[0].cnt as number) === 0) {
-    await client.execute({
-      sql: "DELETE FROM cube_snapshot_cards WHERE cube_snapshot_id = ?",
-      args: [cubeSnapshotId],
-    });
-    await client.execute({
-      sql: "DELETE FROM cube_snapshots WHERE cube_snapshot_id = ?",
-      args: [cubeSnapshotId],
-    });
-    console.log(`  cube_snapshot ${cubeSnapshotId}: orphaned, deleted`);
+  if (result.cubeSnapshotDeleted) {
+    console.log(`  cube_snapshot ${result.cubeSnapshotId}: orphaned, deleted`);
   }
 
-  console.log(`\nDeleted draft: ${draftId} (${draftName})`);
+  console.log(`\nDeleted draft: ${draftId} (${result.draftName})`);
 }
 
 main().catch((e) => {
