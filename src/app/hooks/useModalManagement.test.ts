@@ -145,6 +145,47 @@ describe("useModalManagement", () => {
     expect(result.current.deckBuilderModalOpen).toBe(false);
   });
 
+  it("deactivates deckBuilderActive when modal is closed via setDeckBuilderModalOpen", () => {
+    // deckBuilderActive gates the poll→rebuild loop; leaving it true after close
+    // causes unnecessary syncDeckWithPicks churn on every poll.
+    const { result } = renderHook(() =>
+      useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 }),
+    );
+
+    // Open the modal, setting deckBuilderActive=true
+    act(() => {
+      useLiveStore.getState().setDeckBuilderActive(true);
+      result.current.setDeckBuilderModalOpen(true);
+    });
+    expect(useLiveStore.getState().deckBuilderActive).toBe(true);
+
+    // Close the modal — deckBuilderActive must be reset to false
+    act(() => {
+      result.current.setDeckBuilderModalOpen(false);
+    });
+    expect(result.current.deckBuilderModalOpen).toBe(false);
+    expect(useLiveStore.getState().deckBuilderActive).toBe(false);
+  });
+
+  it("deactivates deckBuilderActive when modal is closed via Escape key", () => {
+    const { result } = renderHook(() =>
+      useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 }),
+    );
+
+    act(() => {
+      useLiveStore.getState().setDeckBuilderActive(true);
+      result.current.setDeckBuilderModalOpen(true);
+    });
+    expect(useLiveStore.getState().deckBuilderActive).toBe(true);
+
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape" }));
+    });
+
+    expect(result.current.deckBuilderModalOpen).toBe(false);
+    expect(useLiveStore.getState().deckBuilderActive).toBe(false);
+  });
+
   it("closes draft board modal on Escape key", () => {
     const { result } = renderHook(() =>
       useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 }),

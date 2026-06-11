@@ -258,7 +258,33 @@ function applyPollResults(
       lastLiveSig = { pickN: incomingPickN, sig: liveSig };
     }
 
-    useDraftStore.setState({ liveDraftStatus: status, board, pollCount: useDraftStore.getState().pollCount + 1 });
+    // Compare-before-set: keep previous object references when content is identical
+    // so subscribers that use reference equality (e.g. selectors, React memoization)
+    // don't re-render on idle polls where nothing actually changed.
+    const prev = useDraftStore.getState();
+    const nextStatus: LiveDraftStatus = prev.liveDraftStatus !== null &&
+      status.latestPickN === prev.liveDraftStatus.latestPickN &&
+      status.nextSeat === prev.liveDraftStatus.nextSeat &&
+      status.matchCount === prev.liveDraftStatus.matchCount &&
+      status.totalMatches === prev.liveDraftStatus.totalMatches &&
+      JSON.stringify(status.recentPicks) === JSON.stringify(prev.liveDraftStatus.recentPicks)
+      ? prev.liveDraftStatus
+      : status;
+
+    const nextBoard: BoardData = prev.board !== null &&
+      board.phase === prev.board.phase &&
+      board.numSeats === prev.board.numSeats &&
+      board.picksPerPlayer === prev.board.picksPerPlayer &&
+      JSON.stringify(board.picks) === JSON.stringify(prev.board.picks) &&
+      JSON.stringify(board.seatNames) === JSON.stringify(prev.board.seatNames) &&
+      JSON.stringify(board.bannedCards) === JSON.stringify(prev.board.bannedCards)
+      ? prev.board
+      : board;
+
+    const stateUpdate: Partial<typeof state> = { pollCount: prev.pollCount + 1 };
+    if (nextStatus !== prev.liveDraftStatus) stateUpdate.liveDraftStatus = nextStatus;
+    if (nextBoard !== prev.board) stateUpdate.board = nextBoard;
+    useDraftStore.setState(stateUpdate);
 
     if (pickBump) {
       useDraftStore.setState({ pickVersion: state.pickVersion + 1 });
@@ -270,7 +296,17 @@ function applyPollResults(
       versionBump = true;
     }
     prevSyncedAt = syncData.lastSyncedAt;
-    useDraftStore.setState({ syncStatus: syncData });
+    // Only replace syncStatus reference when content has changed (stable reference avoids
+    // spurious subscription fires for unchanged sync data on the every-3rd-cycle path).
+    const prevSyncStatus = useDraftStore.getState().syncStatus;
+    if (
+      syncData.lastSyncedAt !== prevSyncStatus.lastSyncedAt ||
+      syncData.syncInProgress !== prevSyncStatus.syncInProgress ||
+      JSON.stringify(syncData.activeDrafts) !== JSON.stringify(prevSyncStatus.activeDrafts) ||
+      syncData.ingestionHash !== prevSyncStatus.ingestionHash
+    ) {
+      useDraftStore.setState({ syncStatus: syncData });
+    }
   }
 
   if (versionBump) {

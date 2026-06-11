@@ -427,11 +427,19 @@ export const useLiveStore = create<LiveStoreState>()(
             mode: e.mode,
             cards: e.cards.map((c) => ({ cardId: c.id ?? c.cardId ?? 0, cardName: c.name ?? c.cardName ?? "" })),
           }));
-          set({
-            queue,
-            queuedCardCounts: deriveQueuedCardCounts(queue),
-            queueError: null,
-          });
+          // Deep-compare with current queue to avoid churn on idle polls —
+          // keep the existing reference when content is identical.
+          const prevQueue = get().queue;
+          const queueChanged = JSON.stringify(queue) !== JSON.stringify(prevQueue);
+          if (queueChanged) {
+            set({
+              queue,
+              queuedCardCounts: deriveQueuedCardCounts(queue),
+              queueError: null,
+            });
+          } else {
+            set({ queueError: null });
+          }
         }
       } catch {
         set({ queueError: "Failed to load queue" });
@@ -513,7 +521,18 @@ export const useLiveStore = create<LiveStoreState>()(
         });
         if (res.ok) {
           const data = await res.json();
-          if (data?.cards) set({ floatedCards: data.cards, floatedCardsSet: new Set(data.cards) });
+          if (data?.cards) {
+            // Deep-compare with current floats to avoid churn on idle polls —
+            // keep the existing reference when content is identical.
+            const incoming: string[] = data.cards;
+            const prevFloats = get().floatedCards;
+            const floatsChanged =
+              incoming.length !== prevFloats.length ||
+              incoming.some((c, i) => c !== prevFloats[i]);
+            if (floatsChanged) {
+              set({ floatedCards: incoming, floatedCardsSet: new Set(incoming) });
+            }
+          }
         }
       } catch {
         // ignore

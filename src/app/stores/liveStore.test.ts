@@ -524,6 +524,98 @@ describe("liveStore — fetchQueue", () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
   });
+
+  it("keeps queue reference stable when server returns identical content", async () => {
+    // Simulates the common idle-poll path: server returns same queue every cycle.
+    // Without compare-before-set, every poll creates a new array reference and
+    // triggers a rebuild of the deck (syncDeckWithPicks subscribes to queue).
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(
+        JSON.stringify({
+          queue: [{ mode: 'pause', cards: [{ id: 10, name: "Bolt" }] }],
+        }),
+        { status: 200 },
+      ),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    // First fetch establishes state
+    await useLiveStore.getState().fetchQueue();
+    const queueRef1 = useLiveStore.getState().queue;
+
+    // Second fetch — identical content must keep same reference
+    await useLiveStore.getState().fetchQueue();
+    expect(useLiveStore.getState().queue).toBe(queueRef1);
+
+    // Third fetch — still identical
+    await useLiveStore.getState().fetchQueue();
+    expect(useLiveStore.getState().queue).toBe(queueRef1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fetchFloatedCards identity stability
+// ---------------------------------------------------------------------------
+describe("liveStore — fetchFloatedCards identity stability", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("keeps floatedCards reference stable when server returns identical content", async () => {
+    // Without compare-before-set, every poll creates a new array reference and
+    // triggers a rebuild of the deck (syncDeckWithPicks subscribes to floatedCards).
+    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response(
+        JSON.stringify({ cards: ["Counterspell", "Force of Will"] }),
+        { status: 200 },
+      ),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc" });
+
+    // First fetch establishes state
+    await useLiveStore.getState().fetchFloatedCards();
+    const floatsRef1 = useLiveStore.getState().floatedCards;
+
+    // Second fetch — identical content must keep same reference
+    await useLiveStore.getState().fetchFloatedCards();
+    expect(useLiveStore.getState().floatedCards).toBe(floatsRef1);
+
+    // Third fetch — still identical
+    await useLiveStore.getState().fetchFloatedCards();
+    expect(useLiveStore.getState().floatedCards).toBe(floatsRef1);
+  });
+
+  it("replaces floatedCards reference when content changes", async () => {
+    // Set state directly — bypass the activeDraft subscription which resets seatToken
+    // to null on each draft switch, which would race with our explicit setState calls.
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      floatedCards: ["Counterspell"],
+      floatedCardsSet: new Set<string>(["Counterspell"]),
+    });
+
+    const floatsRef1 = useLiveStore.getState().floatedCards;
+    expect(floatsRef1).toEqual(["Counterspell"]);
+
+    // Second fetch returns different content — reference must change
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ cards: ["Counterspell", "Force of Will"] }), { status: 200 }),
+    );
+
+    await useLiveStore.getState().fetchFloatedCards();
+    expect(useLiveStore.getState().floatedCards).not.toBe(floatsRef1);
+    expect(useLiveStore.getState().floatedCards).toEqual(["Counterspell", "Force of Will"]);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -2038,5 +2130,66 @@ describe("liveStore — draft-switch deck-state reset", () => {
     // draft-A's zones must not bleed through — either absent or empty
     const mv3Zone = s.deckState.zones.deck["mv-3"];
     expect(mv3Zone === undefined || mv3Zone.length === 0).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Poll identity churn — idle polls produce zero deck-state PUTs (Task 23)
+// ---------------------------------------------------------------------------
+describe("liveStore — idle poll cycles produce zero deck-state PUTs", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+    Object.defineProperty(window, "location", {
+      value: new URL("http://localhost:3000/"),
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("3 idle poll cycles with deck builder previously opened → zero deck-state PUTs and stable deckState reference", async () => {
+    // Simulates the scenario: user opened the deck builder, then closed it.
+    // deckBuilderActive is now false (fixed by Task 23), so syncDeckWithPicks
+    // does not run, and the deck is not marked dirty → no PUTs.
+    vi.useFakeTimers();
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      deckReady: true,
+      deckBuilderActive: false, // modal was closed, deckBuilderActive reset
+    });
+
+    // Record the deckState reference before polls start
+    const deckStateRef = useLiveStore.getState().deckState;
+
+    // Simulate 3 poll cycles via pollCount increments (fetchQueue/fetchFloat fire on each)
+    useDraftStore.setState({ pollCount: 1 });
+    await vi.advanceTimersByTimeAsync(0);
+    useDraftStore.setState({ pollCount: 2 });
+    await vi.advanceTimersByTimeAsync(0);
+    useDraftStore.setState({ pollCount: 3 });
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Advance past any debounce timers
+    await vi.advanceTimersByTimeAsync(2000);
+
+    // deckState reference must be unchanged — no rebuild occurred
+    expect(useLiveStore.getState().deckState).toBe(deckStateRef);
+
+    // No deck-state PUTs must have fired
+    const deckStatePuts = fetchSpy.mock.calls.filter(
+      (c) => String(c[0]).includes("deck-state") && (c[1] as RequestInit)?.method === "PUT",
+    );
+    expect(deckStatePuts).toHaveLength(0);
   });
 });

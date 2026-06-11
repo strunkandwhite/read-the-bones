@@ -22,13 +22,22 @@ export function useModalManagement({
 
   const setDeckBuilderActive = useLiveStore((s) => s.setDeckBuilderActive);
 
+  // Wrap setDeckBuilderModalOpen so closing the modal also deactivates the deck builder.
+  // deckBuilderActive gates syncDeckWithPicks (the poll-driven rebuild loop); leaving
+  // it true after modal close causes unnecessary poll→rebuild→dirty→PUT churn.
+  const setDeckBuilderModalOpenWithLifecycle = (open: boolean) => {
+    setDeckBuilderModalOpen(open);
+    if (!open) {
+      setDeckBuilderActive(false);
+    }
+  };
+
   // Restore deck builder open state from localStorage after store hydration populates
   // activeDraft/selectedSeat. The mount-only [] effect ran before hydration, so the
   // guard on activeDraft/selectedSeat was always false. Instead we depend on those
   // values and use a once-guard ref so the restore fires at most once — on the first
   // render where both are non-null — and never re-opens after the user closes it.
   const restoredRef = useRef(false);
-  /* eslint-disable react-hooks/set-state-in-effect -- syncing from external storage (localStorage) */
   useEffect(() => {
     if (restoredRef.current) return;
     if (!activeDraft || selectedSeat === null) return;
@@ -39,7 +48,6 @@ export function useModalManagement({
       setDeckBuilderModalOpen(true);
     }
   }, [activeDraft, selectedSeat, setDeckBuilderActive]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Persist modal open state to localStorage. Skip the initial render so the
   // stored "true" value isn't overwritten to "false" by the default state before
@@ -54,14 +62,12 @@ export function useModalManagement({
   }, [deckBuilderModalOpen]);
 
   // Close modal and deactivate deck builder when draft/seat deselected
-  /* eslint-disable react-hooks/set-state-in-effect -- resetting derived state when upstream selection changes */
   useEffect(() => {
     if (!activeDraft || selectedSeat === null) {
       setDeckBuilderActive(false);
       setDeckBuilderModalOpen(false);
     }
   }, [activeDraft, selectedSeat, setDeckBuilderActive]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Close modal on Escape key
   useEffect(() => {
@@ -70,18 +76,19 @@ export function useModalManagement({
         setDraftBoardOpen(false);
       }
       if (e.key === "Escape" && deckBuilderModalOpen) {
-        setDeckBuilderModalOpen(false);
+        setDeckBuilderModalOpenWithLifecycle(false);
       }
     }
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deckBuilderModalOpen, draftBoardOpen]);
 
   return {
     deckBuilderModalOpen,
-    setDeckBuilderModalOpen,
+    setDeckBuilderModalOpen: setDeckBuilderModalOpenWithLifecycle,
     draftBoardOpen,
     setDraftBoardOpen,
   };

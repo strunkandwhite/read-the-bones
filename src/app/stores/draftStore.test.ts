@@ -625,5 +625,104 @@ describe("draftStore — polling", () => {
       expect(url).not.toContain("since=");
     }
   });
+
+  // ---------------------------------------------------------------------------
+  // Reference-equality stability on idle polls (P4 — identity churn)
+  // ---------------------------------------------------------------------------
+
+  it("idle polls keep liveDraftStatus and board references stable when content is unchanged", async () => {
+    // Set up spy to return full payload every poll (unchanged content = task 22's short-circuit
+    // would fire, but here we simulate a full-response path to verify compare-before-set).
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    fetchSpy.mockResolvedValue(
+      new Response(JSON.stringify(baseLiveData), { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useDraftStore.getState().stopPolling();
+    // Flush any background doFetch started by startPolling
+    await vi.advanceTimersByTimeAsync(0);
+    _resetPollingState();
+
+    // First explicit poll establishes state
+    await useDraftStore.getState().refreshNow();
+    const boardRef1 = useDraftStore.getState().board;
+    const statusRef1 = useDraftStore.getState().liveDraftStatus;
+    expect(boardRef1).not.toBeNull();
+    expect(statusRef1).not.toBeNull();
+
+    // Second poll — identical content, same reference expected
+    await useDraftStore.getState().refreshNow();
+    expect(useDraftStore.getState().board).toBe(boardRef1);
+    expect(useDraftStore.getState().liveDraftStatus).toBe(statusRef1);
+
+    // Third poll — still identical
+    await useDraftStore.getState().refreshNow();
+    expect(useDraftStore.getState().board).toBe(boardRef1);
+    expect(useDraftStore.getState().liveDraftStatus).toBe(statusRef1);
+  });
+
+  it("new pick changes board and liveDraftStatus references but not when unchanged", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    fetchSpy.mockResolvedValue(
+      new Response(JSON.stringify(baseLiveData), { status: 200 }),
+    );
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useDraftStore.getState().stopPolling();
+    await vi.advanceTimersByTimeAsync(0);
+    _resetPollingState();
+
+    await useDraftStore.getState().refreshNow();
+    const boardRef1 = useDraftStore.getState().board;
+    const statusRef1 = useDraftStore.getState().liveDraftStatus;
+
+    // Simulate a new pick arriving
+    const newPick = { pickN: 2, seat: 2, cardName: "Counterspell", oracleId: "y", colorIdentity: ["U"], manaCost: "{U}{U}" };
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({
+        ...baseLiveData,
+        latestPickN: 6,
+        picks: [...baseLiveData.picks, newPick],
+      }), { status: 200 }),
+    );
+
+    await useDraftStore.getState().refreshNow();
+
+    // Pick changed → both references must be new objects
+    expect(useDraftStore.getState().board).not.toBe(boardRef1);
+    expect(useDraftStore.getState().liveDraftStatus).not.toBe(statusRef1);
+  });
+
+  it("syncStatus keeps reference stable when content is unchanged on re-fetch", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    // Route both /live and /sync-status responses
+    fetchSpy.mockImplementation(async (input: string | URL | Request) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      if (url.includes("/api/sync-status")) {
+        return new Response(JSON.stringify(baseSyncData), { status: 200 });
+      }
+      return new Response(JSON.stringify(baseLiveData), { status: 200 });
+    });
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useDraftStore.getState().stopPolling();
+    await vi.advanceTimersByTimeAsync(0);
+    _resetPollingState();
+
+    // Run polls until syncStatus is fetched (every 3rd call, syncPollCounter % 3 === 0)
+    await useDraftStore.getState().refreshNow(); // counter=1
+    await useDraftStore.getState().refreshNow(); // counter=2
+    await useDraftStore.getState().refreshNow(); // counter=3 → fetches sync-status
+    const syncRef1 = useDraftStore.getState().syncStatus;
+    // Must have the sync data (not the initial "0" placeholder)
+    expect(syncRef1.lastSyncedAt).toBe(baseSyncData.lastSyncedAt);
+
+    // Three more polls — identical sync data → same reference
+    await useDraftStore.getState().refreshNow(); // counter=4
+    await useDraftStore.getState().refreshNow(); // counter=5
+    await useDraftStore.getState().refreshNow(); // counter=6 → fetches sync-status again (same data)
+    expect(useDraftStore.getState().syncStatus).toBe(syncRef1);
+  });
 });
 
