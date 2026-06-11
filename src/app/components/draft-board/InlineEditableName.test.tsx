@@ -189,7 +189,7 @@ describe("InlineEditableName", () => {
     await waitFor(() => expect(screen.getByText("Alice")).toBeTruthy());
   });
 
-  it("shows fallback 'Seat N' when currentName matches fallback pattern and cleared", async () => {
+  it("does not call onSave when name is cleared while already at fallback 'Seat N'", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
       <InlineEditableName
@@ -199,6 +199,13 @@ describe("InlineEditableName", () => {
         onSave={onSave}
       />,
     );
+    fireEvent.click(screen.getByText("Seat 3"));
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    // Clearing when already at the fallback name is a no-op — no network call
+    await waitFor(() => expect(onSave).not.toHaveBeenCalled());
     expect(screen.getByText("Seat 3")).toBeTruthy();
   });
 });

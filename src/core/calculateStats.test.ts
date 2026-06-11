@@ -332,8 +332,10 @@ describe("calculateCardStats", () => {
       expect(stats[0].weightedGeomean).toBeCloseTo(20.9, 1);
     });
 
-    it("should handle combined copy and unpicked weights for third copy", () => {
-      // Third copy, unpicked: weight = 0.25 * 0.5 = 0.125
+    it("handles unpicked third copy: weight factors combine but single-value geomean is the pick position", () => {
+      // Third copy, unpicked: combined weight = copyFactor(3) * unpickedFactor = 0.25 * 0.5 = 0.125
+      // With only one observation the weighted geomean collapses to that value regardless of weight.
+      // A two-pick assertion (below) verifies the weight actually affects multi-pick outcomes.
       const picks: CardPick[] = [
         createPick({
           cardName: "Test",
@@ -346,8 +348,24 @@ describe("calculateCardStats", () => {
 
       const stats = calculateCardStats(picks);
 
-      // Single value, so geomean = 10
       expect(stats[0].weightedGeomean).toBeCloseTo(10, 10);
+    });
+
+    it("unpicked third copy has lower influence than picked first copy in weighted geomean", () => {
+      // first copy (picked) weight = 1; third copy (unpicked) weight = 0.25 * 0.5 = 0.125
+      // geomean = exp( (1*ln(10) + 0.125*ln(80)) / (1 + 0.125) )
+      //         = exp( (2.3026 + 0.5478) / 1.125 )
+      //         = exp(2.8504 / 1.125)
+      //         = exp(2.5337)
+      //         ≈ 12.60
+      const picks: CardPick[] = [
+        createPick({ cardName: "Test", pickPosition: 10, copyNumber: 1, wasPicked: true, draftId: "d1" }),
+        createPick({ cardName: "Test", pickPosition: 80, copyNumber: 3, wasPicked: false, draftId: "d1" }),
+      ];
+
+      const stats = calculateCardStats(picks);
+
+      expect(stats[0].weightedGeomean).toBeCloseTo(12.60, 1);
     });
 
     it("should handle pick position of 1 correctly", () => {

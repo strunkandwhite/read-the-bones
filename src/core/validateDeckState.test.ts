@@ -98,6 +98,14 @@ describe("validateDeckState", () => {
     expect(result).toEqual({ valid: false, reason: "zones.deck.col0 must be string array" });
   });
 
+  it("accepts deck with exactly 100 total cards (boundary — limit is inclusive)", () => {
+    const deck = validDeck();
+    deck.zones.deck.col0 = Array.from({ length: 100 }, (_, i) => `Card ${i}`);
+    deck.zones.sideboard = { col0: [] };
+    const result = validateDeckState(deck);
+    expect(result).toEqual({ valid: true });
+  });
+
   it("rejects deck with > 100 total cards", () => {
     const deck = validDeck();
     deck.zones.deck.col0 = Array.from({ length: 101 }, (_, i) => `Card ${i}`);

@@ -49,7 +49,7 @@ describe("useHoldToConfirm", () => {
     expect(result.current.isHolding).toBe(false);
   });
 
-  it("exposes progress as 0-1 value", async () => {
+  it("exposes progress advancing from 0 toward 1 while holding", async () => {
     const onConfirm = vi.fn();
     const { result } = renderHook(() =>
       useHoldToConfirm({ onConfirm, duration: 1500 }),
@@ -58,7 +58,14 @@ describe("useHoldToConfirm", () => {
     await act(async () => {
       result.current.handlers.onPointerDown({} as PointerEvent);
     });
-    // Progress is animated via interval, tested via integration
+    expect(result.current.progress).toBe(0);
+
+    await act(async () => {
+      vi.advanceTimersByTime(750);
+    });
+    // After half the duration, progress should be between 0 and 1
+    expect(result.current.progress).toBeGreaterThan(0);
+    expect(result.current.progress).toBeLessThan(1);
     expect(result.current.isHolding).toBe(true);
   });
 });

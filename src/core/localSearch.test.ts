@@ -824,32 +824,72 @@ describe("searchLocalCards", () => {
     });
 
     describe("robustness edge cases", () => {
-      it("unmatched closing paren doesn't crash", () => {
-        expect(() =>
-          searchLocalCards("t:instant)", advCards),
-        ).not.toThrow();
+      it("unmatched closing paren recovers and returns matching cards", () => {
+        // Malformed input: trailing ')' — parser recovers and treats 't:instant' normally
+        const result = searchLocalCards("t:instant)", advCards);
+        expect(() => result).not.toThrow();
+        const resultNames = result.map((c) => c.name).sort();
+        expect(resultNames).toContain("Lightning Bolt");
+        expect(resultNames).toContain("Counterspell");
+        expect(resultNames).toContain("Fire");
       });
 
-      it("unmatched opening paren doesn't crash", () => {
-        expect(() =>
-          searchLocalCards("(t:instant", advCards),
-        ).not.toThrow();
+      it("unmatched opening paren recovers and returns matching cards", () => {
+        // Malformed input: leading '(' — parser recovers and treats 't:instant' normally
+        const result = searchLocalCards("(t:instant", advCards);
+        expect(() => result).not.toThrow();
+        const resultNames = result.map((c) => c.name).sort();
+        expect(resultNames).toContain("Lightning Bolt");
+        expect(resultNames).toContain("Counterspell");
+        expect(resultNames).toContain("Fire");
       });
 
-      it("empty parens don't crash", () => {
-        expect(() => searchLocalCards("()", advCards)).not.toThrow();
+      it("empty parens returns all cards (no filtering applied)", () => {
+        const result = searchLocalCards("()", advCards);
+        expect(() => result).not.toThrow();
+        // Empty parens contribute no filter term — all cards pass
+        expect(result.length).toBe(advCards.length);
       });
 
-      it("or at start of query doesn't crash", () => {
-        expect(() =>
-          searchLocalCards("or t:instant", advCards),
-        ).not.toThrow();
+      it("dangling 'or' at start returns all cards (empty left operand matches everything)", () => {
+        // 'or t:instant' — the empty left side of OR matches all cards, making the union = all cards
+        const result = searchLocalCards("or t:instant", advCards);
+        expect(() => result).not.toThrow();
+        expect(result.length).toBe(advCards.length);
       });
 
-      it("or at end of query doesn't crash", () => {
-        expect(() =>
-          searchLocalCards("t:instant or", advCards),
-        ).not.toThrow();
+      it("dangling 'or' at end returns all cards (empty right operand matches everything)", () => {
+        // 't:instant or' — the empty right side of OR matches all cards, making the union = all cards
+        const result = searchLocalCards("t:instant or", advCards);
+        expect(() => result).not.toThrow();
+        expect(result.length).toBe(advCards.length);
+      });
+    });
+
+    describe("strict color comparisons (c< and c>)", () => {
+      it("c>r finds cards strictly containing red (red + at least one other color)", () => {
+        // c>r = strict superset of red = card has R AND at least one non-R color
+        const result = names(searchLocalCards("c>r", advCards));
+        // Nicol Bolas has U, B, R — strict superset of {R} ✓
+        expect(result).toContain("Nicol Bolas, Planeswalker");
+        // Mono-red cards are NOT strict supersets (they equal {R})
+        expect(result).not.toContain("Lightning Bolt");
+        expect(result).not.toContain("Fire");
+        // Colorless/non-red not included
+        expect(result).not.toContain("Sol Ring");
+      });
+
+      it("c<ub finds cards strictly contained within UB (subset but not equal to UB)", () => {
+        // c<ub = strict subset of {U,B} = has only U and/or B colors but NOT both (not equal {U,B})
+        // Counterspell is {U} ⊂ {U,B} ✓ (not equal)
+        const result = names(searchLocalCards("c<ub", advCards));
+        expect(result).toContain("Counterspell");
+        // Sol Ring (colorless {}) is subset but strict subset of {U,B} — included
+        expect(result).toContain("Sol Ring");
+        // Nicol Bolas has R too — not a subset of {U,B}
+        expect(result).not.toContain("Nicol Bolas, Planeswalker");
+        // Mono-red not subset of {U,B}
+        expect(result).not.toContain("Lightning Bolt");
       });
     });
   });

@@ -32,6 +32,13 @@ vi.mock("../scryfallApi", async (importOriginal) => {
   };
 });
 
+// Replace the real 75ms Scryfall rate-limit sleep with a no-op so tests run at
+// full speed without depending on real wall-clock time.
+vi.mock("../utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../utils")>();
+  return { ...actual, sleep: vi.fn().mockResolvedValue(undefined) };
+});
+
 // Helper to create a CardPick with required fields
 function pick(name: string, position: number, seat: number): CardPick {
   return {

@@ -363,14 +363,14 @@ describe("getCards", () => {
     expect(plains!.timesAvailable).toBe(1);
   });
 
-  it("returns empty card data when no draftIds match completed drafts", async () => {
+  it("returns zero draftCount when specified draftIds contain only in-progress drafts", async () => {
     setupMockExecute({
       draftRows: [draftRow("d1", { phase: "drafting" })],
       cubeSizeRows: [cubeSizeRow(1, 200)],
       cubeCardRows: [cubeCardRow(1, 1, "Island")],
     });
 
-    // No completed drafts, so filtering draftIds yields empty
+    // d1 is in-progress (drafting phase) so it does not count toward completed stats
     const result = await getCards({ draftIds: ["d1"] });
     expect(result.draftCount).toBe(0);
   });

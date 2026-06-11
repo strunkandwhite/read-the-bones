@@ -114,6 +114,36 @@ describe('derivePickSeat', () => {
     });
   });
 
+  describe('4 seats, 8 picks each — reverse double-pick round', () => {
+    // With 8 picks per player: doublePickRounds = floor(8/4) = 2
+    // Rounds 1-4: single-pick (picks 1-16)
+    // Round 5 (odd = forward):  double-picks 17-24 → seats 1,1,2,2,3,3,4,4
+    // Round 6 (even = reverse): double-picks 25-32 → seats 4,4,3,3,2,2,1,1
+    const opts = { numSeats: 4, picksPerPlayer: 8 };
+
+    it('round 5 double-pick goes forward: 1,1,2,2,3,3,4,4', () => {
+      expect(derivePickSeat(17, opts)).toMatchObject({ seat: 1, round: 5, isDoublePick: true });
+      expect(derivePickSeat(18, opts)).toMatchObject({ seat: 1, round: 5, isDoublePick: true });
+      expect(derivePickSeat(19, opts)).toMatchObject({ seat: 2, round: 5 });
+      expect(derivePickSeat(20, opts)).toMatchObject({ seat: 2, round: 5 });
+      expect(derivePickSeat(21, opts)).toMatchObject({ seat: 3, round: 5 });
+      expect(derivePickSeat(22, opts)).toMatchObject({ seat: 3, round: 5 });
+      expect(derivePickSeat(23, opts)).toMatchObject({ seat: 4, round: 5 });
+      expect(derivePickSeat(24, opts)).toMatchObject({ seat: 4, round: 5 });
+    });
+
+    it('round 6 double-pick reverses: 4,4,3,3,2,2,1,1', () => {
+      expect(derivePickSeat(25, opts)).toMatchObject({ seat: 4, round: 6, isDoublePick: true });
+      expect(derivePickSeat(26, opts)).toMatchObject({ seat: 4, round: 6 });
+      expect(derivePickSeat(27, opts)).toMatchObject({ seat: 3, round: 6 });
+      expect(derivePickSeat(28, opts)).toMatchObject({ seat: 3, round: 6 });
+      expect(derivePickSeat(29, opts)).toMatchObject({ seat: 2, round: 6 });
+      expect(derivePickSeat(30, opts)).toMatchObject({ seat: 2, round: 6 });
+      expect(derivePickSeat(31, opts)).toMatchObject({ seat: 1, round: 6 });
+      expect(derivePickSeat(32, opts)).toMatchObject({ seat: 1, round: 6 });
+    });
+  });
+
   describe('2 seats, 10 picks each (no trailing single)', () => {
     const opts = { numSeats: 2, picksPerPlayer: 10 };
 

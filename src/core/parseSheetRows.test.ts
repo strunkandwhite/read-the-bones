@@ -937,7 +937,7 @@ describe("integration: parseMatchRows round robin", () => {
     expect(matches).toHaveLength(6);
   });
 
-  it("should produce consistent total game counts when aggregated", () => {
+  it("should parse game counts from both seat1 and seat2 columns consistently", () => {
     const matches = parseMatchRows(roundRobinRows, drafterNames);
     let totalP1Wins = 0;
     let totalP2Wins = 0;
@@ -945,8 +945,9 @@ describe("integration: parseMatchRows round robin", () => {
       totalP1Wins += m.seat1GamesWon;
       totalP2Wins += m.seat2GamesWon;
     }
-    // Total games played should be the same from both perspectives
-    const totalGames = totalP1Wins + totalP2Wins;
-    expect(totalGames).toBe(16); // 2+1 + 2+0 + 1+2 + 2+1 + 0+2 + 1+2
+    // Seat1 column: 2+2+1+2+0+1 = 8; seat2 column: 1+0+2+1+2+2 = 8
+    expect(totalP1Wins).toBe(8);
+    expect(totalP2Wins).toBe(8);
+    expect(totalP1Wins + totalP2Wins).toBe(16);
   });
 });

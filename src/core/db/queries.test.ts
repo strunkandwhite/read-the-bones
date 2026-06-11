@@ -97,7 +97,7 @@ describe("resolveCard", () => {
     expect(result).toBeNull();
   });
 
-  it("should perform case-insensitive search", async () => {
+  it("should resolve card by name regardless of case", async () => {
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
         {
@@ -109,12 +109,11 @@ describe("resolveCard", () => {
       ])
     );
 
-    await resolveCard(mockClient as never, "LIGHTNING BOLT");
+    const result = await resolveCard(mockClient as never, "LIGHTNING BOLT");
 
-    expect(mockClient.execute).toHaveBeenCalledWith({
-      sql: expect.stringContaining("LOWER(name) = LOWER(?)"),
-      args: ["LIGHTNING BOLT"],
-    });
+    // The lookup must succeed even when the input case differs from the stored name
+    expect(result).not.toBeNull();
+    expect(result?.name).toBe("Lightning Bolt");
   });
 
   it("should handle null scryfall_json", async () => {

@@ -71,6 +71,7 @@ async function changeDraftSelection(newSelection: Set<string>) {
 describe("PageClient", () => {
   afterEach(() => {
     cleanup();
+    localStorage.clear();
   });
 
   // ResizeObserver is not available in jsdom
@@ -83,7 +84,23 @@ describe("PageClient", () => {
   });
 
   beforeEach(() => {
+    localStorage.clear();
     vi.restoreAllMocks();
+    // Provide a default fetch that returns empty-but-valid card data so background
+    // subscription-triggered fetches don't throw or corrupt store state.
+    // Use mockImplementation so each call gets a fresh Response body (cannot reuse one).
+    const emptyCardData = JSON.stringify({
+      cards: [],
+      draftCount: 0,
+      cubeCopies: {},
+      draftIds: [],
+      completedDraftIds: [],
+      draftMetadata: {},
+      ingestionHash: "default",
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(new Response(emptyCardData, { status: 200, headers: { "Content-Type": "application/json" } })),
+    );
 
     // Reset store state between tests
     _resetPollingState();
@@ -154,11 +171,12 @@ describe("PageClient", () => {
 
   it("shows SSR data on initial render with default selection", async () => {
     // The selectedDrafts subscription auto-triggers a background fetch on hydration.
-    // Mock fetch so it resolves cleanly without errors.
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(makeTestProps().initialCardData),
-    });
+    // The beforeEach spy already provides a default 200 response; override it here
+    // to return real card data so the card table renders.
+    const data = JSON.stringify(makeTestProps().initialCardData);
+    vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(new Response(data, { status: 200, headers: { "Content-Type": "application/json" } })),
+    );
 
     await act(async () => {
       render(<PageClient {...makeTestProps()} />);
@@ -177,10 +195,10 @@ describe("PageClient", () => {
       cubeCopies: {},
     };
 
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(mockResponse),
-    });
+    const mockResponseJson = JSON.stringify(mockResponse);
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(new Response(mockResponseJson, { status: 200, headers: { "Content-Type": "application/json" } })),
+    );
 
     render(<PageClient {...makeTestProps()} />);
 
@@ -192,7 +210,7 @@ describe("PageClient", () => {
     // Both card and stats endpoints must have been called at least once.
     // The exact call count may be higher than 2 when a pending re-run fires
     // after the first in-flight fetch completes (request-identity semantics).
-    const urls = (global.fetch as ReturnType<typeof vi.fn>).mock.calls.map((c: unknown[]) => c[0] as string);
+    const urls = fetchSpy.mock.calls.map((c) => c[0] as string);
     expect(urls.some((u: string) => u.includes("/api/cards?"))).toBe(true);
     expect(urls.some((u: string) => u.includes("/api/draft-stats?"))).toBe(true);
   });
@@ -200,7 +218,7 @@ describe("PageClient", () => {
   it("logs error when fetch throws after custom draft selection", async () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
-    global.fetch = vi.fn().mockRejectedValue(new Error("Network error"));
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network error"));
 
     render(<PageClient {...makeTestProps()} />);
 
@@ -225,11 +243,11 @@ describe("PageClient", () => {
   });
 
   it("shows 'No drafts selected' when selection is empty", async () => {
-    // Mock fetch to handle the background subscription-triggered fetch from hydration
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(makeTestProps().initialCardData),
-    });
+    // Override the default spy to return card data so the initial render succeeds
+    const data = JSON.stringify(makeTestProps().initialCardData);
+    vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(new Response(data, { status: 200, headers: { "Content-Type": "application/json" } })),
+    );
 
     await act(async () => {
       render(<PageClient {...makeTestProps()} />);
@@ -247,10 +265,7 @@ describe("PageClient", () => {
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     // First fetch fails
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: false,
-      status: 500,
-    });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("", { status: 500 }));
 
     render(<PageClient {...makeTestProps()} />);
 
@@ -260,11 +275,10 @@ describe("PageClient", () => {
     });
 
     // Now set up a successful response for returning to default
-    const successResponse: CardStatsResponse = makeTestProps().initialCardData;
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(successResponse),
-    });
+    const successResponseJson = JSON.stringify(makeTestProps().initialCardData);
+    vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(new Response(successResponseJson, { status: 200, headers: { "Content-Type": "application/json" } })),
+    );
 
     // Return to default selection (all completed drafts)
     await act(async () => {
@@ -288,10 +302,10 @@ describe("PageClient", () => {
 
     // Mock fetch to return the same card data (with banned cards) when
     // the activeDraft subscription triggers fetchCardData
-    global.fetch = vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve(props.initialCardData),
-    });
+    const propsJson = JSON.stringify(props.initialCardData);
+    vi.spyOn(globalThis, "fetch").mockImplementation(() =>
+      Promise.resolve(new Response(propsJson, { status: 200, headers: { "Content-Type": "application/json" } })),
+    );
 
     await act(async () => {
       render(<PageClient {...props} />);

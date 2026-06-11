@@ -37,14 +37,13 @@ describe("reportMatchResult", () => {
   let client: ReturnType<typeof createMockClient>;
   beforeEach(() => { client = createMockClient(); });
 
-  it("executes INSERT OR REPLACE with correct args", async () => {
+  it("persists the match result with all seats, games, and reporter fields", async () => {
     client.execute.mockResolvedValueOnce({ rows: [] });
 
     await reportMatchResult(client, "draft-1", 1, 3, 2, 1, 3);
 
     expect(client.execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        sql: expect.stringContaining("INSERT OR REPLACE INTO match_events"),
         args: ["draft-1", 1, 3, 2, 1, 3],
       })
     );

@@ -15,7 +15,7 @@ vi.mock("@/core/searchUtils", () => ({
   hasScryfallOperators: vi.fn(() => false),
 }));
 vi.mock("@/core/snakeDraft", () => ({
-  derivePickSeat: vi.fn((pickN: number) => ({ seat: pickN <= 2 ? 1 : 2, round: 1 })),
+  derivePickSeat: vi.fn((pickN: number) => ({ seat: pickN <= 2 ? 1 : 2, round: 1, isDoublePick: false })),
   getTotalPicks: vi.fn(() => 10),
 }));
 
@@ -65,9 +65,21 @@ describe("liveStore — hydrateToken", () => {
   beforeEach(() => {
     localStorage.clear();
     resetStores();
+    // Start each test with a clean, token-free URL so test order does not matter
+    Object.defineProperty(window, "location", {
+      value: new URL("http://localhost:3000/"),
+      writable: true,
+      configurable: true,
+    });
   });
 
   afterEach(() => {
+    // Restore to a neutral URL so location changes don't bleed into other describe blocks
+    Object.defineProperty(window, "location", {
+      value: new URL("http://localhost:3000/"),
+      writable: true,
+      configurable: true,
+    });
     vi.restoreAllMocks();
   });
 
@@ -2407,45 +2419,48 @@ describe("liveStore — deck save", () => {
 
   it("flushSave PUTs to /api/drafts/{id}/deck-state", async () => {
     vi.useFakeTimers();
+    try {
+      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+        new Response("{}", { status: 200 }),
+      );
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+      useDraftStore.setState({ activeDraft: "draft-1" });
+      useLiveStore.setState({ seatToken: "tok-abc" });
 
-    useDraftStore.setState({ activeDraft: "draft-1" });
-    useLiveStore.setState({ seatToken: "tok-abc" });
+      // Dispatch a non-hydration action to trigger save scheduling
+      useLiveStore.getState().dispatchDeck({
+        type: "SET_BASICS",
+        basics: { Plains: 1, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
+        scryfallData: new Map(),
+      });
 
-    // Dispatch a non-hydration action to trigger save scheduling
-    useLiveStore.getState().dispatchDeck({
-      type: "SET_BASICS",
-      basics: { Plains: 1, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
-      scryfallData: new Map(),
-    });
+      // Advance past debounce
+      vi.advanceTimersByTime(1000);
 
-    // Advance past debounce
-    vi.advanceTimersByTime(1000);
+      // Let the flush promise resolve
+      await vi.advanceTimersByTimeAsync(0);
 
-    // Let the flush promise resolve
-    await vi.advanceTimersByTimeAsync(0);
-
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/drafts/draft-1/deck-state",
-      expect.objectContaining({
-        method: "PUT",
-        headers: expect.objectContaining({
-          "X-Seat-Token": "tok-abc",
-          "Content-Type": "application/json",
+      expect(fetchSpy).toHaveBeenCalledWith(
+        "/api/drafts/draft-1/deck-state",
+        expect.objectContaining({
+          method: "PUT",
+          headers: expect.objectContaining({
+            "X-Seat-Token": "tok-abc",
+            "Content-Type": "application/json",
+          }),
         }),
-      }),
-    );
+      );
 
-    // Should transition to "saved" then back to "idle"
-    expect(useLiveStore.getState().deckSaveStatus).toBe("saved");
+      // Should transition to "saved" then back to "idle"
+      expect(useLiveStore.getState().deckSaveStatus).toBe("saved");
 
-    vi.advanceTimersByTime(2000);
-    expect(useLiveStore.getState().deckSaveStatus).toBe("idle");
-
-    vi.useRealTimers();
+      // Advance past the "saved" display window and flush all remaining timers so
+      // no unsettled async work leaks into subsequent tests
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(useLiveStore.getState().deckSaveStatus).toBe("idle");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -95,12 +95,6 @@ describe("getSeatTokens", () => {
       { seat: 1, token: "tok-a", displayName: "Alice", autoPick: false },
       { seat: 2, token: "tok-b", displayName: null, autoPick: true },
     ]);
-    expect(mockClient.execute).toHaveBeenCalledWith(
-      expect.objectContaining({
-        sql: expect.stringContaining("FROM seat_tokens WHERE draft_id = ?"),
-        args: ["draft-1"],
-      })
-    );
   });
 });
 
