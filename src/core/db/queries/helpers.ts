@@ -2,8 +2,6 @@
  * Shared helper functions used across query modules.
  */
 
-import { getClient } from "../client";
-
 /**
  * Build a SQL placeholder string for n parameters (e.g., "?, ?, ?").
  */
@@ -50,9 +48,8 @@ import type { Client } from "@libsql/client";
  */
 export async function fetchOptOuts(client: Client, draftIds: string[]): Promise<Set<string>> {
   if (draftIds.length === 0) return new Set();
-  const ph = draftIds.map(() => "?").join(", ");
   const result = await client.execute({
-    sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${ph})`,
+    sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${placeholders(draftIds.length)})`,
     args: draftIds,
   });
   const optedOut = new Set<string>();
@@ -66,8 +63,7 @@ export async function fetchOptOuts(client: Client, draftIds: string[]): Promise<
  * Get opted-out seats for a single draft.
  * Returns a Set of seat numbers that should be redacted.
  */
-export async function getOptedOutSeats(draftId: string): Promise<Set<number>> {
-  const client = await getClient();
+export async function getOptedOutSeats(client: Client, draftId: string): Promise<Set<number>> {
   const multiResult = await fetchOptOuts(client, [draftId]);
   const seats = new Set<number>();
   for (const key of multiResult) {
@@ -156,11 +152,10 @@ export function matchesColorFilter(colorIdentity: string[], filterColor: string)
  * 2nd must be >= 30% as frequent as the 1st.
  */
 export async function inferSeatColors(
+  client: Client,
   draftIds: string[]
 ): Promise<Map<string, string>> {
   if (draftIds.length === 0) return new Map();
-
-  const client = await getClient();
 
   const result = await client.execute({
     sql: `SELECT dc.draft_id, dc.seat, c.scryfall_json
@@ -201,10 +196,11 @@ export async function inferSeatColors(
  * Convenience wrapper around inferSeatColors for filtering use cases.
  */
 export async function getSeatsMatchingColors(
+  client: Client,
   draftIds: string[],
   deckColors: string
 ): Promise<Set<string>> {
-  const seatToColor = await inferSeatColors(draftIds);
+  const seatToColor = await inferSeatColors(client, draftIds);
   const requestedColors = deckColors.toUpperCase().split("");
   const matchingSeats = new Set<string>();
 

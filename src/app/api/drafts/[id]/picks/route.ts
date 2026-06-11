@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as queries from "@/core/db/queries";
+import { getClient } from "@/core/db/client";
 import { intParam } from "@/app/api/_utils";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
@@ -10,7 +11,8 @@ export const GET = withApiErrors(
   ) => {
     const { id } = await params;
     const { searchParams } = request.nextUrl;
-    const result = await queries.getPicks({
+    const client = await getClient();
+    const result = await queries.getPicks(client, {
       draft_id: id,
       seat: intParam(searchParams.get("seat")),
       pick_n_min: intParam(searchParams.get("pick_n_min")),

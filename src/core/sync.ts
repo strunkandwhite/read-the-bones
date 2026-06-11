@@ -10,6 +10,7 @@ import { normalizeCardName, getFrontFace } from "./cardNames";
 import { fetchCard, fetchCardFuzzy } from "./scryfallApi";
 import { sleep } from "./utils";
 import { DEFAULT_NUM_SEATS } from "./constants";
+import { placeholders } from "./db/queries/helpers";
 
 /**
  * Given all picks parsed from CSV and the current max pick_n in the database,
@@ -145,9 +146,8 @@ export async function insertNewPicks(
   const uniqueNames = [
     ...new Set(newPicks.map((p) => normalizeCardName(p.cardName))),
   ];
-  const placeholders = uniqueNames.map(() => "?").join(", ");
   const result = await client.execute({
-    sql: `SELECT card_id, name FROM cards WHERE LOWER(name) IN (${placeholders})`,
+    sql: `SELECT card_id, name FROM cards WHERE LOWER(name) IN (${placeholders(uniqueNames.length)})`,
     args: uniqueNames.map((n) => n.toLowerCase()),
   });
   const nameToId = new Map<string, number>();

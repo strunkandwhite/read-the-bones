@@ -8,7 +8,7 @@
 
 import { getClient } from "./db/client";
 import { computeIngestionHash } from "./db/sync/domains";
-import { inferSeatColors } from "./db/queries/helpers";
+import { inferSeatColors, placeholders } from "./db/queries/helpers";
 import { wilsonInterval } from "./wilsonInterval";
 
 export type SeatWinRate = {
@@ -98,17 +98,15 @@ async function computeWinRateByColor(
 ): Promise<ColorWinRate[]> {
   if (draftIds.length === 0) return [];
 
-  const placeholders = draftIds.map(() => "?").join(", ");
-
   // Infer deck colors per seat from maindecked cards
-  const seatToColor = await inferSeatColors(draftIds);
+  const seatToColor = await inferSeatColors(client, draftIds);
 
   // Get match results for selected drafts
   const matchResult = await client.execute({
     sql: `
       SELECT draft_id, seat1, seat2, seat1_wins, seat2_wins
       FROM match_events
-      WHERE draft_id IN (${placeholders})
+      WHERE draft_id IN (${placeholders(draftIds.length)})
     `,
     args: draftIds,
   });

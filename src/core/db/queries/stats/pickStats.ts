@@ -2,9 +2,9 @@
  * Pick statistics query — aggregates pick data for a single card across drafts.
  */
 
-import { getClient } from "../../client";
+import type { Client } from "@libsql/client";
 import { resolveCard } from "../cards";
-import { parseBannedCards } from "../helpers";
+import { parseBannedCards, placeholders } from "../helpers";
 import { calculatePickWeight, round3, weightedGeometricMean } from "../../../utils";
 import { DEFAULT_POOL_SIZE } from "../../../types";
 import { statsPhaseFilter } from "../../../draftPhases";
@@ -36,15 +36,14 @@ export interface CardPickStatsResult {
  * Uses the weighted geometric mean formula from calculateStats.ts.
  */
 export async function getCardPickStats(
+  client: Client,
   params: GetCardPickStatsParams
 ): Promise<CardPickStatsResult | null> {
-  const client = await getClient();
-
   // Resolve the card first (skip if card_id already provided)
   let card_id = params.card_id;
   let card_name = params.card_name;
   if (card_id === undefined) {
-    const card = await resolveCard(params.card_name);
+    const card = await resolveCard(client, params.card_name);
     if (!card) return null;
     card_id = card.card_id;
     card_name = card.name;
@@ -105,21 +104,19 @@ export async function getCardPickStats(
 
   // Exclude drafts where this card is banned. Cube sizes depend only on
   // draftsWithCardResult, so run that query in parallel with the ban lookup.
-  const banPlaceholders = allDraftIds.map(() => "?").join(", ");
   const cubeSnapshotIds = draftsWithCardResult.rows.map((r) => r.cube_snapshot_id as number);
-  const cubeSnapshotPlaceholders = cubeSnapshotIds.map(() => "?").join(", ");
 
   const [bannedResult, cubeSizesResult] = await Promise.all([
     client.execute({
       sql: `SELECT draft_id, banned_cards FROM drafts
-            WHERE draft_id IN (${banPlaceholders})
+            WHERE draft_id IN (${placeholders(allDraftIds.length)})
               AND banned_cards IS NOT NULL`,
       args: allDraftIds,
     }),
     client.execute({
       sql: `SELECT cube_snapshot_id, SUM(qty) as total_cards
             FROM cube_snapshot_cards
-            WHERE cube_snapshot_id IN (${cubeSnapshotPlaceholders})
+            WHERE cube_snapshot_id IN (${placeholders(cubeSnapshotIds.length)})
             GROUP BY cube_snapshot_id`,
       args: [...cubeSnapshotIds],
     }),
@@ -158,23 +155,23 @@ export async function getCardPickStats(
   }
 
   // picks, opt-outs, and deck_cards all depend on draftIds — run in parallel
-  const placeholders = draftIds.map(() => "?").join(", ");
+  const ph = placeholders(draftIds.length);
   const [picksResult, optOutResult, deckCardsResult] = await Promise.all([
     client.execute({
       sql: `SELECT pe.draft_id, pe.pick_n, pe.seat
             FROM pick_events pe
-            WHERE pe.card_id = ? AND pe.draft_id IN (${placeholders})
+            WHERE pe.card_id = ? AND pe.draft_id IN (${ph})
             ORDER BY pe.draft_id, pe.pick_n`,
       args: [card_id, ...draftIds],
     }),
     client.execute({
-      sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${placeholders})`,
+      sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${ph})`,
       args: draftIds,
     }),
     client.execute({
       sql: `SELECT dc.draft_id, dc.seat, dc.zone
             FROM deck_cards dc
-            WHERE dc.card_id = ? AND dc.draft_id IN (${placeholders})`,
+            WHERE dc.card_id = ? AND dc.draft_id IN (${ph})`,
       args: [card_id, ...draftIds],
     }),
   ]);

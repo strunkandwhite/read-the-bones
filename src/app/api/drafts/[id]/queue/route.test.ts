@@ -24,6 +24,7 @@ vi.mock("@/core/db/queries/pickQueue", () => ({
 const mockGetRemainingCopies = vi.fn();
 vi.mock("@/core/db/queries/helpers", () => ({
   getRemainingCopies: (...args: unknown[]) => mockGetRemainingCopies(...args),
+  placeholders: (n: number) => Array(n).fill("?").join(", "),
 }));
 
 

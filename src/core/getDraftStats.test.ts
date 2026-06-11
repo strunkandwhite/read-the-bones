@@ -281,6 +281,6 @@ describe("getDraftStats", () => {
     await getDraftStats({ draftIds: ["d1"] });
 
     // inferSeatColors should have been called with only ["d1"]
-    expect(mockInferSeatColors).toHaveBeenCalledWith(["d1"]);
+    expect(mockInferSeatColors).toHaveBeenCalledWith(expect.anything(), ["d1"]);
   });
 });

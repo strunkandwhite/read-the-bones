@@ -1,12 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-
-// Mock the database client
-const mockExecute = vi.fn();
-vi.mock("../client", () => ({
-  getClient: vi.fn(() => Promise.resolve({ execute: mockExecute })),
-}));
+import type { Client } from "@libsql/client";
 
 import { getSearchableCards } from "./search";
+
+const mockExecute = vi.fn();
+const mockClient = { execute: mockExecute } as unknown as Client;
 
 describe("getSearchableCards", () => {
   beforeEach(() => {
@@ -21,7 +19,7 @@ describe("getSearchableCards", () => {
       ],
     });
 
-    const result = await getSearchableCards({});
+    const result = await getSearchableCards(mockClient, {});
     expect(result).toHaveLength(2);
     expect(result![0].name).toBe("Lightning Bolt");
     expect(result![0].scryfall_json).toContain("Lightning Bolt");
@@ -40,7 +38,7 @@ describe("getSearchableCards", () => {
       ],
     });
 
-    const result = await getSearchableCards({ draftId: "tarkir" });
+    const result = await getSearchableCards(mockClient, { draftId: "tarkir" });
     expect(result).toHaveLength(1);
     expect(mockExecute).toHaveBeenCalledTimes(2);
     expect(mockExecute.mock.calls[0][0].args).toEqual(["tarkir"]);
@@ -50,7 +48,7 @@ describe("getSearchableCards", () => {
   it("returns null when draft not found", async () => {
     mockExecute.mockResolvedValueOnce({ rows: [] });
 
-    const result = await getSearchableCards({ draftId: "nonexistent" });
+    const result = await getSearchableCards(mockClient, { draftId: "nonexistent" });
     expect(result).toBeNull();
   });
 
@@ -70,7 +68,7 @@ describe("getSearchableCards", () => {
       ],
     });
 
-    const result = await getSearchableCards({
+    const result = await getSearchableCards(mockClient, {
       draftId: "tarkir",
       availableOnly: true,
       beforePickN: 50,
@@ -94,7 +92,7 @@ describe("getSearchableCards", () => {
     });
     mockExecute.mockResolvedValueOnce({ rows: [] });
 
-    const result = await getSearchableCards({
+    const result = await getSearchableCards(mockClient, {
       draftId: "tarkir",
       availableOnly: true,
       beforePickN: 50,
@@ -119,7 +117,7 @@ describe("getSearchableCards", () => {
       ],
     });
 
-    const result = await getSearchableCards({
+    const result = await getSearchableCards(mockClient, {
       draftId: "tarkir",
       availableOnly: true,
       beforePickN: 50,

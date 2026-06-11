@@ -2,7 +2,7 @@
  * Draft pool queries with grouping support.
  */
 
-import { getClient } from "../client";
+import type { Client } from "@libsql/client";
 import type { ScryfallCardData } from "../schema";
 import { getOptedOutSeats, parseScryfallJson, matchesColorFilter } from "./helpers";
 
@@ -135,13 +135,13 @@ export function groupPoolByType(
  * Redacts seat information for players who have opted out.
  */
 export async function getDraftPool(
+  client: Client,
   params: GetDraftPoolParams
 ): Promise<DraftPoolResult | null> {
-  const client = await getClient();
   const includeDraftResults = params.include_draft_results ?? false;
   const includeCardDetails = params.include_card_details ?? false;
   const groupBy = params.group_by ?? "none";
-  const optedOutSeats = params.optedOutSeats ?? await getOptedOutSeats(params.draft_id);
+  const optedOutSeats = params.optedOutSeats ?? await getOptedOutSeats(client, params.draft_id);
 
   // Get draft metadata and pool cards with optional pick data
   const result = await client.execute({

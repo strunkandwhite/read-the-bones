@@ -54,8 +54,10 @@ export async function rankAvailableCards(
   const limit = params.limit ?? 20;
   const sortBy = params.sort_by ?? "geomean_pick";
 
+  const client = await getClient();
+
   // Step 1: Get available cards
-  const available = await getAvailableCards({
+  const available = await getAvailableCards(client, {
     draft_id: params.draft_id,
     before_pick_n: params.before_pick_n,
     color: params.color,
@@ -74,7 +76,6 @@ export async function rankAvailableCards(
   const cardNames = available.cards.map((c) => c.card_name);
 
   // Step 2: Batch resolve all card IDs
-  const client = await getClient();
   const cardsResult = await client.execute({
     sql: `SELECT card_id, name FROM cards WHERE name IN (${placeholders(cardNames.length)})`,
     args: cardNames,
@@ -203,7 +204,7 @@ export async function rankAvailableCards(
   // If deck_colors is set, get matching seats across all relevant drafts
   let matchingSeats: Set<string> | null = null;
   if (params.deck_colors) {
-    matchingSeats = await getSeatsMatchingColors([...allDraftIds], params.deck_colors);
+    matchingSeats = await getSeatsMatchingColors(client, [...allDraftIds], params.deck_colors);
   }
 
   // Aggregate play stats per card, skipping opted-out and non-matching seats

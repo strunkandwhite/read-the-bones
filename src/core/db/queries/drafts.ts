@@ -3,8 +3,7 @@
  */
 
 import type { Client } from "@libsql/client";
-import { getClient } from "../client";
-import { parseBannedCardNames } from "./helpers";
+import { parseBannedCardNames, parseBannedCards } from "./helpers";
 
 export interface DraftListItem {
   draft_id: string;
@@ -23,10 +22,9 @@ export interface ListDraftsFilters {
  * Results are sorted by date descending (most recent first).
  */
 export async function listDrafts(
+  client: Client,
   filters?: ListDraftsFilters
 ): Promise<DraftListItem[]> {
-  const client = await getClient();
-
   const conditions: string[] = [];
   const args: (string | number)[] = [];
 
@@ -75,8 +73,10 @@ export interface DraftDetails {
  * Get detailed information about a specific draft.
  * Returns null if the draft doesn't exist.
  */
-export async function getDraft(draftId: string): Promise<DraftDetails | null> {
-  const client = await getClient();
+export async function getDraft(
+  client: Client,
+  draftId: string,
+): Promise<DraftDetails | null> {
 
   const draftResult = await client.execute({
     sql: `SELECT draft_id, draft_name, draft_date, num_seats, banned_cards
@@ -105,6 +105,40 @@ export async function getDraft(draftId: string): Promise<DraftDetails | null> {
 // ============================================================================
 // Live Draft Queries
 // ============================================================================
+
+export interface DraftMeta {
+  phase: string;
+  numSeats: number;
+  picksPerPlayer: number;
+  /** Lowercase Set for fast membership testing (e.g. banned card checks). */
+  bannedCards: Set<string>;
+  /** Original-cased names for display in API responses. */
+  bannedCardsDisplay: string[];
+}
+
+/**
+ * Get live-draft metadata needed by pick processing and match routes.
+ * Returns null if the draft doesn't exist.
+ */
+export async function getDraftMeta(
+  client: Client,
+  draftId: string,
+): Promise<DraftMeta | null> {
+  const result = await client.execute({
+    sql: "SELECT phase, num_seats, picks_per_player, banned_cards FROM drafts WHERE draft_id = ?",
+    args: [draftId],
+  });
+  if (result.rows.length === 0) return null;
+  const row = result.rows[0];
+  const bannedCardsRaw = row.banned_cards as string | null;
+  return {
+    phase: row.phase as string,
+    numSeats: row.num_seats as number,
+    picksPerPlayer: row.picks_per_player as number,
+    bannedCards: parseBannedCards(bannedCardsRaw),
+    bannedCardsDisplay: parseBannedCardNames(bannedCardsRaw),
+  };
+}
 
 /**
  * Get the current phase of a draft.

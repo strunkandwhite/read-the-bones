@@ -6,6 +6,9 @@ import * as localSearch from "@/core/localSearch";
 
 vi.mock("@/core/db/queries");
 vi.mock("@/core/localSearch");
+vi.mock("@/core/db/client", () => ({
+  getClient: vi.fn().mockResolvedValue({}),
+}));
 
 function makeRequest(params: Record<string, string> = {}) {
   const url = new URL("http://localhost:3000/api/cards/search");
@@ -99,7 +102,7 @@ describe("GET /api/cards/search", () => {
       oracle_text: "Lightning Bolt deals 3 damage to any target.",
     });
 
-    expect(queries.getSearchableCards).toHaveBeenCalledWith({});
+    expect(queries.getSearchableCards).toHaveBeenCalledWith(expect.anything(), {});
   });
 
   it("performs draft-scoped search", async () => {
@@ -113,7 +116,7 @@ describe("GET /api/cards/search", () => {
     const body = await res.json();
 
     expect(body.draft_id).toBe("tarkir");
-    expect(queries.getSearchableCards).toHaveBeenCalledWith({ draftId: "tarkir" });
+    expect(queries.getSearchableCards).toHaveBeenCalledWith(expect.anything(), { draftId: "tarkir" });
   });
 
   it("performs available-only search with remaining_qty", async () => {
@@ -133,7 +136,7 @@ describe("GET /api/cards/search", () => {
 
     expect(body.before_pick_n).toBe(50);
     expect(body.cards[0].remaining_qty).toBe(2);
-    expect(queries.getSearchableCards).toHaveBeenCalledWith({
+    expect(queries.getSearchableCards).toHaveBeenCalledWith(expect.anything(), {
       draftId: "tarkir",
       availableOnly: true,
       beforePickN: 50,

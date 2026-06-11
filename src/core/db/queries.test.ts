@@ -7,7 +7,7 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
-// Mock the client module before importing queries
+// Mock the client module — still needed for rankAvailableCards (top-level, calls getClient internally)
 vi.mock("./client", () => ({
   getClient: vi.fn(),
 }));
@@ -27,7 +27,7 @@ import {
   rankAvailableCards,
 } from "./queries";
 
-// Get the mocked getClient function
+// Get the mocked getClient function (used by rankAvailableCards)
 const mockGetClient = vi.mocked(getClient);
 
 // ============================================================================
@@ -74,7 +74,7 @@ describe("resolveCard", () => {
       ])
     );
 
-    const result = await resolveCard("Lightning Bolt");
+    const result = await resolveCard(mockClient as never, "Lightning Bolt");
 
     expect(result).toEqual({
       card_id: 1,
@@ -92,7 +92,7 @@ describe("resolveCard", () => {
     mockClient.execute.mockResolvedValueOnce(createQueryResult([])); // prefix
     mockClient.execute.mockResolvedValueOnce(createQueryResult([])); // substring
 
-    const result = await resolveCard("Nonexistent Card");
+    const result = await resolveCard(mockClient as never, "Nonexistent Card");
 
     expect(result).toBeNull();
   });
@@ -109,7 +109,7 @@ describe("resolveCard", () => {
       ])
     );
 
-    await resolveCard("LIGHTNING BOLT");
+    await resolveCard(mockClient as never, "LIGHTNING BOLT");
 
     expect(mockClient.execute).toHaveBeenCalledWith({
       sql: expect.stringContaining("LOWER(name) = LOWER(?)"),
@@ -129,7 +129,7 @@ describe("resolveCard", () => {
       ])
     );
 
-    const result = await resolveCard("Test Card");
+    const result = await resolveCard(mockClient as never, "Test Card");
 
     expect(result?.scryfall_json).toBeNull();
   });
@@ -159,7 +159,7 @@ describe("resolveCardFuzzy", () => {
       ])
     );
 
-    const result = await resolveCardFuzzy("Lightning Bolt");
+    const result = await resolveCardFuzzy(mockClient as never, "Lightning Bolt");
 
     expect(result.match).not.toBeNull();
     expect(result.match!.match_type).toBe("exact");
@@ -182,7 +182,7 @@ describe("resolveCardFuzzy", () => {
       ])
     );
 
-    const result = await resolveCardFuzzy("Fable of the Mirror-Breaker");
+    const result = await resolveCardFuzzy(mockClient as never, "Fable of the Mirror-Breaker");
 
     expect(result.match).not.toBeNull();
     expect(result.match!.match_type).toBe("front_face");
@@ -207,7 +207,7 @@ describe("resolveCardFuzzy", () => {
       ])
     );
 
-    const result = await resolveCardFuzzy("Insectile Aberration");
+    const result = await resolveCardFuzzy(mockClient as never, "Insectile Aberration");
 
     expect(result.match).not.toBeNull();
     expect(result.match!.match_type).toBe("back_face");
@@ -236,7 +236,7 @@ describe("resolveCardFuzzy", () => {
       ])
     );
 
-    const result = await resolveCardFuzzy("Fire");
+    const result = await resolveCardFuzzy(mockClient as never, "Fire");
 
     expect(result.match).toBeNull();
     expect(result.candidates).toEqual(["Fire // Ice", "Fire // Lightning"]);
@@ -261,7 +261,7 @@ describe("resolveCardFuzzy", () => {
       ])
     );
 
-    const result = await resolveCardFuzzy("Lightning Hel");
+    const result = await resolveCardFuzzy(mockClient as never, "Lightning Hel");
 
     expect(result.match).not.toBeNull();
     expect(result.match!.match_type).toBe("prefix");
@@ -281,7 +281,7 @@ describe("resolveCardFuzzy", () => {
     // Substring: no match
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    const result = await resolveCardFuzzy("Totally Nonexistent Card");
+    const result = await resolveCardFuzzy(mockClient as never, "Totally Nonexistent Card");
 
     expect(result.match).toBeNull();
     expect(result.candidates).toBeNull();
@@ -325,7 +325,7 @@ describe("lookupCard", () => {
       ])
     );
 
-    const result = await lookupCard("Lightning Bolt");
+    const result = await lookupCard(mockClient as never, "Lightning Bolt");
 
     expect(result).toEqual({
       name: "Lightning Bolt",
@@ -357,7 +357,7 @@ describe("lookupCard", () => {
       }),
     });
 
-    const result = await lookupCard("Force of Will");
+    const result = await lookupCard(mockClient as never, "Force of Will");
 
     expect(result).toEqual({
       name: "Force of Will",
@@ -386,7 +386,7 @@ describe("lookupCard", () => {
       status: 404,
     });
 
-    const result = await lookupCard("Totally Fake Card");
+    const result = await lookupCard(mockClient as never, "Totally Fake Card");
 
     expect(result).toBeNull();
   });
@@ -402,7 +402,7 @@ describe("lookupCard", () => {
     // Mock network error
     global.fetch = vi.fn().mockRejectedValueOnce(new Error("Network error"));
 
-    const result = await lookupCard("Some Card");
+    const result = await lookupCard(mockClient as never, "Some Card");
 
     expect(result).toBeNull();
   });
@@ -441,7 +441,7 @@ describe("lookupCard", () => {
       }),
     });
 
-    const result = await lookupCard("Delver of Secrets");
+    const result = await lookupCard(mockClient as never, "Delver of Secrets");
 
     // transformApiResponse concatenates face oracle text with \n\n (no labels)
     // and uses the front face mana_cost for DFCs
@@ -474,7 +474,7 @@ describe("lookupCard", () => {
 
     global.fetch = vi.fn();
 
-    await lookupCard("Lightning Bolt");
+    await lookupCard(mockClient as never, "Lightning Bolt");
 
     expect(global.fetch).not.toHaveBeenCalled();
   });
@@ -491,7 +491,7 @@ describe("lookupCard", () => {
       ])
     );
 
-    const result = await lookupCard("Test Card");
+    const result = await lookupCard(mockClient as never, "Test Card");
 
     expect(result).toEqual({
       name: "Test Card",
@@ -514,7 +514,7 @@ describe("lookupCard", () => {
       ])
     );
 
-    const result = await lookupCard("Test Card");
+    const result = await lookupCard(mockClient as never, "Test Card");
 
     expect(result).toEqual({
       name: "Test Card",
@@ -540,7 +540,7 @@ describe("lookupCard", () => {
       ])
     );
 
-    const result = await lookupCard("Test Card");
+    const result = await lookupCard(mockClient as never, "Test Card");
 
     expect(result).toEqual({
       name: "Test Card",
@@ -572,7 +572,7 @@ describe("listDrafts", () => {
       ])
     );
 
-    const result = await listDrafts();
+    const result = await listDrafts(mockClient as never);
 
     expect(result).toHaveLength(2);
     expect(result[0]).toEqual({
@@ -585,7 +585,7 @@ describe("listDrafts", () => {
   it("should filter by date range", async () => {
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    await listDrafts({ date_from: "2025-01-01", date_to: "2025-12-31" });
+    await listDrafts(mockClient as never, { date_from: "2025-01-01", date_to: "2025-12-31" });
 
     expect(mockClient.execute).toHaveBeenCalledWith({
       sql: expect.stringContaining("d.draft_date >= ?"),
@@ -596,7 +596,7 @@ describe("listDrafts", () => {
   it("should filter by draft_name (partial match)", async () => {
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    await listDrafts({ draft_name: "Vintage" });
+    await listDrafts(mockClient as never, { draft_name: "Vintage" });
 
     expect(mockClient.execute).toHaveBeenCalledWith({
       sql: expect.stringContaining("LOWER(d.draft_name) LIKE LOWER(?)"),
@@ -607,7 +607,7 @@ describe("listDrafts", () => {
   it("should combine multiple filters", async () => {
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    await listDrafts({
+    await listDrafts(mockClient as never, {
       date_from: "2025-01-01",
       draft_name: "Cube",
     });
@@ -626,7 +626,7 @@ describe("listDrafts", () => {
   it("should return empty array when no drafts found", async () => {
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    const result = await listDrafts();
+    const result = await listDrafts(mockClient as never);
 
     expect(result).toEqual([]);
   });
@@ -651,7 +651,7 @@ describe("getDraft", () => {
       ])
     );
 
-    const result = await getDraft("draft1");
+    const result = await getDraft(mockClient as never, "draft1");
 
     expect(result).toEqual({
       draft_id: "draft1",
@@ -665,7 +665,7 @@ describe("getDraft", () => {
   it("should return null when draft not found", async () => {
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    const result = await getDraft("nonexistent");
+    const result = await getDraft(mockClient as never, "nonexistent");
 
     expect(result).toBeNull();
   });
@@ -694,7 +694,7 @@ describe("getPicks", () => {
       ])
     );
 
-    const result = await getPicks({ draft_id: "draft1" });
+    const result = await getPicks(mockClient as never, { draft_id: "draft1" });
 
     expect(result).toEqual({
       draft_id: "draft1",
@@ -712,7 +712,7 @@ describe("getPicks", () => {
     // Mock picks query
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    await getPicks({ draft_id: "draft1", seat: 1 });
+    await getPicks(mockClient as never, { draft_id: "draft1", seat: 1 });
 
     expect(mockClient.execute).toHaveBeenLastCalledWith({
       sql: expect.stringContaining("pe.seat = ?"),
@@ -726,7 +726,7 @@ describe("getPicks", () => {
     // Mock picks query
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    await getPicks({ draft_id: "draft1", pick_n_min: 10, pick_n_max: 20 });
+    await getPicks(mockClient as never, { draft_id: "draft1", pick_n_min: 10, pick_n_max: 20 });
 
     expect(mockClient.execute).toHaveBeenLastCalledWith({
       sql: expect.stringMatching(/pe\.pick_n >= \?.*pe\.pick_n <= \?/),
@@ -740,7 +740,7 @@ describe("getPicks", () => {
     // Mock picks query
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    await getPicks({ draft_id: "draft1", card_name: "Bolt" });
+    await getPicks(mockClient as never, { draft_id: "draft1", card_name: "Bolt" });
 
     expect(mockClient.execute).toHaveBeenLastCalledWith({
       sql: expect.stringContaining("LOWER(c.name) LIKE LOWER(?)"),
@@ -754,7 +754,7 @@ describe("getPicks", () => {
     // Mock picks query
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    const result = await getPicks({ draft_id: "draft1" });
+    const result = await getPicks(mockClient as never, { draft_id: "draft1" });
 
     expect(result.picks).toEqual([]);
     expect(result.total).toBe(0);
@@ -771,7 +771,7 @@ describe("getPicks", () => {
       ])
     );
 
-    const result = await getPicks({ draft_id: "draft1" });
+    const result = await getPicks(mockClient as never, { draft_id: "draft1" });
 
     expect(result.redacted_seats).toEqual([2]);
     expect(result.picks[0].seat).toBe(1);
@@ -782,7 +782,7 @@ describe("getPicks", () => {
     // Mock opt-outs query (seat 2 opted out)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([{ draft_id: "draft1", seat: 2 }]));
 
-    const result = await getPicks({ draft_id: "draft1", seat: 2 });
+    const result = await getPicks(mockClient as never, { draft_id: "draft1", seat: 2 });
 
     expect(result.total).toBe(0);
     expect(result.redacted_seats).toEqual([2]);
@@ -820,7 +820,7 @@ describe("getAvailableCards", () => {
       createQueryResult([{ card_id: 1, pick_count: 1 }])
     );
 
-    const result = await getAvailableCards({
+    const result = await getAvailableCards(mockClient as never, {
       draft_id: "draft1",
       before_pick_n: 5,
     });
@@ -837,7 +837,7 @@ describe("getAvailableCards", () => {
   it("should return empty when draft not found", async () => {
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    const result = await getAvailableCards({
+    const result = await getAvailableCards(mockClient as never, {
       draft_id: "nonexistent",
       before_pick_n: 1,
     });
@@ -873,7 +873,7 @@ describe("getAvailableCards", () => {
     );
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    const result = await getAvailableCards({
+    const result = await getAvailableCards(mockClient as never, {
       draft_id: "draft1",
       before_pick_n: 1,
       color: "R",
@@ -905,7 +905,7 @@ describe("getAvailableCards", () => {
     );
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    const result = await getAvailableCards({
+    const result = await getAvailableCards(mockClient as never, {
       draft_id: "draft1",
       before_pick_n: 1,
       color: "C",
@@ -937,7 +937,7 @@ describe("getAvailableCards", () => {
     );
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    const result = await getAvailableCards({
+    const result = await getAvailableCards(mockClient as never, {
       draft_id: "draft1",
       before_pick_n: 1,
       type_contains: "Creature",
@@ -961,7 +961,7 @@ describe("getAvailableCards", () => {
       createQueryResult([{ card_id: 1, pick_count: 1 }])
     );
 
-    const result = await getAvailableCards({
+    const result = await getAvailableCards(mockClient as never, {
       draft_id: "draft1",
       before_pick_n: 5,
     });
@@ -984,7 +984,7 @@ describe("getAvailableCards", () => {
       createQueryResult([{ card_id: 1, pick_count: 1 }])
     );
 
-    const result = await getAvailableCards({
+    const result = await getAvailableCards(mockClient as never, {
       draft_id: "draft1",
       before_pick_n: 5,
     });
@@ -1017,7 +1017,7 @@ describe("getStandings", () => {
       ])
     );
 
-    const result = await getStandings("draft1");
+    const result = await getStandings(mockClient as never, "draft1");
 
     // Seat 1: 2 match wins, 0 losses, 4 game wins, 1 game loss
     // Seat 3: 1 match win, 1 loss, 2 game wins, 3 game losses
@@ -1040,7 +1040,7 @@ describe("getStandings", () => {
       ])
     );
 
-    const result = await getStandings("draft1");
+    const result = await getStandings(mockClient as never, "draft1");
 
     // Draw - neither seat gets a match win or loss
     expect(result.standings).toHaveLength(2);
@@ -1059,7 +1059,7 @@ describe("getStandings", () => {
     // Mock match events (empty)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    const result = await getStandings("draft1");
+    const result = await getStandings(mockClient as never, "draft1");
 
     expect(result.standings).toEqual([]);
   });
@@ -1078,7 +1078,7 @@ describe("getStandings", () => {
       ])
     );
 
-    const result = await getStandings("draft1");
+    const result = await getStandings(mockClient as never, "draft1");
 
     // All 3 seats have 1 match win. OMW% breaks the tie:
     // Seat 1 opponents: seat 2 (1/2=0.5), seat 3 (1/2=0.5) → OMW% = 0.5
@@ -1104,7 +1104,7 @@ describe("getStandings", () => {
       ])
     );
 
-    const result = await getStandings("draft1");
+    const result = await getStandings(mockClient as never, "draft1");
 
     expect(result.redacted_seats).toEqual([2]);
     expect(result.standings).toHaveLength(2);
@@ -1134,7 +1134,7 @@ describe("getCardPickStats", () => {
     mockClient.execute.mockResolvedValueOnce(createQueryResult([])); // prefix
     mockClient.execute.mockResolvedValueOnce(createQueryResult([])); // substring
 
-    const result = await getCardPickStats({ card_name: "Nonexistent" });
+    const result = await getCardPickStats(mockClient as never, { card_name:"Nonexistent" });
 
     expect(result).toBeNull();
   });
@@ -1147,7 +1147,7 @@ describe("getCardPickStats", () => {
     // Drafts with card
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    const result = await getCardPickStats({ card_name: "Test Card" });
+    const result = await getCardPickStats(mockClient as never, { card_name:"Test Card" });
 
     expect(result).toEqual({
       card_name: "Test Card",
@@ -1183,7 +1183,7 @@ describe("getCardPickStats", () => {
     // Deck cards (no decklist data)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    const result = await getCardPickStats({ card_name: "Lightning Bolt" });
+    const result = await getCardPickStats(mockClient as never, { card_name:"Lightning Bolt" });
 
     expect(result?.drafts_seen).toBe(1);
     expect(result?.times_picked).toBe(1);
@@ -1225,7 +1225,7 @@ describe("getCardPickStats", () => {
     // Deck cards (no decklist data)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    const result = await getCardPickStats({ card_name: "Test Card" });
+    const result = await getCardPickStats(mockClient as never, { card_name:"Test Card" });
 
     expect(result?.times_picked).toBe(3);
     expect(result?.median_pick_n).toBe(10); // Middle value of [5, 10, 20]
@@ -1266,7 +1266,7 @@ describe("getCardPickStats", () => {
       ])
     );
 
-    const result = await getCardPickStats({ card_name: "Test Card" });
+    const result = await getCardPickStats(mockClient as never, { card_name:"Test Card" });
 
     expect(result?.times_in_pool_with_decklist).toBe(2);
     expect(result?.times_maindecked).toBe(1);
@@ -1309,7 +1309,7 @@ describe("getCardPickStats", () => {
       ])
     );
 
-    const result = await getCardPickStats({ card_name: "Test Card" });
+    const result = await getCardPickStats(mockClient as never, { card_name:"Test Card" });
 
     // Only seat 1's pick should count
     expect(result?.times_picked).toBe(1);
@@ -1328,7 +1328,7 @@ describe("getCardPickStats", () => {
     // Should verify the date filter is in the query
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    await getCardPickStats({
+    await getCardPickStats(mockClient as never, {
       card_name: "Test",
       date_from: "2025-01-01",
       date_to: "2025-12-31",
@@ -1349,7 +1349,7 @@ describe("getCardPickStats", () => {
     );
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    await getCardPickStats({
+    await getCardPickStats(mockClient as never, {
       card_name: "Test",
       draft_name: "Vintage",
     });
@@ -1404,7 +1404,7 @@ describe("getDraftPool", () => {
       ])
     );
 
-    const result = await getDraftPool({ draft_id: "draft1" });
+    const result = await getDraftPool(mockClient as never, { draft_id: "draft1" });
 
     expect(result).not.toBeNull();
     expect(result!.draft_id).toBe("draft1");
@@ -1423,7 +1423,7 @@ describe("getDraftPool", () => {
     // Mock draft existence check
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    const result = await getDraftPool({ draft_id: "nonexistent" });
+    const result = await getDraftPool(mockClient as never, { draft_id: "nonexistent" });
 
     expect(result).toBeNull();
   });
@@ -1457,7 +1457,7 @@ describe("getDraftPool", () => {
       ])
     );
 
-    const result = await getDraftPool({
+    const result = await getDraftPool(mockClient as never, {
       draft_id: "draft1",
       include_draft_results: true,
     });
@@ -1489,7 +1489,7 @@ describe("getDraftPool", () => {
       ])
     );
 
-    const result = await getDraftPool({
+    const result = await getDraftPool(mockClient as never, {
       draft_id: "draft1",
       include_draft_results: true,
     });
@@ -1518,7 +1518,7 @@ describe("getDraftPool", () => {
       ])
     );
 
-    const result = await getDraftPool({
+    const result = await getDraftPool(mockClient as never, {
       draft_id: "draft1",
       include_draft_results: false,
     });

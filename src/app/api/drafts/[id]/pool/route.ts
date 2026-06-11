@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as queries from "@/core/db/queries";
+import { getClient } from "@/core/db/client";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 export const GET = withApiErrors(
@@ -17,7 +18,8 @@ export const GET = withApiErrors(
         { status: 400 },
       );
     }
-    const result = await queries.getDraftPool({
+    const client = await getClient();
+    const result = await queries.getDraftPool(client, {
       draft_id: id,
       include_draft_results: searchParams.get("include_draft_results") === "true",
       include_card_details: searchParams.get("include_card_details") === "true",

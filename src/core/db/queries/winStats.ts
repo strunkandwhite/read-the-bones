@@ -2,7 +2,7 @@
  * Card win-rate statistics — win rate for seats that maindecked a card.
  */
 
-import { getClient, type Client } from "../client";
+import type { Client } from "@libsql/client";
 import { fetchOptOuts, getSeatsMatchingColors } from "./helpers";
 import { resolveCard } from "./cards";
 import { round3 } from "../../utils";
@@ -34,19 +34,18 @@ export interface CardWinStatsResult {
  * Only includes data from drafts with both decklists and match results.
  */
 export async function getCardWinStats(
+  client: Client,
   params: GetCardWinStatsParams
 ): Promise<CardWinStatsResult | null> {
   // Resolve the card (skip if card_id already provided)
   let card_id = params.card_id;
   let card_name = params.card_name;
   if (card_id === undefined) {
-    const card = await resolveCard(params.card_name);
+    const card = await resolveCard(client, params.card_name);
     if (!card) return null;
     card_id = card.card_id;
     card_name = card.name;
   }
-
-  const client = await getClient();
 
   const draftFilter = params.draft_id ? "AND dc.draft_id = ?" : "";
   const excludeFilter = params.exclude_draft_id ? "AND dc.draft_id != ?" : "";
@@ -91,7 +90,7 @@ export async function getCardWinStats(
   // If deck_colors filter is set, determine which seats match
   let matchingSeats: Set<string> | null = null;
   if (params.deck_colors) {
-    matchingSeats = await getSeatsMatchingColors(draftIds, params.deck_colors);
+    matchingSeats = await getSeatsMatchingColors(client, draftIds, params.deck_colors);
   }
 
   // Aggregate, skipping opted-out and non-matching seats
@@ -137,9 +136,9 @@ export type BulkWinStatsEntry = {
  * aggregated across all cards in a single query, with opt-out filtering.
  */
 export async function getAllCardWinStats(
-  client?: Client,
+  client: Client,
 ): Promise<Map<string, BulkWinStatsEntry>> {
-  const db = client ?? await getClient();
+  const db = client;
 
   const result = await db.execute({
     sql: `SELECT c.name AS card_name,

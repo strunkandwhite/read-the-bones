@@ -4,6 +4,9 @@ import { NextRequest } from "next/server";
 import * as queries from "@/core/db/queries";
 
 vi.mock("@/core/db/queries");
+vi.mock("@/core/db/client", () => ({
+  getClient: vi.fn().mockResolvedValue({}),
+}));
 
 function makeRequest(id: string) {
   return new NextRequest(new URL(`http://localhost:3000/api/drafts/${id}`));

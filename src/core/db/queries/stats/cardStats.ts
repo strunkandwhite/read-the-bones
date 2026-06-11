@@ -75,8 +75,10 @@ export interface CardStatsResult {
 export async function getCardStats(
   params: GetCardStatsParams
 ): Promise<CardStatsResult | null> {
+  const client = await getClient();
+
   // Resolve card once — all sub-functions reuse the resolved card_id
-  const card = await resolveCard(params.card_name);
+  const card = await resolveCard(client, params.card_name);
   if (!card) return null;
 
   const cardId = card.card_id;
@@ -89,11 +91,9 @@ export async function getCardStats(
     color_identity: scryfall?.color_identity || [],
   };
 
-  const client = await getClient();
-
   // Run all stats queries in parallel, passing the resolved card_id
   const [pickStats, winStats, historyResult, colorPairs] = await Promise.all([
-    getCardPickStats({
+    getCardPickStats(client, {
       card_name: card.name,
       card_id: cardId,
       exclude_draft_id: params.exclude_draft_id,
@@ -101,7 +101,7 @@ export async function getCardStats(
       date_to: params.date_to,
       draft_name: params.draft_name,
     }),
-    getCardWinStats({
+    getCardWinStats(client, {
       card_name: card.name,
       card_id: cardId,
       draft_id: params.draft_id,
@@ -118,7 +118,7 @@ export async function getCardStats(
   // If filtered stats are empty, fall back to overall stats.
   let play: CardStatsResult["play"] = null;
   if (params.deck_colors) {
-    const playStats = await getCardPlayStats({
+    const playStats = await getCardPlayStats(client, {
       card_name: card.name,
       card_id: cardId,
       draft_id: params.draft_id,
@@ -168,7 +168,7 @@ export async function getCardStats(
     };
   } else if (params.deck_colors) {
     // Fallback: fetch overall win stats without color filter
-    const overallWinStats = await getCardWinStats({
+    const overallWinStats = await getCardWinStats(client, {
       card_name: card.name,
       card_id: cardId,
       draft_id: params.draft_id,

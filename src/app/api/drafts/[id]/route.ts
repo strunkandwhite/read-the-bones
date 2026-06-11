@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as queries from "@/core/db/queries";
+import { getClient } from "@/core/db/client";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 export const GET = withApiErrors(
@@ -8,7 +9,8 @@ export const GET = withApiErrors(
     { params }: { params: Promise<{ id: string }> },
   ) => {
     const { id } = await params;
-    const result = await queries.getDraft(id);
+    const client = await getClient();
+    const result = await queries.getDraft(client, id);
     if (!result) {
       return NextResponse.json({ error: `Draft not found: ${id}` }, { status: 404 });
     }

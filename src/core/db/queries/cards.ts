@@ -3,16 +3,15 @@
  */
 
 import type { Client } from "@libsql/client";
-import { getClient } from "../client";
 import type { Card } from "../schema";
-import { rowToCard, parseScryfallJson, fetchFromScryfallApi, type LookupCardResult } from "./helpers";
+import { rowToCard, parseScryfallJson, fetchFromScryfallApi, placeholders, type LookupCardResult } from "./helpers";
 
 /**
  * Resolve a card by name (case-insensitive).
  * Returns the full card record or null if not found.
  */
-export async function resolveCard(cardName: string): Promise<Card | null> {
-  const result = await resolveCardFuzzy(cardName);
+export async function resolveCard(client: Client, cardName: string): Promise<Card | null> {
+  const result = await resolveCardFuzzy(client, cardName);
   return result.match?.card ?? null;
 }
 
@@ -35,8 +34,7 @@ export interface FuzzyCardResult {
  * Tries exact match, then front-face DFC, back-face DFC, prefix, and substring.
  * Returns the match with its type, or candidates when ambiguous.
  */
-export async function resolveCardFuzzy(cardName: string): Promise<FuzzyCardResult> {
-  const client = await getClient();
+export async function resolveCardFuzzy(client: Client, cardName: string): Promise<FuzzyCardResult> {
 
   // 1. Exact match
   const exact = await client.execute({
@@ -104,10 +102,11 @@ export async function resolveCardFuzzy(cardName: string): Promise<FuzzyCardResul
  * Returns structured card information.
  */
 export async function lookupCard(
+  client: Client,
   cardName: string
 ): Promise<LookupCardResult | null> {
   // First, try to find the card in the database
-  const card = await resolveCard(cardName);
+  const card = await resolveCard(client, cardName);
   if (card) {
     const scryfall = parseScryfallJson(card.scryfall_json);
 
@@ -154,9 +153,8 @@ export async function resolveCardIds(
   cardNames: string[],
 ): Promise<Map<string, number>> {
   if (cardNames.length === 0) return new Map();
-  const placeholders = cardNames.map(() => "?").join(", ");
   const result = await client.execute({
-    sql: `SELECT card_id, name FROM cards WHERE name IN (${placeholders})`,
+    sql: `SELECT card_id, name FROM cards WHERE name IN (${placeholders(cardNames.length)})`,
     args: cardNames,
   });
   const map = new Map<string, number>();

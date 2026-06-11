@@ -3,7 +3,7 @@ import { getNextPick, getTotalPicks } from './snakeDraft';
 import { removeCardFromAllQueues, trimExcessQueueEntries, getAutoPickCandidate, fulfillGroupEntry } from './db/queries/pickQueue';
 import { addFloatedCard, removeFloatedCardByCardId } from './db/queries/floatedCards';
 import { getAllSeatSettings, updateAutoPick } from './db/queries/seatTokens';
-import { parseBannedCards } from './db/queries/helpers';
+import { getDraftMeta } from './db/queries/drafts';
 import { NotFoundError, ValidationError, ConflictError } from './errors';
 
 export interface ProcessPickResult {
@@ -24,17 +24,9 @@ export async function processPick(
   input: ProcessPickInput,
 ): Promise<ProcessPickResult> {
   // 1. Load draft metadata
-  const draft = await client.execute({
-    sql: `SELECT phase, num_seats, picks_per_player, banned_cards
-          FROM drafts WHERE draft_id = ?`,
-    args: [input.draftId],
-  });
-  if (draft.rows.length === 0) throw new NotFoundError('Draft not found');
-  const row = draft.rows[0];
-  const phase = row.phase as string;
-  const numSeats = row.num_seats as number;
-  const picksPerPlayer = row.picks_per_player as number;
-  const bannedCards = parseBannedCards(row.banned_cards as string | null);
+  const meta = await getDraftMeta(client, input.draftId);
+  if (!meta) throw new NotFoundError('Draft not found');
+  const { phase, numSeats, picksPerPlayer, bannedCards } = meta;
 
   if (phase !== 'drafting') {
     throw new ValidationError(`Draft is in '${phase}' phase, not 'drafting'`);

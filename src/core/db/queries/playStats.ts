@@ -2,7 +2,7 @@
  * Card play-rate statistics — how often a card is maindecked vs drafted.
  */
 
-import { getClient } from "../client";
+import type { Client } from "@libsql/client";
 import { fetchOptOuts, getSeatsMatchingColors } from "./helpers";
 import { resolveCard } from "./cards";
 import { round3 } from "../../utils";
@@ -31,19 +31,18 @@ export interface CardPlayStatsResult {
  * across all drafts with decklist data.
  */
 export async function getCardPlayStats(
+  client: Client,
   params: GetCardPlayStatsParams
 ): Promise<CardPlayStatsResult | null> {
   // Resolve the card (skip if card_id already provided)
   let card_id = params.card_id;
   let card_name = params.card_name;
   if (card_id === undefined) {
-    const card = await resolveCard(params.card_name);
+    const card = await resolveCard(client, params.card_name);
     if (!card) return null;
     card_id = card.card_id;
     card_name = card.name;
   }
-
-  const client = await getClient();
 
   const draftFilter = params.draft_id
     ? "AND dc.draft_id = ?"
@@ -79,7 +78,7 @@ export async function getCardPlayStats(
   // If deck_colors filter is set, determine which seats match
   let matchingSeats: Set<string> | null = null;
   if (params.deck_colors) {
-    matchingSeats = await getSeatsMatchingColors(draftIds, params.deck_colors);
+    matchingSeats = await getSeatsMatchingColors(client, draftIds, params.deck_colors);
   }
 
   const draftsWithDecklists = new Set<string>();

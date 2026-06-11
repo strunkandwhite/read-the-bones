@@ -4,6 +4,9 @@ import { NextRequest } from "next/server";
 import * as queries from "@/core/db/queries";
 
 vi.mock("@/core/db/queries");
+vi.mock("@/core/db/client", () => ({
+  getClient: vi.fn().mockResolvedValue({}),
+}));
 
 describe("GET /api/drafts/[id]/standings", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -18,7 +21,7 @@ describe("GET /api/drafts/[id]/standings", () => {
       { params: Promise.resolve({ id: "tarkir" }) },
     );
     expect(res.status).toBe(200);
-    expect(queries.getStandings).toHaveBeenCalledWith("tarkir", 10, expect.any(Set));
+    expect(queries.getStandings).toHaveBeenCalledWith(expect.anything(), "tarkir", 10, expect.any(Set));
     const body = await res.json();
     expect(body).toHaveProperty("standings");
     expect(Array.isArray(body.standings)).toBe(true);

@@ -4,6 +4,9 @@ import { NextRequest } from "next/server";
 import * as queries from "@/core/db/queries";
 
 vi.mock("@/core/db/queries");
+vi.mock("@/core/db/client", () => ({
+  getClient: vi.fn().mockResolvedValue({}),
+}));
 
 function makeRequest(params: Record<string, string> = {}) {
   const url = new URL("http://localhost:3000/api/decks/winning");
@@ -46,7 +49,7 @@ describe("GET /api/decks/winning", () => {
     });
     const res = await GET(makeRequest({ color_pair: "BW" }));
     expect(res.status).toBe(200);
-    expect(queries.getWinningDecksByColor).toHaveBeenCalledWith({
+    expect(queries.getWinningDecksByColor).toHaveBeenCalledWith(expect.anything(), {
       color_pair: "WB",
       draft_ids: undefined,
     });
@@ -60,7 +63,7 @@ describe("GET /api/decks/winning", () => {
     });
     const res = await GET(makeRequest({ color_pair: "UB" }));
     expect(res.status).toBe(200);
-    expect(queries.getWinningDecksByColor).toHaveBeenCalledWith({
+    expect(queries.getWinningDecksByColor).toHaveBeenCalledWith(expect.anything(), {
       color_pair: "UB",
       draft_ids: undefined,
     });
@@ -84,7 +87,7 @@ describe("GET /api/decks/winning", () => {
     });
     const res = await GET(makeRequest({ color_pair: "ub" }));
     expect(res.status).toBe(200);
-    expect(queries.getWinningDecksByColor).toHaveBeenCalledWith({
+    expect(queries.getWinningDecksByColor).toHaveBeenCalledWith(expect.anything(), {
       color_pair: "UB",
       draft_ids: undefined,
     });
@@ -98,7 +101,7 @@ describe("GET /api/decks/winning", () => {
     });
     const res = await GET(makeRequest({ color_pair: "R", draft_ids: "tarkir,dominaria" }));
     expect(res.status).toBe(200);
-    expect(queries.getWinningDecksByColor).toHaveBeenCalledWith({
+    expect(queries.getWinningDecksByColor).toHaveBeenCalledWith(expect.anything(), {
       color_pair: "R",
       draft_ids: ["tarkir", "dominaria"],
     });

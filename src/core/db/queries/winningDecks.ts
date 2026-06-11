@@ -2,8 +2,8 @@
  * Winning decks by color archetype — top-performing decks for a given color pair.
  */
 
-import { getClient } from "../client";
-import { fetchOptOuts, inferSeatColors } from "./helpers";
+import type { Client } from "@libsql/client";
+import { fetchOptOuts, inferSeatColors, placeholders } from "./helpers";
 import { aggregateMatchRecords } from "./matches";
 
 
@@ -48,14 +48,14 @@ export interface WinningDecksByColorResult {
  * 8. Compute overlap cards (appearing in 2+ of the returned decks)
  */
 export async function getWinningDecksByColor(
+  client: Client,
   params: GetWinningDecksByColorParams
 ): Promise<WinningDecksByColorResult> {
-  const client = await getClient();
   const colorPair = params.color_pair.toUpperCase();
 
   // 1. Get all maindecked cards with Scryfall data for color inference
   const draftFilter = params.draft_ids?.length
-    ? `AND dc.draft_id IN (${params.draft_ids.map(() => "?").join(", ")})`
+    ? `AND dc.draft_id IN (${placeholders(params.draft_ids.length)})`
     : "";
   const draftArgs = params.draft_ids ?? [];
 
@@ -85,7 +85,7 @@ export async function getWinningDecksByColor(
   }
 
   // 4. Infer deck colors and filter to seats matching the requested color pair exactly
-  const seatToColor = await inferSeatColors(allDraftIds);
+  const seatToColor = await inferSeatColors(client, allDraftIds);
   const matchingSeats: string[] = [];
   for (const key of seatCards.keys()) {
     const inferred = seatToColor.get(key);
@@ -100,11 +100,10 @@ export async function getWinningDecksByColor(
 
   // 5. Get match results for matching seats
   const matchDraftIds = [...new Set(matchingSeats.map((k) => k.split(":")[0]))];
-  const matchPlaceholders = matchDraftIds.map(() => "?").join(", ");
   const matchResult = await client.execute({
     sql: `SELECT me.draft_id, me.seat1, me.seat2, me.seat1_wins, me.seat2_wins
           FROM match_events me
-          WHERE me.draft_id IN (${matchPlaceholders})`,
+          WHERE me.draft_id IN (${placeholders(matchDraftIds.length)})`,
     args: matchDraftIds,
   });
 
@@ -112,9 +111,8 @@ export async function getWinningDecksByColor(
   const seatRecords = aggregateMatchRecords(matchResult.rows);
 
   // Get draft names
-  const draftNamePlaceholders = matchDraftIds.map(() => "?").join(", ");
   const draftNameResult = await client.execute({
-    sql: `SELECT draft_id, draft_name FROM drafts WHERE draft_id IN (${draftNamePlaceholders})`,
+    sql: `SELECT draft_id, draft_name FROM drafts WHERE draft_id IN (${placeholders(matchDraftIds.length)})`,
     args: matchDraftIds,
   });
   const draftNames = new Map<string, string>();

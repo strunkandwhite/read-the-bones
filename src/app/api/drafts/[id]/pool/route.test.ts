@@ -4,6 +4,9 @@ import { NextRequest } from "next/server";
 import * as queries from "@/core/db/queries";
 
 vi.mock("@/core/db/queries");
+vi.mock("@/core/db/client", () => ({
+  getClient: vi.fn().mockResolvedValue({}),
+}));
 
 function makeRequest(id: string, params: Record<string, string> = {}) {
   const url = new URL(`http://localhost:3000/api/drafts/${id}/pool`);
@@ -33,7 +36,7 @@ describe("GET /api/drafts/[id]/pool", () => {
       { params: Promise.resolve({ id: "tarkir" }) },
     );
     expect(res.status).toBe(200);
-    expect(queries.getDraftPool).toHaveBeenCalledWith({
+    expect(queries.getDraftPool).toHaveBeenCalledWith(expect.anything(), {
       draft_id: "tarkir",
       include_draft_results: true,
       include_card_details: false,

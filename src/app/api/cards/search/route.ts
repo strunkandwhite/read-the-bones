@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as queries from "@/core/db/queries";
+import { getClient } from "@/core/db/client";
 import { searchLocalCards } from "@/core/localSearch";
 import { transformScryfallJson } from "@/core/db/queries/helpers";
 import type { ScryCard } from "@/core/types";
@@ -38,7 +39,8 @@ export const GET = withApiErrors(
     }
 
     // Fetch cards from DB
-    const dbCards = await queries.getSearchableCards({
+    const client = await getClient();
+    const dbCards = await queries.getSearchableCards(client, {
       ...(draftId ? { draftId } : {}),
       ...(availableOnly ? { availableOnly, beforePickN } : {}),
     });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as queries from "@/core/db/queries";
+import { getClient } from "@/core/db/client";
 import { requiredIntParam } from "@/app/api/_utils";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
@@ -23,7 +24,8 @@ export const GET = withApiErrors(
         { status: 400 },
       );
     }
-    const result = await queries.getAvailableCards({
+    const client = await getClient();
+    const result = await queries.getAvailableCards(client, {
       draft_id: id,
       before_pick_n: beforePickN,
       color: searchParams.get("color") ?? undefined,

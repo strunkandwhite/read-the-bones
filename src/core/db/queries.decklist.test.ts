@@ -4,6 +4,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import type { Client } from "@libsql/client";
 
 vi.mock("./client", () => ({
   getClient: vi.fn(),
@@ -14,6 +15,7 @@ import { getDeck, getCardPlayStats, getCardWinStats } from "./queries";
 
 const mockExecute = vi.fn();
 const mockGetClient = vi.mocked(getClient);
+const mockClient = { execute: mockExecute } as unknown as Client;
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -75,7 +77,7 @@ describe("getCardPlayStats", () => {
     // Mock opt-outs (none)
     mockExecute.mockResolvedValueOnce({ rows: [] });
 
-    const result = await getCardPlayStats({ card_name: "Lightning Bolt" });
+    const result = await getCardPlayStats(mockClient, { card_name: "Lightning Bolt" });
 
     expect(result).toEqual({
       card_name: "Lightning Bolt",
@@ -92,7 +94,7 @@ describe("getCardPlayStats", () => {
       mockExecute.mockResolvedValueOnce({ rows: [] });
     }
 
-    const result = await getCardPlayStats({ card_name: "Nonexistent" });
+    const result = await getCardPlayStats(mockClient, { card_name: "Nonexistent" });
 
     expect(result).toBeNull();
   });
@@ -115,7 +117,7 @@ describe("getCardPlayStats", () => {
       rows: [{ draft_id: "tarkir", seat: 2 }],
     });
 
-    const result = await getCardPlayStats({ card_name: "Lightning Bolt" });
+    const result = await getCardPlayStats(mockClient, { card_name: "Lightning Bolt" });
 
     // Seat 2 excluded: only seat 1 (deck) and seat 3 (sideboard) count
     expect(result!.times_drafted).toBe(2);
@@ -135,7 +137,7 @@ describe("getCardPlayStats", () => {
     // Mock opt-outs (none)
     mockExecute.mockResolvedValueOnce({ rows: [] });
 
-    const result = await getCardPlayStats({ card_name: "Lightning Bolt" });
+    const result = await getCardPlayStats(mockClient, { card_name: "Lightning Bolt" });
 
     expect(result!.play_rate).toBe(0);
     expect(result!.times_maindecked).toBe(0);
@@ -150,7 +152,7 @@ describe("getCardWinStats", () => {
       mockExecute.mockResolvedValueOnce({ rows: [] });
     }
 
-    const result = await getCardWinStats({ card_name: "Nonexistent" });
+    const result = await getCardWinStats(mockClient, { card_name: "Nonexistent" });
 
     expect(result).toBeNull();
   });
@@ -171,7 +173,7 @@ describe("getCardWinStats", () => {
     // Mock opt-outs (none)
     mockExecute.mockResolvedValueOnce({ rows: [] });
 
-    const result = await getCardWinStats({ card_name: "Lightning Bolt" });
+    const result = await getCardWinStats(mockClient, { card_name: "Lightning Bolt" });
 
     expect(result).toEqual({
       card_name: "Lightning Bolt",
@@ -200,7 +202,7 @@ describe("getCardWinStats", () => {
       rows: [{ draft_id: "tarkir", seat: 1 }],
     });
 
-    const result = await getCardWinStats({ card_name: "Lightning Bolt" });
+    const result = await getCardWinStats(mockClient, { card_name: "Lightning Bolt" });
 
     expect(result!.times_maindecked).toBe(1);
     expect(result!.game_wins).toBe(3);
@@ -215,7 +217,7 @@ describe("getCardWinStats", () => {
     // Mock main query: no rows (card never maindecked or no matches)
     mockExecute.mockResolvedValueOnce({ rows: [] });
 
-    const result = await getCardWinStats({ card_name: "Lightning Bolt" });
+    const result = await getCardWinStats(mockClient, { card_name: "Lightning Bolt" });
 
     expect(result).toEqual({
       card_name: "Lightning Bolt",

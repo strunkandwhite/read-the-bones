@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as queries from "@/core/db/queries";
+import { getClient } from "@/core/db/client";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 export const GET = withApiErrors(
@@ -9,6 +10,7 @@ export const GET = withApiErrors(
     if (!cardName) {
       return NextResponse.json({ error: "card_name is required" }, { status: 400 });
     }
+    const client = await getClient();
     const result = await queries.getCardStats({
       card_name: cardName,
       draft_id: searchParams.get("draft_id") ?? undefined,
@@ -19,7 +21,7 @@ export const GET = withApiErrors(
       deck_colors: searchParams.get("deck_colors") ?? undefined,
     });
     if (!result) {
-      const fuzzy = await queries.resolveCardFuzzy(cardName);
+      const fuzzy = await queries.resolveCardFuzzy(client, cardName);
       if (fuzzy.candidates) {
         return NextResponse.json(
           { error: `Card not found: ${cardName}`, candidates: fuzzy.candidates },

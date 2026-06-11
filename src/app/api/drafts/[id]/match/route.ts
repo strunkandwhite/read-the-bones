@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
 import { reportMatchResult } from "@/core/db/queries/matches";
+import { getDraftMeta } from "@/core/db/queries/drafts";
 import { validateMatchResult } from "@/core/match-validation";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
@@ -33,16 +34,15 @@ export const POST = withApiErrors(
       return NextResponse.json({ error: "Cannot report a match against yourself" }, { status: 400 });
     }
 
-    const draft = await client.execute({ sql: "SELECT phase, num_seats FROM drafts WHERE draft_id = ?", args: [draftId] });
-    if (draft.rows.length === 0) {
+    const meta = await getDraftMeta(client, draftId);
+    if (!meta) {
       return NextResponse.json({ error: "Draft not found" }, { status: 404 });
     }
-    const phase = draft.rows[0].phase as string;
-    const numSeats = draft.rows[0].num_seats as number | null;
+    const { phase, numSeats } = meta;
     if (phase !== "playing" && phase !== "complete") {
       return NextResponse.json({ error: `Cannot report matches in '${phase}' phase` }, { status: 400 });
     }
-    if (numSeats !== null && opponent_seat > numSeats) {
+    if (opponent_seat > numSeats) {
       return NextResponse.json({ error: `opponent_seat must be <= ${numSeats}` }, { status: 400 });
     }
 

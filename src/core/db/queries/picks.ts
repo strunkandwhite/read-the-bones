@@ -3,7 +3,6 @@
  */
 
 import type { Client } from "@libsql/client";
-import { getClient } from "../client";
 import { getOptedOutSeats, parseScryfallJson, matchesColorFilter, parseBannedCards, transformScryfallJson } from "./helpers";
 import { aggregateMatchRecords, computeTiebreakers } from "./matches";
 import { getFrontFace } from "../../cardNames";
@@ -33,9 +32,8 @@ export interface PicksResult {
  * Returns picks sorted by pick number ascending.
  * Redacts seat information for players who have opted out.
  */
-export async function getPicks(params: GetPicksParams): Promise<PicksResult> {
-  const client = await getClient();
-  const optedOutSeats = params.optedOutSeats ?? await getOptedOutSeats(params.draft_id);
+export async function getPicks(client: Client, params: GetPicksParams): Promise<PicksResult> {
+  const optedOutSeats = params.optedOutSeats ?? await getOptedOutSeats(client, params.draft_id);
 
   // If requesting a specific opted-out seat, return empty with redaction notice
   if (params.seat !== undefined && optedOutSeats.has(params.seat)) {
@@ -134,9 +132,9 @@ export interface AvailableCardsResult {
  * @param type_contains - Filter by type line substring (case-insensitive)
  */
 export async function getAvailableCards(
+  client: Client,
   params: GetAvailableCardsParams
 ): Promise<AvailableCardsResult> {
-  const client = await getClient();
 
   // Get the cube_snapshot_id for this draft
   const draftResult = await client.execute({
@@ -267,9 +265,8 @@ export interface StandingsResult {
  * Computes wins/losses from match_events table.
  * Redacts seat numbers for players who have opted out.
  */
-export async function getStandings(draftId: string, numSeats?: number, optedOutSeats?: Set<number>): Promise<StandingsResult> {
-  const client = await getClient();
-  const resolvedOptedOutSeats = optedOutSeats ?? await getOptedOutSeats(draftId);
+export async function getStandings(client: Client, draftId: string, numSeats?: number, optedOutSeats?: Set<number>): Promise<StandingsResult> {
+  const resolvedOptedOutSeats = optedOutSeats ?? await getOptedOutSeats(client, draftId);
 
   // Get all match events for this draft
   const result = await client.execute({

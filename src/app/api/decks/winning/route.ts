@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import * as queries from "@/core/db/queries";
+import { getClient } from "@/core/db/client";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 const VALID_COLOR_PAIR = /^[WUBRG]{1,2}$|^C$/;
@@ -35,7 +36,8 @@ export const GET = withApiErrors(
       ? draftIdsParam.split(",").map((s) => s.trim()).filter(Boolean)
       : undefined;
 
-    const result = await queries.getWinningDecksByColor({
+    const client = await getClient();
+    const result = await queries.getWinningDecksByColor(client, {
       color_pair: normalized,
       draft_ids,
     });

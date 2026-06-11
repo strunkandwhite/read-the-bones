@@ -28,7 +28,7 @@ export interface DeckResult {
  */
 export async function getDeck(params: GetDeckParams): Promise<DeckResult> {
   const client = await getClient();
-  const optedOutSeats = params.optedOutSeats ?? await getOptedOutSeats(params.draft_id);
+  const optedOutSeats = params.optedOutSeats ?? await getOptedOutSeats(client, params.draft_id);
 
   if (optedOutSeats.has(params.seat)) {
     return {

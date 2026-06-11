@@ -4,7 +4,7 @@
  * global, draft-scoped, and available-only.
  */
 
-import { getClient } from "../client";
+import type { Client } from "@libsql/client";
 import { parseBannedCards } from "./helpers";
 
 export type SearchableCard = {
@@ -30,9 +30,9 @@ type GetSearchableCardsParams = {
  * Returns null if draftId is provided but not found.
  */
 export async function getSearchableCards(
+  client: Client,
   params: GetSearchableCardsParams,
 ): Promise<SearchableCard[] | null> {
-  const client = await getClient();
 
   // Path 1: Global search — all cards
   if (!params.draftId) {
