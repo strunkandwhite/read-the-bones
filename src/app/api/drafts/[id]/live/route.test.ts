@@ -17,8 +17,10 @@ vi.mock("@/core/db/queries/picks", () => ({
 }));
 
 const mockGetSeatDisplayNames = vi.fn();
+const mockResolveToken = vi.fn();
 vi.mock("@/core/db/queries/seatTokens", () => ({
   getSeatDisplayNames: (...args: unknown[]) => mockGetSeatDisplayNames(...args),
+  resolveToken: (...args: unknown[]) => mockResolveToken(...args),
 }));
 
 const mockGetMatchCount = vi.fn();
@@ -35,12 +37,35 @@ vi.mock("@/core/db/queries/helpers", async (importOriginal) => {
   };
 });
 
-function makeRequest(url: string) {
-  return new NextRequest(new URL(url, "http://localhost:3000"));
+const mockGetQueue = vi.fn();
+vi.mock("@/core/db/queries/pickQueue", () => ({
+  getQueue: (...args: unknown[]) => mockGetQueue(...args),
+}));
+
+const mockGetFloatedCards = vi.fn();
+vi.mock("@/core/db/queries/floatedCards", () => ({
+  getFloatedCards: (...args: unknown[]) => mockGetFloatedCards(...args),
+}));
+
+function makeRequest(url: string, headers?: Record<string, string>) {
+  return new NextRequest(new URL(url, "http://localhost:3000"), { headers });
 }
 
 /** Default sig returned by getLiveStateSig when nothing is "cached" by the client */
 const DEFAULT_SIG = { latestPickN: 3, sig: "drafting|0|Alice" };
+
+/** Minimal draft meta mock for getDraftMeta (mockExecute-based) */
+function mockDraftMeta(overrides: Record<string, unknown> = {}) {
+  mockExecute.mockResolvedValueOnce({
+    rows: [{
+      phase: "drafting",
+      num_seats: 10,
+      picks_per_player: 5,
+      banned_cards: null,
+      ...overrides,
+    }],
+  });
+}
 
 describe("GET /api/drafts/[id]/live", () => {
   beforeEach(() => {
@@ -48,6 +73,8 @@ describe("GET /api/drafts/[id]/live", () => {
     // Default: no opted-out seats, default sig (no short-circuit unless client echoes it)
     mockGetOptedOutSeats.mockResolvedValue(new Set<number>());
     mockGetLiveStateSig.mockResolvedValue(DEFAULT_SIG);
+    // Default: no token resolution (unauthenticated)
+    mockResolveToken.mockResolvedValue(null);
   });
 
   it("returns merged status + board data", async () => {
@@ -415,5 +442,152 @@ describe("GET /api/drafts/[id]/live", () => {
     expect(body.latestPickN).toBe(5);
     // Full payload includes liveSig for client to cache
     expect(body.liveSig).toBe("drafting|0|");
+  });
+
+  // -------------------------------------------------------------------------
+  // Per-seat `me` data (Task 24)
+  // -------------------------------------------------------------------------
+
+  it("includes me field with queue and floatedCards for valid token request", async () => {
+    mockResolveToken.mockResolvedValueOnce({
+      draftId: "test",
+      seat: 3,
+      autoPick: true,
+      displayName: "Alice",
+    });
+    mockGetLiveStateSig.mockResolvedValueOnce({ latestPickN: 5, sig: "drafting|0|Alice~45:2" });
+    mockDraftMeta();
+    mockGetRecentPicks.mockResolvedValueOnce([]);
+    mockGetSeatDisplayNames.mockResolvedValueOnce({ "3": "Alice" });
+    mockGetMatchCount.mockResolvedValueOnce(0);
+    mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
+    mockGetQueue.mockResolvedValueOnce([
+      { mode: "pause", cards: [{ id: 10, name: "Counterspell" }] },
+    ]);
+    mockGetFloatedCards.mockResolvedValueOnce(["Lightning Bolt"]);
+
+    const res = await GET(
+      makeRequest("http://localhost:3000/api/drafts/test/live", { "X-Seat-Token": "valid-token" }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.me).toBeDefined();
+    expect(body.me.seat).toBe(3);
+    expect(body.me.autoPick).toBe(true);
+    expect(body.me.displayName).toBe("Alice");
+    expect(body.me.queue).toHaveLength(1);
+    expect(body.me.queue[0].cards[0].name).toBe("Counterspell");
+    expect(body.me.floatedCards).toEqual(["Lightning Bolt"]);
+    // getLiveStateSig was called with the authenticated seat
+    expect(mockGetLiveStateSig).toHaveBeenCalledWith(expect.anything(), "test", 3);
+  });
+
+  it("does not include me field when no token provided (unauthenticated)", async () => {
+    // mockResolveToken returns null by default (set in beforeEach)
+    mockGetLiveStateSig.mockResolvedValueOnce({ latestPickN: 0, sig: "drafting|0|" });
+    mockDraftMeta();
+    mockGetRecentPicks.mockResolvedValueOnce([]);
+    mockGetSeatDisplayNames.mockResolvedValueOnce({});
+    mockGetMatchCount.mockResolvedValueOnce(0);
+    mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
+
+    const res = await GET(
+      makeRequest("http://localhost:3000/api/drafts/test/live"),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.me).toBeUndefined();
+    // getLiveStateSig called without seat (no per-seat marker)
+    expect(mockGetLiveStateSig).toHaveBeenCalledWith(expect.anything(), "test", undefined);
+    // /queue and /float were NOT fetched
+    expect(mockGetQueue).not.toHaveBeenCalled();
+    expect(mockGetFloatedCards).not.toHaveBeenCalled();
+  });
+
+  it("does not include me field for invalid token (no 401 — route stays public)", async () => {
+    mockResolveToken.mockResolvedValueOnce(null); // token invalid
+    mockGetLiveStateSig.mockResolvedValueOnce({ latestPickN: 0, sig: "drafting|0|" });
+    mockDraftMeta();
+    mockGetRecentPicks.mockResolvedValueOnce([]);
+    mockGetSeatDisplayNames.mockResolvedValueOnce({});
+    mockGetMatchCount.mockResolvedValueOnce(0);
+    mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
+
+    const res = await GET(
+      makeRequest("http://localhost:3000/api/drafts/test/live", { "X-Seat-Token": "bad-token" }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+    const body = await res.json();
+
+    // Must be 200, not 401 — the route is public
+    expect(res.status).toBe(200);
+    expect(body.me).toBeUndefined();
+    expect(mockGetQueue).not.toHaveBeenCalled();
+  });
+
+  it("does not include me field when token is for a different draft", async () => {
+    mockResolveToken.mockResolvedValueOnce({
+      draftId: "other-draft", // different draft
+      seat: 1,
+      autoPick: true,
+      displayName: null,
+    });
+    mockGetLiveStateSig.mockResolvedValueOnce({ latestPickN: 0, sig: "drafting|0|" });
+    mockDraftMeta();
+    mockGetRecentPicks.mockResolvedValueOnce([]);
+    mockGetSeatDisplayNames.mockResolvedValueOnce({});
+    mockGetMatchCount.mockResolvedValueOnce(0);
+    mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
+
+    const res = await GET(
+      makeRequest("http://localhost:3000/api/drafts/test/live", { "X-Seat-Token": "cross-draft-token" }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.me).toBeUndefined();
+    expect(mockGetQueue).not.toHaveBeenCalled();
+  });
+
+  it("per-seat sig breaks short-circuit when cross-device queue change detected", async () => {
+    // Client sends sig that was computed without the per-seat marker;
+    // server now has a per-seat marker appended (queue/float changed on another device)
+    const clientSig = "drafting|0|Alice"; // old sig without per-seat marker
+    const serverSig = "drafting|0|Alice~90:3"; // new sig with per-seat marker
+
+    mockResolveToken.mockResolvedValueOnce({
+      draftId: "test", seat: 2, autoPick: false, displayName: "Alice",
+    });
+    mockGetLiveStateSig.mockResolvedValueOnce({ latestPickN: 5, sig: serverSig });
+    mockDraftMeta();
+    mockGetRecentPicks.mockResolvedValueOnce([]);
+    mockGetSeatDisplayNames.mockResolvedValueOnce({ "2": "Alice" });
+    mockGetMatchCount.mockResolvedValueOnce(0);
+    mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
+    mockGetQueue.mockResolvedValueOnce([]);
+    mockGetFloatedCards.mockResolvedValueOnce(["Sol Ring", "Mox Pearl", "Black Lotus"]);
+
+    // Client echoes the old sig (without per-seat marker) — must NOT short-circuit
+    const res = await GET(
+      makeRequest(
+        `http://localhost:3000/api/drafts/test/live?since=5&sig=${encodeURIComponent(clientSig)}`,
+        { "X-Seat-Token": "seat-token" },
+      ),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+    const body = await res.json();
+
+    // Must return full payload, not {unchanged: true}
+    expect(res.status).toBe(200);
+    expect(body.unchanged).toBeUndefined();
+    expect(body.me).toBeDefined();
+    expect(body.me.floatedCards).toHaveLength(3);
+    // liveSig in response is the new server sig (includes per-seat marker)
+    expect(body.liveSig).toBe(serverSig);
   });
 });

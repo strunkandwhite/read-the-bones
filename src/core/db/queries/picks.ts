@@ -479,15 +479,17 @@ export async function getPicksWithCardDetails(
  * string that the client echoes back on subsequent polls. If everything is
  * identical on the next poll, the route can skip the heavy board queries.
  *
- * NOTE: This function is intentionally kept minimal (two fast queries: picks
- * MAX + a single-row draft join + seat_tokens scan). Task 24 will fold per-seat
- * token data (queue/floatedCards) into /live for authenticated callers — at that
- * point the signature may need to incorporate per-seat state or be split into a
- * public sig (this one) and a per-seat sig; plan accordingly.
+ * When `seat` is provided (authenticated callers), a per-seat freshness marker
+ * `~<queueLen>:<floatCount>` is appended to the sig. This ensures that queue or
+ * float changes made on another device for the same seat break the short-circuit
+ * within one polling interval. The queue length proxy detects add/remove (the
+ * common cross-device case); reorder-only changes are an acceptable exception
+ * given their negligible frequency and impact.
  */
 export async function getLiveStateSig(
   client: Client,
   draftId: string,
+  seat?: number,
 ): Promise<{ latestPickN: number; sig: string }> {
   // Fetch latest pick number
   const pickResult = await client.execute({
@@ -513,6 +515,25 @@ export async function getLiveStateSig(
   // Compose sig: pipe-delimited so it's unambiguous to compare as a string.
   // A rename changes seatNamesCsv; a phase change changes phase; a new match
   // changes matchCount; a new pick changes latestPickN (checked separately).
-  const sig = `${phase}|${matchCount}|${seatNamesCsv}`;
+  let sig = `${phase}|${matchCount}|${seatNamesCsv}`;
+
+  // When a seat is authenticated, append a per-seat freshness marker so that
+  // queue/float changes made on another device (same seat) break the short-circuit.
+  // Uses LENGTH(queue_json) as a cheap proxy for queue content (add/remove always
+  // changes length) plus the exact floated_cards count.
+  if (seat !== undefined) {
+    const seatResult = await client.execute({
+      sql: `SELECT LENGTH(COALESCE(queue_json, '')) AS queue_len,
+                   (SELECT COUNT(*) FROM floated_cards WHERE draft_id = ? AND seat = ?) AS float_count
+            FROM seat_tokens WHERE draft_id = ? AND seat = ?`,
+      args: [draftId, seat, draftId, seat],
+    });
+    if (seatResult.rows.length > 0) {
+      const queueLen = (seatResult.rows[0].queue_len as number | null) ?? 0;
+      const floatCount = (seatResult.rows[0].float_count as number | null) ?? 0;
+      sig = `${sig}~${queueLen}:${floatCount}`;
+    }
+  }
+
   return { latestPickN, sig };
 }

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import { useDraftStore } from "./draftStore";
+import { useDraftStore, registerSeatTokenProvider, registerApplyMeData } from "./draftStore";
+import type { LiveMeData } from "./draftStore";
 import { useCardStore } from "./cardStore";
 import { getMyDeckCardNames } from "./selectors";
 import {
@@ -877,27 +878,88 @@ useDraftStore.subscribe(
   },
 );
 
-// Refetch queue and floated cards on every poll cycle so changes on one device
-// propagate to other devices within one polling interval (~10s).
-useDraftStore.subscribe(
-  (state) => state.pollCount,
-  (pollCount) => {
-    if (pollCount > 0) {
-      useLiveStore.getState().fetchQueue();
-      useLiveStore.getState().fetchFloatedCards();
-    }
-  },
-);
+// ---------------------------------------------------------------------------
+// Poll-integrated per-seat data (Task 24)
+// ---------------------------------------------------------------------------
+// When /live returns `me` data (authenticated callers with a valid seat token),
+// apply it to the live store here — eliminating separate /queue, /float, and /me
+// poll requests. The server-side sig includes a per-seat freshness marker so
+// cross-device queue/float changes break the short-circuit and deliver fresh data.
+//
+// The standalone /queue and /float endpoints remain for mutations (they return the
+// authoritative server state after writes). The subscriptions below that called
+// fetchQueue/fetchFloatedCards on every pollCount and refreshSettings on every pick
+// are replaced by this single callback path.
 
-// Refetch seat settings when a new pick arrives (auto-pick mode may change)
-useDraftStore.subscribe(
-  (state) => state.liveDraftStatus?.latestPickN,
-  (latestPickN, prevLatestPickN) => {
-    if (latestPickN != null && prevLatestPickN != null && latestPickN !== prevLatestPickN) {
-      useLiveStore.getState().refreshSettings();
+function applyMeFromPoll(me: LiveMeData): void {
+  const set = useLiveStore.setState;
+  const get = useLiveStore.getState;
+
+  // Guard against stale responses: if mySeat is already resolved and differs from
+  // the incoming seat, this response is from a different draft/token context — skip.
+  // When mySeat is null (first poll after draft switch), accept the response and
+  // use it to resolve mySeat, superseding the fetchMySeat() async call.
+  const { mySeat } = get();
+  if (mySeat !== null && me.seat !== mySeat) return;
+
+  // Resolve mySeat from the first authenticated /live response if not yet set.
+  if (mySeat === null) {
+    set({ mySeat: me.seat });
+    // recomputePicking is called below after applying all me fields
+  }
+
+  // autoPick — apply unconditionally (simple scalar)
+  if (me.autoPick !== null && me.autoPick !== undefined) {
+    const prev = get().autoPick;
+    if (me.autoPick !== prev) {
+      set({ autoPick: me.autoPick });
     }
-  },
-);
+  }
+
+  // displayName — apply unconditionally (simple scalar)
+  if (me.displayName !== undefined) {
+    const prev = get().displayName;
+    if (me.displayName !== prev) {
+      set({ displayName: me.displayName });
+    }
+  }
+
+  // queue — deep-compare before updating (Task 23 reference-stability)
+  if (me.queue !== null && me.queue !== undefined) {
+    const incoming: QueueGroupEntry[] = (me.queue as Array<{ mode: 'pause' | 'flow-through'; cards: Array<{ id?: number; cardId?: number; name?: string; cardName?: string }> }>).map((e) => ({
+      mode: e.mode,
+      cards: e.cards.map((c) => ({ cardId: c.id ?? c.cardId ?? 0, cardName: c.name ?? c.cardName ?? "" })),
+    }));
+    const prevQueue = get().queue;
+    if (JSON.stringify(incoming) !== JSON.stringify(prevQueue)) {
+      set({
+        queue: incoming,
+        queuedCardCounts: deriveQueuedCardCounts(incoming),
+      });
+    }
+  }
+
+  // floatedCards — deep-compare before updating
+  if (me.floatedCards !== null && me.floatedCards !== undefined) {
+    const incoming = me.floatedCards;
+    const prev = get().floatedCards;
+    const changed = incoming.length !== prev.length || incoming.some((c, i) => c !== prev[i]);
+    if (changed) {
+      set({ floatedCards: incoming, floatedCardsSet: new Set(incoming) });
+    }
+  }
+
+  // Recompute auto-pick eligibility after all fields are applied.
+  recomputePicking();
+}
+
+// Register providers with draftStore — avoids circular imports.
+// These run at module load time (after both stores are initialized).
+registerSeatTokenProvider(() => useLiveStore.getState().seatToken);
+registerApplyMeData(applyMeFromPoll);
+
+/** Exported for tests only — do not use in production code. */
+export const _applyMeDataForTest = applyMeFromPoll;
 
 // Recompute picking state when nextSeat changes
 useDraftStore.subscribe(

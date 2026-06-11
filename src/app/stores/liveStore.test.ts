@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { useLiveStore, recomputePicking, _resetDeckState } from "./liveStore";
+import { useLiveStore, recomputePicking, _resetDeckState, _applyMeDataForTest } from "./liveStore";
 import { useDraftStore, _resetPollingState } from "./draftStore";
 import { _resetSearchState } from "./cardStore";
 import { createEmptyDeckState } from "@/core/deckBuilder";
@@ -1971,9 +1971,9 @@ describe("liveStore — draft-switch auth reset", () => {
 });
 
 // ---------------------------------------------------------------------------
-// pollCount triggers queue/float refresh
+// Poll cycle = 1 request (Task 24: queue/float folded into /live)
 // ---------------------------------------------------------------------------
-describe("liveStore — pollCount subscription", () => {
+describe("liveStore — per-seat data from /live poll (Task 24)", () => {
   beforeEach(() => {
     localStorage.clear();
     resetStores();
@@ -1983,40 +1983,90 @@ describe("liveStore — pollCount subscription", () => {
     vi.restoreAllMocks();
   });
 
-  it("calls fetchQueue and fetchFloatedCards when pollCount increments", async () => {
+  it("does NOT call separate /queue or /float endpoints when pollCount increments", async () => {
     useDraftStore.setState({ activeDraft: "draft-1" });
-    useLiveStore.setState({ seatToken: "tok-abc" });
+    useLiveStore.setState({ seatToken: "tok-abc", mySeat: 2 });
 
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(JSON.stringify({ queue: [] }), { status: 200 }),
     );
 
-    // Increment pollCount (simulating a poll cycle)
+    // Increment pollCount (simulating a poll cycle completing)
     useDraftStore.setState({ pollCount: 1 });
 
     // Let subscriptions fire
     await new Promise((r) => setTimeout(r, 0));
 
-    // fetchQueue and fetchFloatedCards should have been called
+    // The old separate /queue and /float requests must NOT be made — they are
+    // now replaced by the `me` field in the /live response.
     const urls = fetchSpy.mock.calls.map((call) => call[0]);
-    expect(urls).toContain("/api/drafts/draft-1/queue");
-    expect(urls).toContain("/api/drafts/draft-1/float");
+    expect(urls).not.toContain("/api/drafts/draft-1/queue");
+    expect(urls).not.toContain("/api/drafts/draft-1/float");
   });
 
-  it("does not call fetchQueue when pollCount is 0", async () => {
-    useDraftStore.setState({ activeDraft: "draft-1" });
-    useLiveStore.setState({ seatToken: "tok-abc" });
+  it("applies queue from me field in /live response without separate fetch", () => {
+    useLiveStore.setState({ mySeat: 3 });
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ queue: [] }), { status: 200 }),
-    );
+    const incomingQueue = [{ mode: "pause", cards: [{ id: 42, name: "Lightning Bolt" }] }];
+    _applyMeDataForTest({
+      seat: 3,
+      autoPick: true,
+      displayName: "Alice",
+      queue: incomingQueue,
+      floatedCards: ["Counterspell"],
+    });
 
-    // Set pollCount to 0 (no poll yet)
-    useDraftStore.setState({ pollCount: 0 });
+    const state = useLiveStore.getState();
+    expect(state.queue).toHaveLength(1);
+    expect(state.queue[0].cards[0].cardName).toBe("Lightning Bolt");
+    expect(state.floatedCards).toEqual(["Counterspell"]);
+    expect(state.autoPick).toBe(true);
+    expect(state.displayName).toBe("Alice");
+  });
 
-    await new Promise((r) => setTimeout(r, 0));
+  it("deep-compare keeps queue reference stable when content is unchanged", () => {
+    const originalQueue = [{ mode: "pause" as const, cards: [{ cardId: 1, cardName: "Bolt" }] }];
+    useLiveStore.setState({ mySeat: 1, queue: originalQueue, queuedCardCounts: new Map([["Bolt", 1]]) });
 
-    expect(fetchSpy).not.toHaveBeenCalled();
+    _applyMeDataForTest({
+      seat: 1,
+      autoPick: false,
+      displayName: null,
+      queue: [{ mode: "pause", cards: [{ id: 1, name: "Bolt" }] }],
+      floatedCards: [],
+    });
+
+    // Reference must be stable when content is identical
+    expect(useLiveStore.getState().queue).toBe(originalQueue);
+  });
+
+  it("resolves mySeat from first poll me response when mySeat is null", () => {
+    useLiveStore.setState({ mySeat: null });
+
+    _applyMeDataForTest({
+      seat: 5,
+      autoPick: true,
+      displayName: "Bob",
+      queue: [],
+      floatedCards: [],
+    });
+
+    expect(useLiveStore.getState().mySeat).toBe(5);
+  });
+
+  it("skips applying me when seat does not match resolved mySeat", () => {
+    useLiveStore.setState({ mySeat: 2, queue: [] });
+
+    _applyMeDataForTest({
+      seat: 7, // wrong seat
+      autoPick: true,
+      displayName: null,
+      queue: [{ mode: "pause", cards: [{ id: 99, name: "Force of Will" }] }],
+      floatedCards: [],
+    });
+
+    // Queue must not be updated when seat doesn't match
+    expect(useLiveStore.getState().queue).toHaveLength(0);
   });
 });
 

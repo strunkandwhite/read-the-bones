@@ -124,10 +124,44 @@ let appliedGeneration = -1;
 // Last acknowledged /live state signature, echoed back to the server as ?since=&sig=
 // for the change short-circuit. null means "no previous successful response" (first
 // poll or draft switch) — ensures the first poll always fetches the full payload.
-// NOTE: Task 24 will add per-seat data (queue/floatedCards) to /live for token callers;
-// if that per-seat data changes between polls, the sig alone won't catch it — at that
-// point this tracking will need a companion per-seat sig or be bypassed for authed polls.
+// When a seat token is present, the server includes a per-seat freshness marker
+// (~queueLen:floatCount) in the sig so cross-device queue/float changes also break it.
 let lastLiveSig: { pickN: number; sig: string } | null = null;
+
+// Provider callback registered by liveStore to supply the current seat token
+// without creating a circular import (draftStore → liveStore → draftStore).
+// Initialized to null; liveStore registers it at module load time.
+let getSeatToken: (() => string | null) | null = null;
+
+/**
+ * Register a callback that returns the currently active seat token.
+ * Called once by liveStore at initialization so poll fetches can attach the
+ * token as X-Seat-Token, enabling the /live route to include per-seat data.
+ */
+export function registerSeatTokenProvider(provider: () => string | null): void {
+  getSeatToken = provider;
+}
+
+// Per-seat data shape included in /live responses for authenticated callers.
+export interface LiveMeData {
+  seat: number;
+  autoPick: boolean | null;
+  displayName: string | null;
+  queue: unknown[] | null;
+  floatedCards: string[] | null;
+}
+
+// Callback registered by liveStore to apply per-seat `me` data from poll responses
+// without creating a circular import.
+let applyMeDataCallback: ((me: LiveMeData) => void) | null = null;
+
+/**
+ * Register a callback that applies the per-seat `me` payload from /live.
+ * Called once by liveStore at initialization.
+ */
+export function registerApplyMeData(callback: (me: LiveMeData) => void): void {
+  applyMeDataCallback = callback;
+}
 
 /** Reset module-scoped polling state (for tests). */
 export function _resetPollingState() {
@@ -172,8 +206,14 @@ async function fetchPollData(draftId: string, generation: number) {
     liveUrl += `?since=${lastLiveSig.pickN}&sig=${encodeURIComponent(lastLiveSig.sig)}`;
   }
 
+  // Attach seat token when available so /live can return per-seat data (queue,
+  // floatedCards, autoPick, displayName), eliminating separate poll requests.
+  const seatToken = getSeatToken?.() ?? null;
+  const liveHeaders: Record<string, string> = {};
+  if (seatToken) liveHeaders["X-Seat-Token"] = seatToken;
+
   const fetches: [Promise<Response>, Promise<Response> | null] = [
-    fetch(liveUrl),
+    fetch(liveUrl, seatToken ? { headers: liveHeaders } : undefined),
     shouldFetchSync ? fetch("/api/sync-status") : null,
   ];
 
@@ -288,6 +328,12 @@ function applyPollResults(
 
     if (pickBump) {
       useDraftStore.setState({ pickVersion: state.pickVersion + 1 });
+    }
+
+    // If the route returned per-seat `me` data (authenticated caller), delegate
+    // to liveStore via the registered callback — avoids a circular import.
+    if (liveData.me !== undefined && applyMeDataCallback) {
+      applyMeDataCallback(liveData.me as LiveMeData);
     }
   }
 
