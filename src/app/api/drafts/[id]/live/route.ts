@@ -5,6 +5,7 @@ import { getLatestPickNumber, getRecentPicks, getPicksWithCardDetails } from "@/
 import { getSeatDisplayNames } from "@/core/db/queries/seatTokens";
 import { getMatchCount } from "@/core/db/queries/matches";
 import { getDraftMeta } from "@/core/db/queries/drafts";
+import { getOptedOutSeats } from "@/core/db/queries/helpers";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 export const GET = withApiErrors(
@@ -24,12 +25,15 @@ export const GET = withApiErrors(
     // Use display names (original casing) for the API response
     const bannedCards = meta.bannedCardsDisplay;
 
+    // Fetch opt-outs once and share across both pick queries to avoid duplicate DB hits.
+    const optedOutSeats = await getOptedOutSeats(client, draftId);
+
     const [latestPickN, recentPicks, seatNames, matchCount, picks] = await Promise.all([
       getLatestPickNumber(client, draftId),
-      getRecentPicks(client, draftId, 10),
+      getRecentPicks(client, draftId, 10, optedOutSeats),
       getSeatDisplayNames(client, draftId),
       getMatchCount(client, draftId),
-      getPicksWithCardDetails(client, draftId),
+      getPicksWithCardDetails(client, draftId, optedOutSeats),
     ]);
 
     const next = picksPerPlayer

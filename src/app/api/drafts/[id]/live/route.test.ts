@@ -26,12 +26,25 @@ vi.mock("@/core/db/queries/matches", () => ({
   getMatchCount: (...args: unknown[]) => mockGetMatchCount(...args),
 }));
 
+const mockGetOptedOutSeats = vi.fn();
+vi.mock("@/core/db/queries/helpers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/core/db/queries/helpers")>();
+  return {
+    ...actual,
+    getOptedOutSeats: (...args: unknown[]) => mockGetOptedOutSeats(...args),
+  };
+});
+
 function makeRequest(url: string) {
   return new NextRequest(new URL(url, "http://localhost:3000"));
 }
 
 describe("GET /api/drafts/[id]/live", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Default: no opted-out seats
+    mockGetOptedOutSeats.mockResolvedValue(new Set<number>());
+  });
 
   it("returns merged status + board data", async () => {
     mockExecute.mockResolvedValueOnce({
@@ -163,5 +176,96 @@ describe("GET /api/drafts/[id]/live", () => {
 
     expect(res.status).toBe(200);
     expect(body.nextSeat).toBeNull();
+  });
+
+  it("redacts card names for opted-out seats in picks and recentPicks", async () => {
+    mockExecute.mockResolvedValueOnce({
+      rows: [{
+        phase: "drafting",
+        num_seats: 4,
+        picks_per_player: 5,
+        banned_cards: null,
+      }],
+    });
+    // Seat 2 is opted out
+    mockGetOptedOutSeats.mockResolvedValueOnce(new Set([2]));
+    mockGetLatestPickNumber.mockResolvedValueOnce(3);
+    mockGetRecentPicks.mockResolvedValueOnce([
+      { pickN: 3, seat: 2, cardName: "[REDACTED]" },
+      { pickN: 2, seat: 1, cardName: "Lightning Bolt" },
+    ]);
+    mockGetSeatDisplayNames.mockResolvedValueOnce({ "1": "Alice", "2": "Bob" });
+    mockGetMatchCount.mockResolvedValueOnce(0);
+    mockGetPicksWithCardDetails.mockResolvedValueOnce([
+      {
+        pickN: 1,
+        seat: 1,
+        cardName: "Lightning Bolt",
+        oracleId: "abc-123",
+        colorIdentity: ["R"],
+        manaCost: "{R}",
+      },
+      {
+        pickN: 2,
+        seat: 2,
+        cardName: "[REDACTED]",
+        oracleId: "",
+        colorIdentity: [],
+        manaCost: "",
+      },
+    ]);
+
+    const res = await GET(
+      makeRequest("http://localhost:3000/api/drafts/test/live"),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    // The opted-out set is passed to pick functions
+    expect(mockGetOptedOutSeats).toHaveBeenCalledWith(expect.anything(), "test");
+    expect(mockGetRecentPicks).toHaveBeenCalledWith(
+      expect.anything(), "test", 10, new Set([2])
+    );
+    expect(mockGetPicksWithCardDetails).toHaveBeenCalledWith(
+      expect.anything(), "test", new Set([2])
+    );
+    // Opted-out seat's card is redacted
+    expect(body.recentPicks[0].cardName).toBe("[REDACTED]");
+    expect(body.recentPicks[0].seat).toBe(2);
+    // Non-opted-out seat is unaffected
+    expect(body.recentPicks[1].cardName).toBe("Lightning Bolt");
+    // Board picks: opted-out seat has redacted card name
+    expect(body.picks[1].cardName).toBe("[REDACTED]");
+    expect(body.picks[1].oracleId).toBe("");
+    expect(body.picks[0].cardName).toBe("Lightning Bolt");
+  });
+
+  it("passes the same opted-out set to both pick functions", async () => {
+    mockExecute.mockResolvedValueOnce({
+      rows: [{
+        phase: "drafting",
+        num_seats: 4,
+        picks_per_player: 5,
+        banned_cards: null,
+      }],
+    });
+    const optedOut = new Set([3]);
+    mockGetOptedOutSeats.mockResolvedValueOnce(optedOut);
+    mockGetLatestPickNumber.mockResolvedValueOnce(0);
+    mockGetRecentPicks.mockResolvedValueOnce([]);
+    mockGetSeatDisplayNames.mockResolvedValueOnce({});
+    mockGetMatchCount.mockResolvedValueOnce(0);
+    mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
+
+    await GET(
+      makeRequest("http://localhost:3000/api/drafts/test/live"),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    // getOptedOutSeats called exactly once (shared result)
+    expect(mockGetOptedOutSeats).toHaveBeenCalledTimes(1);
+    expect(mockGetRecentPicks).toHaveBeenCalledWith(expect.anything(), "test", 10, optedOut);
+    expect(mockGetPicksWithCardDetails).toHaveBeenCalledWith(expect.anything(), "test", optedOut);
   });
 });

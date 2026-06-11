@@ -381,12 +381,15 @@ export async function getLatestPickNumber(
 
 /**
  * Get the N most recent picks for a draft, newest first.
+ * Redacts card names for opted-out seats.
  */
 export async function getRecentPicks(
   client: Client,
   draftId: string,
   limit: number,
+  optedOutSeats?: Set<number>,
 ): Promise<Array<{ pickN: number; seat: number; cardName: string }>> {
+  const resolvedOptedOutSeats = optedOutSeats ?? await getOptedOutSeats(client, draftId);
   const result = await client.execute({
     sql: `SELECT pe.pick_n, pe.seat, c.name as card_name
           FROM pick_events pe
@@ -395,11 +398,14 @@ export async function getRecentPicks(
           ORDER BY pe.pick_n DESC LIMIT ?`,
     args: [draftId, limit],
   });
-  return result.rows.map((r) => ({
-    pickN: r.pick_n as number,
-    seat: r.seat as number,
-    cardName: r.card_name as string,
-  }));
+  return result.rows.map((r) => {
+    const seat = r.seat as number;
+    return {
+      pickN: r.pick_n as number,
+      seat,
+      cardName: resolvedOptedOutSeats.has(seat) ? "[REDACTED]" : (r.card_name as string),
+    };
+  });
 }
 
 export interface PickWithCardDetails {
@@ -414,11 +420,14 @@ export interface PickWithCardDetails {
 /**
  * Get all picks for a draft with Scryfall card details (color identity, mana cost).
  * Used by the draft board to render the pick matrix.
+ * Redacts card names for opted-out seats.
  */
 export async function getPicksWithCardDetails(
   client: Client,
   draftId: string,
+  optedOutSeats?: Set<number>,
 ): Promise<PickWithCardDetails[]> {
+  const resolvedOptedOutSeats = optedOutSeats ?? await getOptedOutSeats(client, draftId);
   const result = await client.execute({
     sql: `SELECT pe.pick_n, pe.seat, c.name, c.oracle_id, c.scryfall_json
           FROM pick_events pe
@@ -428,12 +437,14 @@ export async function getPicksWithCardDetails(
     args: [draftId],
   });
   return result.rows.map((r) => {
-    const sf = transformScryfallJson(r.scryfall_json as string | null, r.name as string);
+    const seat = r.seat as number;
+    const isRedacted = resolvedOptedOutSeats.has(seat);
+    const sf = isRedacted ? undefined : transformScryfallJson(r.scryfall_json as string | null, r.name as string);
     return {
       pickN: r.pick_n as number,
-      seat: r.seat as number,
-      cardName: r.name as string,
-      oracleId: r.oracle_id as string,
+      seat,
+      cardName: isRedacted ? "[REDACTED]" : (r.name as string),
+      oracleId: isRedacted ? "" : (r.oracle_id as string),
       colorIdentity: sf?.colorIdentity ?? [],
       manaCost: sf?.manaCost ?? "",
     };
