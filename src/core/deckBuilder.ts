@@ -27,7 +27,12 @@ const LEGACY_KEY_MAP: [string, ColumnKey][] = [
   ["cmc-6+", "mv-6+"],
 ];
 
-/** Migrate legacy cmc-* column keys to mv-* in a persisted DeckState.
+/** Migrate and normalize a persisted DeckState's zones to the canonical shape:
+ *  legacy cmc-* keys are renamed to mv-*, all canonical columns are present,
+ *  and cards stored under unrecognized column keys are relocated to "mv-0-1"
+ *  (the same fallback used when a card has no Scryfall data). Persisted states
+ *  predate the PUT validator's column check, so reads can't assume canonical
+ *  keys — and the deck reducer requires every canonical column to exist.
  *  Also strips the deprecated `speculativeCards` field from old snapshots. */
 export function migrateDeckState(state: DeckState & { speculativeCards?: unknown }): DeckState {
   // Strip deprecated speculativeCards from persisted data
@@ -40,23 +45,34 @@ export function migrateDeckState(state: DeckState & { speculativeCards?: unknown
     cleaned = state;
   }
 
-  const needsMigration = Object.keys(cleaned.zones.deck).some((k) => k.startsWith("cmc-"));
-  if (!needsMigration) return cleaned;
+  const isCanonical = (zone: Record<string, string[]>): boolean =>
+    COLUMN_KEYS.every((key) => Array.isArray(zone[key])) &&
+    Object.keys(zone).every((key) => (COLUMN_KEYS as readonly string[]).includes(key));
 
-  const migrateZone = (zone: Record<string, string[]>): Record<string, string[]> => {
-    const migrated: Record<string, string[]> = {};
+  if (isCanonical(cleaned.zones.deck) && isCanonical(cleaned.zones.sideboard)) {
+    return cleaned;
+  }
+
+  const normalizeZone = (zone: Record<string, string[]>): Record<string, string[]> => {
+    const normalized = createEmptyColumnMap();
     for (const [key, cards] of Object.entries(zone)) {
+      if (!Array.isArray(cards)) continue;
       const rename = LEGACY_KEY_MAP.find(([old]) => old === key);
-      migrated[rename ? rename[1] : key] = cards;
+      const target = rename
+        ? rename[1]
+        : (COLUMN_KEYS as readonly string[]).includes(key)
+          ? (key as ColumnKey)
+          : "mv-0-1";
+      normalized[target].push(...cards);
     }
-    return migrated;
+    return normalized;
   };
 
   return {
     ...cleaned,
     zones: {
-      deck: migrateZone(cleaned.zones.deck),
-      sideboard: migrateZone(cleaned.zones.sideboard),
+      deck: normalizeZone(cleaned.zones.deck),
+      sideboard: normalizeZone(cleaned.zones.sideboard),
     },
   };
 }
@@ -206,7 +222,7 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
           const scry = action.scryfallData.get(name);
           const col = scry ? getColumnKey(scry) : "mv-0-1";
           for (let i = 0; i < toAdd; i++) {
-            next.zones.deck[col].push(name);
+            (next.zones.deck[col] ??= []).push(name);
           }
         }
       }

@@ -6,8 +6,8 @@ function validDeck() {
     draftId: "tarkir",
     seat: 1,
     zones: {
-      deck: { col0: ["Lightning Bolt", "Counterspell"] },
-      sideboard: { col0: ["Dark Ritual"] },
+      deck: { "mv-0-1": ["Lightning Bolt", "Counterspell"] } as Record<string, string[]>,
+      sideboard: { "mv-0-1": ["Dark Ritual"] } as Record<string, string[]>,
     },
     basicLands: { Plains: 0, Island: 5, Swamp: 0, Mountain: 3, Forest: 0 },
   };
@@ -93,23 +93,57 @@ describe("validateDeckState", () => {
 
   it("rejects non-string-array column values", () => {
     const deck = validDeck();
-    (deck.zones.deck as Record<string, unknown>).col0 = [1, 2, 3];
+    (deck.zones.deck as Record<string, unknown>)["mv-2"] = [1, 2, 3];
     const result = validateDeckState(deck);
-    expect(result).toEqual({ valid: false, reason: "zones.deck.col0 must be string array" });
+    expect(result).toEqual({ valid: false, reason: "zones.deck.mv-2 must be string array" });
+  });
+
+  it("rejects unrecognized column keys", () => {
+    const deck = validDeck();
+    (deck.zones.deck as Record<string, unknown>).creatures = ["Baleful Strix"];
+    const result = validateDeckState(deck);
+    expect(result).toEqual({
+      valid: false,
+      reason: "zones.deck.creatures is not a recognized column",
+    });
+  });
+
+  it("rejects legacy cmc-* column keys on write", () => {
+    const deck = validDeck();
+    (deck.zones.sideboard as Record<string, unknown>)["cmc-2"] = ["Counterspell"];
+    const result = validateDeckState(deck);
+    expect(result).toEqual({
+      valid: false,
+      reason: "zones.sideboard.cmc-2 is not a recognized column",
+    });
+  });
+
+  it("accepts all canonical column keys", () => {
+    const deck = validDeck();
+    deck.zones.deck = {
+      "mv-0-1": [],
+      "mv-2": [],
+      "mv-3": [],
+      "mv-4": [],
+      "mv-5": [],
+      "mv-6+": ["Griselbrand"],
+      lands: ["Tundra"],
+    };
+    expect(validateDeckState(deck)).toEqual({ valid: true });
   });
 
   it("accepts deck with exactly 100 total cards (boundary — limit is inclusive)", () => {
     const deck = validDeck();
-    deck.zones.deck.col0 = Array.from({ length: 100 }, (_, i) => `Card ${i}`);
-    deck.zones.sideboard = { col0: [] };
+    deck.zones.deck["mv-0-1"] = Array.from({ length: 100 }, (_, i) => `Card ${i}`);
+    deck.zones.sideboard = { "mv-0-1": [] };
     const result = validateDeckState(deck);
     expect(result).toEqual({ valid: true });
   });
 
   it("rejects deck with > 100 total cards", () => {
     const deck = validDeck();
-    deck.zones.deck.col0 = Array.from({ length: 101 }, (_, i) => `Card ${i}`);
-    deck.zones.sideboard = { col0: [] };
+    deck.zones.deck["mv-0-1"] = Array.from({ length: 101 }, (_, i) => `Card ${i}`);
+    deck.zones.sideboard = { "mv-0-1": [] };
     const result = validateDeckState(deck);
     expect(result).toEqual({ valid: false, reason: "total cards 101 exceeds limit of 100" });
   });

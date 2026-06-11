@@ -807,4 +807,63 @@ describe("migrateDeckState", () => {
     const state = createEmptyDeckState("tarkir", 1);
     expect(migrateDeckState(state)).toBe(state);
   });
+
+  it("fills in canonical columns missing from a sparse persisted state", () => {
+    // Shape a hand-crafted API client once stored: one non-empty column, rest absent
+    const sparse = {
+      draftId: "tarkir",
+      seat: 1,
+      zones: {
+        deck: { "mv-2": ["Counterspell"] },
+        sideboard: {},
+      },
+    } as unknown as DeckState;
+
+    const migrated = migrateDeckState(sparse);
+
+    for (const zone of ["deck", "sideboard"] as const) {
+      for (const key of COLUMN_KEYS) {
+        expect(Array.isArray(migrated.zones[zone][key]), `${zone}.${key}`).toBe(true);
+      }
+    }
+    expect(migrated.zones.deck["mv-2"]).toEqual(["Counterspell"]);
+  });
+
+  it("relocates cards under unrecognized column keys to mv-0-1", () => {
+    const malformed = {
+      draftId: "tarkir",
+      seat: 1,
+      zones: {
+        deck: { creatures: ["Baleful Strix"], "mv-0-1": ["Lightning Bolt"] },
+        sideboard: { spells: ["Counterspell"] },
+      },
+    } as unknown as DeckState;
+
+    const migrated = migrateDeckState(malformed);
+
+    expect([...migrated.zones.deck["mv-0-1"]].sort()).toEqual(["Baleful Strix", "Lightning Bolt"]);
+    expect("creatures" in migrated.zones.deck).toBe(false);
+    expect(migrated.zones.sideboard["mv-0-1"]).toEqual(["Counterspell"]);
+  });
+
+  it("REBUILD does not throw when the prior state is missing canonical columns", () => {
+    const sparse = {
+      draftId: "tarkir",
+      seat: 1,
+      zones: {
+        deck: { "mv-2": ["Counterspell"] },
+        sideboard: {},
+      },
+      basicLands: { Plains: 0, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
+    } as unknown as DeckState;
+
+    const next = deckReducer(sparse, {
+      type: "REBUILD",
+      canonicalCards: ["Counterspell", "Lightning Bolt"],
+      scryfallData: new Map(),
+    });
+
+    expect(next.zones.deck["mv-0-1"]).toEqual(["Lightning Bolt"]);
+    expect(next.zones.deck["mv-2"]).toEqual(["Counterspell"]);
+  });
 });

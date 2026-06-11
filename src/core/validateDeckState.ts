@@ -1,3 +1,5 @@
+import { COLUMN_KEYS } from "./deckBuilder";
+
 type ValidationResult = { valid: true } | { valid: false; reason: string };
 
 /**
@@ -32,6 +34,14 @@ export function validateDeckState(input: unknown): ValidationResult {
     }
     const zone = zones[zoneName] as Record<string, unknown>;
     for (const [key, value] of Object.entries(zone)) {
+      // The deck reducer only knows the canonical columns; anything else
+      // would be stored verbatim and crash clients on load.
+      if (!(COLUMN_KEYS as readonly string[]).includes(key)) {
+        return {
+          valid: false,
+          reason: `zones.${zoneName}.${key} is not a recognized column`,
+        };
+      }
       if (!Array.isArray(value) || !value.every((v) => typeof v === "string")) {
         return {
           valid: false,
