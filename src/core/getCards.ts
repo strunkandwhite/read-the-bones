@@ -20,6 +20,7 @@ import { transformScryfallJson, parseBannedCardNames, placeholders } from "./db/
 import { cardNameKey } from "./cardNames";
 import { DEFAULT_NUM_SEATS } from "./constants";
 import { getAllCardWinStats, type BulkWinStatsEntry } from "./db/queries/winStats";
+import { normalizeColorIdentity } from "./manaColors";
 
 // --- Internal types for extracted subfunctions ---
 
@@ -73,12 +74,12 @@ export type CardStatsResponse = {
 };
 
 /**
- * Get color string from Scryfall color_identity.
+ * Get color string from Scryfall color_identity in WUBRG order.
  * Returns single-letter codes joined (e.g., "UB" for blue-black).
+ * Delegates to normalizeColorIdentity so ordering is consistent codebase-wide.
  */
 function getColorFromIdentity(colorIdentity: string[]): string {
-  if (!colorIdentity || colorIdentity.length === 0) return "C";
-  return colorIdentity.sort().join("");
+  return normalizeColorIdentity(colorIdentity);
 }
 
 /**

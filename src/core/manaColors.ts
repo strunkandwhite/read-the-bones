@@ -1,3 +1,18 @@
+const WUBRG_ORDER = "WUBRG";
+
+/**
+ * Normalize a color identity array to a canonical WUBRG-ordered string.
+ * Returns "C" for empty/colorless. Does NOT mutate the input array.
+ * E.g., ["B", "U"] → "UB", ["G", "W"] → "WG"
+ */
+export function normalizeColorIdentity(colors: string[]): string {
+  if (!colors || colors.length === 0) return "C";
+  return [...colors]
+    .map((c) => c.toUpperCase())
+    .sort((a, b) => WUBRG_ORDER.indexOf(a) - WUBRG_ORDER.indexOf(b))
+    .join("");
+}
+
 /**
  * WUBRG-tinted RGBA backgrounds keyed by single-letter color code.
  * Low alpha so light text stays readable on top.

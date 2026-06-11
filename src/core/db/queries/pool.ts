@@ -5,6 +5,7 @@
 import type { Client } from "@libsql/client";
 import type { ScryfallCardData } from "../schema";
 import { getOptedOutSeats, parseScryfallJson, matchesColorFilter } from "./helpers";
+import { normalizeColorIdentity } from "@/core/manaColors";
 
 export interface GetDraftPoolParams {
   draft_id: string;
@@ -37,19 +38,6 @@ export interface DraftPoolResult {
   redacted_seats?: number[];
   cards: PoolCard[] | null;
   grouped: Record<string, PoolCard[]> | null;
-}
-
-/**
- * Normalize color identity to WUBRG order.
- * E.g., ["G", "U"] -> "GU" -> "UG"
- */
-export function normalizeColorIdentity(colors: string[]): string {
-  if (colors.length === 0) return "C";
-  const order = "WUBRG";
-  return colors
-    .map((c) => c.toUpperCase())
-    .sort((a, b) => order.indexOf(a) - order.indexOf(b))
-    .join("");
 }
 
 /**
