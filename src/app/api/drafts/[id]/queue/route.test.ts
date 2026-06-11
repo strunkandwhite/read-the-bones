@@ -4,9 +4,8 @@ import { NextRequest } from "next/server";
 import { AuthError } from "@/core/errors";
 
 const mockExecute = vi.fn();
-const mockBatch = vi.fn();
 vi.mock("@/core/db/client", () => ({
-  getClient: vi.fn(() => Promise.resolve({ execute: mockExecute, batch: mockBatch })),
+  getClient: vi.fn(() => Promise.resolve({ execute: mockExecute })),
 }));
 
 const mockAuthenticateSeat = vi.fn();
@@ -27,6 +26,12 @@ vi.mock("@/core/db/queries/helpers", () => ({
   placeholders: (n: number) => Array(n).fill("?").join(", "),
 }));
 
+const mockAddFloatedCards = vi.fn();
+const mockRemoveFloatedCards = vi.fn();
+vi.mock("@/core/db/queries/floatedCards", () => ({
+  addFloatedCards: (...args: unknown[]) => mockAddFloatedCards(...args),
+  removeFloatedCards: (...args: unknown[]) => mockRemoveFloatedCards(...args),
+}));
 
 function makeGetRequest(token = "test-token") {
   return new NextRequest(
@@ -53,7 +58,7 @@ describe("GET /api/drafts/[id]/queue", () => {
   beforeEach(() => vi.clearAllMocks());
 
   it("returns queue for authenticated seat", async () => {
-    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false, displayName: null });
     mockGetQueue.mockResolvedValueOnce([
       { mode: "pause", cards: [{ id: 10, name: "Lightning Bolt" }] },
       { mode: "pause", cards: [{ id: 20, name: "Counterspell" }] },
@@ -87,10 +92,12 @@ describe("PUT /api/drafts/[id]/queue", () => {
     vi.clearAllMocks();
     // Default: all cards have ample remaining copies
     mockGetRemainingCopies.mockResolvedValue(new Map([[10, 4], [20, 4], [30, 4], [99, 4]]));
+    mockAddFloatedCards.mockResolvedValue(undefined);
+    mockRemoveFloatedCards.mockResolvedValue(undefined);
   });
 
   it("replaces queue with structured entries and returns updated queue", async () => {
-    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false, displayName: null });
     mockExecute.mockResolvedValueOnce({
       rows: [
         { card_id: 10, name: "Lightning Bolt" },
@@ -120,7 +127,7 @@ describe("PUT /api/drafts/[id]/queue", () => {
   });
 
   it("accepts object-style card entries { cardName }", async () => {
-    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false, displayName: null });
     mockExecute.mockResolvedValueOnce({
       rows: [{ card_id: 10, name: "Lightning Bolt" }],
     });
@@ -141,7 +148,7 @@ describe("PUT /api/drafts/[id]/queue", () => {
   });
 
   it("defaults mode to pause when omitted", async () => {
-    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false, displayName: null });
     mockExecute.mockResolvedValueOnce({
       rows: [{ card_id: 10, name: "Lightning Bolt" }],
     });
@@ -166,7 +173,7 @@ describe("PUT /api/drafts/[id]/queue", () => {
   });
 
   it("returns 400 for invalid mode", async () => {
-    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false, displayName: null });
 
     const res = await PUT(
       makePutRequest([{ mode: "invalid", cards: ["Lightning Bolt"] }]),
@@ -177,7 +184,7 @@ describe("PUT /api/drafts/[id]/queue", () => {
   });
 
   it("returns 400 for entry missing cards array", async () => {
-    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false, displayName: null });
 
     const res = await PUT(
       makePutRequest([{ mode: "pause" }]),
@@ -188,7 +195,7 @@ describe("PUT /api/drafts/[id]/queue", () => {
   });
 
   it("returns 400 for unknown card", async () => {
-    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false, displayName: null });
     mockExecute.mockResolvedValueOnce({ rows: [] });
 
     const res = await PUT(
@@ -210,8 +217,8 @@ describe("PUT /api/drafts/[id]/queue", () => {
     expect(res.status).toBe(401);
   });
 
-  it("auto-floats cards removed from queue", async () => {
-    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+  it("auto-floats cards removed from queue via addFloatedCards", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false, displayName: null });
     mockExecute.mockResolvedValueOnce({
       rows: [{ card_id: 20, name: "Counterspell" }],
     });
@@ -221,7 +228,6 @@ describe("PUT /api/drafts/[id]/queue", () => {
       { mode: "pause", cards: [{ id: 20, name: "Counterspell" }] },
     ]);
     mockSetQueue.mockResolvedValueOnce(undefined);
-    mockBatch.mockResolvedValue(undefined);
     // New queue only has Counterspell
     mockGetQueue.mockResolvedValueOnce([
       { mode: "pause", cards: [{ id: 20, name: "Counterspell" }] },
@@ -233,18 +239,54 @@ describe("PUT /api/drafts/[id]/queue", () => {
     );
 
     expect(res.status).toBe(200);
-    // Lightning Bolt was removed, so it should be auto-floated via batch
-    expect(mockBatch).toHaveBeenCalledTimes(1);
-    expect(mockBatch).toHaveBeenCalledWith([
-      {
-        sql: "INSERT OR IGNORE INTO floated_cards (draft_id, seat, card_name) VALUES (?, ?, ?)",
-        args: ["test", 1, "Lightning Bolt"],
-      },
+    // Lightning Bolt was removed, so it should be auto-floated
+    expect(mockAddFloatedCards).toHaveBeenCalledWith(
+      expect.anything(),
+      "test",
+      1,
+      ["Lightning Bolt"],
+    );
+  });
+
+  it("auto-unfloats cards added to queue via removeFloatedCards", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false, displayName: null });
+    mockExecute.mockResolvedValueOnce({
+      rows: [
+        { card_id: 10, name: "Lightning Bolt" },
+        { card_id: 20, name: "Counterspell" },
+      ],
+    });
+    // Old queue had only Lightning Bolt
+    mockGetQueue.mockResolvedValueOnce([
+      { mode: "pause", cards: [{ id: 10, name: "Lightning Bolt" }] },
     ]);
+    mockSetQueue.mockResolvedValueOnce(undefined);
+    // New queue has both
+    mockGetQueue.mockResolvedValueOnce([
+      { mode: "pause", cards: [{ id: 10, name: "Lightning Bolt" }] },
+      { mode: "pause", cards: [{ id: 20, name: "Counterspell" }] },
+    ]);
+
+    const res = await PUT(
+      makePutRequest([
+        { mode: "pause", cards: ["Lightning Bolt"] },
+        { mode: "pause", cards: ["Counterspell"] },
+      ]),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+
+    expect(res.status).toBe(200);
+    // Counterspell was added, so it should be auto-unfloated
+    expect(mockRemoveFloatedCards).toHaveBeenCalledWith(
+      expect.anything(),
+      "test",
+      1,
+      ["Counterspell"],
+    );
   });
 
   it("returns 400 when queued count exceeds remaining copies", async () => {
-    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false, displayName: null });
     mockExecute.mockResolvedValueOnce({
       rows: [{ card_id: 10, name: "Lightning Bolt" }],
     });
@@ -265,7 +307,7 @@ describe("PUT /api/drafts/[id]/queue", () => {
   });
 
   it("returns 400 when card is not in the cube (0 remaining)", async () => {
-    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false, displayName: null });
     mockExecute.mockResolvedValueOnce({
       rows: [{ card_id: 10, name: "Lightning Bolt" }],
     });
@@ -283,12 +325,11 @@ describe("PUT /api/drafts/[id]/queue", () => {
   });
 
   it("accepts an empty queue array (clears the queue)", async () => {
-    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false, displayName: null });
     mockGetQueue.mockResolvedValueOnce([
       { mode: "pause", cards: [{ id: 10, name: "Lightning Bolt" }] },
     ]);
     mockSetQueue.mockResolvedValueOnce(undefined);
-    mockBatch.mockResolvedValue(undefined);
     mockGetQueue.mockResolvedValueOnce([]);
 
     const res = await PUT(
@@ -300,5 +341,12 @@ describe("PUT /api/drafts/[id]/queue", () => {
     const body = await res.json();
     expect(body.queue).toHaveLength(0);
     expect(mockSetQueue).toHaveBeenCalledWith(expect.anything(), "test", 1, []);
+    // Clearing the queue auto-floats the removed card
+    expect(mockAddFloatedCards).toHaveBeenCalledWith(
+      expect.anything(),
+      "test",
+      1,
+      ["Lightning Bolt"],
+    );
   });
 });

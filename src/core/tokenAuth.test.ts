@@ -46,11 +46,28 @@ describe('authenticateSeat', () => {
     vi.clearAllMocks();
   });
 
-  it('returns { seat, autoPick } for valid token', async () => {
+  it('returns { seat, autoPick, displayName } for valid token', async () => {
     mockResolveToken.mockResolvedValue({
       draftId: 'draft-1',
       seat: 3,
       autoPick: true,
+      displayName: 'Alice',
+    });
+
+    const req = new Request('http://localhost/test', {
+      headers: { 'X-Seat-Token': 'valid-token' },
+    });
+
+    const result = await authenticateSeat(client, req, 'draft-1');
+    expect(result).toEqual({ seat: 3, autoPick: true, displayName: 'Alice' });
+    expect(mockResolveToken).toHaveBeenCalledWith(client, 'valid-token');
+  });
+
+  it('includes null displayName when seat has no display name set', async () => {
+    mockResolveToken.mockResolvedValue({
+      draftId: 'draft-1',
+      seat: 2,
+      autoPick: false,
       displayName: null,
     });
 
@@ -59,8 +76,7 @@ describe('authenticateSeat', () => {
     });
 
     const result = await authenticateSeat(client, req, 'draft-1');
-    expect(result).toEqual({ seat: 3, autoPick: true });
-    expect(mockResolveToken).toHaveBeenCalledWith(client, 'valid-token');
+    expect(result).toEqual({ seat: 2, autoPick: false, displayName: null });
   });
 
   it('throws for missing token', async () => {

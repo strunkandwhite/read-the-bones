@@ -1,11 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getFloatedCards, addFloatedCard, removeFloatedCard } from "./floatedCards";
+import { getFloatedCards, addFloatedCard, removeFloatedCard, addFloatedCards, removeFloatedCards } from "./floatedCards";
 
 describe("floatedCards queries", () => {
-  let mockClient: { execute: ReturnType<typeof vi.fn> };
+  let mockClient: { execute: ReturnType<typeof vi.fn>; batch: ReturnType<typeof vi.fn> };
 
   beforeEach(() => {
-    mockClient = { execute: vi.fn() };
+    mockClient = { execute: vi.fn(), batch: vi.fn() };
   });
 
   describe("getFloatedCards", () => {
@@ -65,6 +65,50 @@ describe("floatedCards queries", () => {
           args: expect.arrayContaining(["draft-1", 1, "Lightning Bolt"]),
         })
       );
+    });
+  });
+
+  describe("addFloatedCards (batch)", () => {
+    it("batches INSERT OR IGNORE for multiple cards", async () => {
+      mockClient.batch.mockResolvedValue([]);
+      await addFloatedCards(mockClient as any, "draft-1", 1, ["Lightning Bolt", "Counterspell"]);
+      expect(mockClient.batch).toHaveBeenCalledWith([
+        {
+          sql: expect.stringContaining("INSERT OR IGNORE"),
+          args: ["draft-1", 1, "Lightning Bolt"],
+        },
+        {
+          sql: expect.stringContaining("INSERT OR IGNORE"),
+          args: ["draft-1", 1, "Counterspell"],
+        },
+      ]);
+    });
+
+    it("does nothing when given an empty array", async () => {
+      await addFloatedCards(mockClient as any, "draft-1", 1, []);
+      expect(mockClient.batch).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("removeFloatedCards (batch)", () => {
+    it("batches DELETE for multiple cards", async () => {
+      mockClient.batch.mockResolvedValue([]);
+      await removeFloatedCards(mockClient as any, "draft-1", 1, ["Lightning Bolt", "Counterspell"]);
+      expect(mockClient.batch).toHaveBeenCalledWith([
+        {
+          sql: expect.stringContaining("DELETE"),
+          args: ["draft-1", 1, "Lightning Bolt"],
+        },
+        {
+          sql: expect.stringContaining("DELETE"),
+          args: ["draft-1", 1, "Counterspell"],
+        },
+      ]);
+    });
+
+    it("does nothing when given an empty array", async () => {
+      await removeFloatedCards(mockClient as any, "draft-1", 1, []);
+      expect(mockClient.batch).not.toHaveBeenCalled();
     });
   });
 });

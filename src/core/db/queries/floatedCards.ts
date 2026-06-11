@@ -40,6 +40,36 @@ export async function removeFloatedCard(
   });
 }
 
+export async function addFloatedCards(
+  client: Client,
+  draftId: string,
+  seat: number,
+  cardNames: string[],
+): Promise<void> {
+  if (cardNames.length === 0) return;
+  await client.batch(
+    cardNames.map((name) => ({
+      sql: `INSERT OR IGNORE INTO floated_cards (draft_id, seat, card_name) VALUES (?, ?, ?)`,
+      args: [draftId, seat, name],
+    })),
+  );
+}
+
+export async function removeFloatedCards(
+  client: Client,
+  draftId: string,
+  seat: number,
+  cardNames: string[],
+): Promise<void> {
+  if (cardNames.length === 0) return;
+  await client.batch(
+    cardNames.map((name) => ({
+      sql: `DELETE FROM floated_cards WHERE draft_id = ? AND seat = ? AND card_name = ?`,
+      args: [draftId, seat, name],
+    })),
+  );
+}
+
 export async function removeFloatedCardByCardId(
   client: Client,
   draftId: string,

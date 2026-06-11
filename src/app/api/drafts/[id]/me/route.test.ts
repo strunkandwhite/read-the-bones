@@ -1,11 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { GET } from "./route";
 import { NextRequest } from "next/server";
+import { AuthError } from "@/core/errors";
 
-// Mock getClient
-const mockExecute = vi.fn();
 vi.mock("@/core/db/client", () => ({
-  getClient: vi.fn(() => Promise.resolve({ execute: mockExecute })),
+  getClient: vi.fn(() => Promise.resolve({})),
+}));
+
+const mockAuthenticateSeat = vi.fn();
+vi.mock("@/core/tokenAuth", () => ({
+  authenticateSeat: (...args: unknown[]) => mockAuthenticateSeat(...args),
 }));
 
 function makeRequest(url: string, headers?: Record<string, string>) {
@@ -17,9 +21,11 @@ describe("GET /api/drafts/[id]/me", () => {
     vi.clearAllMocks();
   });
 
-  it("returns seat for valid token", async () => {
-    mockExecute.mockResolvedValueOnce({
-      rows: [{ seat: 3, auto_pick: 1, display_name: "Alice", draft_id: "test-draft" }],
+  it("returns seat, autoPick, and displayName for valid token", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({
+      seat: 3,
+      autoPick: true,
+      displayName: "Alice",
     });
 
     const req = makeRequest(
@@ -31,9 +37,16 @@ describe("GET /api/drafts/[id]/me", () => {
 
     expect(res.status).toBe(200);
     expect(body).toEqual({ seat: 3, autoPick: true, displayName: "Alice" });
+    expect(mockAuthenticateSeat).toHaveBeenCalledWith(
+      expect.anything(),
+      req,
+      "test-draft",
+    );
   });
 
   it("returns 401 for missing token", async () => {
+    mockAuthenticateSeat.mockRejectedValueOnce(new AuthError("Missing seat token"));
+
     const req = makeRequest("http://localhost:3000/api/drafts/test-draft/me");
     const res = await GET(req, { params: Promise.resolve({ id: "test-draft" }) });
 
@@ -41,7 +54,7 @@ describe("GET /api/drafts/[id]/me", () => {
   });
 
   it("returns 401 for invalid token", async () => {
-    mockExecute.mockResolvedValueOnce({ rows: [] });
+    mockAuthenticateSeat.mockRejectedValueOnce(new AuthError("Invalid seat token"));
 
     const req = makeRequest(
       "http://localhost:3000/api/drafts/test-draft/me",
@@ -53,9 +66,7 @@ describe("GET /api/drafts/[id]/me", () => {
   });
 
   it("returns 401 when token belongs to different draft", async () => {
-    mockExecute.mockResolvedValueOnce({
-      rows: [{ seat: 1, auto_pick: 0, display_name: null, draft_id: "other-draft" }],
-    });
+    mockAuthenticateSeat.mockRejectedValueOnce(new AuthError("Token does not match draft"));
 
     const req = makeRequest(
       "http://localhost:3000/api/drafts/test-draft/me",
@@ -66,9 +77,11 @@ describe("GET /api/drafts/[id]/me", () => {
     expect(res.status).toBe(401);
   });
 
-  it("handles null display_name", async () => {
-    mockExecute.mockResolvedValueOnce({
-      rows: [{ seat: 5, auto_pick: 0, display_name: null, draft_id: "test-draft" }],
+  it("handles null displayName", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({
+      seat: 5,
+      autoPick: false,
+      displayName: null,
     });
 
     const req = makeRequest(

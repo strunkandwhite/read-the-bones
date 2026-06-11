@@ -17,11 +17,11 @@ export async function authenticateSeat(
   client: Client,
   request: Request,
   draftId: string,
-): Promise<{ seat: number; autoPick: boolean }> {
+): Promise<{ seat: number; autoPick: boolean; displayName: string | null }> {
   const token = extractToken(request);
   if (!token) throw new AuthError('Missing seat token');
   const resolved = await resolveToken(client, token);
   if (!resolved) throw new AuthError('Invalid seat token');
   if (resolved.draftId !== draftId) throw new AuthError('Token does not match draft');
-  return { seat: resolved.seat, autoPick: resolved.autoPick };
+  return { seat: resolved.seat, autoPick: resolved.autoPick, displayName: resolved.displayName };
 }

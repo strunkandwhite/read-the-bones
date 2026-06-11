@@ -4,6 +4,7 @@ import { authenticateSeat } from "@/core/tokenAuth";
 import { getQueue, setQueue, type QueueEntry } from "@/core/db/queries/pickQueue";
 import { resolveCardIds } from "@/core/db/queries/cards";
 import { getRemainingCopies } from "@/core/db/queries/helpers";
+import { addFloatedCards, removeFloatedCards } from "@/core/db/queries/floatedCards";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 export const GET = withApiErrors(
@@ -105,26 +106,12 @@ export const PUT = withApiErrors(
     // Auto-float any cards that were removed from the queue
     const newCardNameSet = new Set(allCardNames);
     const removedCardNames = oldCardNames.filter((name) => !newCardNameSet.has(name));
-    if (removedCardNames.length > 0) {
-      await client.batch(
-        removedCardNames.map((name) => ({
-          sql: "INSERT OR IGNORE INTO floated_cards (draft_id, seat, card_name) VALUES (?, ?, ?)",
-          args: [draftId, seat, name],
-        }))
-      );
-    }
+    await addFloatedCards(client, draftId, seat, removedCardNames);
 
     // Auto-unfloat any cards that were added to the queue (queue supersedes float)
     const oldCardNameSet = new Set(oldCardNames);
     const addedCardNames = allCardNames.filter((name) => !oldCardNameSet.has(name));
-    if (addedCardNames.length > 0) {
-      await client.batch(
-        addedCardNames.map((name) => ({
-          sql: "DELETE FROM floated_cards WHERE draft_id = ? AND seat = ? AND card_name = ?",
-          args: [draftId, seat, name],
-        }))
-      );
-    }
+    await removeFloatedCards(client, draftId, seat, addedCardNames);
 
     const queue = await getQueue(client, draftId, seat);
     return NextResponse.json({ queue });
