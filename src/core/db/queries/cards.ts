@@ -128,9 +128,44 @@ export async function lookupCardWithApiFallback(
 // Live Draft Card Queries
 // ============================================================================
 
+// ---------------------------------------------------------------------------
+// Card-name → card_id resolution: three mechanisms, each for a different context
+//
+// 1. resolveCardId / resolveCardIds  (this file — query layer)
+//    Exact, case-sensitive match.  Used by live-draft API routes (pick, queue,
+//    float) where the client always sends the canonical name it received from
+//    the server.  Strict matching prevents silent wrong-card substitutions when
+//    the submitted name is authoritative.
+//
+// 2. resolveCardNameToId  (core/db/sync/incremental.ts — ingestion layer)
+//    Fuzzy, case-insensitive match with DFC face expansion, alias table lookup,
+//    and Scryfall API fallback.  Used when ingesting picks from a Google Sheet,
+//    where humans type card names and typos or Omen-Paths digital names are
+//    common.  The extra resolution steps are safe here because the result is
+//    just an append to pick_events, not an irrevocable mutation of live state.
+//
+// 3. CardCache  (core/db/sync/card-cache.ts — bulk sync layer)
+//    In-memory map loaded once at CLI-sync startup.  Resolves names
+//    (case-insensitive, with DFC front-face indexing) during full-domain
+//    hash-replace runs where per-name round-trips to Turso would be too slow.
+//
+// Rule of thumb: use resolveCardId(s) for live draft mutations; use
+// resolveCardNameToId for Sheet-ingestion appends; use CardCache for bulk
+// CLI sync.  Never use the fuzzy ingestion resolver for live draft mutations —
+// silent mis-matches would record the wrong card_id in pick_events.
+// ---------------------------------------------------------------------------
+
 /**
  * Resolve a card name to its card_id.
- * Uses exact name match (case-sensitive, matching the pick route behavior).
+ *
+ * Matching rule: exact, case-sensitive.  The client always sends the canonical
+ * name it received from the server (cube pool, live board), so a strict match
+ * is correct and safe — a miss means the submitted name is genuinely unknown.
+ *
+ * Use this for live-draft mutations (pick, queue, float routes).
+ * For Sheet ingestion where humans type names, use resolveCardNameToId in
+ * core/db/sync/incremental.ts instead.
+ *
  * Returns null if the card doesn't exist.
  */
 export async function resolveCardId(
@@ -147,6 +182,15 @@ export async function resolveCardId(
 
 /**
  * Batch resolve card names to card_ids.
+ *
+ * Matching rule: exact, case-sensitive (same as resolveCardId).  Resolves all
+ * names in a single query for efficiency.  Cards not found are absent from the
+ * returned map (callers must check for missing keys and reject unknown names).
+ *
+ * Use this for live-draft mutations where a set of canonical names must be
+ * validated before writing (e.g. queue PUT which accepts an array of entries).
+ * For Sheet ingestion, use resolveCardNameToId in core/db/sync/incremental.ts.
+ *
  * Returns a Map<string, number> of name → card_id for all found cards.
  */
 export async function resolveCardIds(

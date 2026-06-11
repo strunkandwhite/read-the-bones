@@ -9,9 +9,26 @@ interface PendingCard {
 }
 
 /**
- * Cross-draft card resolution cache.
- * Bulk-loads all existing cards from Turso at startup,
- * then batch-inserts new cards discovered during sync.
+ * Cross-draft card resolution cache for bulk CLI sync.
+ *
+ * Matching rule: case-insensitive, with DFC front-face indexing so that
+ * "Brazen Borrower" resolves even when the stored name is
+ * "Brazen Borrower // Petty Theft".
+ *
+ * Use this ONLY during full-domain hash-replace runs (CLI `pnpm sync`) where
+ * resolving hundreds of names with per-name Turso round-trips would be
+ * prohibitively slow.  The cache is loaded once at sync startup via loadAll(),
+ * then queried synchronously with get() throughout the run.  New cards
+ * discovered during the run are staged with markMissing() and batch-inserted
+ * via flushMissing() at the end.
+ *
+ * Do NOT use this for live-draft mutations — use resolveCardId / resolveCardIds
+ * in core/db/queries/cards.ts (exact, case-sensitive, single-card lookup).
+ * Do NOT use this for Sheet-ingestion pick appends — use resolveCardNameToId
+ * in core/db/sync/incremental.ts (fuzzy, with alias table + Scryfall fallback).
+ *
+ * For the full card-name resolution taxonomy, see the block comment above
+ * resolveCardId in core/db/queries/cards.ts.
  */
 export class CardCache {
   private nameToId = new Map<string, number>();

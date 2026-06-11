@@ -57,8 +57,28 @@ export async function getDbMaxPickN(
 }
 
 /**
- * Resolve a card name to its card_id in the cards table.
- * Returns null if not found (card wasn't in the initial full import).
+ * Resolve a card name to its card_id for Sheet-ingestion pick appends.
+ *
+ * Matching rule: fuzzy, case-insensitive, with progressive fallbacks:
+ *   1. Exact match (case-insensitive)
+ *   2. Front-face DFC ("Brazen Borrower" → "Brazen Borrower // Petty Theft")
+ *   3. Back-face DFC ("Petty Theft" → "Brazen Borrower // Petty Theft")
+ *   4. Alias table (diacritics, Omen-Paths digital names)
+ *   5. Scryfall API fuzzy search — auto-populates the alias table on hit
+ *
+ * Use this ONLY for Sheet ingestion where players type card names by hand.
+ * Typos, abbreviations, and digital-set alternate names are expected and
+ * handled gracefully.
+ *
+ * Do NOT use this for live-draft mutations (pick/queue/float routes).  Those
+ * routes receive canonical names from the server and must use resolveCardId /
+ * resolveCardIds in core/db/queries/cards.ts — fuzzy matching there would risk
+ * silently recording the wrong card_id in pick_events.
+ *
+ * For bulk CLI sync where per-name round-trips are too slow, use CardCache in
+ * core/db/sync/card-cache.ts instead.
+ *
+ * Returns null if the card is not found even via Scryfall (unrecognised name).
  */
 export async function resolveCardNameToId(
   client: Client,
