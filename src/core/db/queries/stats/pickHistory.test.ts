@@ -96,4 +96,83 @@ describe("getPickHistory", () => {
     // No other buckets should have entries
     expect(result.pickDistribution.reduce((a, b) => a + b, 0)).toBe(1);
   });
+
+  it("skips a draft where the card was banned and counts it in timesBanned", async () => {
+    // Main query returns a draft where the card is banned
+    client.execute.mockResolvedValueOnce({
+      rows: [
+        {
+          draft_id: "d1",
+          draft_name: "Banned Draft",
+          draft_date: "2026-01-01",
+          num_seats: 10,
+          banned_cards: JSON.stringify(["Lightning Bolt"]),
+          pick_n: 5,
+          pool_size: 540,
+        },
+        {
+          draft_id: "d2",
+          draft_name: "Normal Draft",
+          draft_date: "2026-01-02",
+          num_seats: 10,
+          banned_cards: null,
+          pick_n: 10,
+          pool_size: 540,
+        },
+      ],
+    });
+    // Second query: no extra drafts with bans outside the cube
+    client.execute.mockResolvedValueOnce({ rows: [] });
+
+    const result = await getPickHistory(client, "Lightning Bolt");
+
+    // d1 was banned — skip from history, increment timesBanned
+    expect(result.pickHistory).toHaveLength(1);
+    expect(result.pickHistory[0].draftId).toBe("d2");
+    expect(result.timesBanned).toBe(1);
+  });
+
+  it("counts bans from drafts where the card is not in the cube snapshot (second query)", async () => {
+    // Main query: no drafts include the card in their cube
+    client.execute.mockResolvedValueOnce({ rows: [] });
+    // Second query: a draft has banned_cards mentioning the card, but it wasn't in the cube
+    client.execute.mockResolvedValueOnce({
+      rows: [
+        {
+          draft_id: "d1",
+          banned_cards: JSON.stringify(["Ancestral Recall"]),
+        },
+      ],
+    });
+
+    const result = await getPickHistory(client, "Ancestral Recall");
+
+    expect(result.pickHistory).toHaveLength(0);
+    expect(result.timesBanned).toBe(1);
+  });
+
+  it("does not count bans for unrelated cards in the same draft", async () => {
+    // Draft bans Lightning Bolt, not Counterspell
+    client.execute.mockResolvedValueOnce({
+      rows: [
+        {
+          draft_id: "d1",
+          draft_name: "Test",
+          draft_date: "2026-01-01",
+          num_seats: 10,
+          banned_cards: JSON.stringify(["Lightning Bolt"]),
+          pick_n: 7,
+          pool_size: 540,
+        },
+      ],
+    });
+    client.execute.mockResolvedValueOnce({ rows: [] });
+
+    const result = await getPickHistory(client, "Counterspell");
+
+    // Counterspell was not banned; the ban on Lightning Bolt should not affect it
+    expect(result.pickHistory).toHaveLength(1);
+    expect(result.pickHistory[0].draftId).toBe("d1");
+    expect(result.timesBanned).toBe(0);
+  });
 });

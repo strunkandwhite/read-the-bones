@@ -1063,6 +1063,77 @@ describe("getAvailableCards", () => {
     expect(result.cards).toHaveLength(1);
     expect(result.cards[0].card_name).toBe("Tarmogoyf");
   });
+
+  it("excludes a banned card by exact name match", async () => {
+    // Draft lookup — returns banned_cards column
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ cube_snapshot_id: 1, banned_cards: JSON.stringify(["Lightning Bolt"]) }])
+    );
+    // Cube cards: Lightning Bolt + Counterspell
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { card_id: 1, name: "Lightning Bolt", qty: 1 },
+        { card_id: 2, name: "Counterspell", qty: 1 },
+      ])
+    );
+    // No picks
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+
+    const result = await getAvailableCards(mockClient as never, {
+      draft_id: "draft1",
+      before_pick_n: 5,
+    });
+
+    // Lightning Bolt should be excluded
+    expect(result.cards).toHaveLength(1);
+    expect(result.cards[0].card_name).toBe("Counterspell");
+  });
+
+  it("excludes a DFC by its front-face name when only the full name is in the cube", async () => {
+    // Banned card stored as just the front face: "Delver of Secrets"
+    // Cube card is the full DFC name: "Delver of Secrets // Insectile Aberration"
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ cube_snapshot_id: 1, banned_cards: JSON.stringify(["Delver of Secrets"]) }])
+    );
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { card_id: 1, name: "Delver of Secrets // Insectile Aberration", qty: 1 },
+        { card_id: 2, name: "Force of Will", qty: 1 },
+      ])
+    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+
+    const result = await getAvailableCards(mockClient as never, {
+      draft_id: "draft1",
+      before_pick_n: 5,
+    });
+
+    // DFC should be excluded because its front face is banned
+    expect(result.cards).toHaveLength(1);
+    expect(result.cards[0].card_name).toBe("Force of Will");
+  });
+
+  it("ban matching is case-insensitive", async () => {
+    // Ban stored with mixed case
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ cube_snapshot_id: 1, banned_cards: JSON.stringify(["CHANNEL"]) }])
+    );
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { card_id: 1, name: "Channel", qty: 1 },
+        { card_id: 2, name: "Mox Pearl", qty: 1 },
+      ])
+    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+
+    const result = await getAvailableCards(mockClient as never, {
+      draft_id: "draft1",
+      before_pick_n: 5,
+    });
+
+    expect(result.cards).toHaveLength(1);
+    expect(result.cards[0].card_name).toBe("Mox Pearl");
+  });
 });
 
 // ============================================================================
@@ -1183,6 +1254,51 @@ describe("getStandings", () => {
     // Seat 1 wins, so it's first
     expect(result.standings[0].seat).toBe(1);
     expect(result.standings[1].seat).toBe("[REDACTED]");
+  });
+
+  it("pads with zero-record entries for seats with no matches when numSeats is provided", async () => {
+    // No opt-outs
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+    // Only seat 1 vs seat 2 has played
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { draft_id: "draft1", seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 0 },
+      ])
+    );
+
+    // numSeats = 4: seats 3 and 4 have never played
+    const result = await getStandings(mockClient as never, "draft1", 4);
+
+    expect(result.standings).toHaveLength(4);
+    const seatNums = result.standings.map((s) => s.seat);
+    expect(seatNums).toContain(3);
+    expect(seatNums).toContain(4);
+    const seat3 = result.standings.find((s) => s.seat === 3)!;
+    expect(seat3.matchWins).toBe(0);
+    expect(seat3.matchLosses).toBe(0);
+    expect(seat3.omwPct).toBeNull();
+    expect(seat3.ogwPct).toBeNull();
+  });
+
+  it("applies the 1/3 floor to OMW% and OGW% tiebreakers", async () => {
+    // No opt-outs
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+    // Seat 1 beats seat 2 (2-0); seat 2 has record 0-1 → raw OMW% for seat 1 = 0/1 = 0,
+    // but floor raises it to 1/3
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { draft_id: "draft1", seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 0 },
+      ])
+    );
+
+    const result = await getStandings(mockClient as never, "draft1");
+
+    // Seat 1 has opponent seat 2 with 0 match wins and 0 game wins
+    // Raw MWR for seat 2 = 0/1 = 0, floored at 1/3
+    const seat1 = result.standings.find((s) => s.seat === 1)!;
+    expect(seat1.omwPct).toBeCloseTo(1 / 3, 5);
+    // Raw GWR for seat 2 = 0 / (0+2) = 0, floored at 1/3
+    expect(seat1.ogwPct).toBeCloseTo(1 / 3, 5);
   });
 });
 
