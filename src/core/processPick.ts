@@ -19,6 +19,146 @@ export interface ProcessPickInput {
   cardName: string;
 }
 
+// ============================================================================
+// Internal helpers
+// ============================================================================
+
+interface CopyInfo {
+  pickedCount: number;
+  qty: number;
+}
+
+/**
+ * Query how many copies of a card have been picked in this draft and how many
+ * the cube contains. Throws a ValidationError if the card is not in this
+ * draft's cube at all (zero rows), preventing off-cube cards from being
+ * inserted.
+ */
+async function getRemainingCopiesForPick(
+  client: Client,
+  draftId: string,
+  cardId: number,
+  cardName: string,
+): Promise<CopyInfo> {
+  const result = await client.execute({
+    sql: `SELECT COUNT(pe.pick_n) as picked_count, csc.qty
+          FROM cube_snapshot_cards csc
+          JOIN drafts d ON d.cube_snapshot_id = csc.cube_snapshot_id
+          LEFT JOIN pick_events pe ON pe.card_id = csc.card_id AND pe.draft_id = d.draft_id
+          WHERE d.draft_id = ? AND csc.card_id = ?
+          GROUP BY csc.card_id, csc.qty`,
+    args: [draftId, cardId],
+  });
+  if (result.rows.length === 0) {
+    throw new ValidationError(`${cardName} is not in this draft's cube`);
+  }
+  return {
+    pickedCount: result.rows[0].picked_count as number,
+    qty: result.rows[0].qty as number,
+  };
+}
+
+/**
+ * Insert a single pick event using an optimistic-concurrency guard: the INSERT
+ * is conditional on pick_n not yet existing. Returns rowsAffected.
+ */
+async function insertPickEvent(
+  client: Client,
+  draftId: string,
+  pickN: number,
+  seat: number,
+  cardId: number,
+): Promise<number> {
+  const result = await client.execute({
+    sql: `INSERT INTO pick_events (draft_id, pick_n, seat, card_id)
+          SELECT ?, ?, ?, ?
+          WHERE NOT EXISTS (
+            SELECT 1 FROM pick_events WHERE draft_id = ? AND pick_n = ?
+          )`,
+    args: [draftId, pickN, seat, cardId, draftId, pickN],
+  });
+  return result.rowsAffected;
+}
+
+type AutoPickAdvance =
+  | { kind: 'candidate'; seat: number; cardId: number; cardName: string }
+  | { kind: 'none' };
+
+/**
+ * Determine whether the next seat should auto-pick, and if so which card.
+ * Handles pause-mode exhaustion by disabling auto-pick for the seat and
+ * demoting non-winning group members to float.
+ *
+ * Returns `{ kind: 'candidate', seat, cardId, cardName }` when a cascade pick
+ * should proceed, or `{ kind: 'none' }` when the cascade should stop.
+ */
+async function advanceAutoPick(
+  client: Client,
+  draftId: string,
+  totalPicksSoFar: number,
+  numSeats: number,
+  picksPerPlayer: number,
+  allSeatSettings: Map<number, { autoPick: boolean; displayName: string | null }>,
+): Promise<AutoPickAdvance> {
+  const nextAfter = getNextPick(totalPicksSoFar, numSeats, picksPerPlayer);
+  if (!nextAfter) return { kind: 'none' };
+
+  const nextSettings = allSeatSettings.get(nextAfter.seat);
+  if (!nextSettings?.autoPick) return { kind: 'none' };
+
+  // Collect available card_ids (quantity-aware)
+  const available = await client.execute({
+    sql: `SELECT csc.card_id
+          FROM cube_snapshot_cards csc
+          JOIN drafts d ON d.cube_snapshot_id = csc.cube_snapshot_id
+          LEFT JOIN (
+            SELECT card_id, COUNT(*) as cnt
+            FROM pick_events WHERE draft_id = ?
+            GROUP BY card_id
+          ) pe ON csc.card_id = pe.card_id
+          WHERE d.draft_id = ?
+          AND COALESCE(pe.cnt, 0) < csc.qty`,
+    args: [draftId, draftId],
+  });
+  const availableSet = new Set(available.rows.map((r) => r.card_id as number));
+
+  const autoPickResult = await getAutoPickCandidate(client, draftId, nextAfter.seat, availableSet);
+
+  if (autoPickResult.kind !== 'candidate') {
+    if (autoPickResult.kind === 'paused') {
+      await updateAutoPick(client, draftId, nextAfter.seat, false);
+      allSeatSettings.set(nextAfter.seat, { ...nextSettings, autoPick: false });
+    }
+    return { kind: 'none' };
+  }
+
+  // Fulfill the group entry and demote non-picked members to float
+  const fulfilledEntry = await fulfillGroupEntry(
+    client, draftId, nextAfter.seat, autoPickResult.entryIndex,
+  );
+  const candidate = autoPickResult.cardId;
+  const nonPicked = fulfilledEntry.cards.filter((c) => c.id !== candidate);
+  await Promise.all(nonPicked.map((c) => addFloatedCard(client, draftId, nextAfter.seat, c.name)));
+
+  // Resolve the card name from the DB
+  const cardRow = await client.execute({
+    sql: `SELECT name FROM cards WHERE card_id = ?`,
+    args: [candidate],
+  });
+  if (cardRow.rows.length === 0) return { kind: 'none' };
+
+  return {
+    kind: 'candidate',
+    seat: nextAfter.seat,
+    cardId: candidate,
+    cardName: cardRow.rows[0].name as string,
+  };
+}
+
+// ============================================================================
+// Main entry point
+// ============================================================================
+
 export async function processPick(
   client: Client,
   input: ProcessPickInput,
@@ -48,21 +188,11 @@ export async function processPick(
   if (bannedCards.has(input.cardName.toLowerCase())) {
     throw new ValidationError(`${input.cardName} is banned`);
   }
-  const availCheck = await client.execute({
-    sql: `SELECT COUNT(pe.pick_n) as picked_count, csc.qty
-          FROM cube_snapshot_cards csc
-          JOIN drafts d ON d.cube_snapshot_id = csc.cube_snapshot_id
-          LEFT JOIN pick_events pe ON pe.card_id = csc.card_id AND pe.draft_id = d.draft_id
-          WHERE d.draft_id = ? AND csc.card_id = ?
-          GROUP BY csc.card_id, csc.qty`,
-    args: [input.draftId, input.cardId],
-  });
-  if (availCheck.rows.length > 0) {
-    const pickedCount = availCheck.rows[0].picked_count as number;
-    const qty = availCheck.rows[0].qty as number;
-    if (pickedCount >= qty) {
-      throw new ValidationError(`${input.cardName} has already been picked`);
-    }
+  const availCheck = await getRemainingCopiesForPick(
+    client, input.draftId, input.cardId, input.cardName,
+  );
+  if (availCheck.pickedCount >= availCheck.qty) {
+    throw new ValidationError(`${input.cardName} has already been picked`);
   }
 
   // 4. Insert with optimistic concurrency + cascade
@@ -78,16 +208,10 @@ export async function processPick(
   while (cascadeDepth < maxCascade) {
     const pickN = currentCount + picks.length + 1;
 
-    const inserted = await client.execute({
-      sql: `INSERT INTO pick_events (draft_id, pick_n, seat, card_id)
-            SELECT ?, ?, ?, ?
-            WHERE NOT EXISTS (
-              SELECT 1 FROM pick_events WHERE draft_id = ? AND pick_n = ?
-            )`,
-      args: [input.draftId, pickN, currentSeat, currentCardId,
-             input.draftId, pickN],
-    });
-    if (inserted.rowsAffected === 0) {
+    const rowsAffected = await insertPickEvent(
+      client, input.draftId, pickN, currentSeat, currentCardId,
+    );
+    if (rowsAffected === 0) {
       throw new ConflictError('Conflict: pick_n already exists — retry');
     }
 
@@ -103,29 +227,15 @@ export async function processPick(
     let remainingAfterPick: number;
     if (cascadeDepth === 0) {
       // Initial pick: reuse the validation query result
-      const prevPickedCount = availCheck.rows.length > 0
-        ? (availCheck.rows[0].picked_count as number)
-        : 0;
-      const totalQty = availCheck.rows.length > 0
-        ? (availCheck.rows[0].qty as number)
-        : 1;
-      isLastCopy = prevPickedCount + 1 >= totalQty;
-      remainingAfterPick = totalQty - (prevPickedCount + 1);
+      isLastCopy = availCheck.pickedCount + 1 >= availCheck.qty;
+      remainingAfterPick = availCheck.qty - (availCheck.pickedCount + 1);
     } else {
-      // Cascade pick: check the count now
-      const copyCheck = await client.execute({
-        sql: `SELECT COUNT(pe.pick_n) as picked_count, csc.qty
-              FROM cube_snapshot_cards csc
-              JOIN drafts d ON d.cube_snapshot_id = csc.cube_snapshot_id
-              LEFT JOIN pick_events pe ON pe.card_id = csc.card_id AND pe.draft_id = d.draft_id
-              WHERE d.draft_id = ? AND csc.card_id = ?
-              GROUP BY csc.card_id, csc.qty`,
-        args: [input.draftId, currentCardId],
-      });
-      const pickedNow = copyCheck.rows.length > 0 ? (copyCheck.rows[0].picked_count as number) : 1;
-      const totalQty = copyCheck.rows.length > 0 ? (copyCheck.rows[0].qty as number) : 1;
-      isLastCopy = pickedNow >= totalQty;
-      remainingAfterPick = totalQty - pickedNow;
+      // Cascade pick: re-query the count now. Throws if card is not in cube.
+      const copyInfo = await getRemainingCopiesForPick(
+        client, input.draftId, currentCardId, currentCardName,
+      );
+      isLastCopy = copyInfo.pickedCount >= copyInfo.qty;
+      remainingAfterPick = copyInfo.qty - copyInfo.pickedCount;
     }
 
     if (isLastCopy) {
@@ -163,60 +273,14 @@ export async function processPick(
     }
 
     // Check next seat for auto-pick
-    const nextAfter = getNextPick(totalAfter, numSeats, picksPerPlayer);
-    if (!nextAfter) break;
-
-    const nextSettings = allSeatSettings.get(nextAfter.seat);
-    if (!nextSettings?.autoPick) {
-      break;
-    }
-
-    // Get available card_ids (quantity-aware)
-    const available = await client.execute({
-      sql: `SELECT csc.card_id
-            FROM cube_snapshot_cards csc
-            JOIN drafts d ON d.cube_snapshot_id = csc.cube_snapshot_id
-            LEFT JOIN (
-              SELECT card_id, COUNT(*) as cnt
-              FROM pick_events WHERE draft_id = ?
-              GROUP BY card_id
-            ) pe ON csc.card_id = pe.card_id
-            WHERE d.draft_id = ?
-            AND COALESCE(pe.cnt, 0) < csc.qty`,
-      args: [input.draftId, input.draftId],
-    });
-    const availableSet = new Set(available.rows.map((r) => r.card_id as number));
-
-    const autoPickResult = await getAutoPickCandidate(
-      client, input.draftId, nextAfter.seat, availableSet,
+    const advance = await advanceAutoPick(
+      client, input.draftId, totalAfter, numSeats, picksPerPlayer, allSeatSettings,
     );
-    if (autoPickResult.kind !== 'candidate') {
-      if (autoPickResult.kind === 'paused') {
-        await updateAutoPick(client, input.draftId, nextAfter.seat, false);
-        allSeatSettings.set(nextAfter.seat, { ...nextSettings, autoPick: false });
-      }
-      break;
-    }
+    if (advance.kind !== 'candidate') break;
 
-    // Fulfill the group entry (remove entire entry from picking seat's queue)
-    const fulfilledEntry = await fulfillGroupEntry(client, input.draftId, nextAfter.seat, autoPickResult.entryIndex);
-
-    const candidate = autoPickResult.cardId;
-
-    // Demote non-picked group members to float
-    const nonPicked = fulfilledEntry.cards.filter((c) => c.id !== candidate);
-    await Promise.all(nonPicked.map((c) => addFloatedCard(client, input.draftId, nextAfter.seat, c.name)));
-
-    // Look up card name for the candidate
-    const cardRow = await client.execute({
-      sql: `SELECT name FROM cards WHERE card_id = ?`,
-      args: [candidate],
-    });
-    if (cardRow.rows.length === 0) break;
-
-    currentSeat = nextAfter.seat;
-    currentCardId = candidate;
-    currentCardName = cardRow.rows[0].name as string;
+    currentSeat = advance.seat;
+    currentCardId = advance.cardId;
+    currentCardName = advance.cardName;
     cascadeDepth++;
   }
 
