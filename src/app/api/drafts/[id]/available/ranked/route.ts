@@ -23,7 +23,7 @@ export const GET = withApiErrors(
       color: searchParams.get("color") ?? undefined,
       type_contains: searchParams.get("type_contains") ?? undefined,
       deck_colors: searchParams.get("deck_colors") ?? undefined,
-      limit: Math.min(Number(searchParams.get("limit")) || 50, 1000),
+      limit: Math.max(1, Math.min(Number(searchParams.get("limit")) || 50, 1000)),
       sort_by: (() => {
         const sortByValues = ["geomean_pick", "win_rate", "play_rate"] as const;
         const raw = searchParams.get("sort_by");

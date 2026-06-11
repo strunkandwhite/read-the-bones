@@ -125,9 +125,11 @@ export function createEmptyDeckState(draftId: string, seat: number): DeckState {
   };
 }
 
-/** Generate an 8-character random alphanumeric ID. */
+/** Generate a 16-character random hex ID (~64 bits of entropy).
+ *  Existing 8-char IDs in the DB continue to resolve — lookups are by exact
+ *  string match with no length constraint. */
 export function generateDeckId(): string {
-  return crypto.randomUUID().replace(/-/g, "").slice(0, 8);
+  return crypto.randomUUID().replace(/-/g, "").slice(0, 16);
 }
 
 export type DeckAction =

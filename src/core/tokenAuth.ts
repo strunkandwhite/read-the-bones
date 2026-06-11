@@ -2,11 +2,15 @@ import type { Client } from '@libsql/client';
 import { resolveToken } from './db/queries/seatTokens';
 import { AuthError } from './errors';
 
+/**
+ * Extract seat token from the Authorization header only.
+ * Query-param tokens (?token=) are intentionally not accepted on API routes —
+ * tokens in URLs appear in server and CDN logs. The join-link flow reads the
+ * URL query param client-side (liveStore.hydrateToken) and stores it in
+ * localStorage before any API call is made.
+ */
 export function extractToken(request: Request): string | null {
-  const header = request.headers.get('X-Seat-Token');
-  if (header) return header;
-  const url = new URL(request.url);
-  return url.searchParams.get('token');
+  return request.headers.get('X-Seat-Token');
 }
 
 export async function authenticateSeat(

@@ -11,6 +11,13 @@ function makeRequest(id: string, params: Record<string, string> = {}) {
   return new NextRequest(url);
 }
 
+const emptyResult = {
+  draft_id: "tarkir",
+  before_pick_n: 50,
+  total_available: 0,
+  cards: [],
+};
+
 describe("GET /api/drafts/[id]/available/ranked", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -22,12 +29,7 @@ describe("GET /api/drafts/[id]/available/ranked", () => {
   });
 
   it("passes all ranking options", async () => {
-    vi.mocked(queries.rankAvailableCards).mockResolvedValue({
-      draft_id: "tarkir",
-      before_pick_n: 50,
-      total_available: 0,
-      cards: [],
-    });
+    vi.mocked(queries.rankAvailableCards).mockResolvedValue(emptyResult);
     const res = await GET(
       makeRequest("tarkir", {
         before_pick_n: "50",
@@ -48,5 +50,38 @@ describe("GET /api/drafts/[id]/available/ranked", () => {
       limit: 10,
       sort_by: "win_rate",
     });
+  });
+
+  it("clamps negative limit to 1 (prevents slice(0, negative) returning wrong results)", async () => {
+    vi.mocked(queries.rankAvailableCards).mockResolvedValue(emptyResult);
+    await GET(
+      makeRequest("tarkir", { before_pick_n: "50", limit: "-5" }),
+      { params: Promise.resolve({ id: "tarkir" }) },
+    );
+    expect(queries.rankAvailableCards).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 1 }),
+    );
+  });
+
+  it("clamps limit to 1000 maximum", async () => {
+    vi.mocked(queries.rankAvailableCards).mockResolvedValue(emptyResult);
+    await GET(
+      makeRequest("tarkir", { before_pick_n: "50", limit: "9999" }),
+      { params: Promise.resolve({ id: "tarkir" }) },
+    );
+    expect(queries.rankAvailableCards).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 1000 }),
+    );
+  });
+
+  it("uses default limit of 50 when limit is not provided", async () => {
+    vi.mocked(queries.rankAvailableCards).mockResolvedValue(emptyResult);
+    await GET(
+      makeRequest("tarkir", { before_pick_n: "50" }),
+      { params: Promise.resolve({ id: "tarkir" }) },
+    );
+    expect(queries.rankAvailableCards).toHaveBeenCalledWith(
+      expect.objectContaining({ limit: 50 }),
+    );
   });
 });

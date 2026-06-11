@@ -169,14 +169,14 @@ describe("createEmptyDeckState", () => {
 });
 
 describe("generateDeckId", () => {
-  it("returns an 8-character string", () => {
+  it("returns a 16-character string", () => {
     const id = generateDeckId();
-    expect(id).toHaveLength(8);
+    expect(id).toHaveLength(16);
   });
 
-  it("contains only lowercase alphanumeric characters", () => {
+  it("contains only lowercase hex characters", () => {
     const id = generateDeckId();
-    expect(id).toMatch(/^[a-z0-9]{8}$/);
+    expect(id).toMatch(/^[a-f0-9]{16}$/);
   });
 });
 

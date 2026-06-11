@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCards } from "@/core/getCards";
-import { isLocalHost } from "@/core/isLocal";
+
+// Win-stats data (decklist win rates) is only shown in non-production environments.
+// Using an env check rather than trusting the client-supplied Host header, which
+// can be spoofed and also appears in server/CDN logs when used for auth decisions.
+const WIN_STATS_ENABLED = process.env.NODE_ENV !== "production";
 
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
@@ -18,12 +22,11 @@ export async function GET(request: NextRequest) {
   const poolAsOfDraft = searchParams.get("poolAsOfDraft") ?? undefined;
 
   try {
-    const host = request.headers.get("host") ?? "";
     const result = await getCards({
       draftIds,
       activeDraft,
       poolAsOfDraft,
-      includeWinStats: isLocalHost(host),
+      includeWinStats: WIN_STATS_ENABLED,
     });
 
     // Cache forever at the edge — the ?v= param busts the cache on new ingestions.

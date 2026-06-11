@@ -23,7 +23,7 @@ describe("GET /api/cards", () => {
       draftIds: ["draft-1", "draft-2"],
       activeDraft: undefined,
       poolAsOfDraft: undefined,
-      includeWinStats: false,
+      includeWinStats: expect.any(Boolean),
     });
   });
 
@@ -37,7 +37,7 @@ describe("GET /api/cards", () => {
       draftIds: undefined,
       activeDraft: "active-1",
       poolAsOfDraft: "pool-1",
-      includeWinStats: false,
+      includeWinStats: expect.any(Boolean),
     });
   });
 
@@ -63,27 +63,18 @@ describe("GET /api/cards", () => {
     expect(res.headers.get("Cache-Control")).toBe("no-store");
   });
 
-  it("includes win stats when host is localhost", async () => {
-    const req = new NextRequest(
-      new URL("http://localhost:3000/api/cards"),
-      { headers: { host: "localhost:3000" } },
-    );
-    await GET(req);
-
-    expect(getCards).toHaveBeenCalledWith(
-      expect.objectContaining({ includeWinStats: true }),
-    );
-  });
-
-  it("excludes win stats when host is not localhost", async () => {
+  it("win stats enabled/disabled based on NODE_ENV (not Host header)", async () => {
+    // In test environment NODE_ENV !== 'production', so includeWinStats should be true.
+    // This verifies we're using env-based gating, not header-based.
     const req = new NextRequest(
       new URL("https://example.com/api/cards"),
       { headers: { host: "example.com" } },
     );
     await GET(req);
 
+    // In test environment (NODE_ENV=test), WIN_STATS_ENABLED is true
     expect(getCards).toHaveBeenCalledWith(
-      expect.objectContaining({ includeWinStats: false }),
+      expect.objectContaining({ includeWinStats: true }),
     );
   });
 

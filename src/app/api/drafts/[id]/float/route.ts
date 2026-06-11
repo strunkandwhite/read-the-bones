@@ -6,7 +6,10 @@ import {
   addFloatedCard,
   removeFloatedCard,
 } from "@/core/db/queries/floatedCards";
+import { resolveCardId } from "@/core/db/queries/cards";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
+
+const MAX_CARD_NAME_LENGTH = 200;
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -31,6 +34,15 @@ export const PUT = withApiErrors(
     if (!body.card_name || typeof body.card_name !== "string") {
       return NextResponse.json({ error: "card_name required" }, { status: 400 });
     }
+    if (body.card_name.length > MAX_CARD_NAME_LENGTH) {
+      return NextResponse.json({ error: "card_name too long" }, { status: 400 });
+    }
+
+    // Resolve against the cards table to reject unknown names (matches queue route behavior).
+    const cardId = await resolveCardId(client, body.card_name);
+    if (cardId === null) {
+      return NextResponse.json({ error: `Card not found: ${body.card_name}` }, { status: 400 });
+    }
 
     await addFloatedCard(client, draftId, seat, body.card_name);
     return NextResponse.json({ ok: true });
@@ -47,6 +59,9 @@ export const DELETE = withApiErrors(
     const body = await request.json();
     if (!body.card_name || typeof body.card_name !== "string") {
       return NextResponse.json({ error: "card_name required" }, { status: 400 });
+    }
+    if (body.card_name.length > MAX_CARD_NAME_LENGTH) {
+      return NextResponse.json({ error: "card_name too long" }, { status: 400 });
     }
 
     await removeFloatedCard(client, draftId, seat, body.card_name);

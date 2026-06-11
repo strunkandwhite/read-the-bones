@@ -21,12 +21,19 @@ describe('extractToken', () => {
     expect(extractToken(req)).toBe('abc123');
   });
 
-  it('reads from ?token= query param', () => {
+  it('does NOT read from ?token= query param (tokens in URLs hit server logs)', () => {
     const req = new Request('http://localhost/test?token=xyz789');
-    expect(extractToken(req)).toBe('xyz789');
+    expect(extractToken(req)).toBeNull();
   });
 
-  it('returns null if neither present', () => {
+  it('header takes precedence over query param', () => {
+    const req = new Request('http://localhost/test?token=ignored', {
+      headers: { 'X-Seat-Token': 'header-wins' },
+    });
+    expect(extractToken(req)).toBe('header-wins');
+  });
+
+  it('returns null if header absent', () => {
     const req = new Request('http://localhost/test');
     expect(extractToken(req)).toBeNull();
   });

@@ -22,6 +22,11 @@ vi.mock("@/core/db/queries/floatedCards", () => ({
   removeFloatedCard: (...args: unknown[]) => mockRemoveFloatedCard(...args),
 }));
 
+const mockResolveCardId = vi.fn();
+vi.mock("@/core/db/queries/cards", () => ({
+  resolveCardId: (...args: unknown[]) => mockResolveCardId(...args),
+}));
+
 function makeGetRequest(token = "test-token") {
   return new NextRequest(
     new URL("http://localhost:3000/api/drafts/test/float"),
@@ -77,6 +82,7 @@ describe("PUT /api/drafts/[id]/float", () => {
 
   it("adds a floated card", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1 });
+    mockResolveCardId.mockResolvedValueOnce(42);
     mockAddFloatedCard.mockResolvedValueOnce(undefined);
 
     const res = await PUT(
@@ -101,6 +107,33 @@ describe("PUT /api/drafts/[id]/float", () => {
     );
 
     expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when card_name exceeds 200 characters", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1 });
+
+    const res = await PUT(
+      makeRequest("PUT", { card_name: "A".repeat(201) }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("card_name too long");
+  });
+
+  it("returns 400 when card_name is not in the cards table", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1 });
+    mockResolveCardId.mockResolvedValueOnce(null); // card not found
+
+    const res = await PUT(
+      makeRequest("PUT", { card_name: "Totally Fake Card" }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toMatch(/Card not found/);
   });
 
   it("returns 401 without token", async () => {
@@ -144,6 +177,19 @@ describe("DELETE /api/drafts/[id]/float", () => {
     );
 
     expect(res.status).toBe(400);
+  });
+
+  it("returns 400 when card_name exceeds 200 characters", async () => {
+    mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1 });
+
+    const res = await DELETE(
+      makeRequest("DELETE", { card_name: "B".repeat(201) }),
+      { params: Promise.resolve({ id: "test" }) },
+    );
+    const body = await res.json();
+
+    expect(res.status).toBe(400);
+    expect(body.error).toBe("card_name too long");
   });
 
   it("returns 401 without token", async () => {

@@ -94,7 +94,7 @@ describe("upsertWipDeck", () => {
 describe("createSnapshot", () => {
   it("creates an immutable snapshot with a generated ID", async () => {
     const { deckId } = await createSnapshot(client, sampleDeckState);
-    expect(deckId).toHaveLength(8);
+    expect(deckId).toHaveLength(16);
     const result = await client.execute({
       sql: "SELECT * FROM decks WHERE id = ?",
       args: [deckId],
