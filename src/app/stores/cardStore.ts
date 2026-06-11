@@ -157,7 +157,7 @@ interface CardStoreState {
 function recompute() {
   const state = useCardStore.getState();
   const { cardData, searchQuery, scryfallMatchNames } = state;
-  const { activeDraft, hideTaken, selectedSeat } = useDraftStore.getState();
+  const { activeDraft, hideTaken, selectedSeat, board } = useDraftStore.getState();
 
   // Only rebuild maps when cardData reference changes
   if (cardData !== lastCardDataRef) {
@@ -173,11 +173,24 @@ function recompute() {
   const scryfallDataMap = cachedScryfallDataMap;
   const cardStatsMap = cachedCardStatsMap;
 
+  // Determine the effective source of taken-card data:
+  //   - Active draft with a populated board: derive from board.picks (already in
+  //     every poll response, so this is always live without an API round-trip per pick).
+  //   - Non-active / completed drafts, or before the first poll arrives:
+  //     use cardData.takenCards from the last /api/cards fetch.
+  //
+  // Guard: board.picks must be an array (a malformed poll response where the
+  // live endpoint returns non-board data leaves board.picks as undefined).
+  const effectiveTakenCards: Array<{ name: string; seat: number }> | undefined =
+    activeDraft && Array.isArray(board?.picks)
+      ? board!.picks.map((p) => ({ name: p.cardName, seat: p.seat }))
+      : cardData.takenCards;
+
   // takenCardCounts
   let takenCardCounts: Map<string, number> | undefined;
-  if (cardData.takenCards) {
+  if (effectiveTakenCards) {
     takenCardCounts = new Map<string, number>();
-    for (const c of cardData.takenCards) {
+    for (const c of effectiveTakenCards) {
       takenCardCounts.set(c.name, (takenCardCounts.get(c.name) ?? 0) + 1);
     }
   }
@@ -196,8 +209,8 @@ function recompute() {
   // seatCardNames + seatCardList
   let seatCardNames: Set<string> | undefined;
   let seatCardList: string[] | undefined;
-  if (cardData.takenCards && selectedSeat != null) {
-    const seatPicks = cardData.takenCards.filter(
+  if (effectiveTakenCards && selectedSeat != null) {
+    const seatPicks = effectiveTakenCards.filter(
       (c) => c.seat === selectedSeat,
     );
     seatCardList = seatPicks.map((c) => c.name);
@@ -502,13 +515,13 @@ useDraftStore.subscribe(
   () => useCardStore.getState().fetchCardData(),
 );
 
-// pickVersion: a live pick landed — refetch card data only.
-// Draft-stats cover completed drafts only and cannot change mid-draft,
-// so skip /api/draft-stats here. Task 21 will remove this subscription
-// entirely once pick-driven card state is derived from board.picks.
+// pickVersion: a live pick landed — recompute derived state from board.picks
+// (already in every poll response) instead of refetching /api/cards. This
+// eliminates ~4,500 heavy API calls per 450-pick draft with 10 clients.
+// The board field is read inside recompute() via useDraftStore.getState().
 useDraftStore.subscribe(
   (state) => state.pickVersion,
-  () => useCardStore.getState().fetchCardData({ includeDraftStats: false }),
+  () => recompute(),
 );
 
 // dataVersion: ingestion/sync data changed — refetch BOTH card data and draft-stats.

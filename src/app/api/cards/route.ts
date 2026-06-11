@@ -30,10 +30,12 @@ export async function GET(request: NextRequest) {
     });
 
     // Cache forever at the edge — the ?v= param busts the cache on new ingestions.
-    // When activeDraft is present, disable caching since taken cards change frequently.
-    const cacheControl = activeDraft
-      ? "no-store"
-      : "public, s-maxage=31536000, stale-while-revalidate=60";
+    // Previously the activeDraft path was no-store because takenCards changed per pick.
+    // Now that the client derives taken state from board.picks (populated by /live polling),
+    // the payload only changes when ingestion changes — so the same long-cache policy applies.
+    // A fresh-page-load client may briefly see stale takenCards from the edge cache, but
+    // polling (which starts immediately after mount) overrides it via board.picks recompute.
+    const cacheControl = "public, s-maxage=31536000, stale-while-revalidate=60";
 
     return NextResponse.json(result, {
       headers: { "Cache-Control": cacheControl },

@@ -53,14 +53,19 @@ describe("GET /api/cards", () => {
     );
   });
 
-  it("sets no-store cache-control when activeDraft is present", async () => {
+  it("sets long cache-control even when activeDraft is present (taken state is now client-derived from board.picks)", async () => {
+    // Previously activeDraft triggered no-store because takenCards changed per pick.
+    // Now the client derives taken state from board.picks, so the payload only
+    // changes on ingestion — same long-cache policy applies to both paths.
     const req = new NextRequest(
       new URL("http://localhost:3000/api/cards?activeDraft=active-1"),
     );
     const res = await GET(req);
 
     expect(res.status).toBe(200);
-    expect(res.headers.get("Cache-Control")).toBe("no-store");
+    expect(res.headers.get("Cache-Control")).toBe(
+      "public, s-maxage=31536000, stale-while-revalidate=60",
+    );
   });
 
   it("win stats enabled/disabled based on NODE_ENV (not Host header)", async () => {

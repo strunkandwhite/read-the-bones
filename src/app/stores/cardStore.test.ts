@@ -351,21 +351,45 @@ describe("cardStore — fetchCardData", () => {
     expect(urls.some((u: string) => u.includes("/api/draft-stats"))).toBe(true);
   });
 
-  it("pickVersion bump triggers card-only fetch (no /api/draft-stats)", async () => {
-    useDraftStore.setState({ selectedDrafts: new Set(["d1"]) });
+  it("pickVersion bump does NOT call /api/cards — taken state is derived from board.picks instead", async () => {
+    // Populate card data with a card + cube copies so taken-state computation is meaningful.
+    useCardStore.setState({
+      cardData: {
+        ...EMPTY_CARD_DATA,
+        cards: [makeCard("Lightning Bolt")],
+        cubeCopies: { "Lightning Bolt": 1 },
+      },
+    });
+    useDraftStore.setState({
+      selectedDrafts: new Set(["d1"]),
+      activeDraft: "d1",
+    });
 
     // Wait for subscription-triggered fetch to settle
     await vi.waitFor(() => expect(useCardStore.getState().isLoading).toBe(false));
     fetchSpy.mockClear();
 
-    // Bump pickVersion (simulates a pick landing)
-    useDraftStore.setState({ pickVersion: 1 });
+    // Simulate a pick landing: board.picks gets Lightning Bolt for seat 1
+    const boardWithPick = {
+      picks: [{ pickN: 1, seat: 1, cardName: "Lightning Bolt", oracleId: "oid", colorIdentity: ["R"], manaCost: "{R}" }],
+      numSeats: 10,
+      picksPerPlayer: 45,
+      phase: "drafting",
+      seatNames: {},
+      bannedCards: [],
+    };
+    useDraftStore.setState({ board: boardWithPick, pickVersion: 1 });
 
-    await vi.waitFor(() => expect(useCardStore.getState().isLoading).toBe(false));
+    // Give the subscription a tick to run
+    await Promise.resolve();
 
-    const urls = fetchSpy.mock.calls.map((c: unknown[]) => String(c[0]));
-    expect(urls.some((u: string) => u.includes("/api/cards"))).toBe(true);
-    expect(urls.every((u: string) => !u.includes("/api/draft-stats"))).toBe(true);
+    // No fetch should have been made — pick-driven state is local
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    // Taken state should now reflect the pick from board.picks
+    const state = useCardStore.getState();
+    expect(state.takenCardNamesSet?.has("Lightning Bolt")).toBe(true);
+    expect(state.takenCardCounts?.get("Lightning Bolt")).toBe(1);
   });
 
   it("dataVersion bump triggers both card and draft-stats fetch", async () => {

@@ -38,11 +38,10 @@ type DraftMetadataResult = {
 type CubeCardInfo = {
   cardName: string;
   qty: number;
-  scryfallJson: string | null;
 };
 
 type PickEventsResult = {
-  scryfallDataMap: Map<string, ScryCard>;
+  cardIds: Set<number>;
   picksByDraftAndCard: Map<string, Map<string, CardPick[]>>;
 };
 
@@ -180,17 +179,20 @@ async function getCubePoolSizes(
 }
 
 /**
- * Step 3: Load all pick events with Scryfall data.
- * Builds scryfallDataMap (card key -> ScryCard) and picksByDraftAndCard (draftId -> cardKey -> CardPick[]).
+ * Step 3: Load all pick events (ids, names, pick metadata — no scryfall_json).
+ * Returns the set of distinct card_ids seen (for the later Scryfall batch load),
+ * a card_id→name lookup, and picksByDraftAndCard (draftId → cardKey → CardPick[]).
+ * Scryfall data is loaded separately in loadScryfallDataForCards to avoid
+ * transferring 2-8 KB blobs once per pick row (~450 rows × N drafts).
  */
 async function loadPickEvents(client: Client, draftIds: string[]): Promise<PickEventsResult> {
   if (draftIds.length === 0) {
-    return { scryfallDataMap: new Map(), picksByDraftAndCard: new Map() };
+    return { cardIds: new Set(), picksByDraftAndCard: new Map() };
   }
 
   const picksResult = await client.execute({
-    sql: `SELECT pe.draft_id, pe.pick_n, pe.seat,
-                 c.name as card_name, c.scryfall_json
+    sql: `SELECT pe.draft_id, pe.pick_n, pe.seat, pe.card_id,
+                 c.name as card_name
           FROM pick_events pe
           JOIN cards c ON pe.card_id = c.card_id
           WHERE pe.draft_id IN (${placeholders(draftIds.length)})
@@ -198,25 +200,17 @@ async function loadPickEvents(client: Client, draftIds: string[]): Promise<PickE
     args: [...draftIds],
   });
 
-  const scryfallDataMap = new Map<string, ScryCard>();
+  const cardIds = new Set<number>();
   const picksByDraftAndCard = new Map<string, Map<string, CardPick[]>>();
 
   for (const row of picksResult.rows) {
     const draftId = row.draft_id as string;
     const cardName = row.card_name as string;
-    const scryfallJson = row.scryfall_json as string | null;
+    const cardId = row.card_id as number;
     const seat = row.seat as number;
     const key = cardNameKey(cardName);
 
-    if (!scryfallDataMap.has(key)) {
-      const scryData = transformScryfallJson(scryfallJson, cardName);
-      if (scryData) {
-        scryfallDataMap.set(key, scryData);
-      }
-    }
-
-    const scryData = scryfallDataMap.get(key);
-    const color = scryData ? getColorFromIdentity(scryData.colorIdentity) : "";
+    cardIds.add(cardId);
 
     if (!picksByDraftAndCard.has(draftId)) {
       picksByDraftAndCard.set(draftId, new Map());
@@ -228,6 +222,7 @@ async function loadPickEvents(client: Client, draftIds: string[]): Promise<PickE
 
     const copyNumber = draftPicks.get(key)!.length + 1;
 
+    // Color is filled in after Scryfall data loads (see buildAllPicks).
     const pick: CardPick = {
       cardName,
       pickPosition: row.pick_n as number,
@@ -235,27 +230,30 @@ async function loadPickEvents(client: Client, draftIds: string[]): Promise<PickE
       wasPicked: true,
       draftId,
       seat,
-      color,
+      color: "",
     };
 
     draftPicks.get(key)!.push(pick);
   }
 
-  return { scryfallDataMap, picksByDraftAndCard };
+  return { cardIds, picksByDraftAndCard };
 }
 
 /**
- * Step 4: Load all cards in each cube snapshot, grouped by snapshot ID.
+ * Step 4: Load all cards in each cube snapshot (ids, names, qty — no scryfall_json).
+ * Grouped by snapshot ID. Scryfall data is loaded separately in loadScryfallDataForCards.
  */
 async function loadCubeCards(
   client: Client,
   uniqueCubeSnapshots: number[],
-): Promise<Map<number, Map<number, CubeCardInfo>>> {
-  if (uniqueCubeSnapshots.length === 0) return new Map();
+): Promise<{ cubeCardsBySnapshot: Map<number, Map<number, CubeCardInfo>>; cubeCardIds: Set<number> }> {
+  if (uniqueCubeSnapshots.length === 0) {
+    return { cubeCardsBySnapshot: new Map(), cubeCardIds: new Set() };
+  }
 
   const cubeCardsResult = await client.execute({
     sql: `SELECT csc.cube_snapshot_id, csc.card_id, csc.qty,
-                 c.name as card_name, c.scryfall_json
+                 c.name as card_name
           FROM cube_snapshot_cards csc
           JOIN cards c ON csc.card_id = c.card_id
           WHERE csc.cube_snapshot_id IN (${placeholders(uniqueCubeSnapshots.length)})`,
@@ -263,9 +261,13 @@ async function loadCubeCards(
   });
 
   const cubeCardsBySnapshot = new Map<number, Map<number, CubeCardInfo>>();
+  const cubeCardIds = new Set<number>();
+
   for (const row of cubeCardsResult.rows) {
     const snapshotId = row.cube_snapshot_id as number;
     const cardId = row.card_id as number;
+
+    cubeCardIds.add(cardId);
 
     if (!cubeCardsBySnapshot.has(snapshotId)) {
       cubeCardsBySnapshot.set(snapshotId, new Map());
@@ -273,17 +275,51 @@ async function loadCubeCards(
     cubeCardsBySnapshot.get(snapshotId)!.set(cardId, {
       cardName: row.card_name as string,
       qty: row.qty as number,
-      scryfallJson: row.scryfall_json as string | null,
     });
   }
 
-  return cubeCardsBySnapshot;
+  return { cubeCardsBySnapshot, cubeCardIds };
+}
+
+/**
+ * Step 4b: Load Scryfall data ONCE per distinct card_id.
+ * Combines pick card_ids and cube card_ids, then fetches scryfall_json in a single
+ * batched query. Returns a Map<cardNameKey, ScryCard> for downstream consumers.
+ * Transferring 2-8 KB blobs once per unique card (vs. once per pick/cube row) cuts
+ * data transfer by ~100× on a 450-pick draft with 10 clients.
+ */
+async function loadScryfallDataForCards(
+  client: Client,
+  allCardIds: Set<number>,
+): Promise<Map<string, ScryCard>> {
+  if (allCardIds.size === 0) return new Map();
+
+  const ids = [...allCardIds];
+  const result = await client.execute({
+    sql: `SELECT card_id, name, scryfall_json
+          FROM cards
+          WHERE card_id IN (${placeholders(ids.length)})`,
+    args: [...ids],
+  });
+
+  const scryfallDataMap = new Map<string, ScryCard>();
+  for (const row of result.rows) {
+    const cardName = row.name as string;
+    const key = cardNameKey(cardName);
+    if (!scryfallDataMap.has(key)) {
+      const scryData = transformScryfallJson(row.scryfall_json as string | null, cardName);
+      if (scryData) {
+        scryfallDataMap.set(key, scryData);
+      }
+    }
+  }
+  return scryfallDataMap;
 }
 
 /**
  * Step 5: Combine picked + unpicked cards from selected drafts.
- * Pure computation (no DB queries). Mutates scryfallDataMap to add Scryfall data
- * for cube cards not seen in pick events.
+ * Pure computation (no DB queries). Uses the pre-loaded scryfallDataMap to
+ * fill in color for both picked and unpicked entries.
  */
 function buildAllPicks(
   selectedDraftIds: string[],
@@ -297,11 +333,15 @@ function buildAllPicks(
 ): CardPick[] {
   const allPicks: CardPick[] = [];
 
-  // Add all picked cards from selected drafts
+  // Add all picked cards from selected drafts, filling in color from scryfallDataMap
   for (const [draftId, cardPicks] of picksByDraftAndCard) {
     if (!selectedDraftSet.has(draftId)) continue;
     for (const picks of cardPicks.values()) {
-      allPicks.push(...picks);
+      for (const pick of picks) {
+        const key = cardNameKey(pick.cardName);
+        const scryData = scryfallDataMap.get(key);
+        allPicks.push(scryData ? { ...pick, color: getColorFromIdentity(scryData.colorIdentity) } : pick);
+      }
     }
   }
 
@@ -326,13 +366,6 @@ function buildAllPicks(
       const unpickedQty = cardInfo.qty - pickedCount;
 
       if (unpickedQty > 0) {
-        if (!scryfallDataMap.has(key)) {
-          const scryData = transformScryfallJson(cardInfo.scryfallJson, cardInfo.cardName);
-          if (scryData) {
-            scryfallDataMap.set(key, scryData);
-          }
-        }
-
         const scryData = scryfallDataMap.get(key);
         const color = scryData ? getColorFromIdentity(scryData.colorIdentity) : "";
 
@@ -356,12 +389,11 @@ function buildAllPicks(
 
 /**
  * Step 7: Build cubeCopies and currentCubeSet from the display cube snapshot.
- * Mutates scryfallDataMap to add Scryfall data for current cube cards not seen elsewhere.
+ * Scryfall data is already loaded into scryfallDataMap by loadScryfallDataForCards.
  */
 function buildCubeDisplayData(
   displayCubeSnapshotId: number | null,
   cubeCardsBySnapshot: Map<number, Map<number, CubeCardInfo>>,
-  scryfallDataMap: Map<string, ScryCard>,
 ): CubeDisplayData {
   const cubeCopies: Record<string, number> = {};
 
@@ -370,14 +402,7 @@ function buildCubeDisplayData(
     if (currentCube) {
       for (const cardInfo of currentCube.values()) {
         cubeCopies[cardInfo.cardName] = cardInfo.qty;
-
-        const key = cardNameKey(cardInfo.cardName);
-        if (!scryfallDataMap.has(key)) {
-          const scryData = transformScryfallJson(cardInfo.scryfallJson, cardInfo.cardName);
-          if (scryData) {
-            scryfallDataMap.set(key, scryData);
-          }
-        }
+        // Scryfall data already loaded into scryfallDataMap by loadScryfallDataForCards.
       }
     }
   }
@@ -493,11 +518,17 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
   const uniqueCubeSnapshots = [...selectedSnapshotIds];
   const poolSizes = await getCubePoolSizes(client, uniqueCubeSnapshots);
 
-  // 3. Load picks scoped to selected drafts
-  const { scryfallDataMap, picksByDraftAndCard } = await loadPickEvents(client, selectedDraftIds);
+  // 3. Load picks scoped to selected drafts (no scryfall_json — lean rows)
+  const { cardIds: pickCardIds, picksByDraftAndCard } = await loadPickEvents(client, selectedDraftIds);
 
-  // 4. Load cube snapshot cards to find unpicked cards
-  const cubeCardsBySnapshot = await loadCubeCards(client, uniqueCubeSnapshots);
+  // 4. Load cube snapshot cards to find unpicked cards (no scryfall_json)
+  const { cubeCardsBySnapshot, cubeCardIds } = await loadCubeCards(client, uniqueCubeSnapshots);
+
+  // 4b. Load Scryfall data once per distinct card — one batch query for all
+  //     pick + cube card_ids combined. This replaces the old pattern of joining
+  //     scryfall_json onto every pick/cube row (450 picks × N drafts = tens of MB).
+  const allCardIds = new Set([...pickCardIds, ...cubeCardIds]);
+  const scryfallDataMap = await loadScryfallDataForCards(client, allCardIds);
 
   // 5. Build picks array from selected drafts, including unpicked entries
   const allPicks = buildAllPicks(
@@ -508,7 +539,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
 
   // 6. Build cube display data from the selected pool snapshot
   const { cubeCopies, currentCubeSet, currentCubeKeySet } = buildCubeDisplayData(
-    displayCubeSnapshotId, cubeCardsBySnapshot, scryfallDataMap,
+    displayCubeSnapshotId, cubeCardsBySnapshot,
   );
 
   // 7. Optionally fetch bulk win stats (localhost only)
