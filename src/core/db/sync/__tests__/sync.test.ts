@@ -413,6 +413,140 @@ describe("syncDraft", () => {
     });
   });
 
+  describe("phase protection — never demote playing/complete", () => {
+    function buildCompletePickRows(): string[][] {
+      // ✪ marker in last row = draft complete
+      return [
+        [],
+        [],
+        ["", "", "Alice", "Bob", "↩"],
+        ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
+        ["✪", "→", "Dark Ritual", "Swords to Plowshares", "B", "W"],
+      ];
+    }
+
+    function buildIncompletePickRows(): string[][] {
+      // No ✪ marker = still drafting
+      return [
+        [],
+        [],
+        ["", "", "Alice", "Bob", "↩"],
+        ["1", "→", "Lightning Bolt", "", "R", ""],
+      ];
+    }
+
+    it("does NOT demote a 'playing' draft back to 'drafting' on re-sync", async () => {
+      const rawData: DraftSheetRawData = {
+        pool: buildPoolRows(["Lightning Bolt", "Counterspell"]),
+        picks: buildIncompletePickRows(), // picks not complete → sync would write 'drafting'
+        matches: null,
+      };
+
+      const { hashPool: hp, hashPicks: hpk } = await import("../domains");
+      const { parsePoolRows: ppr, parsePickRows: ppkr } = await import("../../../parseSheetRows");
+      const poolHash = hp(ppr(rawData.pool!));
+      const parsed = ppkr(rawData.picks!, "test-draft");
+      const picksHash = hpk(parsed.picks.filter((p) => p.wasPicked));
+
+      const client = mockClient((params) => {
+        if (params.sql.includes("pool_hash")) {
+          // Current phase is 'playing' — matches ongoing
+          return { rows: [{ pool_hash: poolHash, picks_hash: picksHash, matches_hash: null, phase: "playing" }] };
+        }
+        return { rows: [] };
+      });
+
+      const cache = populatedCache([
+        ["Lightning Bolt", 1],
+        ["Counterspell", 2],
+      ]);
+
+      await syncDraft(client as any, "test-draft", rawData, cache, emptyScryfallCache, emptyOptOuts);
+
+      // The UPDATE drafts SET phase must NOT have been called with 'drafting'
+      const executeCalls = client.execute.mock.calls;
+      const demotionCall = executeCalls.find(
+        (c: any[]) =>
+          (c[0].sql as string).includes("UPDATE drafts SET phase") &&
+          c[0].args[0] === "drafting",
+      );
+      expect(demotionCall).toBeUndefined();
+    });
+
+    it("does NOT demote a 'complete' draft back to 'drafting' on re-sync", async () => {
+      const rawData: DraftSheetRawData = {
+        pool: buildPoolRows(["Lightning Bolt"]),
+        picks: buildIncompletePickRows(),
+        matches: null,
+      };
+
+      const { hashPool: hp } = await import("../domains");
+      const { parsePoolRows: ppr } = await import("../../../parseSheetRows");
+      const poolHash = hp(ppr(rawData.pool!));
+
+      const client = mockClient((params) => {
+        if (params.sql.includes("pool_hash")) {
+          return { rows: [{ pool_hash: poolHash, picks_hash: "some-hash", matches_hash: null, phase: "complete" }] };
+        }
+        return { rows: [] };
+      });
+
+      const cache = populatedCache([["Lightning Bolt", 1]]);
+
+      await syncDraft(client as any, "test-draft", rawData, cache, emptyScryfallCache, emptyOptOuts);
+
+      const executeCalls = client.execute.mock.calls;
+      const demotionCall = executeCalls.find(
+        (c: any[]) =>
+          (c[0].sql as string).includes("UPDATE drafts SET phase") &&
+          c[0].args[0] === "drafting",
+      );
+      expect(demotionCall).toBeUndefined();
+    });
+
+    it("DOES mark a 'playing' draft as 'complete' when picks are finished", async () => {
+      const rawData: DraftSheetRawData = {
+        pool: buildPoolRows(["Lightning Bolt", "Counterspell", "Dark Ritual", "Swords to Plowshares"]),
+        picks: buildCompletePickRows(), // ✪ marker = complete
+        matches: null,
+      };
+
+      const client = mockClient((params) => {
+        if (params.sql.includes("pool_hash")) {
+          // Draft is currently 'playing' (matches in progress)
+          return { rows: [{ pool_hash: null, picks_hash: null, matches_hash: null, phase: "playing" }] };
+        }
+        if (params.sql.includes("SELECT cube_snapshot_id FROM cube_snapshots")) {
+          return { rows: [] };
+        }
+        if (params.sql.includes("INSERT INTO cube_snapshots")) {
+          return { rows: [], lastInsertRowid: BigInt(1) };
+        }
+        return { rows: [] };
+      });
+
+      const cache = populatedCache([
+        ["Lightning Bolt", 1],
+        ["Counterspell", 2],
+        ["Dark Ritual", 3],
+        ["Swords to Plowshares", 4],
+      ]);
+
+      const result = await syncDraft(
+        client as any, "test-draft", rawData, cache, emptyScryfallCache, emptyOptOuts,
+      );
+
+      expect(result.markedComplete).toBe(true);
+
+      const executeCalls = client.execute.mock.calls;
+      const completionUpdate = executeCalls.find(
+        (c: any[]) => (c[0].sql as string).includes("UPDATE drafts SET phase"),
+      );
+      expect(completionUpdate).toBeDefined();
+      expect(completionUpdate![0].args[0]).toBe("complete");
+    });
+  });
+
   describe("seat indexing", () => {
     it("converts 0-indexed seats to 1-indexed for picks", async () => {
       const rawData: DraftSheetRawData = {

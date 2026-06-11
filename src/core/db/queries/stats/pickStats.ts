@@ -7,6 +7,7 @@ import { resolveCard } from "../cards";
 import { parseBannedCards } from "../helpers";
 import { calculatePickWeight, round3, weightedGeometricMean } from "../../../utils";
 import { DEFAULT_POOL_SIZE } from "../../../types";
+import { statsPhaseFilter } from "../../../draftPhases";
 
 export interface GetCardPickStatsParams {
   card_name: string;
@@ -78,13 +79,15 @@ export async function getCardPickStats(
       ? `AND ${draftConditions.join(" AND ")}`
       : "";
 
-  // Get all drafts where this card was available (in cube)
+  // Get all drafts where this card was available (in cube).
+  // Include both 'complete' and 'playing' phases — picks are finalised in both.
+  const { fragment: phaseFragment, args: phaseArgs } = statsPhaseFilter("d.phase");
   const draftsWithCardResult = await client.execute({
     sql: `SELECT DISTINCT d.draft_id, d.cube_snapshot_id
           FROM drafts d
           JOIN cube_snapshot_cards csc ON d.cube_snapshot_id = csc.cube_snapshot_id
-          WHERE csc.card_id = ? AND d.phase = 'complete' ${draftWhere}`,
-    args: [card_id, ...draftArgs],
+          WHERE csc.card_id = ? AND ${phaseFragment} ${draftWhere}`,
+    args: [card_id, ...phaseArgs, ...draftArgs],
   });
 
   if (draftsWithCardResult.rows.length === 0) {

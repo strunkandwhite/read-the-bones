@@ -50,6 +50,8 @@ export interface DomainHashes {
   poolHash: string | null;
   picksHash: string | null;
   matchesHash: string | null;
+  /** Current phase of the draft in the DB — used to guard phase transitions in syncDraft. */
+  currentPhase: string | null;
 }
 
 export async function getDomainHashes(
@@ -57,7 +59,7 @@ export async function getDomainHashes(
   draftId: string,
 ): Promise<DomainHashes | null> {
   const result = await client.execute({
-    sql: "SELECT pool_hash, picks_hash, matches_hash FROM drafts WHERE draft_id = ?",
+    sql: "SELECT pool_hash, picks_hash, matches_hash, phase FROM drafts WHERE draft_id = ?",
     args: [draftId],
   });
   if (result.rows.length === 0) return null;
@@ -66,6 +68,7 @@ export async function getDomainHashes(
     poolHash: row.pool_hash as string | null,
     picksHash: row.picks_hash as string | null,
     matchesHash: row.matches_hash as string | null,
+    currentPhase: row.phase as string | null,
   };
 }
 

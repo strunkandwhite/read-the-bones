@@ -42,6 +42,7 @@ import {
 } from "../ingest/scryfall";
 import { fetchDraftTabsRaw } from "../../sheets";
 import { loadOptOutNames } from "../../optOuts";
+import { isSyncPhaseTransitionLegal } from "../../draftPhases";
 
 // ============================================================================
 // Types
@@ -119,11 +120,12 @@ export async function syncDraft(
     const newPicksHash = pickedCards.length > 0 ? hashPicks(pickedCards) : null;
     const newMatchesHash = matches.length > 0 ? hashMatches(matches) : null;
 
-    // Get stored hashes
+    // Get stored hashes and current phase
     const stored = await getDomainHashes(client, draftId);
     const storedPoolHash = stored?.poolHash ?? null;
     const storedPicksHash = stored?.picksHash ?? null;
     const storedMatchesHash = stored?.matchesHash ?? null;
+    const currentPhase = stored?.currentPhase ?? null;
 
     // Compare each domain
     result.poolAction = newPoolHash
@@ -224,12 +226,17 @@ export async function syncDraft(
       await insertOptOuts(client, draftId, parsedPicks.drafterNames, optOutNames);
     }
 
-    // Detect and update completion
+    // Detect and update completion.
+    // Only write phase when the transition is legal — never demote a draft that an
+    // admin has manually set to 'playing' or 'complete' back to 'drafting'.
     result.markedComplete = parsedPicks.isComplete;
-    await client.execute({
-      sql: "UPDATE drafts SET phase = ? WHERE draft_id = ?",
-      args: [parsedPicks.isComplete ? 'complete' : 'drafting', draftId],
-    });
+    const targetPhase = parsedPicks.isComplete ? 'complete' : 'drafting';
+    if (isSyncPhaseTransitionLegal(currentPhase ?? 'drafting', targetPhase)) {
+      await client.execute({
+        sql: "UPDATE drafts SET phase = ? WHERE draft_id = ?",
+        args: [targetPhase, draftId],
+      });
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     result.error = message;

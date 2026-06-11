@@ -5,6 +5,7 @@
 
 import type { Client } from "@libsql/client";
 import { parseBannedCards } from "../helpers";
+import { statsPhaseFilter } from "../../../draftPhases";
 
 const DISTRIBUTION_BUCKET_COUNT = 15;
 const DISTRIBUTION_BUCKET_SIZE = 30;
@@ -54,10 +55,14 @@ export async function getPickHistory(
   const csCardIdExpr = useCardId ? "?" : "c.card_id";
   const peCardIdExpr = useCardId ? "?" : "c.card_id";
 
+  // Include both 'complete' and 'playing' phases — picks are finalised in both.
+  const { fragment: phaseFragment, args: phaseArgs } = statsPhaseFilter("d.phase");
+
   const args: (string | number)[] = [];
   if (!useCardId) args.push(cardName);
   if (useCardId) args.push(cardId); // for cs.card_id = ?
   if (useCardId) args.push(cardId); // for pe.card_id = ?
+  args.push(...phaseArgs);
   if (draftId) args.push(draftId);
   if (excludeDraftId) args.push(excludeDraftId);
 
@@ -74,7 +79,7 @@ export async function getPickHistory(
           JOIN cube_snapshot_cards cs ON cs.cube_snapshot_id = d.cube_snapshot_id
             AND cs.card_id = ${csCardIdExpr}
           LEFT JOIN pick_events pe ON pe.draft_id = d.draft_id AND pe.card_id = ${peCardIdExpr}
-          WHERE d.phase = 'complete' ${draftFilter} ${excludeFilter}
+          WHERE ${phaseFragment} ${draftFilter} ${excludeFilter}
           ORDER BY d.draft_date ASC`,
     args,
   });
@@ -115,14 +120,14 @@ export async function getPickHistory(
 
   // Count bans from drafts where card wasn't in the cube snapshot
   // (These drafts were missed by the main query's JOIN through cube_snapshot_cards)
-  const filterArgs: string[] = [];
+  const filterArgs: (string | number)[] = [...phaseArgs];
   if (draftId) filterArgs.push(draftId);
   if (excludeDraftId) filterArgs.push(excludeDraftId);
 
   const allDraftsResult = await client.execute({
     sql: `SELECT d.draft_id, d.banned_cards
           FROM drafts d
-          WHERE d.phase = 'complete'
+          WHERE ${phaseFragment}
             AND d.banned_cards IS NOT NULL
             ${draftFilter} ${excludeFilter}`,
     args: filterArgs,

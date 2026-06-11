@@ -28,7 +28,7 @@ vi.mock("@/core/parseSheetRows", () => ({
 
 vi.mock("@/core/db/sync/domains", () => ({
   hashMatches: vi.fn().mockReturnValue("new-match-hash"),
-  getDomainHashes: vi.fn().mockResolvedValue({ poolHash: null, picksHash: null, matchesHash: null }),
+  getDomainHashes: vi.fn().mockResolvedValue({ poolHash: null, picksHash: null, matchesHash: null, currentPhase: null }),
   compareDomainHash: vi.fn().mockReturnValue("skip"),
   updateDomainHashes: vi.fn().mockResolvedValue(undefined),
 }));
