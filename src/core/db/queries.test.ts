@@ -991,6 +991,78 @@ describe("getAvailableCards", () => {
 
     expect(result.cards).toHaveLength(0);
   });
+
+  it("P9: does NOT select scryfall_json when no color/type_contains filters are set", async () => {
+    // Draft lookup
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ cube_snapshot_id: 1, banned_cards: null }])
+    );
+    // Cube cards
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { card_id: 1, name: "Lightning Bolt", qty: 1 },
+      ])
+    );
+    // Picks
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+
+    await getAvailableCards(mockClient as never, {
+      draft_id: "draft1",
+      before_pick_n: 5,
+      // No color or type_contains
+    });
+
+    // The second execute call is the cube cards query
+    const cubeCardsSql: string = (mockClient.execute.mock.calls[1][0] as { sql: string }).sql;
+    expect(cubeCardsSql).not.toContain("scryfall_json");
+  });
+
+  it("P9: selects scryfall_json when color filter is set", async () => {
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ cube_snapshot_id: 1, banned_cards: null }])
+    );
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { card_id: 1, name: "Lightning Bolt", scryfall_json: JSON.stringify({ color_identity: ["R"] }), qty: 1 },
+      ])
+    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+
+    const result = await getAvailableCards(mockClient as never, {
+      draft_id: "draft1",
+      before_pick_n: 5,
+      color: "R",
+    });
+
+    // Query must include scryfall_json when filter is active
+    const cubeCardsSql: string = (mockClient.execute.mock.calls[1][0] as { sql: string }).sql;
+    expect(cubeCardsSql).toContain("scryfall_json");
+    expect(result.cards).toHaveLength(1);
+    expect(result.cards[0].card_name).toBe("Lightning Bolt");
+  });
+
+  it("P9: selects scryfall_json when type_contains filter is set", async () => {
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ cube_snapshot_id: 1, banned_cards: null }])
+    );
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { card_id: 1, name: "Tarmogoyf", scryfall_json: JSON.stringify({ type_line: "Creature - Lhurgoyf" }), qty: 1 },
+      ])
+    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+
+    const result = await getAvailableCards(mockClient as never, {
+      draft_id: "draft1",
+      before_pick_n: 5,
+      type_contains: "Creature",
+    });
+
+    const cubeCardsSql: string = (mockClient.execute.mock.calls[1][0] as { sql: string }).sql;
+    expect(cubeCardsSql).toContain("scryfall_json");
+    expect(result.cards).toHaveLength(1);
+    expect(result.cards[0].card_name).toBe("Tarmogoyf");
+  });
 });
 
 // ============================================================================

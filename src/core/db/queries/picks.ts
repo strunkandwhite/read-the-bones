@@ -156,9 +156,17 @@ export async function getAvailableCards(
   const bannedCardsRaw = draftResult.rows[0].banned_cards as string | null;
   const bannedCards = parseBannedCards(bannedCardsRaw);
 
-  // Get all cards in the cube with their quantities
+  // Get all cards in the cube with their quantities.
+  // Only select scryfall_json when a filter that needs it is present — the blob
+  // can be several KB per card and is never used for the unfiltered path.
+  const needsScryfall = !!(params.color || params.type_contains);
   const cubeCardsResult = await client.execute({
-    sql: `SELECT c.card_id, c.name, c.scryfall_json, csc.qty
+    sql: needsScryfall
+      ? `SELECT c.card_id, c.name, c.scryfall_json, csc.qty
+          FROM cube_snapshot_cards csc
+          JOIN cards c ON csc.card_id = c.card_id
+          WHERE csc.cube_snapshot_id = ?`
+      : `SELECT c.card_id, c.name, csc.qty
           FROM cube_snapshot_cards csc
           JOIN cards c ON csc.card_id = c.card_id
           WHERE csc.cube_snapshot_id = ?`,
@@ -186,7 +194,6 @@ export async function getAvailableCards(
   for (const row of cubeCardsResult.rows) {
     const cardId = row.card_id as number;
     const cardName = row.name as string;
-    const scryfallJson = row.scryfall_json as string | null;
     const qty = row.qty as number;
     const picked = pickedCounts.get(cardId) || 0;
     const remaining = qty - picked;
@@ -196,9 +203,9 @@ export async function getAvailableCards(
     const frontFace = getFrontFace(lowerName);
     if (bannedCards.has(lowerName) || (frontFace && bannedCards.has(frontFace))) continue;
 
-    // Parse scryfall JSON once if either filter needs it
-    const scryfall = (params.color || params.type_contains)
-      ? parseScryfallJson(scryfallJson)
+    // Parse scryfall JSON if a filter needs it (only selected by needsScryfall SQL variant)
+    const scryfall = needsScryfall
+      ? parseScryfallJson(row.scryfall_json as string | null)
       : null;
 
     // Apply color filter

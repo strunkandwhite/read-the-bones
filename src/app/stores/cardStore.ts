@@ -64,7 +64,18 @@ let lastCardDataRef: CardStatsResponse | null = null;
 let cachedScryfallDataMap = new Map<string, ScryCard>();
 let cachedCardStatsMap = new Map<string, EnrichedCardStats>();
 
-/** Exported for tests to clear debounce state between runs. */
+// Module-scoped client-side cache for /api/cards/stats responses.
+// Keyed by "<name>\0<excludeDraftId>" (NUL separator avoids collisions).
+// Each entry stores the ingestionHash that was current when it was fetched;
+// the entry is considered stale when the card data's ingestionHash changes,
+// so syncing new data or switching cube versions always triggers a real fetch.
+interface CardStatsCacheEntry {
+  data: CardStatsData;
+  ingestionHash: string;
+}
+let cardStatsCache = new Map<string, CardStatsCacheEntry>();
+
+/** Exported for tests to clear debounce and cache state between runs. */
 export function _resetSearchState() {
   if (searchTimeout) {
     clearTimeout(searchTimeout);
@@ -76,6 +87,7 @@ export function _resetSearchState() {
   lastCardDataRef = null;
   cachedScryfallDataMap = new Map();
   cachedCardStatsMap = new Map();
+  cardStatsCache = new Map();
 }
 
 // ---------------------------------------------------------------------------
@@ -489,11 +501,26 @@ export const useCardStore = create<CardStoreState>()(
     selectCard: async (name, excludeDraftId) => {
       set({ selectedCard: name, cardStatsLoading: true, cardStatsDetail: null });
       try {
+        const cacheKey = `${name}\0${excludeDraftId ?? ""}`;
+        const currentHash = get().cardData.ingestionHash;
+        const cached = cardStatsCache.get(cacheKey);
+
+        // Cache hit: serve immediately when the ingestionHash hasn't changed
+        if (cached && cached.ingestionHash === currentHash) {
+          set({ cardStatsDetail: cached.data, cardStatsLoading: false });
+          return;
+        }
+
         const params = new URLSearchParams({ card_name: name });
         if (excludeDraftId) params.set("exclude_draft_id", excludeDraftId);
         const res = await fetch(`/api/cards/stats?${params}`);
         if (!res.ok) throw new Error(`Stats fetch failed: ${res.status}`);
-        set({ cardStatsDetail: await res.json() });
+        const data: CardStatsData = await res.json();
+        // Store in cache keyed to the current ingestionHash so it is automatically
+        // invalidated when new data is ingested (dataVersion bump → fetchCardData
+        // → new ingestionHash arrives in the response → future cache lookups miss).
+        cardStatsCache.set(cacheKey, { data, ingestionHash: currentHash });
+        set({ cardStatsDetail: data });
       } catch (error) {
         console.error("Failed to fetch card stats:", error);
       } finally {

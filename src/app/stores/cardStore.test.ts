@@ -906,4 +906,73 @@ describe("cardStore — card stats modal", () => {
 
     expect(loadingStates).toEqual([true, false]);
   });
+
+  it("cache hit: reopening the same card does not refetch", async () => {
+    // Establish a consistent ingestionHash so cache key is stable
+    useCardStore.setState({
+      cardData: { ...EMPTY_CARD_DATA, ingestionHash: "hash-v1" },
+    });
+
+    // First open — fetches from network
+    await useCardStore.getState().selectCard("Lightning Bolt");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    fetchSpy.mockClear();
+
+    // Second open — same name + same ingestionHash → cache hit, no fetch
+    await useCardStore.getState().selectCard("Lightning Bolt");
+    expect(fetchSpy).not.toHaveBeenCalled();
+
+    // The result is still present
+    expect(useCardStore.getState().cardStatsDetail).toEqual(mockStatsData);
+  });
+
+  it("cache is invalidated when ingestionHash changes (dataVersion bump)", async () => {
+    // Use mockImplementation so each fetch call gets a fresh Response body
+    fetchSpy.mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify(mockStatsData)))
+    );
+
+    useCardStore.setState({
+      cardData: { ...EMPTY_CARD_DATA, ingestionHash: "hash-v1" },
+    });
+
+    // First fetch — populates cache for hash-v1
+    await useCardStore.getState().selectCard("Lightning Bolt");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    fetchSpy.mockClear();
+
+    // Simulate ingestion: ingestionHash changes (as would arrive after fetchCardData)
+    useCardStore.setState({
+      cardData: { ...EMPTY_CARD_DATA, ingestionHash: "hash-v2" },
+    });
+
+    // Cache miss on hash-v2 → must refetch
+    await useCardStore.getState().selectCard("Lightning Bolt");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+  });
+
+  it("cache is keyed by name + excludeDraftId independently", async () => {
+    // Use mockImplementation so each fetch call gets a fresh Response body
+    fetchSpy.mockImplementation(() =>
+      Promise.resolve(new Response(JSON.stringify(mockStatsData)))
+    );
+
+    useCardStore.setState({
+      cardData: { ...EMPTY_CARD_DATA, ingestionHash: "hash-v1" },
+    });
+
+    // Fetch without excludeDraftId
+    await useCardStore.getState().selectCard("Lightning Bolt");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    fetchSpy.mockClear();
+
+    // Fetch with a different excludeDraftId — different cache key, must refetch
+    await useCardStore.getState().selectCard("Lightning Bolt", "draft-xyz");
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    fetchSpy.mockClear();
+
+    // Repeat with the same excludeDraftId — cache hit, no fetch
+    await useCardStore.getState().selectCard("Lightning Bolt", "draft-xyz");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
 });

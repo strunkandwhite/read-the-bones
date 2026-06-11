@@ -12,9 +12,20 @@ import { StatsModal } from "./StatsModal";
 import { PodViewIcon, DeckBuilderIcon } from "./icons";
 import type { CardStatsResponse } from "@/core/getCards";
 import type { DraftStatsResponse } from "@/core/getDraftStats";
-import { DeckBuilderPanel } from "./deck-builder/DeckBuilderPanel";
+import dynamic from "next/dynamic";
 import { useScrollLock } from "@/app/hooks/useScrollLock";
-import { DraftBoardModal } from "./draft-board/DraftBoardModal";
+
+// DeckBuilderPanel pulls in @dnd-kit (heavy); DraftBoardModal is interaction-only.
+// Both are gated behind activeDraft + selectedSeat conditionals, so they never
+// render during SSR — dynamic imports keep them out of the initial JS bundle.
+const DeckBuilderPanel = dynamic(
+  () => import("./deck-builder/DeckBuilderPanel").then((m) => m.DeckBuilderPanel),
+  { ssr: false },
+);
+const DraftBoardModal = dynamic(
+  () => import("./draft-board/DraftBoardModal").then((m) => m.DraftBoardModal),
+  { ssr: false },
+);
 
 import { useHydration } from "../stores/hydration";
 import { useDraftStore } from "../stores/draftStore";
