@@ -31,7 +31,7 @@ vi.mock("@/app/stores/liveStore", () => {
   const store: ReturnType<typeof vi.fn> & { getState: ReturnType<typeof vi.fn> } = Object.assign(vi.fn(), {
     getState: vi.fn(() => ({
       mySeat: null,
-      queuedCards: new Map(),
+      queuedCardCounts: new Map(),
       floatedCardsSet: new Set(),
     })),
   });
@@ -39,7 +39,7 @@ vi.mock("@/app/stores/liveStore", () => {
 });
 
 vi.mock("@/app/stores/selectors", () => ({
-  getCardStatus: vi.fn(() => ({ status: "none" as const })),
+  useCardStatus: vi.fn(() => ({ status: "none" as const })),
   getImageUrl: vi.fn((name: string | null) =>
     name ? "https://cards.scryfall.io/normal/front/bolt.jpg" : undefined,
   ),
@@ -159,8 +159,8 @@ describe("CardStatsModal", () => {
   });
 
   it("shows action buttons during live draft when it is user's turn", async () => {
-    const { getCardStatus, useIsAuthed } = await import("@/app/stores/selectors");
-    (getCardStatus as ReturnType<typeof vi.fn>).mockReturnValue({ status: "none" });
+    const { useCardStatus, useIsAuthed } = await import("@/app/stores/selectors");
+    (useCardStatus as ReturnType<typeof vi.fn>).mockReturnValue({ status: "none" });
     (useIsAuthed as ReturnType<typeof vi.fn>).mockReturnValue(true);
 
     setupStoreMocks({

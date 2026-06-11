@@ -20,7 +20,7 @@ import { track } from "@vercel/analytics/react";
 import { useSlowRenderTracking } from "../hooks/useSlowRenderTracking";
 import { InfoTooltip } from "./InfoTooltip";
 import { useCardStore } from "../stores/cardStore";
-import { getCardStatus } from "../stores/selectors";
+import { useCardStatuses } from "../stores/selectors";
 import { isLocalClient } from "@/core/isLocal";
 
 export interface CardTableProps {
@@ -85,13 +85,20 @@ export function CardTable({
     };
   }, [breakpoint, isDesktopOrWider]);
 
-  // Store getCardStatus in a ref so the columns memo doesn't rebuild on
-  // every queue/float change. Cell renderers read the ref at render time,
-  // which always reflects the latest value.
-  const getCardStatusRef = useRef(getCardStatus);
-  useEffect(() => {
-    getCardStatusRef.current = getCardStatus;
-  }, []);
+  // Compute card names for status subscription — derived from the full cards list
+  // (not filteredData) so virtualized rows always have a status even before filtering.
+  const allCardNames = useMemo(() => cards.map((c) => c.cardName), [cards]);
+
+  // Single subscription for all card statuses — subscribes to queue/float/taken inputs
+  // so status icons update reactively without depending on parent re-renders.
+  const cardStatusMap = useCardStatuses(allCardNames);
+
+  // Keep a ref updated every render so column cell renderers always read the current
+  // status map without the columns memo needing to declare it as a dependency.
+  // Assigning during render (not via useEffect) ensures the latest value is available
+  // on the same render cycle that caused the status change.
+  const cardStatusMapRef = useRef(cardStatusMap);
+  cardStatusMapRef.current = cardStatusMap;
 
   const takenCardCountsRef = useRef(takenCardCounts);
   useEffect(() => {
@@ -118,7 +125,7 @@ export function CardTable({
         header: "Card",
         size: 260,
         cell: ({ row }) => {
-          const cs = getCardStatusRef.current?.(row.original.cardName);
+          const cs = cardStatusMapRef.current?.get(row.original.cardName);
           return (
             <CardNameCell
               card={row.original}

@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type { CardStatusResult } from "@/core/cardStatus";
 import { useDraftStore } from "./draftStore";
 import { useCardStore } from "./cardStore";
@@ -53,6 +54,116 @@ export function getCardStatus(cardName: string): CardStatusResult {
   // "taken": all copies exhausted globally — no actions possible
   if (takenCardNamesSet?.has(cardName)) return { status: "taken" };
   return { status: "none" };
+}
+
+/**
+ * Reactive hook: returns a memoized Map of card statuses for the given card names.
+ * Subscribes to all actual inputs of getCardStatus so the map updates whenever
+ * queue, float, or taken state changes — without requiring a parent re-render.
+ *
+ * Use this at the table level (one subscription for all ~540 rows) rather than
+ * calling useCardStatus per-row.
+ */
+export function useCardStatuses(cardNames: readonly string[]): Map<string, CardStatusResult> {
+  // Subscribe to all six inputs that getCardStatus reads
+  const queuedCardCounts = useLiveStore((s) => s.queuedCardCounts);
+  const floatedCardsSet = useLiveStore((s) => s.floatedCardsSet);
+  const queue = useLiveStore((s) => s.queue);
+  const seatCardNames = useCardStore((s) => s.seatCardNames);
+  const takenCardNamesSet = useCardStore((s) => s.takenCardNamesSet);
+  const takenCardCounts = useCardStore((s) => s.takenCardCounts);
+  const cardData = useCardStore((s) => s.cardData);
+  const mySeat = useLiveStore((s) => s.mySeat);
+  const selectedSeat = useDraftStore((s) => s.selectedSeat);
+  const isAuthed = mySeat !== null && mySeat === selectedSeat;
+
+  return useMemo(() => {
+    const map = new Map<string, CardStatusResult>();
+    for (const cardName of cardNames) {
+      if (isAuthed) {
+        const count = queuedCardCounts.get(cardName);
+        if (count != null && count > 0) {
+          let entryPosition = Infinity;
+          for (let i = 0; i < queue.length; i++) {
+            if (queue[i].cards.some((c) => c.cardName === cardName)) {
+              entryPosition = i + 1;
+              break;
+            }
+          }
+          const cubeCopies = cardData.cubeCopies[cardName] ?? 1;
+          const takenCount = takenCardCounts?.get(cardName) ?? 0;
+          map.set(cardName, {
+            status: "queued",
+            queuePosition: entryPosition,
+            queuedCount: count,
+            remainingCopies: cubeCopies - takenCount,
+          });
+          continue;
+        }
+        if (floatedCardsSet.has(cardName)) {
+          map.set(cardName, { status: "floated" });
+          continue;
+        }
+      }
+      if (seatCardNames?.has(cardName)) {
+        const cubeCopies = cardData.cubeCopies[cardName] ?? 1;
+        const takenCount = takenCardCounts?.get(cardName) ?? 0;
+        map.set(cardName, { status: "picked", remainingCopies: cubeCopies - takenCount });
+        continue;
+      }
+      if (takenCardNamesSet?.has(cardName)) {
+        map.set(cardName, { status: "taken" });
+        continue;
+      }
+      map.set(cardName, { status: "none" });
+    }
+    return map;
+  }, [cardNames, isAuthed, queuedCardCounts, floatedCardsSet, queue, seatCardNames, takenCardNamesSet, takenCardCounts, cardData]);
+}
+
+/**
+ * Reactive hook: returns the status for a single card.
+ * Subscribes to the same inputs as getCardStatus.
+ * Use in components that display one card at a time (e.g. CardStatsModal).
+ */
+export function useCardStatus(cardName: string | null): CardStatusResult {
+  const queuedCardCounts = useLiveStore((s) => s.queuedCardCounts);
+  const floatedCardsSet = useLiveStore((s) => s.floatedCardsSet);
+  const queue = useLiveStore((s) => s.queue);
+  const seatCardNames = useCardStore((s) => s.seatCardNames);
+  const takenCardNamesSet = useCardStore((s) => s.takenCardNamesSet);
+  const takenCardCounts = useCardStore((s) => s.takenCardCounts);
+  const cardData = useCardStore((s) => s.cardData);
+  const mySeat = useLiveStore((s) => s.mySeat);
+  const selectedSeat = useDraftStore((s) => s.selectedSeat);
+  const isAuthed = mySeat !== null && mySeat === selectedSeat;
+
+  return useMemo((): CardStatusResult => {
+    if (!cardName) return { status: "none" };
+    if (isAuthed) {
+      const count = queuedCardCounts.get(cardName);
+      if (count != null && count > 0) {
+        let entryPosition = Infinity;
+        for (let i = 0; i < queue.length; i++) {
+          if (queue[i].cards.some((c) => c.cardName === cardName)) {
+            entryPosition = i + 1;
+            break;
+          }
+        }
+        const cubeCopies = cardData.cubeCopies[cardName] ?? 1;
+        const takenCount = takenCardCounts?.get(cardName) ?? 0;
+        return { status: "queued", queuePosition: entryPosition, queuedCount: count, remainingCopies: cubeCopies - takenCount };
+      }
+      if (floatedCardsSet.has(cardName)) return { status: "floated" };
+    }
+    if (seatCardNames?.has(cardName)) {
+      const cubeCopies = cardData.cubeCopies[cardName] ?? 1;
+      const takenCount = takenCardCounts?.get(cardName) ?? 0;
+      return { status: "picked", remainingCopies: cubeCopies - takenCount };
+    }
+    if (takenCardNamesSet?.has(cardName)) return { status: "taken" };
+    return { status: "none" };
+  }, [cardName, isAuthed, queuedCardCounts, floatedCardsSet, queue, seatCardNames, takenCardNamesSet, takenCardCounts, cardData]);
 }
 
 export function getImageUrl(cardName: string | null): string | undefined {

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useCallback, useState, useRef } from "react";
 import { useCardStore } from "@/app/stores/cardStore";
 import { useDraftStore } from "@/app/stores/draftStore";
 import { useLiveStore } from "@/app/stores/liveStore";
-import { getCardStatus, getImageUrl, useIsAuthed } from "@/app/stores/selectors";
+import { useCardStatus, getImageUrl, useIsAuthed } from "@/app/stores/selectors";
 import { isLocalClient } from "@/core/isLocal";
 import { colorPairBg } from "@/core/manaColors";
 import type { CardStatsData } from "@/app/stores/cardStore";
@@ -47,27 +47,14 @@ export function CardStatsModal() {
     [selectedCard]
   );
 
-  // Subscribe to the store values that getCardStatus reads internally,
-  // so the status recomputes when queue/float state changes
-  const queuedCardCounts = useLiveStore((s) => s.queuedCardCounts);
-  const floatedCardsSet = useLiveStore((s) => s.floatedCardsSet);
-  const seatCardNames = useCardStore((s) => s.seatCardNames);
-  const takenCardNamesSet = useCardStore((s) => s.takenCardNamesSet);
-  const takenCardCounts = useCardStore((s) => s.takenCardCounts);
-  const cardData = useCardStore((s) => s.cardData);
+  // useCardStatus subscribes to all actual inputs of getCardStatus (queue, float, taken,
+  // seat, cardData) so this result updates reactively without a hand-mirrored dep list.
+  const cardStatusResult = useCardStatus(selectedCard ?? null);
 
-  // getCardStatus reads from stores imperatively — these subscriptions
-  // ensure the memo recomputes when the underlying data changes
-  const cardStatusResult = useMemo(
-    () => selectedCard ? getCardStatus(selectedCard) : null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedCard, isAuthed, queuedCardCounts, floatedCardsSet, seatCardNames, takenCardNamesSet, takenCardCounts, cardData]
-  );
-
-  const cardStatus: CardStatus = cardStatusResult?.status ?? "none";
-  const queuePosition = cardStatusResult?.queuePosition;
-  const queuedCount = cardStatusResult?.queuedCount;
-  const remainingCopies = cardStatusResult?.remainingCopies;
+  const cardStatus: CardStatus = cardStatusResult.status;
+  const queuePosition = cardStatusResult.queuePosition;
+  const queuedCount = cardStatusResult.queuedCount;
+  const remainingCopies = cardStatusResult.remainingCopies;
 
   // Disable buttons briefly after any action to prevent double-clicks.
   // Re-enables after the server confirms (cardStatus changes) or 600ms, whichever is later.
@@ -75,16 +62,16 @@ export function CardStatsModal() {
   const actionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const minimumElapsedRef = useRef(false);
 
-  // When cardStatus changes AND minimum time has elapsed, re-enable
+  // When cardStatus changes AND minimum time has elapsed, re-enable.
   useEffect(() => {
     if (actionPending && minimumElapsedRef.current) {
-      setActionPending(false);
+      setActionPending(false); // eslint-disable-line react-hooks/set-state-in-effect -- resetting derived UI state in response to external (store) change
       minimumElapsedRef.current = false;
     }
   }, [cardStatus, queuePosition]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    setActionPending(false);
+    setActionPending(false); // eslint-disable-line react-hooks/set-state-in-effect -- resetting UI state when selected card changes
     minimumElapsedRef.current = false;
     if (actionTimerRef.current) clearTimeout(actionTimerRef.current);
   }, [selectedCard]);
