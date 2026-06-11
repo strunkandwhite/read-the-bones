@@ -44,6 +44,54 @@ describe("useModalManagement", () => {
     expect(result.current.deckBuilderModalOpen).toBe(false);
   });
 
+  it("restores deck builder after hydration — activeDraft/selectedSeat start null then become non-null", () => {
+    localStorage.setItem("deckBuilderOpen", "true");
+
+    // Simulate pre-hydration: no draft or seat yet
+    const { result, rerender } = renderHook(
+      (props) => useModalManagement(props),
+      { initialProps: { activeDraft: null as string | null, selectedSeat: null as number | null } },
+    );
+
+    // Pre-hydration: modal must stay closed
+    expect(result.current.deckBuilderModalOpen).toBe(false);
+    expect(useLiveStore.getState().deckBuilderActive).toBe(false);
+
+    // Simulate store hydration populating activeDraft and selectedSeat
+    act(() => {
+      rerender({ activeDraft: "draft-1", selectedSeat: 1 });
+    });
+
+    // Post-hydration: restore fires and opens the builder
+    expect(result.current.deckBuilderModalOpen).toBe(true);
+    expect(useLiveStore.getState().deckBuilderActive).toBe(true);
+  });
+
+  it("does not re-open deck builder after user closes it (once-guard)", () => {
+    localStorage.setItem("deckBuilderOpen", "true");
+
+    const { result, rerender } = renderHook(
+      (props) => useModalManagement(props),
+      { initialProps: { activeDraft: "draft-1" as string | null, selectedSeat: 1 as number | null } },
+    );
+
+    // Initial restore fires on mount (activeDraft/selectedSeat provided from the start)
+    expect(result.current.deckBuilderModalOpen).toBe(true);
+
+    // User closes the modal — this writes "false" to localStorage
+    act(() => {
+      result.current.setDeckBuilderModalOpen(false);
+    });
+
+    expect(result.current.deckBuilderModalOpen).toBe(false);
+    expect(localStorage.getItem("deckBuilderOpen")).toBe("false");
+
+    // A re-render with same activeDraft/selectedSeat must NOT re-open the builder
+    rerender({ activeDraft: "draft-1", selectedSeat: 1 });
+
+    expect(result.current.deckBuilderModalOpen).toBe(false);
+  });
+
   it("persists modal open state to localStorage", () => {
     const { result } = renderHook(() =>
       useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 }),
