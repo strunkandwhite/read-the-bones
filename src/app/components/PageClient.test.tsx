@@ -145,8 +145,11 @@ describe("PageClient", () => {
   });
 
   it("shows precomputed data with default selection", () => {
+    // Passes initialCardData with Lightning Bolt — after hydration the card table must
+    // render (not the empty-state placeholder). The h1 "Read the Bones" is unconditional;
+    // asserting the card table testid verifies data-dependent rendering.
     render(<PageClient {...makeTestProps()} />);
-    expect(screen.getByText(/Read the Bones/)).toBeDefined();
+    expect(screen.getByTestId("card-table")).toBeDefined();
   });
 
   it("shows SSR data on initial render with default selection", async () => {
@@ -161,8 +164,9 @@ describe("PageClient", () => {
       render(<PageClient {...makeTestProps()} />);
     });
 
-    // SSR data is visible immediately (title is always present)
-    expect(screen.getByText(/Read the Bones/)).toBeDefined();
+    // SSR data (Lightning Bolt in initialCardData) drives the card table render.
+    // An empty card list would show the empty-state placeholder instead.
+    expect(screen.getByTestId("card-table")).toBeDefined();
   });
 
   it("fetches card data when custom draft selection is made", async () => {
@@ -267,7 +271,11 @@ describe("PageClient", () => {
       await changeDraftSelection(new Set(["draft-a", "draft-b"]));
     });
 
-    expect(screen.getByText(/Read the Bones/)).toBeDefined();
+    // After recovering to default selection with a successful fetch,
+    // displayCards is populated with Lightning Bolt — the card table renders,
+    // not the empty-state placeholder. This verifies the recovery path actually
+    // restores card data, not just the title which is always present.
+    expect(screen.getByTestId("card-table")).toBeDefined();
     consoleSpy.mockRestore();
   });
 
