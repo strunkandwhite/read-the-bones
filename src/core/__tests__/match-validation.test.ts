@@ -18,9 +18,16 @@ describe('validateMatchResult', () => {
   it('rejects wins or losses > 2', () => {
     expect(validateMatchResult(3, 1)).toBe('Wins and losses must be between 0 and 2');
     expect(validateMatchResult(1, 3)).toBe('Wins and losses must be between 0 and 2');
+    expect(validateMatchResult(3, 0)).toBe('Wins and losses must be between 0 and 2');
+    expect(validateMatchResult(0, 3)).toBe('Wins and losses must be between 0 and 2');
   });
 
   it('rejects negative values', () => {
     expect(validateMatchResult(-1, 2)).toBe('Wins and losses must be between 0 and 2');
+    expect(validateMatchResult(2, -1)).toBe('Wins and losses must be between 0 and 2');
+  });
+
+  it('rejects 2-2 — impossible in best-of-3', () => {
+    expect(validateMatchResult(2, 2)).toBe('Result 2-2 is impossible in best-of-3');
   });
 });

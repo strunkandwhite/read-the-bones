@@ -46,7 +46,8 @@ const RESULT_PATTERN = /^[012]-[012]$/;
 function isValidResult(value: string): boolean {
   if (!RESULT_PATTERN.test(value)) return false;
   const [a, b] = value.split("-").map(Number);
-  return a === 2 || b === 2;
+  // Exactly one side must reach 2 wins (2-2 is impossible in best-of-3)
+  return (a === 2) !== (b === 2);
 }
 
 interface EditingState {

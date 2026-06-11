@@ -167,15 +167,18 @@ export async function trimExcessQueueEntries(
       }
     }
 
-    // Second pass: build new queue
+    // Second pass: build new queue, removing exactly one cardId ref per marked entry
     const newQueue: QueueEntry[] = [];
     for (let i = 0; i < queue.length; i++) {
       if (removeAtEntry.has(i)) {
-        const filteredCards = queue[i].cards.filter((c) => c.id !== cardId);
-        if (filteredCards.length > 0) {
-          newQueue.push({ ...queue[i], cards: filteredCards });
+        // Remove only the last occurrence of cardId in this entry (one ref, not all)
+        const cards = [...queue[i].cards];
+        const lastIdx = cards.map((c) => c.id).lastIndexOf(cardId);
+        if (lastIdx !== -1) cards.splice(lastIdx, 1);
+        if (cards.length > 0) {
+          newQueue.push({ ...queue[i], cards });
         }
-        // else: entry removed entirely
+        // else: entry is now empty, drop it entirely
       } else {
         newQueue.push(queue[i]);
       }

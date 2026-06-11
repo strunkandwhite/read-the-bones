@@ -348,7 +348,7 @@ describe("trimExcessQueueEntries", () => {
     ]);
   });
 
-  it("delegates to removeCardFromAllQueues when remainingCopies is 0", async () => {
+  it("delegates to removeCardFromAllQueues when remainingCopies is 0 — removes the card via batch UPDATE", async () => {
     // removeCardFromAllQueues SELECT
     client.execute.mockResolvedValueOnce({
       rows: [{
@@ -359,8 +359,36 @@ describe("trimExcessQueueEntries", () => {
 
     await trimExcessQueueEntries(client, "draft-1", 10, 0);
 
-    // Should have called removeCardFromAllQueues path
-    expect(client.execute).toHaveBeenCalled();
+    // The removeCardFromAllQueues path issues a batch UPDATE with empty queue
+    expect(client.batch).toHaveBeenCalledTimes(1);
+    const statements = client.batch.mock.calls[0][0];
+    expect(statements).toHaveLength(1);
+    const updatedQueue = JSON.parse(statements[0].args[0] as string);
+    expect(updatedQueue).toEqual([]);
+    // Confirm the UPDATE targets the right draft/seat
+    expect(statements[0].args[1]).toBe("draft-1");
+    expect(statements[0].args[2]).toBe(1);
+  });
+
+  it("removes only toRemove refs when an entry contains the same card id twice (multi-copy)", async () => {
+    // Single entry with two refs to card 10 — remainingCopies=1, so only 1 should be removed
+    client.execute.mockResolvedValueOnce({
+      rows: [{
+        seat: 1,
+        queue_json: JSON.stringify([
+          { mode: "pause", cards: [{ id: 10, name: "Bolt" }, { id: 10, name: "Bolt" }] },
+        ]),
+      }],
+    });
+
+    await trimExcessQueueEntries(client, "draft-1", 10, 1);
+
+    // Entry should be kept with exactly one ref remaining, not dropped entirely
+    const statements = client.batch.mock.calls[0][0];
+    const json = JSON.parse(statements[0].args[0] as string);
+    expect(json).toEqual([
+      { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+    ]);
   });
 
   it("does nothing when no seat has excess entries", async () => {
