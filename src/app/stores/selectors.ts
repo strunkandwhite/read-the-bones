@@ -170,3 +170,67 @@ export function getImageUrl(cardName: string | null): string | undefined {
   if (!cardName) return undefined;
   return useCardStore.getState().scryfallDataMap.get(cardName)?.imageUri;
 }
+
+/**
+ * Canonical "my deck cards" union: picks + speculative (floats + queued),
+ * auth-gated, deduplicated.
+ *
+ * Rules (shared across PageClient mobile filter, syncDeckWithPicks, DeckBuilderPanel):
+ * - Picks are authoritative.
+ * - Auth-gated: floats and queued cards are included only when authed
+ *   (mySeat === selectedSeat).
+ * - Speculative cards deduplicate against each other and against picks:
+ *   queue first, then floats; a card that is both queued and floated counts once.
+ * Returns a Set<string> of card names.
+ */
+export function getMyDeckCardNames(): Set<string> {
+  const { seatCardList } = useCardStore.getState();
+  const { floatedCards, queue } = useLiveStore.getState();
+  const isAuthed = getIsAuthed();
+
+  const picks = seatCardList ?? [];
+  const authFloated = isAuthed ? floatedCards : [];
+  const authQueued = isAuthed
+    ? queue.flatMap((entry) => entry.cards.map((c) => c.cardName))
+    : [];
+
+  const seen = new Set(picks);
+  const speculative: string[] = [];
+  for (const name of [...authQueued, ...authFloated]) {
+    if (!seen.has(name)) {
+      seen.add(name);
+      speculative.push(name);
+    }
+  }
+  return new Set([...picks, ...speculative]);
+}
+
+/**
+ * Reactive hook version of getMyDeckCardNames.
+ */
+export function useMyDeckCardNames(): Set<string> {
+  const seatCardList = useCardStore((s) => s.seatCardList);
+  const floatedCards = useLiveStore((s) => s.floatedCards);
+  const queue = useLiveStore((s) => s.queue);
+  const mySeat = useLiveStore((s) => s.mySeat);
+  const selectedSeat = useDraftStore((s) => s.selectedSeat);
+
+  return useMemo(() => {
+    const isAuthed = mySeat !== null && mySeat === selectedSeat;
+    const picks = seatCardList ?? [];
+    const authFloated = isAuthed ? floatedCards : [];
+    const authQueued = isAuthed
+      ? queue.flatMap((entry) => entry.cards.map((c) => c.cardName))
+      : [];
+
+    const seen = new Set(picks);
+    const speculative: string[] = [];
+    for (const name of [...authQueued, ...authFloated]) {
+      if (!seen.has(name)) {
+        seen.add(name);
+        speculative.push(name);
+      }
+    }
+    return new Set([...picks, ...speculative]);
+  }, [seatCardList, floatedCards, queue, mySeat, selectedSeat]);
+}

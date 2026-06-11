@@ -49,7 +49,6 @@ function resetStores() {
     floatedCardsSet: new Set<string>(),
     pickError: null,
     isMyTurn: false,
-    consecutivePicks: 0,
     deckState: createEmptyDeckState("", 0),
     deckReady: false,
     deckSaveStatus: "idle",
@@ -1051,21 +1050,61 @@ describe("liveStore — addFloat", () => {
     expect(useLiveStore.getState().floatedCards).toEqual(["Bolt", "Counterspell"]);
   });
 
-  it("reverts on failure", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("error", { status: 500 }),
-    );
+  it("refetches server truth on failure (server returns previous list)", async () => {
+    // Mock by URL+method so the /live poll (triggered by startPolling on activeDraft
+    // change) gets a benign response; the float PUT fails; the float GET refetch
+    // returns server truth.
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, opts) => {
+      const u = String(url);
+      if (u.includes("/live")) return { ok: true, status: 200, json: async () => ({}) } as Response;
+      const method = (opts as RequestInit | undefined)?.method ?? "GET";
+      if (u.includes("/float") && method === "PUT") {
+        return { ok: false, status: 500, json: async () => ({}) } as Response;
+      }
+      if (u.includes("/float")) {
+        return { ok: true, status: 200, json: async () => ({ cards: ["Bolt"] }) } as Response;
+      }
+      return { ok: true, status: 200, json: async () => ({}) } as Response;
+    });
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc", floatedCards: ["Bolt"] });
 
     await useLiveStore.getState().addFloat("Counterspell");
 
+    // Server truth was ["Bolt"] so the optimistic addition is corrected
     expect(useLiveStore.getState().floatedCards).toEqual(["Bolt"]);
   });
 
-  it("reverts on network error", async () => {
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network error"));
+  it("keeps optimistic state when both PUT and refetch fail", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.includes("/live")) return { ok: true, status: 200, json: async () => ({}) } as Response;
+      // All /float calls fail
+      return { ok: false, status: 500, json: async () => ({}) } as Response;
+    });
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc", floatedCards: ["Bolt"] });
+
+    await useLiveStore.getState().addFloat("Counterspell");
+
+    // Both calls failed; optimistic state persists until next successful poll
+    expect(useLiveStore.getState().floatedCards).toEqual(["Bolt", "Counterspell"]);
+  });
+
+  it("refetches on network error", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, opts) => {
+      const u = String(url);
+      if (u.includes("/live")) return { ok: true, status: 200, json: async () => ({}) } as Response;
+      const method = (opts as RequestInit | undefined)?.method ?? "GET";
+      if (u.includes("/float") && method === "PUT") throw new Error("Network error");
+      // GET refetch returns server truth
+      if (u.includes("/float")) {
+        return { ok: true, status: 200, json: async () => ({ cards: ["Bolt"] }) } as Response;
+      }
+      return { ok: true, status: 200, json: async () => ({}) } as Response;
+    });
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc", floatedCards: ["Bolt"] });
@@ -1109,21 +1148,66 @@ describe("liveStore — removeFloat", () => {
     expect(useLiveStore.getState().floatedCards).toEqual(["Counterspell"]);
   });
 
-  it("reverts on failure", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("error", { status: 500 }),
-    );
+  it("refetches server truth on failure (server returns original list)", async () => {
+    // On DELETE failure, removeFloat awaits fetchFloatedCards to reconcile.
+    // Mock by URL+method so the /live poll gets a benign response.
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, opts) => {
+      const u = String(url);
+      if (u.includes("/live")) return { ok: true, status: 200, json: async () => ({}) } as Response;
+      const method = (opts as RequestInit | undefined)?.method ?? "GET";
+      if (u.includes("/float") && method === "DELETE") {
+        return { ok: false, status: 500, json: async () => ({}) } as Response;
+      }
+      if (u.includes("/float")) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ cards: ["Bolt", "Counterspell"] }),
+        } as Response;
+      }
+      return { ok: true, status: 200, json: async () => ({}) } as Response;
+    });
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc", floatedCards: ["Bolt", "Counterspell"] });
 
     await useLiveStore.getState().removeFloat("Bolt");
 
+    // Server truth was ["Bolt", "Counterspell"]; optimistic removal is corrected
     expect(useLiveStore.getState().floatedCards).toEqual(["Bolt", "Counterspell"]);
   });
 
-  it("reverts on network error", async () => {
-    vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network error"));
+  it("keeps optimistic state when both DELETE and refetch fail", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.includes("/live")) return { ok: true, status: 200, json: async () => ({}) } as Response;
+      // All /float calls fail
+      return { ok: false, status: 500, json: async () => ({}) } as Response;
+    });
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc", floatedCards: ["Bolt", "Counterspell"] });
+
+    await useLiveStore.getState().removeFloat("Bolt");
+
+    // Both calls failed; optimistic state persists until next successful poll
+    expect(useLiveStore.getState().floatedCards).toEqual(["Counterspell"]);
+  });
+
+  it("refetches on network error", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, opts) => {
+      const u = String(url);
+      if (u.includes("/live")) return { ok: true, status: 200, json: async () => ({}) } as Response;
+      const method = (opts as RequestInit | undefined)?.method ?? "GET";
+      if (u.includes("/float") && method === "DELETE") throw new Error("Network error");
+      // GET refetch returns server truth
+      if (u.includes("/float")) {
+        return {
+          ok: true, status: 200,
+          json: async () => ({ cards: ["Bolt", "Counterspell"] }),
+        } as Response;
+      }
+      return { ok: true, status: 200, json: async () => ({}) } as Response;
+    });
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc", floatedCards: ["Bolt", "Counterspell"] });
@@ -1287,13 +1371,9 @@ describe("liveStore — isMyTurn", () => {
     useLiveStore.setState({ mySeat: 3 });
     useDraftStore.setState({
       liveDraftStatus: {
-        phase: "drafting",
         latestPickN: 5,
         nextSeat: 3,
         recentPicks: [],
-        seatNames: {},
-        numSeats: 10,
-        picksPerPlayer: 45,
         matchCount: 0,
         totalMatches: 0,
       },
@@ -1308,13 +1388,9 @@ describe("liveStore — isMyTurn", () => {
     useLiveStore.setState({ mySeat: 3 });
     useDraftStore.setState({
       liveDraftStatus: {
-        phase: "drafting",
         latestPickN: 5,
         nextSeat: 5,
         recentPicks: [],
-        seatNames: {},
-        numSeats: 10,
-        picksPerPlayer: 45,
         matchCount: 0,
         totalMatches: 0,
       },
@@ -1329,13 +1405,9 @@ describe("liveStore — isMyTurn", () => {
     useLiveStore.setState({ mySeat: null });
     useDraftStore.setState({
       liveDraftStatus: {
-        phase: "drafting",
         latestPickN: 5,
         nextSeat: 3,
         recentPicks: [],
-        seatNames: {},
-        numSeats: 10,
-        picksPerPlayer: 45,
         matchCount: 0,
         totalMatches: 0,
       },
@@ -1347,64 +1419,6 @@ describe("liveStore — isMyTurn", () => {
   });
 });
 
-// ---------------------------------------------------------------------------
-// consecutivePicks derived state
-// ---------------------------------------------------------------------------
-describe("liveStore — consecutivePicks", () => {
-  beforeEach(() => {
-    localStorage.clear();
-    resetStores();
-  });
-
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("counts consecutive picks at snake turning point", async () => {
-    // With the mock: derivePickSeat returns seat 1 for pickN <= 2, seat 2 otherwise
-    // If latestPickN = 0 and mySeat = 1, then picks 1 and 2 are for seat 1
-    useLiveStore.setState({ mySeat: 1 });
-    useDraftStore.setState({
-      liveDraftStatus: {
-        phase: "drafting",
-        latestPickN: 0,
-        nextSeat: 1,
-        recentPicks: [],
-        seatNames: {},
-        numSeats: 2,
-        picksPerPlayer: 5,
-        matchCount: 0,
-        totalMatches: 0,
-      },
-    });
-
-    recomputePicking();
-
-    // Pick 1 → seat 1, Pick 2 → seat 1, Pick 3 → seat 2 (stops)
-    expect(useLiveStore.getState().consecutivePicks).toBe(2);
-  });
-
-  it("is 0 when it is not my turn", async () => {
-    useLiveStore.setState({ mySeat: 2 });
-    useDraftStore.setState({
-      liveDraftStatus: {
-        phase: "drafting",
-        latestPickN: 0,
-        nextSeat: 1,
-        recentPicks: [],
-        seatNames: {},
-        numSeats: 2,
-        picksPerPlayer: 5,
-        matchCount: 0,
-        totalMatches: 0,
-      },
-    });
-
-    recomputePicking();
-
-    expect(useLiveStore.getState().consecutivePicks).toBe(0);
-  });
-});
 
 // ---------------------------------------------------------------------------
 // Deck builder: dispatchDeck
@@ -1665,7 +1679,7 @@ describe("liveStore — fetchDeckState", () => {
     expect(useLiveStore.getState().deckReady).toBe(true);
   });
 
-  it("handles 404 — stays with empty state and marks ready", async () => {
+  it("handles 404 — creates empty deck with correct identity and marks ready", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response("Not found", { status: 404 }),
     );
@@ -1677,8 +1691,8 @@ describe("liveStore — fetchDeckState", () => {
 
     const s = useLiveStore.getState();
     expect(s.deckReady).toBe(true);
-    // deckState remains empty — identity is patched later by syncDeckWithPicks
-    expect(s.deckState.draftId).toBe("");
+    // Identity is set at load time (not deferred to syncDeckWithPicks)
+    expect(s.deckState.draftId).toBe("draft-1");
   });
 
   it("handles network error — stays with empty state and marks ready", async () => {

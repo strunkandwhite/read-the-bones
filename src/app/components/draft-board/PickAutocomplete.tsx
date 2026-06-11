@@ -1,51 +1,23 @@
 "use client";
 
 import { useState, useEffect, useRef, type KeyboardEvent } from "react";
+import { useCardStore } from "@/app/stores/cardStore";
 
 interface PickAutocompleteProps {
-  draftId: string;
-  nextPickN: number;
   onPick: (cardName: string) => void;
   onCancel: () => void;
 }
 
-export function PickAutocomplete({ draftId, nextPickN, onPick, onCancel }: PickAutocompleteProps) {
+export function PickAutocomplete({ onPick, onCancel }: PickAutocompleteProps) {
   const [query, setQuery] = useState("");
-  const [cards, setCards] = useState<string[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [fetchError, setFetchError] = useState(false);
   const [highlightIndex, setHighlightIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
-  // Fetch available cards on mount
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchCards() {
-      try {
-        const res = await fetch(`/api/drafts/${draftId}/available?before_pick_n=${nextPickN}`);
-        if (cancelled) return;
-        if (!res.ok) {
-          setFetchError(true);
-          setIsLoading(false);
-          return;
-        }
-        const data = await res.json();
-        if (!cancelled) {
-          setCards(data.cards.map((c: { card_name: string }) => c.card_name).sort());
-          setIsLoading(false);
-        }
-      } catch {
-        if (!cancelled) {
-          setFetchError(true);
-          setIsLoading(false);
-        }
-      }
-    }
-    fetchCards();
-    return () => { cancelled = true; };
-  }, [draftId, nextPickN]);
+  // Use the client-side available set (cube minus taken minus banned) from cardStore,
+  // already computed by recompute() — no network fetch needed per open/pick.
+  const availableCardNames = useCardStore((s) => s.availableCardNames);
 
   // Click-outside detection
   useEffect(() => {
@@ -63,9 +35,9 @@ export function PickAutocomplete({ draftId, nextPickN, onPick, onCancel }: PickA
     inputRef.current?.focus();
   }, []);
 
-  const filtered = isLoading
-    ? []
-    : cards.filter((name) => name.toLowerCase().includes(query.toLowerCase())).slice(0, 8);
+  const filtered = availableCardNames
+    .filter((name) => name.toLowerCase().includes(query.toLowerCase()))
+    .slice(0, 8);
 
   // Scroll highlighted item into view
   useEffect(() => {
@@ -99,7 +71,7 @@ export function PickAutocomplete({ draftId, nextPickN, onPick, onCancel }: PickA
     }
   }
 
-  const showDropdown = isLoading || fetchError || filtered.length > 0;
+  const showDropdown = filtered.length > 0 || query.trim().length > 0;
   const listId = "pick-autocomplete-list";
 
   return (
@@ -151,27 +123,7 @@ export function PickAutocomplete({ draftId, nextPickN, onPick, onCancel }: PickA
             marginTop: "2px",
           }}
         >
-          {isLoading ? (
-            <div
-              style={{
-                padding: "4px 8px",
-                fontSize: "11px",
-                color: "#888",
-              }}
-            >
-              Loading...
-            </div>
-          ) : fetchError ? (
-            <div
-              style={{
-                padding: "4px 8px",
-                fontSize: "11px",
-                color: "#f87171",
-              }}
-            >
-              Failed to load cards
-            </div>
-          ) : filtered.length === 0 ? (
+          {filtered.length === 0 ? (
             <div
               style={{
                 padding: "4px 8px",

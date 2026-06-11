@@ -25,7 +25,7 @@ export function CardStatsModal() {
 
   // Draft store
   const activeDraft = useDraftStore((s) => s.activeDraft);
-  const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
+  const boardPhase = useDraftStore((s) => s.board?.phase);
 
   // Live store
   const isMyTurn = useLiveStore((s) => s.isMyTurn);
@@ -40,7 +40,7 @@ export function CardStatsModal() {
   const isAuthed = useIsAuthed();
   const isOpen = !!selectedCard;
   const isLocal = useMemo(() => isLocalClient(), []);
-  const isLiveDraft = !!activeDraft && liveDraftStatus?.phase === "drafting";
+  const isLiveDraft = !!activeDraft && boardPhase === "drafting";
 
   const scryfallImageUrl = useMemo(
     () => getImageUrl(selectedCard),

@@ -2,8 +2,7 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { useDraftStore } from "./draftStore";
 import { useCardStore } from "./cardStore";
-import { getIsAuthed } from "./selectors";
-import { derivePickSeat, getTotalPicks } from "@/core/snakeDraft";
+import { getMyDeckCardNames } from "./selectors";
 import {
   deckReducer,
   createEmptyDeckState,
@@ -61,7 +60,6 @@ interface LiveStoreState {
   // Picking
   pickError: string | null;
   isMyTurn: boolean;
-  consecutivePicks: number;
 
   // Deck builder
   deckState: DeckState;
@@ -284,7 +282,6 @@ export const useLiveStore = create<LiveStoreState>()(
     // Picking state
     pickError: null,
     isMyTurn: false,
-    consecutivePicks: 0,
 
     // Deck builder state
     deckState: createEmptyDeckState("", 0),
@@ -539,9 +536,12 @@ export const useLiveStore = create<LiveStoreState>()(
           },
           body: JSON.stringify({ card_name: cardName }),
         });
-        if (!res.ok) set({ floatedCards: previous, floatedCardsSet: new Set(previous) });
+        // On failure, refetch server truth instead of restoring a potentially
+        // stale snapshot — a concurrent op may have succeeded between our
+        // optimistic update and this response.
+        if (!res.ok) await useLiveStore.getState().fetchFloatedCards();
       } catch {
-        set({ floatedCards: previous, floatedCardsSet: new Set(previous) });
+        await useLiveStore.getState().fetchFloatedCards();
       }
     },
 
@@ -561,9 +561,11 @@ export const useLiveStore = create<LiveStoreState>()(
           },
           body: JSON.stringify({ card_name: cardName }),
         });
-        if (!res.ok) set({ floatedCards: previous, floatedCardsSet: new Set(previous) });
+        // On failure, refetch server truth rather than restoring a snapshot
+        // that may have been overtaken by a concurrent successful operation.
+        if (!res.ok) await useLiveStore.getState().fetchFloatedCards();
       } catch {
-        set({ floatedCards: previous, floatedCardsSet: new Set(previous) });
+        await useLiveStore.getState().fetchFloatedCards();
       }
     },
 
@@ -714,9 +716,21 @@ export const useLiveStore = create<LiveStoreState>()(
           });
           if (res.ok) {
             const snapshot = await res.json();
-            get().dispatchDeck({ type: "INIT_FROM_SNAPSHOT", snapshot });
+            // Ensure identity (draftId/seat) is correct at load time so
+            // syncDeckWithPicks never needs to patch it after the fact.
+            const mySeat = get().mySeat ?? useDraftStore.getState().selectedSeat;
+            const identifiedSnapshot = {
+              ...snapshot,
+              draftId: activeDraft,
+              seat: mySeat ?? snapshot.seat,
+            };
+            get().dispatchDeck({ type: "INIT_FROM_SNAPSHOT", snapshot: identifiedSnapshot });
+          } else {
+            // No saved state (404) — create an empty deck with correct identity
+            const mySeat = get().mySeat ?? useDraftStore.getState().selectedSeat;
+            const emptyDeck = createEmptyDeckState(activeDraft, mySeat ?? 0);
+            get().dispatchDeck({ type: "INIT_FROM_SNAPSHOT", snapshot: emptyDeck });
           }
-          // 404 = no saved state, stay with empty deck
         } catch {
           // Network error — stay with empty state
         }
@@ -776,20 +790,7 @@ export function recomputePicking() {
 
   const isMyTurn = mySeat !== null && liveDraftStatus?.nextSeat === mySeat;
 
-  let consecutivePicks = 0;
-  if (isMyTurn && liveDraftStatus && mySeat !== null) {
-    const { latestPickN, numSeats, picksPerPlayer } = liveDraftStatus;
-    const totalPicks = getTotalPicks(numSeats, picksPerPlayer);
-    let pickN = latestPickN + 1;
-    while (pickN <= totalPicks) {
-      const { seat } = derivePickSeat(pickN, { numSeats, picksPerPlayer });
-      if (seat !== mySeat) break;
-      consecutivePicks++;
-      pickN++;
-    }
-  }
-
-  useLiveStore.setState({ isMyTurn, consecutivePicks });
+  useLiveStore.setState({ isMyTurn });
 
   // Auto-pick trigger
   if (isMyTurn && autoPick && queuedCardCounts.size > 0) {
@@ -847,7 +848,6 @@ useDraftStore.subscribe(
         floatedCardsSet: new Set<string>(),
         pickError: null,
         isMyTurn: false,
-        consecutivePicks: 0,
         deckState: createEmptyDeckState("", 0),
         deckReady: false,
         deckSaveStatus: "idle",
@@ -891,42 +891,21 @@ useDraftStore.subscribe(
 // ---------------------------------------------------------------------------
 
 function syncDeckWithPicks() {
-  const { deckBuilderActive, deckReady, floatedCards, queue, dispatchDeck } = useLiveStore.getState();
-  const { seatCardList, scryfallDataMap } = useCardStore.getState();
-  const isAuthed = getIsAuthed();
+  const { deckBuilderActive, deckReady, dispatchDeck } = useLiveStore.getState();
+  const { scryfallDataMap } = useCardStore.getState();
 
   if (!deckBuilderActive || !deckReady || useLiveStore.getState().viewingSharedDeck) return;
 
-  const picks = seatCardList ?? [];
-  const authFloated = isAuthed ? floatedCards : [];
-  const authQueued = isAuthed ? queue.flatMap((entry) => entry.cards.map((c) => c.cardName)) : [];
-  // Deduplicate speculative cards: if a card is both floated and queued, count it once.
-  // Picks are authoritative; speculative cards add on top of picks but not on top of each other.
-  const pickedSet = new Set(picks);
-  const seen = new Set(pickedSet);
-  const speculative: string[] = [];
-  for (const name of [...authQueued, ...authFloated]) {
-    if (!seen.has(name)) {
-      seen.add(name);
-      speculative.push(name);
-    }
-  }
-  const canonicalCards = [...picks, ...speculative];
+  // getMyDeckCardNames() is the canonical union (picks + speculative, auth-gated,
+  // deduplicated) shared with the mobile deck filter in PageClient.
+  // Set preserves insertion order: picks first, then speculative (queue, then floats).
+  const canonicalCards = [...getMyDeckCardNames()];
 
   dispatchDeck({
     type: "REBUILD",
     canonicalCards,
     scryfallData: scryfallDataMap,
   });
-
-  // Ensure deckState identity (draftId/seat) is correct — mySeat or
-  // selectedSeat may not have been available when fetchDeckState ran.
-  const activeDraft = useDraftStore.getState().activeDraft;
-  const seat = useLiveStore.getState().mySeat ?? useDraftStore.getState().selectedSeat;
-  const ds = useLiveStore.getState().deckState;
-  if (activeDraft && seat != null && (ds.draftId !== activeDraft || ds.seat !== seat)) {
-    useLiveStore.setState({ deckState: { ...ds, draftId: activeDraft, seat } });
-  }
 }
 
 function debouncedSyncDeckWithPicks() {

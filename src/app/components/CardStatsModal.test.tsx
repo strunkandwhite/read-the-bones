@@ -77,7 +77,7 @@ function setupStoreMocks(overrides: {
 
   const draftState: Record<string, unknown> = {
     activeDraft: overrides.activeDraft ?? null,
-    liveDraftStatus: overrides.liveDraftPhase ? { phase: overrides.liveDraftPhase } : null,
+    board: overrides.liveDraftPhase ? { phase: overrides.liveDraftPhase } : null,
     selectedSeat: overrides.selectedSeat ?? null,
   };
 

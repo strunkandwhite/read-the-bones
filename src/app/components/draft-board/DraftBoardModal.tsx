@@ -33,6 +33,7 @@ export function DraftBoardModal({
   // Draft store
   const board = useDraftStore((s) => s.board);
   const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
+  const pollFailed = useDraftStore((s) => s.pollFailed);
   const patchSeatName = useDraftStore((s) => s.patchSeatName);
 
   // Card store
@@ -70,7 +71,7 @@ export function DraftBoardModal({
 
   const setEntryMode = useLiveStore((s) => s.setEntryMode);
 
-  const phase = board?.phase ?? liveDraftStatus?.phase ?? "unknown";
+  const phase = board?.phase ?? "unknown";
   const badgeColors = PHASE_BADGE_COLORS[phase] ?? { bg: "bg-zinc-700", text: "text-zinc-400" };
 
   const nextPick =
@@ -115,6 +116,14 @@ export function DraftBoardModal({
                     title={bannedCardNames.join("\n")}
                   >{" · "}{bannedCardNames.length} banned</span>
                 )}
+              </span>
+            )}
+            {pollFailed && (
+              <span
+                className="text-[11px] text-amber-400/70"
+                title="Live data may be stale — polling failed"
+              >
+                ⚠ stale
               </span>
             )}
           </div>

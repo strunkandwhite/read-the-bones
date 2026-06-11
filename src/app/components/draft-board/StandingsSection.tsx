@@ -31,6 +31,13 @@ interface MatchRecord {
   seat2Wins: number;
 }
 
+interface MatchReportData {
+  mySeat: number;
+  opponent: number;
+  wins: number;
+  losses: number;
+}
+
 function DraftProgress({
   board,
   status,
@@ -120,6 +127,9 @@ function StandingsTable({
   const [standings, setStandings] = useState<StandingsRow[]>([]);
   const [matches, setMatches] = useState<MatchRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  // Pending state shown immediately after reporting a match while the refetch
+  // is in flight — avoids stale OMW%/OGW% from an optimistic local recompute.
+  const [reportPending, setReportPending] = useState(false);
 
   const fetchStandings = useCallback(async () => {
     try {
@@ -150,63 +160,20 @@ function StandingsTable({
     fetchStandings();
   }, [fetchStandings]);
 
-  // Re-fetch when a match is reported (status changes)
+  // Re-fetch when matchCount changes (a match was reported on any device)
   useEffect(() => {
     if (status) fetchStandings();
   }, [status?.matchCount, fetchStandings]); // eslint-disable-line react-hooks/exhaustive-deps
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  const handleMatchReported = useCallback((data: { mySeat: number; opponent: number; wins: number; losses: number }) => {
-    // Optimistic: apply match result to standings immediately
-    setStandings((prev) => {
-      const updated = prev.map((row) => {
-        if (row.seat === data.mySeat) {
-          return {
-            ...row,
-            gameWins: row.gameWins + data.wins,
-            gameLosses: row.gameLosses + data.losses,
-            matchWins: row.matchWins + (data.wins > data.losses ? 1 : 0),
-            matchLosses: row.matchLosses + (data.wins < data.losses ? 1 : 0),
-          };
-        }
-        if (row.seat === data.opponent) {
-          return {
-            ...row,
-            gameWins: row.gameWins + data.losses,
-            gameLosses: row.gameLosses + data.wins,
-            matchWins: row.matchWins + (data.losses > data.wins ? 1 : 0),
-            matchLosses: row.matchLosses + (data.losses < data.wins ? 1 : 0),
-          };
-        }
-        return row;
-      });
-      // Sort: matchWins DESC, omwPct DESC (nulls last), ogwPct DESC (nulls last)
-      return updated.sort((a, b) => {
-        if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
-        const aOmw = a.omwPct ?? -1;
-        const bOmw = b.omwPct ?? -1;
-        if (bOmw !== aOmw) return bOmw - aOmw;
-        const aOgw = a.ogwPct ?? -1;
-        const bOgw = b.ogwPct ?? -1;
-        return bOgw - aOgw;
-      });
-    });
-    // Optimistic: add the match to the matrix immediately
-    setMatches((prev) => {
-      const seat1 = Math.min(data.mySeat, data.opponent);
-      const seat2 = Math.max(data.mySeat, data.opponent);
-      return [
-        ...prev,
-        {
-          seat1,
-          seat2,
-          seat1Wins: data.mySeat === seat1 ? data.wins : data.losses,
-          seat2Wins: data.mySeat === seat1 ? data.losses : data.wins,
-        },
-      ];
-    });
+  const handleMatchReported = useCallback(async (_data: MatchReportData) => {
+    // Show a pending state immediately, then refetch server truth.
+    // Refetching ensures OMW%/OGW% are correct — local recompute leaves them stale.
+    setReportPending(true);
     onMatchReported();
-  }, [onMatchReported]);
+    await fetchStandings();
+    setReportPending(false);
+  }, [onMatchReported, fetchStandings]);
 
   const handleMatchReverted = useCallback(() => {
     fetchStandings();
@@ -226,6 +193,11 @@ function StandingsTable({
         <div className="flex-1 basis-[calc(50%-0.75rem)] min-w-[480px]">
           <h3 className="text-[13px] font-semibold text-zinc-200 mb-2">
             Standings
+            {reportPending && (
+              <span className="ml-2 text-xs font-normal text-zinc-500">
+                Updating...
+              </span>
+            )}
           </h3>
           {standings.length > 0 ? (
             <table className="border-collapse table-fixed text-sm w-full text-zinc-300">
@@ -282,7 +254,7 @@ function StandingsTable({
             mySeat={mySeat}
             token={token}
             draftId={draftId}
-            phase={status?.phase ?? "setup"}
+            phase={board.phase}
             onMatchReported={handleMatchReported}
             onMatchReverted={handleMatchReverted}
           />

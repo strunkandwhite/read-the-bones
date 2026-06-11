@@ -6,13 +6,10 @@ import { subscribeWithSelector } from "zustand/middleware";
 // ---------------------------------------------------------------------------
 
 export interface LiveDraftStatus {
-  phase: string;
+  // Fields unique to liveDraftStatus (not present in BoardData)
   latestPickN: number;
   nextSeat: number | null;
   recentPicks: { pickN: number; seat: number; cardName: string }[];
-  seatNames: Record<string, string>;
-  numSeats: number;
-  picksPerPlayer: number;
   matchCount: number;
   totalMatches: number;
 }
@@ -77,6 +74,10 @@ interface DraftState {
   board: BoardData | null;
   poolAsOfDraft: string | null;
   syncStatus: SyncStatusData;
+  // Minimal staleness signal: true when the last /live poll failed (network or
+  // non-ok response). Reset to false on next successful poll. Components may
+  // show a subtle indicator when this is true.
+  pollFailed: boolean;
 
   // Selection actions
   setSelectedDrafts: (drafts: Set<string>) => void;
@@ -88,6 +89,12 @@ interface DraftState {
   // Data actions
   setPoolAsOfDraft: (draftId: string | null) => void;
   patchSeatName: (seat: number, name: string) => void;
+
+  // Selector: returns the effective pool-as-of draft.
+  // When an active draft is selected it takes precedence; otherwise falls back
+  // to the user-chosen poolAsOfDraft. One canonical computation shared by
+  // Settings.tsx and cardStore.
+  getEffectivePoolAsOfDraft: () => string | null;
 
   // Polling actions
   startPolling: () => void;
@@ -159,6 +166,7 @@ async function fetchPollData(draftId: string, generation: number) {
   let liveData = null;
   let syncData: SyncStatusData | null = null;
 
+  const liveFailed = !liveRes.ok;
   if (liveRes.ok) {
     liveData = await liveRes.json();
   }
@@ -166,7 +174,7 @@ async function fetchPollData(draftId: string, generation: number) {
     syncData = await syncRes.json();
   }
 
-  return { liveData, syncData, generation };
+  return { liveData, syncData, generation, liveFailed };
 }
 
 function applyPollResults(
@@ -185,13 +193,9 @@ function applyPollResults(
 
   if (liveData) {
     const status: LiveDraftStatus = {
-      phase: liveData.phase as string,
       latestPickN: liveData.latestPickN as number,
       nextSeat: liveData.nextSeat as number | null,
       recentPicks: liveData.recentPicks as LiveDraftStatus["recentPicks"],
-      seatNames: liveData.seatNames as Record<string, string>,
-      numSeats: liveData.numSeats as number,
-      picksPerPlayer: liveData.picksPerPlayer as number,
       matchCount: liveData.matchCount as number,
       totalMatches: liveData.totalMatches as number,
     };
@@ -262,6 +266,7 @@ export const useDraftStore = create<DraftState>()(
     board: null,
     poolAsOfDraft: null,
     syncStatus: { lastSyncedAt: "0", syncInProgress: false, activeDrafts: [] },
+    pollFailed: false,
 
     // --- Data actions ---
 
@@ -271,6 +276,11 @@ export const useDraftStore = create<DraftState>()(
       set((state) => state.board ? {
         board: { ...state.board, seatNames: { ...state.board.seatNames, [String(seat)]: name } }
       } : {});
+    },
+
+    getEffectivePoolAsOfDraft: () => {
+      const { activeDraft, poolAsOfDraft } = get();
+      return activeDraft ?? poolAsOfDraft;
     },
 
     // --- Selection actions ---
@@ -354,10 +364,17 @@ export const useDraftStore = create<DraftState>()(
         // refreshNow() that bumps the generation will make this response stale.
         const gen = fetchGeneration;
         try {
-          const { liveData, syncData } = await fetchPollData(currentDraft, gen);
+          const { liveData, syncData, liveFailed } = await fetchPollData(currentDraft, gen);
+          // Update stale flag based on whether the live fetch succeeded
+          if (liveFailed) {
+            useDraftStore.setState({ pollFailed: true });
+          } else if (liveData) {
+            useDraftStore.setState({ pollFailed: false });
+          }
           applyPollResults(liveData, syncData, gen);
         } catch {
-          // Silently ignore transient fetch errors during polling
+          // Mark as stale so the UI can show a subtle indicator
+          useDraftStore.setState({ pollFailed: true });
         }
       };
 

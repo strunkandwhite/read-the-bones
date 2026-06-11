@@ -137,7 +137,6 @@ describe("PageClient", () => {
       floatedCards: [],
       pickError: null,
       isMyTurn: false,
-      consecutivePicks: 0,
       deckState: createEmptyDeckState("", 0),
       deckReady: false,
       deckSaveStatus: "idle",

@@ -18,12 +18,12 @@ export function Settings() {
   const hideTaken = useDraftStore((s) => s.hideTaken);
   const syncStatus = useDraftStore((s) => s.syncStatus);
   const board = useDraftStore((s) => s.board);
-  const poolAsOfDraft = useDraftStore((s) => s.poolAsOfDraft);
   const setActiveDraft = useDraftStore((s) => s.setActiveDraft);
   const setSelectedDrafts = useDraftStore((s) => s.setSelectedDrafts);
   const setSelectedSeat = useDraftStore((s) => s.setSelectedSeat);
   const setHideTaken = useDraftStore((s) => s.setHideTaken);
   const setPoolAsOfDraft = useDraftStore((s) => s.setPoolAsOfDraft);
+  const getEffectivePoolAsOfDraft = useDraftStore((s) => s.getEffectivePoolAsOfDraft);
   // Card store
   const drafts = useCardStore((s) => s.drafts);
   const isLoading = useCardStore((s) => s.isLoading);
@@ -35,8 +35,10 @@ export function Settings() {
   const isAuthed = useIsAuthed();
   const seatNames = board?.seatNames;
 
-  // effectivePoolAsOfDraft: when an active draft is selected, lock the pool to that draft
-  const effectivePoolAsOfDraft = activeDraft ?? poolAsOfDraft;
+  // effectivePoolAsOfDraft: canonical computation from the store selector.
+  // When an active draft is selected it takes precedence; otherwise falls back
+  // to the user-chosen poolAsOfDraft.
+  const effectivePoolAsOfDraft = getEffectivePoolAsOfDraft();
   const poolLockedByActiveDraft = activeDraft !== null;
 
   const activeDraftNumSeats = useMemo(() => {

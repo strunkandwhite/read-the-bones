@@ -20,7 +20,7 @@ import { useHydration } from "../stores/hydration";
 import { useDraftStore } from "../stores/draftStore";
 import { useCardStore } from "../stores/cardStore";
 import { useLiveStore } from "../stores/liveStore";
-import { useIsAuthed } from "../stores/selectors";
+import { useIsAuthed, useMyDeckCardNames } from "../stores/selectors";
 
 
 export interface PageClientProps {
@@ -60,18 +60,15 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   const selectedDrafts = useDraftStore((s) => s.selectedDrafts);
   const isLoading = useCardStore((s) => s.isLoading);
   const selectCard = useCardStore((s) => s.selectCard);
-  const seatCardList = useCardStore((s) => s.seatCardList);
-
   const mySeat = useLiveStore((s) => s.mySeat);
   const isMyTurn = useLiveStore((s) => s.isMyTurn);
   const pickError = useLiveStore((s) => s.pickError);
   const setPickError = useLiveStore((s) => s.setPickError);
-  const queuedCardCounts = useLiveStore((s) => s.queuedCardCounts);
-  const floatedCards = useLiveStore((s) => s.floatedCards);
   const setDeckBuilderActive = useLiveStore((s) => s.setDeckBuilderActive);
-  const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
+  const boardPhase = useDraftStore((s) => s.board?.phase);
 
   const isAuthed = useIsAuthed();
+  const myDeckCardNames = useMyDeckCardNames();
   const deckBuilderActive = useLiveStore((s) => s.deckBuilderActive);
 
   const {
@@ -127,28 +124,18 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
     setDeckBuilderModalOpen,
   });
 
-  const queuedCardNames = useMemo(
-    () => Array.from(queuedCardCounts.keys()),
-    [queuedCardCounts],
-  );
-
   // Handle card click — opens card stats modal
   const handleCardClick = useCallback((cardName: string) => {
-    const excludeId = liveDraftStatus?.phase === "drafting" ? activeDraft ?? undefined : undefined;
+    const excludeId = boardPhase === "drafting" ? activeDraft ?? undefined : undefined;
     selectCard(cardName, excludeId);
-  }, [liveDraftStatus?.phase, activeDraft, selectCard]);
+  }, [boardPhase, activeDraft, selectCard]);
 
   // When deck filter is active (mobile), show only picked/queued/floated cards
   // Automatically deactivates when not authed (e.g., switching seats)
   const deckFilteredCards = useMemo(() => {
     if (!deckFilterActive || !isAuthed) return searchFilteredCards;
-    const myCards = new Set([
-      ...(seatCardList ?? []),
-      ...floatedCards,
-      ...queuedCardNames,
-    ]);
-    return searchFilteredCards.filter((c) => myCards.has(c.cardName));
-  }, [deckFilterActive, isAuthed, searchFilteredCards, seatCardList, floatedCards, queuedCardNames]);
+    return searchFilteredCards.filter((c) => myDeckCardNames.has(c.cardName));
+  }, [deckFilterActive, isAuthed, searchFilteredCards, myDeckCardNames]);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">

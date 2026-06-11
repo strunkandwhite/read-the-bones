@@ -84,7 +84,6 @@ beforeEach(() => {
     floatedCardsSet: new Set<string>(),
     pickError: null,
     isMyTurn: false,
-    consecutivePicks: 0,
     deckState: createEmptyDeckState("", 0),
     deckReady: false,
     deckSaveStatus: "idle",

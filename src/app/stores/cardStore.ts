@@ -104,6 +104,9 @@ interface CardStoreState {
   cardData: CardStatsResponse;
   draftStats: DraftStatsResponse;
   isLoading: boolean;
+  // Minimal staleness signal: true when the last fetchCardData call failed.
+  // Reset to false on next successful fetch.
+  lastFetchFailed: boolean;
 
   // Search state
   searchQuery: string;
@@ -122,6 +125,9 @@ interface CardStoreState {
   displayCards: EnrichedCardStats[];
   searchFilteredCards: EnrichedCardStats[];
   availableCount: number;
+  // Sorted list of card names available for picking (cube minus taken minus banned).
+  // Used by PickAutocomplete instead of fetching /api/available per pick.
+  availableCardNames: string[];
   drafts: DraftListItem[];
 
   // Card stats modal state
@@ -232,16 +238,19 @@ function recompute() {
     searchFilteredCards = displayCards;
   }
 
-  // availableCount
+  // availableCount + availableCardNames (cube minus taken minus banned)
   let availableCount = 0;
+  let availableCardNames: string[] = [];
   if (activeDraft && takenCardNamesSet) {
     const bannedSet = new Set(cardData.bannedCardNames ?? []);
-    availableCount = cardData.cards.filter((c) => {
+    const availableCards = cardData.cards.filter((c) => {
       if (takenCardNamesSet!.has(c.cardName)) return false;
       if (bannedSet.has(c.cardName)) return false;
       const frontFace = getFrontFace(c.cardName);
       return frontFace ? !bannedSet.has(frontFace) : true;
-    }).length;
+    });
+    availableCount = availableCards.length;
+    availableCardNames = availableCards.map((c) => c.cardName).sort();
   }
 
   // drafts
@@ -265,6 +274,7 @@ function recompute() {
     displayCards,
     searchFilteredCards,
     availableCount,
+    availableCardNames,
     drafts,
   });
 }
@@ -278,6 +288,7 @@ export const useCardStore = create<CardStoreState>()(
     cardData: EMPTY_CARD_DATA,
     draftStats: EMPTY_DRAFT_STATS,
     isLoading: false,
+    lastFetchFailed: false,
 
     // Search state
     searchQuery: "",
@@ -301,6 +312,7 @@ export const useCardStore = create<CardStoreState>()(
     displayCards: [],
     searchFilteredCards: [],
     availableCount: 0,
+    availableCardNames: [],
     drafts: [],
 
     // Actions
@@ -321,9 +333,8 @@ export const useCardStore = create<CardStoreState>()(
       // Capture a monotonically increasing request ID and read all fetch
       // parameters at the START of this fetch, before any awaits.
       const requestId = ++fetchRequestId;
-      const { selectedDrafts, activeDraft, poolAsOfDraft } =
-        useDraftStore.getState();
-      const effectivePool = activeDraft ?? poolAsOfDraft;
+      const { selectedDrafts, activeDraft } = useDraftStore.getState();
+      const effectivePool = useDraftStore.getState().getEffectivePoolAsOfDraft();
 
       if (selectedDrafts.size === 0) {
         set((s) => ({
@@ -382,12 +393,15 @@ export const useCardStore = create<CardStoreState>()(
         // A superseded response (requestId < fetchRequestId) is discarded
         // so stale data from an old selection never overwrites new state.
         if (requestId === fetchRequestId) {
+          const cardsFailed = !cardsRes?.ok;
           if (cardsRes?.ok) set({ cardData: await cardsRes.json() });
           if (statsRes?.ok) set({ draftStats: await statsRes.json() });
+          set({ lastFetchFailed: cardsFailed });
           recompute();
         }
       } catch (error) {
         console.error("Failed to fetch card data:", error);
+        set({ lastFetchFailed: true });
       } finally {
         set({ isLoading: false });
         fetchInFlight = false;

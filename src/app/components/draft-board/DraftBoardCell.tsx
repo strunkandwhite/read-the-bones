@@ -147,8 +147,6 @@ export function DraftBoardCell({
     >
       {isEditing && draftId && nextPickN !== null ? (
         <PickAutocomplete
-          draftId={draftId}
-          nextPickN={nextPickN}
           onPick={handlePickLocal}
           onCancel={handleCancel}
         />
