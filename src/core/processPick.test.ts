@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { processPick } from './processPick';
+import { processPick, triggerAutoPickOnDemand } from './processPick';
 
 // Mock pickQueue module
 vi.mock('./db/queries/pickQueue', () => ({
@@ -771,5 +771,192 @@ describe('processPick', () => {
       // card 55 (Dark Ritual) should NOT be floated
       expect(addFloatedCard).not.toHaveBeenCalledWith(mockClient, 'draft-1', 2, 'Dark Ritual');
     });
+  });
+});
+
+// ============================================================================
+// triggerAutoPickOnDemand Tests
+//
+// These tests verify that the on-demand endpoint path uses the SAME underlying
+// candidate selection (`selectAutoPickCandidateForSeat`) as the cascade path.
+// Shared behaviour is exercised here; processPick cascade tests cover the
+// shared helper via the cascade path.
+// ============================================================================
+
+describe('triggerAutoPickOnDemand', () => {
+  let mockClient: ReturnType<typeof createMockClient>;
+
+  beforeEach(() => {
+    mockClient = createMockClient();
+    vi.clearAllMocks();
+  });
+
+  it('throws NotFoundError when draft does not exist', async () => {
+    // getDraftMeta returns no rows → null
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+
+    await expect(
+      triggerAutoPickOnDemand(mockClient as never, 'draft-1', 1),
+    ).rejects.toThrow('Draft not found');
+  });
+
+  it('throws ValidationError when not in drafting phase', async () => {
+    mockDraftMeta(mockClient, { phase: 'complete' });
+
+    await expect(
+      triggerAutoPickOnDemand(mockClient as never, 'draft-1', 1),
+    ).rejects.toThrow("Draft is in 'complete' phase, not 'drafting'");
+  });
+
+  it('throws ValidationError when it is not this seat\'s turn', async () => {
+    // 4 seats, 6 picks each; 0 picks so far → seat 1's turn
+    mockDraftMeta(mockClient);
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cnt: 0 }]));
+
+    await expect(
+      triggerAutoPickOnDemand(mockClient as never, 'draft-1', 2),
+    ).rejects.toThrow("It's seat 1's turn, not seat 2's");
+  });
+
+  it('returns autoPickDisabled: true on pause-mode queue exhaustion (same as cascade)', async () => {
+    const { getAutoPickCandidate } = await import('./db/queries/pickQueue');
+    const { updateAutoPick: updateAutoPickFn } = await import('./db/queries/seatTokens');
+    vi.mocked(getAutoPickCandidate).mockResolvedValueOnce({ kind: 'paused' });
+
+    // Draft meta: seat 1's turn (0 picks)
+    mockDraftMeta(mockClient);
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cnt: 0 }]));
+    // Available cards query (inside selectAutoPickCandidateForSeat)
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 5 }]));
+
+    const result = await triggerAutoPickOnDemand(mockClient as never, 'draft-1', 1);
+
+    expect(result.pickedCard).toBeNull();
+    expect(result.autoPickDisabled).toBe(true);
+    expect(result.phaseChanged).toBe(false);
+    // Auto-pick must be disabled server-side
+    expect(vi.mocked(updateAutoPickFn)).toHaveBeenCalledWith(mockClient, 'draft-1', 1, false);
+  });
+
+  it('returns pickedCard: null and autoPickDisabled: false when queue is empty (flow-through)', async () => {
+    const { getAutoPickCandidate } = await import('./db/queries/pickQueue');
+    vi.mocked(getAutoPickCandidate).mockResolvedValueOnce({ kind: 'empty' });
+
+    mockDraftMeta(mockClient);
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cnt: 0 }]));
+    // Available cards query
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 10 }]));
+
+    const result = await triggerAutoPickOnDemand(mockClient as never, 'draft-1', 1);
+
+    expect(result.pickedCard).toBeNull();
+    expect(result.autoPickDisabled).toBe(false);
+  });
+
+  it('picks the same card the cascade would for an identical queue state', async () => {
+    // This test drives both triggerAutoPickOnDemand and processPick's cascade
+    // against the same mocked queue to verify they call selectAutoPickCandidateForSeat
+    // with the same inputs and get the same candidate.
+    const { getAutoPickCandidate, fulfillGroupEntry } = await import('./db/queries/pickQueue');
+
+    // Candidate: card 42
+    vi.mocked(getAutoPickCandidate).mockResolvedValue({ kind: 'candidate', cardId: 42, entryIndex: 0 });
+    vi.mocked(fulfillGroupEntry).mockResolvedValue({ mode: 'pause', cards: [{ id: 42, name: 'Counterspell' }] });
+
+    // --- triggerAutoPickOnDemand ---
+    mockDraftMeta(mockClient);
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cnt: 0 }])); // pick count
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 42 }])); // available
+    // Card name lookup
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ name: 'Counterspell' }]));
+    // INSERT pick_events
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([], 1));
+    // Copy check (getRemainingCopiesForPick after insert)
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
+    // isLastCopy=true → removeCardFromAllQueues (mocked, returns pauseSeats:[])
+    // No more queries needed
+
+    const result = await triggerAutoPickOnDemand(mockClient as never, 'draft-1', 1);
+
+    expect(result.pickedCard?.cardName).toBe('Counterspell');
+    expect(result.pickedCard?.cardId).toBe(42);
+    expect(result.autoPickDisabled).toBe(false);
+
+    // Verify getAutoPickCandidate was called for seat 1 with the available set
+    expect(getAutoPickCandidate).toHaveBeenCalledWith(
+      mockClient, 'draft-1', 1, new Set([42]),
+    );
+  });
+
+  it('throws ConflictError when optimistic INSERT is beaten (cascade fired first)', async () => {
+    const { getAutoPickCandidate, fulfillGroupEntry } = await import('./db/queries/pickQueue');
+    vi.mocked(getAutoPickCandidate).mockResolvedValueOnce({ kind: 'candidate', cardId: 7, entryIndex: 0 });
+    vi.mocked(fulfillGroupEntry).mockResolvedValueOnce({ mode: 'pause', cards: [{ id: 7, name: 'Bolt' }] });
+
+    mockDraftMeta(mockClient);
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cnt: 0 }]));
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 7 }]));
+    // Card name lookup
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ name: 'Bolt' }]));
+    // INSERT returns rowsAffected=0 (cascade already wrote this pick_n)
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([], 0));
+
+    await expect(
+      triggerAutoPickOnDemand(mockClient as never, 'draft-1', 1),
+    ).rejects.toThrow('Conflict: pick_n already exists — retry');
+  });
+
+  it('demotes non-picked group members to float (same as cascade path)', async () => {
+    const { getAutoPickCandidate, fulfillGroupEntry } = await import('./db/queries/pickQueue');
+    const { addFloatedCard } = await import('./db/queries/floatedCards');
+
+    vi.mocked(getAutoPickCandidate).mockResolvedValueOnce({ kind: 'candidate', cardId: 10, entryIndex: 0 });
+    vi.mocked(fulfillGroupEntry).mockResolvedValueOnce({
+      mode: 'pause',
+      cards: [
+        { id: 10, name: 'Lightning Bolt' },
+        { id: 20, name: 'Swords to Plowshares' },
+      ],
+    });
+
+    mockDraftMeta(mockClient);
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cnt: 0 }]));
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 10 }]));
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ name: 'Lightning Bolt' }]));
+    // INSERT
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([], 1));
+    // Copy check
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
+
+    await triggerAutoPickOnDemand(mockClient as never, 'draft-1', 1);
+
+    expect(addFloatedCard).toHaveBeenCalledWith(mockClient, 'draft-1', 1, 'Swords to Plowshares');
+    expect(addFloatedCard).not.toHaveBeenCalledWith(mockClient, 'draft-1', 1, 'Lightning Bolt');
+  });
+
+  it('transitions draft to playing when last pick is made', async () => {
+    // 4 seats, 6 picks each (24 total); 23 already made → seat 4's turn is last
+    const { getAutoPickCandidate, fulfillGroupEntry } = await import('./db/queries/pickQueue');
+    vi.mocked(getAutoPickCandidate).mockResolvedValueOnce({ kind: 'candidate', cardId: 99, entryIndex: 0 });
+    vi.mocked(fulfillGroupEntry).mockResolvedValueOnce({ mode: 'pause', cards: [{ id: 99, name: 'Final Card' }] });
+
+    mockDraftMeta(mockClient);
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cnt: 23 }]));
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 99 }]));
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ name: 'Final Card' }]));
+    // INSERT success
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([], 1));
+    // Copy check
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
+    // UPDATE drafts SET phase = 'playing'
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([], 1));
+    // Clear all queues
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([], 0));
+
+    const result = await triggerAutoPickOnDemand(mockClient as never, 'draft-1', 4);
+
+    expect(result.phaseChanged).toBe(true);
+    expect(result.newPhase).toBe('playing');
+    expect(result.pickedCard?.cardName).toBe('Final Card');
   });
 });

@@ -1511,6 +1511,222 @@ describe("liveStore — isMyTurn", () => {
   });
 });
 
+// ---------------------------------------------------------------------------
+// triggerAutoPick — simplified client trigger (Task 27 / A2)
+//
+// After the auto-pick single-source-of-truth refactor, the client trigger
+// no longer traverses the queue itself.  It just calls POST /pick { auto: true }
+// and delegates all candidate selection to the server.
+// ---------------------------------------------------------------------------
+describe("liveStore — triggerAutoPick (simplified)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+    Object.defineProperty(window, "location", {
+      value: new URL("http://localhost:3000/"),
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("calls POST /api/drafts/{id}/pick with { auto: true } when it's my turn and autoPick is on", async () => {
+    // Route /pick calls to a success response; all others to 401 so that the
+    // activeDraft subscription's fetchMySeat/fetchQueue/etc don't interfere.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("/pick")) {
+        return new Response(
+          JSON.stringify({ pickedCard: { pickN: 1, cardId: 5, cardName: "Lightning Bolt" }, autoPickDisabled: false, phaseChanged: false, newPhase: null }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 401 });
+    });
+    vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
+
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      liveDraftStatus: { latestPickN: 0, nextSeat: 3, recentPicks: [], matchCount: 0, totalMatches: 0 },
+    });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      mySeat: 3,
+      autoPick: true,
+      queue: [{ mode: "pause", cards: [{ cardId: 5, cardName: "Lightning Bolt" }] }],
+      queuedCardCounts: new Map([["Lightning Bolt", 1]]),
+    });
+
+    recomputePicking();
+
+    // Allow the async triggerAutoPick to settle
+    await new Promise((r) => setTimeout(r, 0));
+
+    const autoPickCall = fetchSpy.mock.calls.find(
+      (c) => String(c[0]).includes("/pick") && JSON.parse(c[1]?.body as string ?? "{}").auto === true,
+    );
+    expect(autoPickCall).toBeDefined();
+    expect(JSON.parse(autoPickCall![1]?.body as string)).toEqual({ auto: true });
+    expect(fetchSpy.mock.calls.some((c) => String(c[0]).includes("/pick") && !JSON.parse(c[1]?.body as string ?? "{}").auto)).toBe(false);
+  });
+
+  it("does NOT fire when autoPick is disabled", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
+    });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      mySeat: 2,
+      autoPick: false,
+      queue: [{ mode: "pause", cards: [{ cardId: 1, cardName: "Bolt" }] }],
+      queuedCardCounts: new Map([["Bolt", 1]]),
+    });
+
+    recomputePicking();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const pickCalls = fetchSpy.mock.calls.filter((c) => String(c[0]).includes("/pick"));
+    expect(pickCalls).toHaveLength(0);
+  });
+
+  it("does NOT fire when queue is empty", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
+    });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      mySeat: 2,
+      autoPick: true,
+      queue: [],
+      queuedCardCounts: new Map(),
+    });
+
+    recomputePicking();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const pickCalls = fetchSpy.mock.calls.filter((c) => String(c[0]).includes("/pick"));
+    expect(pickCalls).toHaveLength(0);
+  });
+
+  it("respects the autoPickInFlight guard — does not fire twice concurrently", async () => {
+    let resolveFetch!: () => void;
+    const hangingPickFetch = new Promise<Response>((resolve) => {
+      resolveFetch = () =>
+        resolve(
+          new Response(
+            JSON.stringify({ pickedCard: null, autoPickDisabled: false, phaseChanged: false, newPhase: null }),
+            { status: 200 },
+          ),
+        );
+    });
+    // Route /pick to the hanging promise (so the in-flight guard is exercised);
+    // route everything else to 401 to isolate from activeDraft subscription calls.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input).includes("/pick")) {
+        return hangingPickFetch as Promise<Response>;
+      }
+      return Promise.resolve(new Response("{}", { status: 401 }));
+    });
+    vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
+
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
+    });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      mySeat: 1,
+      autoPick: true,
+      queue: [{ mode: "pause", cards: [{ cardId: 9, cardName: "Force of Will" }] }],
+      queuedCardCounts: new Map([["Force of Will", 1]]),
+    });
+
+    // Fire twice in quick succession
+    recomputePicking();
+    recomputePicking();
+    await new Promise((r) => setTimeout(r, 0));
+
+    // Resolve the hanging fetch
+    resolveFetch();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const pickCalls = fetchSpy.mock.calls.filter((c) => String(c[0]).includes("/pick"));
+    expect(pickCalls).toHaveLength(1);
+  });
+
+  it("reflects autoPickDisabled from server response in store state", async () => {
+    // Route fetch calls: /pick path gets the autoPickDisabled response; everything
+    // else (fetchMySeat, fetchQueue, etc. from the activeDraft subscription) gets
+    // an empty 401 so they bail out without consuming our test response body.
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("/pick")) {
+        return new Response(
+          JSON.stringify({ pickedCard: null, autoPickDisabled: true, phaseChanged: false, newPhase: null }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 401 });
+    });
+    vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
+
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
+    });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      mySeat: 2,
+      autoPick: true,
+      queue: [{ mode: "pause", cards: [{ cardId: 3, cardName: "Counterspell" }] }],
+      queuedCardCounts: new Map([["Counterspell", 1]]),
+    });
+
+    recomputePicking();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(useLiveStore.getState().autoPick).toBe(false);
+  });
+
+  it("handles 409 conflict by refreshing — no error state set", async () => {
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("/pick")) {
+        return new Response(JSON.stringify({ error: "Conflict" }), { status: 409 });
+      }
+      return new Response("{}", { status: 401 });
+    });
+    const refreshSpy = vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
+
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
+    });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      mySeat: 1,
+      autoPick: true,
+      queue: [{ mode: "pause", cards: [{ cardId: 7, cardName: "Bolt" }] }],
+      queuedCardCounts: new Map([["Bolt", 1]]),
+    });
+
+    recomputePicking();
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(refreshSpy).toHaveBeenCalled();
+    expect(useLiveStore.getState().pickError).toBeNull();
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Deck builder: dispatchDeck

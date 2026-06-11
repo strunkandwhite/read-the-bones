@@ -768,52 +768,67 @@ export const useLiveStore = create<LiveStoreState>()(
 
 let autoPickInFlight = false;
 
+/**
+ * Client-side auto-pick trigger: checks the trigger condition (my turn +
+ * autoPick enabled + not in flight) then delegates ALL queue-traversal and
+ * candidate selection to the server via POST /api/drafts/[id]/pick with
+ * `{ auto: true }`.  The server runs the same logic as the cascade path so
+ * both paths are guaranteed to make identical picks for the same queue state.
+ *
+ * On conflict (pick_n already taken — cascade fired first): the server returns
+ * 409, which we treat as "already handled — just refresh".
+ */
 async function triggerAutoPick() {
   if (autoPickInFlight) return;
   autoPickInFlight = true;
   try {
-    await useLiveStore.getState().refreshSettings();
-    const { autoPick } = useLiveStore.getState();
+    const { seatToken, autoPick } = useLiveStore.getState();
     if (!autoPick) return;
 
-    // Re-fetch queue to get latest state (a queued card may have been picked by someone else)
-    await useLiveStore.getState().fetchQueue();
-    const { queue } = useLiveStore.getState();
-    if (queue.length === 0) return;
+    const activeDraft = useDraftStore.getState().activeDraft;
+    if (!seatToken || !activeDraft) return;
 
-    // Try entries in order; within each entry try each card.
-    // If a card succeeds, stop. If a card fails with "already taken", try the next card in the entry.
-    // If the whole entry is exhausted without a pick, check mode:
-    //   pause → stop; flow-through → continue to next entry.
-    for (const entry of queue) {
-      let pickedFromEntry = false;
-      for (const card of entry.cards) {
-        await useLiveStore.getState().handlePick(card.cardName);
-        if (!useLiveStore.getState().pickError) {
-          pickedFromEntry = true;
-          break;
-        }
-        useLiveStore.getState().setPickError(null);
+    const res = await fetch(`/api/drafts/${activeDraft}/pick`, {
+      method: "POST",
+      headers: {
+        "X-Seat-Token": seatToken,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ auto: true }),
+    });
+
+    if (res.ok) {
+      const data = await res.json() as { autoPickDisabled?: boolean; pickedCard?: unknown };
+      if (data.autoPickDisabled) {
+        // Server disabled auto-pick due to pause-mode exhaustion — reflect locally
+        useLiveStore.setState({ autoPick: false });
       }
-      if (pickedFromEntry) break;
-      if (entry.mode === 'pause') break;
-      // flow-through: continue to next entry
+      // Refresh to pick up the new pick (or the disabled-autoPick state)
+      await useDraftStore.getState().refreshNow();
+    } else if (res.status === 409) {
+      // Conflict: cascade already fired for this pick_n — refresh to catch up
+      await useDraftStore.getState().refreshNow();
     }
+    // Other errors (not my turn, queue empty, etc.) are silent — the next poll
+    // will recompute isMyTurn and re-trigger if still appropriate.
   } finally {
     autoPickInFlight = false;
   }
 }
 
 export function recomputePicking() {
-  const { mySeat, autoPick, queuedCardCounts } = useLiveStore.getState();
+  const { mySeat, autoPick, queue } = useLiveStore.getState();
   const { liveDraftStatus } = useDraftStore.getState();
 
   const isMyTurn = mySeat !== null && liveDraftStatus?.nextSeat === mySeat;
 
   useLiveStore.setState({ isMyTurn });
 
-  // Auto-pick trigger
-  if (isMyTurn && autoPick && queuedCardCounts.size > 0) {
+  // Auto-pick trigger — only fire when the queue is non-empty (client-side
+  // pre-check to avoid a round-trip when there is obviously nothing to pick).
+  // The server validates the candidate independently so this is just an
+  // optimisation, not a correctness gate.
+  if (isMyTurn && autoPick && queue.length > 0) {
     triggerAutoPick();
   }
 }

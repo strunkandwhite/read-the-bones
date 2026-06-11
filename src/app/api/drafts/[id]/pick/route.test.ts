@@ -13,8 +13,10 @@ vi.mock("@/core/tokenAuth", () => ({
 }));
 
 const mockProcessPick = vi.fn();
+const mockTriggerAutoPickOnDemand = vi.fn();
 vi.mock("@/core/processPick", () => ({
   processPick: (...args: unknown[]) => mockProcessPick(...args),
+  triggerAutoPickOnDemand: (...args: unknown[]) => mockTriggerAutoPickOnDemand(...args),
 }));
 
 const mockResolveCardId = vi.fn();
@@ -112,5 +114,103 @@ describe("POST /api/drafts/[id]/pick", () => {
     );
 
     expect(res.status).toBe(400);
+  });
+
+  // ---------------------------------------------------------------------------
+  // auto: true path — delegates to triggerAutoPickOnDemand
+  // ---------------------------------------------------------------------------
+
+  describe("auto: true", () => {
+    it("calls triggerAutoPickOnDemand and returns the result", async () => {
+      mockAuthenticateSeat.mockResolvedValueOnce({ seat: 3 });
+      mockTriggerAutoPickOnDemand.mockResolvedValueOnce({
+        pickedCard: { pickN: 5, cardId: 77, cardName: "Lightning Bolt" },
+        autoPickDisabled: false,
+        phaseChanged: false,
+        newPhase: null,
+      });
+
+      const res = await POST(
+        makeRequest({ auto: true }),
+        { params: Promise.resolve({ id: "draft-1" }) },
+      );
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(mockTriggerAutoPickOnDemand).toHaveBeenCalledWith(
+        expect.anything(), "draft-1", 3,
+      );
+      expect(mockProcessPick).not.toHaveBeenCalled();
+      expect(mockResolveCardId).not.toHaveBeenCalled();
+      expect(body.pickedCard.cardName).toBe("Lightning Bolt");
+    });
+
+    it("returns autoPickDisabled: true when pause-mode exhausted queue", async () => {
+      mockAuthenticateSeat.mockResolvedValueOnce({ seat: 2 });
+      mockTriggerAutoPickOnDemand.mockResolvedValueOnce({
+        pickedCard: null,
+        autoPickDisabled: true,
+        phaseChanged: false,
+        newPhase: null,
+      });
+
+      const res = await POST(
+        makeRequest({ auto: true }),
+        { params: Promise.resolve({ id: "draft-1" }) },
+      );
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(body.pickedCard).toBeNull();
+      expect(body.autoPickDisabled).toBe(true);
+    });
+
+    it("returns 409 on conflict (cascade already fired)", async () => {
+      mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1 });
+      mockTriggerAutoPickOnDemand.mockRejectedValueOnce(
+        new ConflictError("Conflict: pick_n already exists — retry"),
+      );
+
+      const res = await POST(
+        makeRequest({ auto: true }),
+        { params: Promise.resolve({ id: "draft-1" }) },
+      );
+
+      expect(res.status).toBe(409);
+    });
+
+    it("returns 400 when it is not this seat's turn", async () => {
+      mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1 });
+      mockTriggerAutoPickOnDemand.mockRejectedValueOnce(
+        new ValidationError("It's seat 3's turn, not seat 1's"),
+      );
+
+      const res = await POST(
+        makeRequest({ auto: true }),
+        { params: Promise.resolve({ id: "draft-1" }) },
+      );
+
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 200 with null pickedCard when queue is empty (flow-through exhausted)", async () => {
+      mockAuthenticateSeat.mockResolvedValueOnce({ seat: 4 });
+      mockTriggerAutoPickOnDemand.mockResolvedValueOnce({
+        pickedCard: null,
+        autoPickDisabled: false,
+        phaseChanged: false,
+        newPhase: null,
+      });
+
+      const res = await POST(
+        makeRequest({ auto: true }),
+        { params: Promise.resolve({ id: "draft-1" }) },
+      );
+      const body = await res.json();
+
+      expect(res.status).toBe(200);
+      expect(body.pickedCard).toBeNull();
+      expect(body.autoPickDisabled).toBe(false);
+    });
   });
 });

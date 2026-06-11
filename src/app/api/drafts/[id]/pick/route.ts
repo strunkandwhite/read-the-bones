@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getClient } from "@/core/db/client";
 import { authenticateSeat } from "@/core/tokenAuth";
-import { processPick } from "@/core/processPick";
+import { processPick, triggerAutoPickOnDemand } from "@/core/processPick";
 import { resolveCardId } from "@/core/db/queries/cards";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
@@ -15,6 +15,15 @@ export const POST = withApiErrors(
 
     const { seat } = await authenticateSeat(client, request, draftId);
     const body = await request.json();
+
+    // Auto-pick on demand: the client delegates queue-traversal to the server
+    // so that cascade and on-demand paths share the same candidate-selection
+    // implementation and cannot produce divergent picks.
+    if (body.auto === true) {
+      const result = await triggerAutoPickOnDemand(client, draftId, seat);
+      return NextResponse.json(result);
+    }
+
     const { card_name } = body;
     if (!card_name) {
       return NextResponse.json({ error: "card_name required" }, { status: 400 });
