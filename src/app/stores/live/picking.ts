@@ -72,12 +72,17 @@ async function triggerAutoPick(
 export function makeRecomputePicking(set: SetState, get: GetState): () => void {
   return (): void => {
     const { mySeat, autoPick, queue } = get();
-    const { liveDraftStatus } = useDraftStore.getState();
+    const { liveDraftStatus, board } = useDraftStore.getState();
 
     const isMyTurn = mySeat !== null && liveDraftStatus?.nextSeat === mySeat;
     set({ isMyTurn });
 
-    if (isMyTurn && autoPick && queue.length > 0) {
+    // Only trigger auto-pick during the drafting phase — server enforces this
+    // too (ValidationError), but skip the POST entirely to avoid unnecessary
+    // round-trips during setup/complete/playing phases where nextSeat may still
+    // be non-null (e.g. all picks not yet complete at phase transition).
+    const isDrafting = board?.phase === "drafting";
+    if (isMyTurn && autoPick && queue.length > 0 && isDrafting) {
       void triggerAutoPick(get, set as (partial: Partial<{ autoPick: boolean }>) => void);
     }
   };

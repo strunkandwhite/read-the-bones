@@ -1512,6 +1512,134 @@ describe("liveStore — isMyTurn", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Phase gate: auto-pick must not fire outside the drafting phase
+// ---------------------------------------------------------------------------
+describe("liveStore — recomputePicking phase gate", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+    Object.defineProperty(window, "location", {
+      value: new URL("http://localhost:3000/"),
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("does NOT fire when phase is 'setup' even if nextSeat matches mySeat", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
+      board: { phase: "setup", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+    });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      mySeat: 1,
+      autoPick: true,
+      queue: [{ mode: "pause", cards: [{ cardId: 1, cardName: "Lightning Bolt" }] }],
+      queuedCardCounts: new Map([["Lightning Bolt", 1]]),
+    });
+
+    recomputePicking();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const pickCalls = fetchSpy.mock.calls.filter((c) => String(c[0]).includes("/pick"));
+    expect(pickCalls).toHaveLength(0);
+  });
+
+  it("does NOT fire when phase is 'complete'", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
+      board: { phase: "complete", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+    });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      mySeat: 2,
+      autoPick: true,
+      queue: [{ mode: "pause", cards: [{ cardId: 2, cardName: "Counterspell" }] }],
+      queuedCardCounts: new Map([["Counterspell", 1]]),
+    });
+
+    recomputePicking();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const pickCalls = fetchSpy.mock.calls.filter((c) => String(c[0]).includes("/pick"));
+    expect(pickCalls).toHaveLength(0);
+  });
+
+  it("DOES fire when phase is 'drafting'", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("/pick")) {
+        return new Response(
+          JSON.stringify({ pickedCard: null, autoPickDisabled: false, phaseChanged: false, newPhase: null }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 401 });
+    });
+    vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
+
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      liveDraftStatus: { latestPickN: 0, nextSeat: 3, recentPicks: [], matchCount: 0, totalMatches: 0 },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+    });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      mySeat: 3,
+      autoPick: true,
+      queue: [{ mode: "pause", cards: [{ cardId: 5, cardName: "Force of Will" }] }],
+      queuedCardCounts: new Map([["Force of Will", 1]]),
+    });
+
+    recomputePicking();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const pickCalls = fetchSpy.mock.calls.filter(
+      (c) => String(c[0]).includes("/pick") && JSON.parse(c[1]?.body as string ?? "{}").auto === true,
+    );
+    expect(pickCalls).toHaveLength(1);
+  });
+
+  it("does NOT fire when board is null (phase unknown)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
+      board: null,
+    });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      mySeat: 1,
+      autoPick: true,
+      queue: [{ mode: "pause", cards: [{ cardId: 3, cardName: "Bolt" }] }],
+      queuedCardCounts: new Map([["Bolt", 1]]),
+    });
+
+    recomputePicking();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const pickCalls = fetchSpy.mock.calls.filter((c) => String(c[0]).includes("/pick"));
+    expect(pickCalls).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // triggerAutoPick — simplified client trigger (Task 27 / A2)
 //
 // After the auto-pick single-source-of-truth refactor, the client trigger
@@ -1550,6 +1678,7 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
     useDraftStore.setState({
       activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 3, recentPicks: [], matchCount: 0, totalMatches: 0 },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -1644,6 +1773,7 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
     useDraftStore.setState({
       activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -1684,6 +1814,7 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
     useDraftStore.setState({
       activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -1711,6 +1842,7 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
     useDraftStore.setState({
       activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -1725,6 +1857,204 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
 
     expect(refreshSpy).toHaveBeenCalled();
     expect(useLiveStore.getState().pickError).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Poll integration: auto-pick via _applyMeDataForTest (simulates /live me field)
+//
+// Verifies the complete path from a poll delivering per-seat me data to a
+// single auto-pick POST — confirming that applyMeFromPoll → recomputePicking
+// → triggerAutoPick fires exactly once and not more.
+// ---------------------------------------------------------------------------
+describe("liveStore — poll-triggered auto-pick integration", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+    Object.defineProperty(window, "location", {
+      value: new URL("http://localhost:3000/"),
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("fires exactly one auto-pick POST when a poll delivers my-turn + autoPick on + queue", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("/pick")) {
+        return new Response(
+          JSON.stringify({ pickedCard: { pickN: 1, cardId: 5, cardName: "Lightning Bolt" }, autoPickDisabled: false, phaseChanged: false, newPhase: null }),
+          { status: 200 },
+        );
+      }
+      return new Response("{}", { status: 401 });
+    });
+    vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
+
+    // Set up: it's my turn according to liveDraftStatus, draft is in drafting phase
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      liveDraftStatus: { latestPickN: 0, nextSeat: 3, recentPicks: [], matchCount: 0, totalMatches: 0 },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+    });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      mySeat: 3,
+    });
+
+    // Simulate a /live poll response delivering autoPick on + queue via `me` field
+    _applyMeDataForTest({
+      seat: 3,
+      autoPick: true,
+      displayName: null,
+      queue: [{ mode: "pause", cards: [{ id: 5, name: "Lightning Bolt" }] }],
+      floatedCards: [],
+    });
+
+    await new Promise((r) => setTimeout(r, 0));
+
+    const pickCalls = fetchSpy.mock.calls.filter(
+      (c) => String(c[0]).includes("/pick") && JSON.parse(c[1]?.body as string ?? "{}").auto === true,
+    );
+    expect(pickCalls).toHaveLength(1);
+  });
+
+  it("does NOT double-fire on two back-to-back polls with the same my-turn state", async () => {
+    let resolveFetch!: () => void;
+    const hangingPickFetch = new Promise<Response>((resolve) => {
+      resolveFetch = () =>
+        resolve(
+          new Response(
+            JSON.stringify({ pickedCard: null, autoPickDisabled: false, phaseChanged: false, newPhase: null }),
+            { status: 200 },
+          ),
+        );
+    });
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
+      if (String(input).includes("/pick")) return hangingPickFetch as Promise<Response>;
+      return Promise.resolve(new Response("{}", { status: 401 }));
+    });
+    vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
+
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+    });
+    useLiveStore.setState({ seatToken: "tok-abc", mySeat: 2 });
+
+    const pollPayload = {
+      seat: 2,
+      autoPick: true,
+      displayName: null,
+      queue: [{ mode: "pause" as const, cards: [{ id: 9, name: "Force of Will" }] }],
+      floatedCards: [],
+    };
+
+    // Two consecutive poll deliveries — autoPickInFlight should block the second
+    _applyMeDataForTest(pollPayload);
+    _applyMeDataForTest(pollPayload);
+    await new Promise((r) => setTimeout(r, 0));
+
+    resolveFetch();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const pickCalls = fetchSpy.mock.calls.filter((c) => String(c[0]).includes("/pick"));
+    expect(pickCalls).toHaveLength(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Mid-turn enable: toggleAutoPick while already my turn fires auto-pick
+// ---------------------------------------------------------------------------
+describe("liveStore — toggleAutoPick mid-turn", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+    Object.defineProperty(window, "location", {
+      value: new URL("http://localhost:3000/"),
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("fires auto-pick when autoPick is enabled while already my turn", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("/pick")) {
+        return new Response(
+          JSON.stringify({ pickedCard: null, autoPickDisabled: false, phaseChanged: false, newPhase: null }),
+          { status: 200 },
+        );
+      }
+      // seat-settings PUT
+      return new Response("{}", { status: 200 });
+    });
+    vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
+
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+    });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      mySeat: 1,
+      // autoPick starts false — it's already my turn but no trigger fires
+      autoPick: false,
+      isMyTurn: true,
+      queue: [{ mode: "pause", cards: [{ cardId: 7, cardName: "Bolt" }] }],
+      queuedCardCounts: new Map([["Bolt", 1]]),
+    });
+
+    // Enable auto-pick while it's already my turn — toggleAutoPick calls recomputePicking
+    await useLiveStore.getState().toggleAutoPick();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const pickCalls = fetchSpy.mock.calls.filter(
+      (c) => String(c[0]).includes("/pick") && JSON.parse(c[1]?.body as string ?? "{}").auto === true,
+    );
+    expect(pickCalls).toHaveLength(1);
+  });
+
+  it("does NOT fire auto-pick when autoPick is disabled while my turn (toggle off)", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
+      if (String(input).includes("/pick")) {
+        return new Response(
+          JSON.stringify({ pickedCard: null, autoPickDisabled: false, phaseChanged: false, newPhase: null }),
+          { status: 200 },
+        );
+      }
+      // seat-settings PUT
+      return new Response("{}", { status: 200 });
+    });
+
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+    });
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      mySeat: 2,
+      autoPick: true,
+      isMyTurn: true,
+      queue: [{ mode: "pause", cards: [{ cardId: 8, cardName: "Bolt" }] }],
+      queuedCardCounts: new Map([["Bolt", 1]]),
+    });
+
+    // Disable auto-pick — recomputePicking fires but autoPick is now false
+    await useLiveStore.getState().toggleAutoPick();
+    await new Promise((r) => setTimeout(r, 0));
+
+    const pickCalls = fetchSpy.mock.calls.filter((c) => String(c[0]).includes("/pick"));
+    expect(pickCalls).toHaveLength(0);
   });
 });
 
