@@ -27,6 +27,18 @@ describe("GET /api/drafts/[id]/standings", () => {
     expect(Array.isArray(body.standings)).toBe(true);
   });
 
+  it("is not CDN-cacheable (stale standings would hide freshly reported matches)", async () => {
+    vi.mocked(queries.getDraft).mockResolvedValue({
+      draft_id: "tarkir", draft_name: "Tarkir", draft_date: "2026-01-15", num_seats: 10, banned_cards: null,
+    });
+    vi.mocked(queries.getStandings).mockResolvedValue({ standings: [], matches: [] });
+    const res = await GET(
+      new NextRequest(new URL("http://localhost:3000/api/drafts/tarkir/standings")),
+      { params: Promise.resolve({ id: "tarkir" }) },
+    );
+    expect(res.headers.get("Cache-Control")).toBe("no-cache");
+  });
+
   it("returns 500 when query throws", async () => {
     vi.mocked(queries.getDraft).mockResolvedValue(null);
     vi.mocked(queries.getStandings).mockRejectedValueOnce(new Error("DB error"));

@@ -102,6 +102,13 @@ interface DraftState {
   standings: StandingsRow[];
   standingsMatches: MatchRecord[];
   standingsLoading: boolean;
+  // Optimistic overlay for a match result this client just reported. Standings
+  // responses can predate the report (CDN-cached body, out-of-order concurrent
+  // fetch), so the reported result is kept merged into standingsMatches until a
+  // response actually contains it. Set by liveStore's reportMatch; cleared by
+  // fetchStandings on confirmation, by reportMatch on POST failure, and on
+  // draft switch.
+  pendingMatch: MatchRecord | null;
 
   // Standings actions
   fetchStandings: () => Promise<void>;
@@ -215,6 +222,42 @@ export function _resetPollingState() {
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+function isSamePairing(a: MatchRecord, b: MatchRecord): boolean {
+  return (
+    (a.seat1 === b.seat1 && a.seat2 === b.seat2) ||
+    (a.seat1 === b.seat2 && a.seat2 === b.seat1)
+  );
+}
+
+/** True when `matches` contains a record equal to `pending` (either seat order). */
+function containsMatchRecord(matches: MatchRecord[], pending: MatchRecord): boolean {
+  return matches.some(
+    (m) =>
+      isSamePairing(m, pending) &&
+      (m.seat1 === pending.seat1
+        ? m.seat1Wins === pending.seat1Wins && m.seat2Wins === pending.seat2Wins
+        : m.seat1Wins === pending.seat2Wins && m.seat2Wins === pending.seat1Wins),
+  );
+}
+
+/**
+ * Merge the optimistic pending match into a fetched matches array: the pending
+ * record replaces an existing record for the same seat pairing (correction) or
+ * is appended (new report). Returns `matches` unchanged when there is no
+ * pending record.
+ */
+export function mergePendingMatch(
+  matches: MatchRecord[],
+  pending: MatchRecord | null,
+): MatchRecord[] {
+  if (!pending) return matches;
+  const index = matches.findIndex((m) => isSamePairing(m, pending));
+  if (index === -1) return [...matches, pending];
+  const merged = matches.slice();
+  merged[index] = pending;
+  return merged;
+}
 
 function getStoredSeat(draftId: string | null): number | null {
   if (!draftId) return null;
@@ -423,6 +466,7 @@ export const useDraftStore = create<DraftState>()(
     standings: [],
     standingsMatches: [],
     standingsLoading: false,
+    pendingMatch: null,
 
     // --- Data actions ---
 
@@ -460,7 +504,17 @@ export const useDraftStore = create<DraftState>()(
             });
           }
           if (Array.isArray(data.matches)) {
-            set({ standingsMatches: data.matches as MatchRecord[] });
+            const fetched = data.matches as MatchRecord[];
+            const pending = get().pendingMatch;
+            if (pending && containsMatchRecord(fetched, pending)) {
+              // Server data now includes the optimistically shown result —
+              // drop the overlay and show server truth as-is.
+              set({ standingsMatches: fetched, pendingMatch: null });
+            } else {
+              // Keep the pending report visible even when this response
+              // predates it (stale CDN-cached body or out-of-order fetch).
+              set({ standingsMatches: mergePendingMatch(fetched, pending) });
+            }
           }
         }
       } catch { /* ignore network errors */ }
@@ -653,7 +707,7 @@ useDraftStore.subscribe(
     prevPickN = -1;
     lastLiveSig = null; // draft switched — never reuse a sig from the previous draft
     // Reset standings so the previous draft's data isn't shown while loading.
-    useDraftStore.setState({ standings: [], standingsMatches: [], standingsLoading: false });
+    useDraftStore.setState({ standings: [], standingsMatches: [], standingsLoading: false, pendingMatch: null });
     if (activeDraft) useDraftStore.getState().startPolling();
   },
 );

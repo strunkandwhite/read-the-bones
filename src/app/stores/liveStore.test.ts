@@ -36,6 +36,10 @@ function resetStores() {
     board: null,
     poolAsOfDraft: null,
     syncStatus: { lastSyncedAt: "0", syncInProgress: false, activeDrafts: [] },
+    standings: [],
+    standingsMatches: [],
+    standingsLoading: false,
+    pendingMatch: null,
   });
   useLiveStore.setState({
     seatToken: null,
@@ -2837,6 +2841,162 @@ describe("liveStore — reportMatch", () => {
     });
 
     expect(result).toBe("Not authenticated");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// reportMatch — optimistic match continuity (no flicker between POST success
+// and a standings refetch that actually contains the reported match)
+// ---------------------------------------------------------------------------
+describe("liveStore — reportMatch optimistic continuity", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+    Object.defineProperty(window, "location", {
+      value: new URL("http://localhost:3000/"),
+      writable: true,
+      configurable: true,
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  /**
+   * Mocks the report flow: POST /match returns postStatus; each GET /standings
+   * returns the next entry of standingsBodies (the last entry repeats).
+   */
+  function mockMatchFlow(
+    postStatus: number,
+    standingsBodies: Array<{ standings: unknown[]; matches: unknown[] }>,
+  ) {
+    let standingsCalls = 0;
+    return vi.spyOn(globalThis, "fetch").mockImplementation(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("/match")) {
+        const body = postStatus === 200
+          ? JSON.stringify({ success: true })
+          : JSON.stringify({ error: "Report failed" });
+        return new Response(body, { status: postStatus });
+      }
+      if (url.includes("/standings")) {
+        const body = standingsBodies[Math.min(standingsCalls, standingsBodies.length - 1)];
+        standingsCalls++;
+        return new Response(JSON.stringify(body), { status: 200 });
+      }
+      return new Response(JSON.stringify({ unchanged: true }), { status: 200 });
+    });
+  }
+
+  it("keeps the entered result visible when the post-report standings refetch returns stale data", async () => {
+    // Stale refetch: the standings body predates the POST (e.g. CDN-cached) —
+    // it does NOT contain the just-reported match.
+    mockMatchFlow(200, [{ standings: [], matches: [] }]);
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc", mySeat: 1 });
+
+    const result = await useLiveStore.getState().reportMatch({
+      opponentSeat: 3,
+      wins: 2,
+      losses: 1,
+    });
+
+    expect(result).toBeNull();
+    // The matrix renders from standingsMatches — the entered result must still
+    // be there even though the refetch body did not contain it.
+    expect(useDraftStore.getState().standingsMatches).toContainEqual({
+      seat1: 1,
+      seat2: 3,
+      seat1Wins: 2,
+      seat2Wins: 1,
+    });
+  });
+
+  it("keeps the entered result through additional stale refetches until server data contains it", async () => {
+    const confirmed = { seat1: 1, seat2: 3, seat1Wins: 2, seat2Wins: 1 };
+    mockMatchFlow(200, [
+      { standings: [], matches: [] }, // stale (post-report refetch)
+      { standings: [], matches: [] }, // still stale (poll-triggered refetch)
+      { standings: [], matches: [confirmed] }, // fresh
+    ]);
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc", mySeat: 1 });
+
+    await useLiveStore.getState().reportMatch({ opponentSeat: 3, wins: 2, losses: 1 });
+    expect(useDraftStore.getState().standingsMatches).toContainEqual(confirmed);
+
+    // Second stale refetch (e.g. matchCount-effect refetch hitting the same cache)
+    await useDraftStore.getState().fetchStandings();
+    expect(useDraftStore.getState().standingsMatches).toContainEqual(confirmed);
+
+    // Fresh refetch confirms — overlay cleared, server data shown as-is
+    await useDraftStore.getState().fetchStandings();
+    expect(useDraftStore.getState().standingsMatches).toEqual([confirmed]);
+    expect(useDraftStore.getState().pendingMatch).toBeNull();
+  });
+
+  it("clears the optimistic overlay once the refetch contains the reported match", async () => {
+    const confirmed = { seat1: 1, seat2: 3, seat1Wins: 2, seat2Wins: 1 };
+    mockMatchFlow(200, [{ standings: [], matches: [confirmed] }]);
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc", mySeat: 1 });
+
+    await useLiveStore.getState().reportMatch({ opponentSeat: 3, wins: 2, losses: 1 });
+
+    expect(useDraftStore.getState().standingsMatches).toEqual([confirmed]);
+    expect(useDraftStore.getState().pendingMatch).toBeNull();
+  });
+
+  it("reverts the optimistic entry when the POST fails", async () => {
+    mockMatchFlow(409, [{ standings: [], matches: [] }]);
+
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    useLiveStore.setState({ seatToken: "tok-abc", mySeat: 1 });
+
+    const result = await useLiveStore.getState().reportMatch({
+      opponentSeat: 3,
+      wins: 2,
+      losses: 1,
+    });
+
+    expect(result).toBe("Report failed");
+    expect(useDraftStore.getState().pendingMatch).toBeNull();
+    expect(useDraftStore.getState().standingsMatches).toEqual([]);
+  });
+
+  it("overrides the old result during a correction until the refetch confirms it", async () => {
+    // Existing server result: I (seat 3) lost 0-2 to seat 1. I correct it to 2-1.
+    const oldRecord = { seat1: 1, seat2: 3, seat1Wins: 2, seat2Wins: 0 };
+    const corrected = { seat1: 1, seat2: 3, seat1Wins: 1, seat2Wins: 2 };
+    mockMatchFlow(200, [
+      { standings: [], matches: [oldRecord] }, // stale: still has the old result
+      { standings: [], matches: [corrected] }, // fresh
+    ]);
+
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      standingsMatches: [oldRecord],
+    });
+    useLiveStore.setState({ seatToken: "tok-abc", mySeat: 3 });
+
+    const result = await useLiveStore.getState().reportMatch({
+      opponentSeat: 1,
+      wins: 2,
+      losses: 1,
+    });
+
+    expect(result).toBeNull();
+    // The corrected result must be shown, not the stale old one
+    expect(useDraftStore.getState().standingsMatches).toEqual([corrected]);
+
+    // Fresh refetch confirms and clears the overlay
+    await useDraftStore.getState().fetchStandings();
+    expect(useDraftStore.getState().standingsMatches).toEqual([corrected]);
+    expect(useDraftStore.getState().pendingMatch).toBeNull();
   });
 });
 

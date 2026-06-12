@@ -15,8 +15,11 @@ export const GET = withApiErrors(
     // No redaction — the match matrix makes it trivially deducible
     const noRedaction = new Set<number>();
     const result = await queries.getStandings(client, id, numSeats, noRedaction);
+    // no-cache (like /live): standings mutate during a live pod, and a CDN-cached
+    // body served right after a match report makes the reported result vanish
+    // from the client until the cache entry expires.
     return NextResponse.json(result, {
-      headers: { "Cache-Control": "public, s-maxage=60" },
+      headers: { "Cache-Control": "no-cache" },
     });
   },
   "[/api/drafts/[id]/standings] Error:",

@@ -2,7 +2,7 @@
  * Picking action module: handlePick, setPickError, triggerAutoPick, recomputePicking.
  * All module-scoped mutable flags are encapsulated here.
  */
-import { useDraftStore } from "../draftStore";
+import { useDraftStore, mergePendingMatch, type MatchRecord } from "../draftStore";
 import type { SetState, GetState } from "../liveStore";
 
 // ---------------------------------------------------------------------------
@@ -150,17 +150,55 @@ export interface MatchReportParams {
 }
 
 /**
+ * Builds the canonical match record for a report, using the same seat
+ * normalization as the /match route (seat1 < seat2).
+ */
+function toMatchRecord(
+  mySeat: number,
+  { opponentSeat, wins, losses }: MatchReportParams,
+): MatchRecord {
+  const seat1 = Math.min(mySeat, opponentSeat);
+  const seat2 = Math.max(mySeat, opponentSeat);
+  return {
+    seat1,
+    seat2,
+    seat1Wins: mySeat === seat1 ? wins : losses,
+    seat2Wins: mySeat === seat2 ? wins : losses,
+  };
+}
+
+/**
  * Reports a match result via POST /api/drafts/[id]/match.
  * Token plumbing follows the same pattern as handlePick and queueFloat mutations —
  * reads seatToken from get() and activeDraft from draftStore.
  *
+ * The result is merged into standingsMatches optimistically (as pendingMatch)
+ * before the POST so the match matrix shows it continuously. Standings
+ * responses can predate the report (CDN-cached body, out-of-order concurrent
+ * fetch); fetchStandings keeps the overlay until a response actually contains
+ * the result. On POST failure the overlay is reverted via a refetch.
+ *
  * Returns an error message string on failure, or null on success.
  */
 export function makeReportMatch(get: GetState) {
-  return async ({ opponentSeat, wins, losses }: MatchReportParams): Promise<string | null> => {
-    const { seatToken } = get();
+  return async (params: MatchReportParams): Promise<string | null> => {
+    const { seatToken, mySeat } = get();
     const activeDraft = useDraftStore.getState().activeDraft;
     if (!seatToken || !activeDraft) return "Not authenticated";
+
+    const pending = mySeat !== null ? toMatchRecord(mySeat, params) : null;
+    if (pending) {
+      useDraftStore.setState((s) => ({
+        pendingMatch: pending,
+        standingsMatches: mergePendingMatch(s.standingsMatches, pending),
+      }));
+    }
+
+    const revertOptimistic = async (): Promise<void> => {
+      if (!pending) return;
+      useDraftStore.setState({ pendingMatch: null });
+      await useDraftStore.getState().fetchStandings();
+    };
 
     try {
       const res = await fetch(`/api/drafts/${activeDraft}/match`, {
@@ -170,14 +208,15 @@ export function makeReportMatch(get: GetState) {
           "X-Seat-Token": seatToken,
         },
         body: JSON.stringify({
-          opponent_seat: opponentSeat,
-          wins,
-          losses,
+          opponent_seat: params.opponentSeat,
+          wins: params.wins,
+          losses: params.losses,
         }),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({ error: "Request failed" }));
+        await revertOptimistic();
         return (data.error as string | undefined) ?? `HTTP ${res.status}`;
       }
 
@@ -185,6 +224,7 @@ export function makeReportMatch(get: GetState) {
       await useDraftStore.getState().fetchStandings();
       return null;
     } catch (err) {
+      await revertOptimistic();
       return err instanceof Error ? err.message : "Unknown error";
     }
   };
