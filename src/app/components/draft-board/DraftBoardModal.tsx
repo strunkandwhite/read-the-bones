@@ -7,6 +7,7 @@ import { useCardStore } from "@/app/stores/cardStore";
 import { useIsAuthed } from "@/app/stores/selectors";
 import { useScrollLock } from "@/app/hooks/useScrollLock";
 import { getNextPick } from "@/core/snakeDraft";
+import { CollapsibleSection } from "./CollapsibleSection";
 import { DraftBoardMatrix } from "./DraftBoardMatrix";
 import { QueuePanel } from "./QueuePanel";
 import { StandingsSection } from "./StandingsSection";
@@ -141,7 +142,13 @@ export function DraftBoardModal({
         <div className="flex-1 flex flex-col overflow-hidden px-5 py-4 gap-4">
           {board ? (
             <>
-              <div className="flex-1 min-h-0 overflow-auto">
+              <CollapsibleSection
+                title="Draft Grid"
+                storageKey="draftBoardCollapsed:grid"
+                className="flex min-h-0 flex-col"
+                expandedClassName="flex-1"
+                bodyClassName="flex-1 min-h-0 overflow-auto"
+              >
                 <DraftBoardMatrix
                   board={board}
                   mySeat={mySeat}
@@ -152,23 +159,34 @@ export function DraftBoardModal({
                   draftId={draftId}
                   pickError={pickError}
                 />
-              </div>
+              </CollapsibleSection>
               <div className="shrink-0">
-                <StandingsSection
-                  board={board}
-                  status={liveDraftStatus}
-                  mySeat={mySeat}
-                  onMatchReported={() => useDraftStore.getState().refreshNow()}
-                />
-                {seatToken !== null && board?.phase === "drafting" && (
-                  <QueuePanel
-                    queue={queue}
-                    autoPick={autoPick}
-                    onReorder={reorderQueue}
-                    onRemove={removeFromQueue}
-                    onToggleAutoPick={toggleAutoPick}
-                    onSetEntryMode={setEntryMode}
+                <CollapsibleSection
+                  title={phase === "drafting" ? "Draft Progress" : "Standings & Match Results"}
+                  storageKey="draftBoardCollapsed:results"
+                >
+                  <StandingsSection
+                    board={board}
+                    status={liveDraftStatus}
+                    mySeat={mySeat}
+                    onMatchReported={() => useDraftStore.getState().refreshNow()}
                   />
+                </CollapsibleSection>
+                {seatToken !== null && board?.phase === "drafting" && (
+                  <CollapsibleSection
+                    title="Pick Queue"
+                    storageKey="draftBoardCollapsed:queue"
+                    className="mt-3"
+                  >
+                    <QueuePanel
+                      queue={queue}
+                      autoPick={autoPick}
+                      onReorder={reorderQueue}
+                      onRemove={removeFromQueue}
+                      onToggleAutoPick={toggleAutoPick}
+                      onSetEntryMode={setEntryMode}
+                    />
+                  </CollapsibleSection>
                 )}
               </div>
             </>

@@ -395,11 +395,7 @@ export function QueuePanel({
   }
 
   return (
-    <div className="mt-4 rounded-lg border border-zinc-800/60 bg-zinc-900/50 p-4">
-      <div className="mb-2 text-[13px] font-semibold tracking-tight text-zinc-200">
-        Pick Queue
-      </div>
-
+    <div className="mt-2 rounded-lg border border-zinc-800/60 bg-zinc-900/50 p-4">
       <div className="mb-3">
         <label className="flex cursor-pointer items-center gap-2 text-xs text-zinc-400">
           <span>Auto-pick</span>

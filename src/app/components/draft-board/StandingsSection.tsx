@@ -64,13 +64,11 @@ export function StandingsSection({
   const phase = board.phase;
   const isDrafting = phase === "drafting";
 
-  // During drafting: show pick count and whose turn
+  // During drafting: show pick count and whose turn. The "Draft Progress"
+  // title comes from the CollapsibleSection header in DraftBoardModal.
   if (isDrafting) {
     return (
-      <div className="py-3">
-        <h3 className="text-[13px] font-semibold text-zinc-200 mb-2">
-          Draft Progress
-        </h3>
+      <div className="py-1">
         <DraftProgress board={board} status={status} mySeat={mySeat} />
       </div>
     );
