@@ -9,6 +9,8 @@ export interface DraftListItem {
   draft_id: string;
   draft_name: string;
   draft_date: string;
+  phase: string;
+  sheet_id: string | null;
 }
 
 export interface ListDraftsFilters {
@@ -47,7 +49,7 @@ export async function listDrafts(
     conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const result = await client.execute({
-    sql: `SELECT d.draft_id, d.draft_name, d.draft_date
+    sql: `SELECT d.draft_id, d.draft_name, d.draft_date, d.phase, d.sheet_id
           FROM drafts d
           ${whereClause}
           ORDER BY d.draft_date DESC`,
@@ -58,6 +60,8 @@ export async function listDrafts(
     draft_id: row.draft_id as string,
     draft_name: row.draft_name as string,
     draft_date: row.draft_date as string,
+    phase: row.phase as string,
+    sheet_id: (row.sheet_id as string | null) ?? null,
   }));
 }
 
