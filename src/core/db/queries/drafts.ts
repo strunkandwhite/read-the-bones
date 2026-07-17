@@ -61,7 +61,7 @@ export async function listDrafts(
     draft_name: row.draft_name as string,
     draft_date: row.draft_date as string,
     phase: row.phase as string,
-    sheet_id: (row.sheet_id as string | null) ?? null,
+    sheet_id: row.sheet_id as string | null,
   }));
 }
 
