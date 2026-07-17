@@ -9,6 +9,16 @@ import type { ScryCard } from "./types";
 export const SCRYFALL_API_BASE = "https://api.scryfall.com";
 
 /**
+ * Scryfall rejects requests with a default HTTP-library User-Agent
+ * (e.g. Node's own fetch UA) with a 400 "generic_user_agent" error.
+ * https://scryfall.com/docs/api
+ */
+const SCRYFALL_REQUEST_HEADERS = {
+  "User-Agent": "read-the-bones (https://github.com/strunkandwhite/read-the-bones)",
+  Accept: "application/json",
+};
+
+/**
  * Shape of the Scryfall API response for card lookup.
  * We only type the fields we actually use.
  */
@@ -96,7 +106,7 @@ export async function fetchCard(cardName: string): Promise<ScryCard | null> {
   const url = `${SCRYFALL_API_BASE}/cards/named?exact=${encodedName}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: SCRYFALL_REQUEST_HEADERS });
 
     if (!response.ok) {
       if (response.status === 404) {
@@ -141,7 +151,7 @@ export async function fetchFromScryfallApi(
   const url = `${SCRYFALL_API_BASE}/cards/named?exact=${encodedName}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: SCRYFALL_REQUEST_HEADERS });
     if (!response.ok) return null;
 
     const data = (await response.json()) as ScryfallApiResponse;
@@ -168,7 +178,7 @@ export async function fetchCardFuzzy(cardName: string): Promise<ScryCard | null>
   const url = `${SCRYFALL_API_BASE}/cards/named?fuzzy=${encodedName}`;
 
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { headers: SCRYFALL_REQUEST_HEADERS });
 
     if (!response.ok) {
       if (response.status === 404) {

@@ -435,7 +435,8 @@ describe("fetchCard", () => {
     const card = await fetchCard("Lightning Bolt");
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "https://api.scryfall.com/cards/named?exact=Lightning%20Bolt"
+      "https://api.scryfall.com/cards/named?exact=Lightning%20Bolt",
+      { headers: expect.objectContaining({ "User-Agent": expect.any(String) }) }
     );
     expect(card).toEqual({
       name: "Lightning Bolt",
@@ -588,7 +589,8 @@ describe("fetchCard", () => {
     await fetchCard("Phelia, Exuberant Shepherd");
 
     expect(mockFetch).toHaveBeenCalledWith(
-      "https://api.scryfall.com/cards/named?exact=Phelia%2C%20Exuberant%20Shepherd"
+      "https://api.scryfall.com/cards/named?exact=Phelia%2C%20Exuberant%20Shepherd",
+      { headers: expect.objectContaining({ "User-Agent": expect.any(String) }) }
     );
   });
 

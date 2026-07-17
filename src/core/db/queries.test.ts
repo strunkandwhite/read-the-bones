@@ -367,7 +367,8 @@ describe("lookupCardWithApiFallback", () => {
       color_identity: ["U"],
     });
     expect(global.fetch).toHaveBeenCalledWith(
-      "https://api.scryfall.com/cards/named?exact=Force%20of%20Will"
+      "https://api.scryfall.com/cards/named?exact=Force%20of%20Will",
+      { headers: expect.objectContaining({ "User-Agent": expect.any(String) }) }
     );
   });
 

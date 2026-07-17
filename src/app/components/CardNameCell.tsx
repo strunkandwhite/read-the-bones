@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import type { EnrichedCardStats } from "@/core/types";
 import { CardStatusIcon, type CardStatus } from "./CardStatusIcon";
 
@@ -22,11 +21,12 @@ export function CardNameCell({
     <div className="min-w-0" style={accentColor ? { borderLeft: `4px solid ${accentColor}`, paddingLeft: 8 } : undefined}>
       <div className="flex cursor-pointer items-center gap-2 min-w-0">
         {imageUri && (
-          <Image
+          <img
             src={imageUri}
             alt={card.cardName}
             width={32}
             height={45}
+            loading="lazy"
             className="shrink-0 rounded-sm object-cover shadow-sm"
           />
         )}
