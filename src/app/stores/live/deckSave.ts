@@ -172,6 +172,7 @@ export function makeSyncDeckWithPicks(get: GetState) {
     const canonicalCards = computeMyDeckCardNames({
       picks: seatCardList ?? [],
       isAuthed,
+      localDeckMode: getLocalDeckMode(),
       floatedCards,
       queue,
     });

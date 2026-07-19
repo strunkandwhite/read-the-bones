@@ -23,7 +23,7 @@ import { useSlowRenderTracking } from "../../hooks/useSlowRenderTracking";
 import { useLiveStore } from "../../stores/liveStore";
 import { useDraftStore } from "../../stores/draftStore";
 import { useCardStore } from "../../stores/cardStore";
-import { useIsAuthed } from "../../stores/selectors";
+import { useIsAuthed, useLocalDeckMode } from "../../stores/selectors";
 
 interface DeckBuilderPanelProps {
   draftName: string;
@@ -64,7 +64,8 @@ export function DeckBuilderPanel({
   const cardStats = useCardStore((s) => s.cardStatsMap);
 
   const isAuthed = useIsAuthed();
-  const effectiveFloatedCards = isAuthed ? floatedCards : [];
+  const localDeckMode = useLocalDeckMode();
+  const effectiveFloatedCards = isAuthed || localDeckMode ? floatedCards : [];
   const effectiveQueuedCardNames = isAuthed ? queue.flatMap((e) => e.cards.map((c) => c.cardName)) : [];
 
   const [showBasicLands, setShowBasicLands] = useState(false);
@@ -226,7 +227,7 @@ export function DeckBuilderPanel({
             {draftName}
           </span>
           <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-400">
-            {(mySeat && seatNames?.[String(mySeat)]) || `Seat ${mySeat ?? state.seat}`}
+            {seatNames?.[String(mySeat ?? state.seat)] || `Seat ${mySeat ?? state.seat}`}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -295,7 +296,7 @@ export function DeckBuilderPanel({
             floatedCards={effectiveFloatedCards}
             queuedCardNames={effectiveQueuedCardNames}
             onRemoveFloat={handleRemoveFloat}
-            onToggleQueue={handleToggleQueue}
+            onToggleQueue={isAuthed ? handleToggleQueue : undefined}
           />
           <div className="border-t border-zinc-700/30" />
           <DeckZone
@@ -306,7 +307,7 @@ export function DeckBuilderPanel({
             floatedCards={effectiveFloatedCards}
             queuedCardNames={effectiveQueuedCardNames}
             onRemoveFloat={handleRemoveFloat}
-            onToggleQueue={handleToggleQueue}
+            onToggleQueue={isAuthed ? handleToggleQueue : undefined}
           />
         </div>
 

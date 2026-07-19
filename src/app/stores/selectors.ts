@@ -4,6 +4,7 @@ import { useDraftStore } from "./draftStore";
 import { useCardStore } from "./cardStore";
 import { useLiveStore } from "./liveStore";
 import { computeMyDeckCardNames } from "./computeMyDeckCardNames";
+import { getLocalDeckMode } from "./live/localDeck";
 
 export function getIsAuthed(): boolean {
   const { mySeat } = useLiveStore.getState();
@@ -17,11 +18,22 @@ export function useIsAuthed(): boolean {
   return mySeat !== null && mySeat === selectedSeat;
 }
 
+/**
+ * Reactive: true when the active draft is sheet-synced and a seat is selected
+ * — the deck builder then persists locally (no tokens exist for sheet drafts).
+ */
+export function useLocalDeckMode(): boolean {
+  const isSheetDraft = useDraftStore((s) => s.board?.isSheetDraft === true);
+  const selectedSeat = useDraftStore((s) => s.selectedSeat);
+  return isSheetDraft && selectedSeat !== null;
+}
+
 export function getCardStatus(cardName: string): CardStatusResult {
   const { seatCardNames, takenCardNamesSet, takenCardCounts, cardData } = useCardStore.getState();
   const { queuedCardCounts, floatedCardsSet, queue } = useLiveStore.getState();
 
-  if (getIsAuthed()) {
+  const isAuthed = getIsAuthed();
+  if (isAuthed) {
     const count = queuedCardCounts.get(cardName);
     if (count != null && count > 0) {
       // Find the first entry (by index) that contains this card; position is 1-based entry index
@@ -41,7 +53,9 @@ export function getCardStatus(cardName: string): CardStatusResult {
         remainingCopies: cubeCopies - takenCount,
       };
     }
-    if (floatedCardsSet.has(cardName)) return { status: "floated" };
+  }
+  if ((isAuthed || getLocalDeckMode()) && floatedCardsSet.has(cardName)) {
+    return { status: "floated" };
   }
 
   // "picked": in your pool — include remainingCopies so the modal can decide
@@ -77,6 +91,8 @@ export function useCardStatuses(cardNames: readonly string[]): Map<string, CardS
   const mySeat = useLiveStore((s) => s.mySeat);
   const selectedSeat = useDraftStore((s) => s.selectedSeat);
   const isAuthed = mySeat !== null && mySeat === selectedSeat;
+  const isSheetDraft = useDraftStore((s) => s.board?.isSheetDraft === true);
+  const localDeckMode = isSheetDraft && selectedSeat !== null;
 
   return useMemo(() => {
     const map = new Map<string, CardStatusResult>();
@@ -101,10 +117,10 @@ export function useCardStatuses(cardNames: readonly string[]): Map<string, CardS
           });
           continue;
         }
-        if (floatedCardsSet.has(cardName)) {
-          map.set(cardName, { status: "floated" });
-          continue;
-        }
+      }
+      if ((isAuthed || localDeckMode) && floatedCardsSet.has(cardName)) {
+        map.set(cardName, { status: "floated" });
+        continue;
       }
       if (seatCardNames?.has(cardName)) {
         const cubeCopies = cardData.cubeCopies[cardName] ?? 1;
@@ -119,7 +135,7 @@ export function useCardStatuses(cardNames: readonly string[]): Map<string, CardS
       map.set(cardName, { status: "none" });
     }
     return map;
-  }, [cardNames, isAuthed, queuedCardCounts, floatedCardsSet, queue, seatCardNames, takenCardNamesSet, takenCardCounts, cardData]);
+  }, [cardNames, isAuthed, localDeckMode, queuedCardCounts, floatedCardsSet, queue, seatCardNames, takenCardNamesSet, takenCardCounts, cardData]);
 }
 
 /**
@@ -138,6 +154,8 @@ export function useCardStatus(cardName: string | null): CardStatusResult {
   const mySeat = useLiveStore((s) => s.mySeat);
   const selectedSeat = useDraftStore((s) => s.selectedSeat);
   const isAuthed = mySeat !== null && mySeat === selectedSeat;
+  const isSheetDraft = useDraftStore((s) => s.board?.isSheetDraft === true);
+  const localDeckMode = isSheetDraft && selectedSeat !== null;
 
   return useMemo((): CardStatusResult => {
     if (!cardName) return { status: "none" };
@@ -155,8 +173,8 @@ export function useCardStatus(cardName: string | null): CardStatusResult {
         const takenCount = takenCardCounts?.get(cardName) ?? 0;
         return { status: "queued", queuePosition: entryPosition, queuedCount: count, remainingCopies: cubeCopies - takenCount };
       }
-      if (floatedCardsSet.has(cardName)) return { status: "floated" };
     }
+    if ((isAuthed || localDeckMode) && floatedCardsSet.has(cardName)) return { status: "floated" };
     if (seatCardNames?.has(cardName)) {
       const cubeCopies = cardData.cubeCopies[cardName] ?? 1;
       const takenCount = takenCardCounts?.get(cardName) ?? 0;
@@ -164,7 +182,7 @@ export function useCardStatus(cardName: string | null): CardStatusResult {
     }
     if (takenCardNamesSet?.has(cardName)) return { status: "taken" };
     return { status: "none" };
-  }, [cardName, isAuthed, queuedCardCounts, floatedCardsSet, queue, seatCardNames, takenCardNamesSet, takenCardCounts, cardData]);
+  }, [cardName, isAuthed, localDeckMode, queuedCardCounts, floatedCardsSet, queue, seatCardNames, takenCardNamesSet, takenCardCounts, cardData]);
 }
 
 export function getImageUrl(cardName: string | null): string | undefined {
@@ -187,7 +205,7 @@ export function getMyDeckCardNames(): Set<string> {
   const { floatedCards, queue } = useLiveStore.getState();
   const isAuthed = getIsAuthed();
 
-  return new Set(computeMyDeckCardNames({ picks: seatCardList ?? [], isAuthed, floatedCards, queue }));
+  return new Set(computeMyDeckCardNames({ picks: seatCardList ?? [], isAuthed, localDeckMode: getLocalDeckMode(), floatedCards, queue }));
 }
 
 /**
@@ -199,9 +217,11 @@ export function useMyDeckCardNames(): Set<string> {
   const queue = useLiveStore((s) => s.queue);
   const mySeat = useLiveStore((s) => s.mySeat);
   const selectedSeat = useDraftStore((s) => s.selectedSeat);
+  const isSheetDraft = useDraftStore((s) => s.board?.isSheetDraft === true);
 
   return useMemo(() => {
     const isAuthed = mySeat !== null && mySeat === selectedSeat;
-    return new Set(computeMyDeckCardNames({ picks: seatCardList ?? [], isAuthed, floatedCards, queue }));
-  }, [seatCardList, floatedCards, queue, mySeat, selectedSeat]);
+    const localDeckMode = isSheetDraft && selectedSeat !== null;
+    return new Set(computeMyDeckCardNames({ picks: seatCardList ?? [], isAuthed, localDeckMode, floatedCards, queue }));
+  }, [seatCardList, floatedCards, queue, mySeat, selectedSeat, isSheetDraft]);
 }

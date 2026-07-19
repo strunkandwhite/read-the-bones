@@ -209,6 +209,50 @@ describe("getCardStatus", () => {
 });
 
 // ---------------------------------------------------------------------------
+// getCardStatus — local deck mode
+// ---------------------------------------------------------------------------
+
+describe("getCardStatus — local deck mode", () => {
+  beforeEach(() => {
+    resetStores();
+  });
+
+  it("reports floated without auth when local deck mode is active", () => {
+    useDraftStore.setState({
+      activeDraft: "sheet-1",
+      selectedSeat: 3,
+      board: {
+        picks: [], numSeats: 10, picksPerPlayer: 45, phase: "complete",
+        seatNames: {}, bannedCards: [], isSheetDraft: true,
+      },
+    });
+    useLiveStore.setState({
+      floatedCards: ["Sylvan Library"],
+      floatedCardsSet: new Set(["Sylvan Library"]),
+    });
+
+    expect(getCardStatus("Sylvan Library").status).toBe("floated");
+  });
+
+  it("does not report floated for live-draft spectators", () => {
+    useDraftStore.setState({
+      activeDraft: "live-1",
+      selectedSeat: 3,
+      board: {
+        picks: [], numSeats: 10, picksPerPlayer: 45, phase: "drafting",
+        seatNames: {}, bannedCards: [], isSheetDraft: false,
+      },
+    });
+    useLiveStore.setState({
+      floatedCards: ["Sylvan Library"],
+      floatedCardsSet: new Set(["Sylvan Library"]),
+    });
+
+    expect(getCardStatus("Sylvan Library").status).toBe("none");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // getImageUrl
 // ---------------------------------------------------------------------------
 
