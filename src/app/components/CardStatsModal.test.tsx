@@ -44,6 +44,7 @@ vi.mock("@/app/stores/selectors", () => ({
     name ? "https://cards.scryfall.io/normal/front/bolt.jpg" : undefined,
   ),
   useIsAuthed: vi.fn(() => false),
+  useLocalDeckMode: vi.fn(() => false),
 }));
 
 vi.mock("@/core/isLocal", () => ({

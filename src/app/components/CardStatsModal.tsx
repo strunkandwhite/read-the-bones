@@ -4,7 +4,7 @@ import { useEffect, useMemo, useCallback, useState, useRef } from "react";
 import { useCardStore } from "@/app/stores/cardStore";
 import { useDraftStore } from "@/app/stores/draftStore";
 import { useLiveStore } from "@/app/stores/liveStore";
-import { useCardStatus, getImageUrl, useIsAuthed } from "@/app/stores/selectors";
+import { useCardStatus, getImageUrl, useIsAuthed, useLocalDeckMode } from "@/app/stores/selectors";
 import { isLocalClient } from "@/core/isLocal";
 import { colorPairBg } from "@/core/manaColors";
 import type { CardStatsData } from "@/app/stores/cardStore";
@@ -43,6 +43,7 @@ export function CardStatsModal() {
   const removeFloat = useLiveStore((s) => s.removeFloat);
 
   const isAuthed = useIsAuthed();
+  const localDeckMode = useLocalDeckMode();
   const isOpen = !!selectedCard;
   const isLocal = useMemo(() => isLocalClient(), []);
   const isLiveDraft = !!activeDraft && boardPhase === "drafting";
@@ -139,7 +140,9 @@ export function CardStatsModal() {
   // For multi-copy cards the player already owns, allow actions if copies remain
   const pickedButCopiesRemain = cardStatus === "picked" && (remainingCopies ?? 0) > 0;
   const showActions =
-    isLiveDraft && cardStatus !== "taken" && (cardStatus !== "picked" || pickedButCopiesRemain);
+    (isLiveDraft || localDeckMode) &&
+    cardStatus !== "taken" &&
+    (cardStatus !== "picked" || pickedButCopiesRemain);
 
   // Whether queue button should be available
   const canQueue = isAuthed && !(isMyTurn && queue.length === 0 && autoPick);
@@ -185,11 +188,12 @@ export function CardStatsModal() {
                   queuedCount={queuedCount}
                   remainingCopies={remainingCopies}
                   disabled={actionPending}
+                  localDeckMode={localDeckMode}
                   onPick={isAuthed ? handlePick : undefined}
                   onQueue={canQueue ? handleQueue : undefined}
                   onUnqueue={isAuthed ? handleUnqueue : undefined}
-                  onFloat={isAuthed ? handleFloat : undefined}
-                  onUnfloat={isAuthed ? handleUnfloat : undefined}
+                  onFloat={isAuthed || localDeckMode ? handleFloat : undefined}
+                  onUnfloat={isAuthed || localDeckMode ? handleUnfloat : undefined}
                 />
               </div>
             )}
@@ -348,6 +352,7 @@ interface ActionButtonsProps {
   queuedCount?: number;
   remainingCopies?: number;
   disabled?: boolean;
+  localDeckMode?: boolean;
   onPick?: () => void;
   onQueue?: () => void;
   onUnqueue?: () => void;
@@ -361,6 +366,9 @@ function ActionButtons(props: ActionButtonsProps) {
   const queueBtn = "w-full cursor-pointer rounded-lg bg-amber-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed";
   const secondaryBtn = "w-full cursor-pointer rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed";
 
+  const floatLabel = props.localDeckMode ? "Add to Deck Builder" : "Float";
+  const unfloatLabel = props.localDeckMode ? "Remove from Deck Builder" : "Unfloat";
+
   switch (cardStatus) {
     case "none":
       return (
@@ -373,7 +381,7 @@ function ActionButtons(props: ActionButtonsProps) {
           )}
           {props.onFloat && (
             <button className={secondaryBtn} onClick={props.onFloat} disabled={disabled}>
-              Float
+              {floatLabel}
             </button>
           )}
         </>
@@ -415,7 +423,7 @@ function ActionButtons(props: ActionButtonsProps) {
           )}
           {props.onUnfloat && (
             <button className={secondaryBtn} onClick={props.onUnfloat} disabled={disabled}>
-              Unfloat
+              {unfloatLabel}
             </button>
           )}
         </>
@@ -434,7 +442,7 @@ function ActionButtons(props: ActionButtonsProps) {
             )}
             {props.onFloat && (
               <button className={secondaryBtn} onClick={props.onFloat} disabled={disabled}>
-                Float
+                {floatLabel}
               </button>
             )}
           </>
