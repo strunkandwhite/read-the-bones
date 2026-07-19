@@ -105,6 +105,7 @@ export const GET = withApiErrors(
 
     return NextResponse.json({
       phase,
+      isSheetDraft: meta.sheetId !== null,
       numSeats,
       picksPerPlayer,
       latestPickN: currentPickN,
