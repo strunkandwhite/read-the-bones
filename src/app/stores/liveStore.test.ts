@@ -1468,6 +1468,62 @@ describe("local deck mode — deck state persistence", () => {
 });
 
 // ---------------------------------------------------------------------------
+// local deck mode — enterSharedView same-draft protection
+// ---------------------------------------------------------------------------
+describe("local deck mode — enterSharedView same-draft protection", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+    vi.useFakeTimers();
+    useDraftStore.setState({ activeDraft: "sheet-1", selectedSeat: 3 });
+    useDraftStore.setState({ board: makeSheetBoard() });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("does not overwrite the viewer's local WIP deck when entering a shared view for the already-active draft/seat", async () => {
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Pre-seed the viewer's own WIP deck for sheet-1 seat 3.
+    useLiveStore.getState().dispatchDeck({
+      type: "SET_BASICS",
+      basics: { Plains: 0, Island: 4, Swamp: 0, Mountain: 0, Forest: 0 },
+      scryfallData: new Map(),
+    });
+    await vi.advanceTimersByTimeAsync(1100);
+
+    const seat3Before = JSON.parse(localStorage.getItem("localDeckState:sheet-1:3")!);
+    expect(seat3Before.basicLands.Island).toBe(4);
+
+    // Open a share link for the SAME draft/seat that's already active — the
+    // activeDraft subscription will NOT fire since setActiveDraft/setSelectedSeat
+    // are called with their already-current values.
+    const sharedState = createEmptyDeckState("sheet-1", 3);
+    sharedState.zones.deck["mv-0-1"] = ["Shared Card"];
+    useLiveStore.getState().enterSharedView("sheet-1", 3, sharedState);
+
+    expect(useLiveStore.getState().viewingSharedDeck).toBe(true);
+
+    // Any deck action after entering the shared view — previously this would
+    // mark the deck dirty and schedule a local save, clobbering the viewer's
+    // own WIP deck with the shared snapshot.
+    useLiveStore.getState().dispatchDeck({
+      type: "SET_BASICS",
+      basics: { Plains: 0, Island: 9, Swamp: 0, Mountain: 0, Forest: 0 },
+      scryfallData: new Map(),
+    });
+    await vi.advanceTimersByTimeAsync(1100);
+
+    const seat3After = JSON.parse(localStorage.getItem("localDeckState:sheet-1:3")!);
+    expect(seat3After.basicLands.Island).toBe(4);
+    expect(JSON.stringify(seat3After)).not.toContain("Shared Card");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // local deck mode — wiring (board arrival, seat switch)
 // ---------------------------------------------------------------------------
 describe("local deck mode — wiring (board arrival, seat switch)", () => {

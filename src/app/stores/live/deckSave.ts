@@ -240,8 +240,13 @@ export function makeSetDeckBuilderActive(set: SetState) {
   };
 }
 
-export function makeEnterSharedView(get: GetState) {
+export function makeEnterSharedView(set: SetState, get: GetState) {
   return (draftId: string, seat: number, sharedDeckState: DeckState): void => {
+    // Set this eagerly, before switching draft/seat: the activeDraft subscription
+    // (which otherwise sets viewingSharedDeck) does NOT fire when draftId/seat are
+    // already the active ones, which would leave viewingSharedDeck false and let
+    // the shared snapshot get persisted over the viewer's own local WIP deck.
+    set({ viewingSharedDeck: true });
     enteringSharedView = true;
     try {
       useDraftStore.getState().setActiveDraft(draftId);

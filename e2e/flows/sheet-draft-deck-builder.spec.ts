@@ -96,5 +96,6 @@ test.describe("Sheet-draft deck builder (local mode)", () => {
       await expect(page.getByRole("button", { name: "Add to Deck Builder" })).toBeVisible({ timeout: 2000 });
     }).toPass({ timeout: 10000 });
     await expect(page.getByRole("button", { name: "Queue", exact: true })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Hold to pick this card" })).toHaveCount(0);
   });
 });

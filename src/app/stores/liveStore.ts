@@ -214,7 +214,7 @@ export const useLiveStore = create<LiveStoreState>()(
       // Deck builder actions
       dispatchDeck: makeDispatchDeck(boundSet, get, getLiveStoreRef),
       setDeckBuilderActive: makeSetDeckBuilderActive(boundSet),
-      enterSharedView: makeEnterSharedView(get),
+      enterSharedView: makeEnterSharedView(boundSet, get),
       fetchDeckState: makeFetchDeckState(boundSet, get),
       shareDeck: makeShareDeck(get),
     };

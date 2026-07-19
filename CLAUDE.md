@@ -228,6 +228,7 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/specs/2026-04-03-e2e-test-suite-design.md` - End-to-end test suite design
 - `docs/superpowers/specs/2026-04-13-head-to-head-match-matrix-design.md` - Head-to-head match matrix with inline editing and OMW%/OGW% tiebreakers
 - `docs/superpowers/specs/2026-05-28-queue-panel-ux-design.md` - Queue panel UX: how-to section + buttons-only grouping
+- `docs/superpowers/specs/2026-07-19-sheet-draft-deck-builder-design.md` - Sheet-draft deck builder (local mode) design
 
 ### Superpowers Plans
 
@@ -266,3 +267,4 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/plans/2026-04-03-e2e-test-suite.md` - End-to-end test suite implementation
 - `docs/superpowers/plans/2026-04-13-head-to-head-match-matrix.md` - Head-to-head match matrix implementation
 - `docs/superpowers/plans/2026-06-11-deep-clean-fixes.md` - Deep clean fixes (2026-06-11 audit, this plan)
+- `docs/superpowers/plans/2026-07-19-sheet-draft-deck-builder.md` - Sheet-draft deck builder implementation
