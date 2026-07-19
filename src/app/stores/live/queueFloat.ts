@@ -6,6 +6,7 @@
  */
 import { useDraftStore } from "../draftStore";
 import type { SetState, GetState, QueueGroupEntry } from "../liveStore";
+import { getLocalDeckMode, loadLocalFloats, saveLocalFloats } from "./localDeck";
 
 // Re-export types that consumers need (avoids importing from liveStore in modules)
 export type { QueueGroupEntry };
@@ -119,12 +120,23 @@ export async function mutateFloat(
 ): Promise<void> {
   const { seatToken, floatedCards: previous } = get();
   const activeDraft = useDraftStore.getState().activeDraft;
-  if (!seatToken || !activeDraft) return;
+  if (!activeDraft) return;
 
   const next =
     method === "PUT"
       ? [...previous, cardName]
       : previous.filter((c) => c !== cardName);
+
+  if (!seatToken) {
+    // Local deck mode (sheet drafts): persist floats to localStorage, no API.
+    if (!getLocalDeckMode()) return;
+    const { selectedSeat } = useDraftStore.getState();
+    if (selectedSeat === null) return;
+    set({ floatedCards: next, floatedCardsSet: new Set(next) });
+    saveLocalFloats(activeDraft, selectedSeat, next);
+    return;
+  }
+
   set({ floatedCards: next, floatedCardsSet: new Set(next) });
 
   try {
@@ -267,7 +279,23 @@ export function makeFetchFloatedCards(set: SetState, get: GetState) {
   return async (): Promise<void> => {
     const { seatToken } = get();
     const activeDraft = useDraftStore.getState().activeDraft;
-    if (!seatToken || !activeDraft) return;
+    if (!activeDraft) return;
+
+    if (!seatToken) {
+      // Local deck mode (sheet drafts): floats live in localStorage.
+      if (!getLocalDeckMode()) return;
+      const { selectedSeat } = useDraftStore.getState();
+      if (selectedSeat === null) return;
+      const incoming = loadLocalFloats(activeDraft, selectedSeat);
+      const prevFloats = get().floatedCards;
+      const floatsChanged =
+        incoming.length !== prevFloats.length ||
+        incoming.some((c, i) => c !== prevFloats[i]);
+      if (floatsChanged) {
+        set({ floatedCards: incoming, floatedCardsSet: new Set(incoming) });
+      }
+      return;
+    }
 
     try {
       const res = await fetch(`/api/drafts/${activeDraft}/float`, {

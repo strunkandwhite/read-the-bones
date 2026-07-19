@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { useLiveStore, recomputePicking, _resetDeckState, _applyMeDataForTest } from "./liveStore";
 import { useDraftStore, _resetPollingState } from "./draftStore";
+import type { BoardData } from "./draftStore";
 import { _resetSearchState, useCardStore } from "./cardStore";
 import { createEmptyDeckState } from "@/core/deckBuilder";
 import { makeSyncDeckWithPicks } from "./live/deckSave";
@@ -1324,6 +1325,70 @@ describe("liveStore — removeFloat", () => {
     await useLiveStore.getState().removeFloat("Bolt");
 
     expect(useLiveStore.getState().floatedCards).toEqual(["Bolt", "Counterspell"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// local deck mode — floats
+// ---------------------------------------------------------------------------
+function makeSheetBoard(): BoardData {
+  return {
+    picks: [],
+    numSeats: 10,
+    picksPerPlayer: 45,
+    phase: "complete",
+    seatNames: {},
+    bannedCards: [],
+    isSheetDraft: true,
+  };
+}
+
+describe("local deck mode — floats", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+    useDraftStore.setState({ activeDraft: "sheet-1", selectedSeat: 3, board: makeSheetBoard() });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("addFloat persists to localStorage without any fetch", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    await useLiveStore.getState().addFloat("Sylvan Library");
+
+    expect(useLiveStore.getState().floatedCards).toEqual(["Sylvan Library"]);
+    expect(useLiveStore.getState().floatedCardsSet.has("Sylvan Library")).toBe(true);
+    expect(JSON.parse(localStorage.getItem("localFloats:sheet-1:3")!)).toEqual(["Sylvan Library"]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("removeFloat updates state and localStorage", async () => {
+    await useLiveStore.getState().addFloat("Sylvan Library");
+    await useLiveStore.getState().addFloat("Land Tax");
+    await useLiveStore.getState().removeFloat("Sylvan Library");
+
+    expect(useLiveStore.getState().floatedCards).toEqual(["Land Tax"]);
+    expect(JSON.parse(localStorage.getItem("localFloats:sheet-1:3")!)).toEqual(["Land Tax"]);
+  });
+
+  it("fetchFloatedCards loads from localStorage in local mode", async () => {
+    localStorage.setItem("localFloats:sheet-1:3", JSON.stringify(["Doom Blade"]));
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+
+    await useLiveStore.getState().fetchFloatedCards();
+
+    expect(useLiveStore.getState().floatedCards).toEqual(["Doom Blade"]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("float actions are no-ops without a token outside local mode", async () => {
+    useDraftStore.setState({ board: { ...makeSheetBoard(), isSheetDraft: false } });
+    await useLiveStore.getState().addFloat("Sylvan Library");
+
+    expect(useLiveStore.getState().floatedCards).toEqual([]);
+    expect(localStorage.getItem("localFloats:sheet-1:3")).toBeNull();
   });
 });
 
