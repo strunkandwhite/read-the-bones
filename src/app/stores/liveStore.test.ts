@@ -1393,6 +1393,78 @@ describe("local deck mode — floats", () => {
 });
 
 // ---------------------------------------------------------------------------
+// local deck mode — deck state persistence
+// ---------------------------------------------------------------------------
+describe("local deck mode — deck state persistence", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+    vi.useFakeTimers();
+    useDraftStore.setState({ activeDraft: "sheet-1", selectedSeat: 3, board: makeSheetBoard() });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("fetchDeckState initializes empty state with draft/seat identity, no fetch", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    await useLiveStore.getState().fetchDeckState();
+
+    const { deckState, deckReady } = useLiveStore.getState();
+    expect(deckReady).toBe(true);
+    expect(deckState.draftId).toBe("sheet-1");
+    expect(deckState.seat).toBe(3);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("fetchDeckState restores a stored local deck", async () => {
+    const stored = createEmptyDeckState("sheet-1", 3);
+    stored.zones.deck["mv-0-1"] = ["Sol Ring"];
+    localStorage.setItem("localDeckState:sheet-1:3", JSON.stringify(stored));
+
+    await useLiveStore.getState().fetchDeckState();
+
+    expect(useLiveStore.getState().deckState.zones.deck["mv-0-1"]).toEqual(["Sol Ring"]);
+  });
+
+  it("deck edits save to localStorage after the debounce, without any fetch", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    await useLiveStore.getState().fetchDeckState();
+
+    useLiveStore.getState().dispatchDeck({
+      type: "SET_BASICS",
+      basics: { Plains: 0, Island: 8, Swamp: 0, Mountain: 0, Forest: 9 },
+      scryfallData: new Map(),
+    });
+    await vi.advanceTimersByTimeAsync(1100);
+
+    const saved = JSON.parse(localStorage.getItem("localDeckState:sheet-1:3")!);
+    expect(saved.basicLands.Island).toBe(8);
+    expect(useLiveStore.getState().deckSaveStatus).toBe("saved");
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not save while deck identity is still empty", async () => {
+    // The activeDraft subscription's local-mode fetchDeckState has no await,
+    // so it already ran synchronously inside beforeEach's setState call and
+    // gave deckState an identity. Force it back to the pre-identity ""
+    // state (mirrors the "reset to test explicitly" precedent used in the
+    // "liveStore — fetchDeckState" describe block below) to exercise the guard.
+    useLiveStore.setState({ deckState: createEmptyDeckState("", 0) });
+    useLiveStore.getState().dispatchDeck({
+      type: "SET_BASICS",
+      basics: { Plains: 1, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
+      scryfallData: new Map(),
+    });
+    await vi.advanceTimersByTimeAsync(1100);
+
+    expect(localStorage.getItem("localDeckState:sheet-1:3")).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // handlePick
 // ---------------------------------------------------------------------------
 describe("liveStore — handlePick", () => {

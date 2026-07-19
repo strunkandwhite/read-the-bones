@@ -8,6 +8,7 @@
 import { useDraftStore } from "../draftStore";
 import { useCardStore } from "../cardStore";
 import { computeMyDeckCardNames } from "../computeMyDeckCardNames";
+import { getLocalDeckMode, loadLocalDeckState, saveLocalDeckState } from "./localDeck";
 import {
   deckReducer,
   createEmptyDeckState,
@@ -77,7 +78,23 @@ async function flushDeckSave(
   const { seatToken, deckState } = getLiveStore().getState();
   const activeDraft = useDraftStore.getState().activeDraft;
   if (activeDraft !== scheduledForDraft) return;
-  if (!seatToken || !activeDraft || !deckDirty || deckInFlight) return;
+  if (!activeDraft || !deckDirty || deckInFlight) return;
+
+  if (!seatToken) {
+    // Local deck mode (sheet drafts): persist to localStorage instead of the
+    // API. deckState identity gates the write — before the local snapshot is
+    // initialized the state still carries draftId "" and must not be saved.
+    if (!getLocalDeckMode() || deckState.draftId !== activeDraft) return;
+    saveLocalDeckState(deckState);
+    deckDirty = false;
+    getLiveStore().setState({ deckSaveStatus: "saved" });
+    setTimeout(() => {
+      if (getLiveStore().getState().deckSaveStatus === "saved") {
+        getLiveStore().setState({ deckSaveStatus: "idle" });
+      }
+    }, DECK_SAVE_STATUS_RESET_MS);
+    return;
+  }
 
   deckInFlight = true;
   getLiveStore().setState({ deckSaveStatus: "saving" });
@@ -283,6 +300,16 @@ export function makeFetchDeckState(set: SetState, get: GetState) {
         }
       } catch {
         // Network error — stay with empty state
+      }
+    } else if (getLocalDeckMode()) {
+      // Local deck mode (sheet drafts): restore from localStorage, or start
+      // empty with correct identity so saves/share/header work.
+      const selectedSeat = useDraftStore.getState().selectedSeat;
+      if (selectedSeat !== null) {
+        const snapshot =
+          loadLocalDeckState(activeDraft, selectedSeat) ??
+          createEmptyDeckState(activeDraft, selectedSeat);
+        get().dispatchDeck({ type: "INIT_FROM_SNAPSHOT", snapshot });
       }
     }
 
