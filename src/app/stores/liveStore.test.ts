@@ -1554,7 +1554,7 @@ describe("liveStore — recomputePicking phase gate", () => {
     useDraftStore.setState({
       activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "setup", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+      board: { phase: "setup", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -1579,7 +1579,7 @@ describe("liveStore — recomputePicking phase gate", () => {
     useDraftStore.setState({
       activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "complete", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+      board: { phase: "complete", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -1611,7 +1611,7 @@ describe("liveStore — recomputePicking phase gate", () => {
     useDraftStore.setState({
       activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 3, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -1695,7 +1695,7 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
     useDraftStore.setState({
       activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 3, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -1790,7 +1790,7 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
     useDraftStore.setState({
       activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -1831,7 +1831,7 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
     useDraftStore.setState({
       activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -1859,7 +1859,7 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
     useDraftStore.setState({
       activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -1915,7 +1915,7 @@ describe("liveStore — poll-triggered auto-pick integration", () => {
     useDraftStore.setState({
       activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 3, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -1959,7 +1959,7 @@ describe("liveStore — poll-triggered auto-pick integration", () => {
     useDraftStore.setState({
       activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false },
     });
     useLiveStore.setState({ seatToken: "tok-abc", mySeat: 2 });
 
@@ -2018,7 +2018,7 @@ describe("liveStore — toggleAutoPick mid-turn", () => {
     useDraftStore.setState({
       activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -2055,7 +2055,7 @@ describe("liveStore — toggleAutoPick mid-turn", () => {
     useDraftStore.setState({
       activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [] },
+      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",

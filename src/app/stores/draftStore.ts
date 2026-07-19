@@ -45,6 +45,8 @@ export interface BoardData {
   phase: string;
   seatNames: Record<string, string>;
   bannedCards: string[];
+  /** True when this draft syncs from a Google Sheet (no seat tokens exist). */
+  isSheetDraft: boolean;
 }
 
 export type ActiveDraftInfo = { id: string; numSeats: number };
@@ -353,6 +355,7 @@ function applyPollResults(
       phase: liveData.phase as string,
       seatNames: liveData.seatNames as Record<string, string>,
       bannedCards: liveData.bannedCards as string[],
+      isSheetDraft: liveData.isSheetDraft === true,
     };
 
     // Detect pick changes. prevPickN === -1 means "first poll, no previous data" —
@@ -399,7 +402,8 @@ function applyPollResults(
       board.picksPerPlayer === prev.board.picksPerPlayer &&
       JSON.stringify(board.picks) === JSON.stringify(prev.board.picks) &&
       JSON.stringify(board.seatNames) === JSON.stringify(prev.board.seatNames) &&
-      JSON.stringify(board.bannedCards) === JSON.stringify(prev.board.bannedCards)
+      JSON.stringify(board.bannedCards) === JSON.stringify(prev.board.bannedCards) &&
+      board.isSheetDraft === prev.board.isSheetDraft
       ? prev.board
       : board;
 

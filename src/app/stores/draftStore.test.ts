@@ -233,6 +233,7 @@ describe("draftStore — patchSeatName", () => {
         phase: "drafting",
         seatNames: { "1": "Alice", "2": "Bob" },
         bannedCards: [],
+        isSheetDraft: false,
       },
     });
 
@@ -303,6 +304,20 @@ describe("draftStore — polling", () => {
     syncInProgress: false,
     activeDrafts: [],
   };
+
+  it("board.isSheetDraft maps from the /live response", async () => {
+    mockFetchResponses({ ...baseLiveData, isSheetDraft: true }, baseSyncData);
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    await useDraftStore.getState().refreshNow();
+    expect(useDraftStore.getState().board?.isSheetDraft).toBe(true);
+  });
+
+  it("board.isSheetDraft defaults to false when absent from the response", async () => {
+    mockFetchResponses(baseLiveData, baseSyncData);
+    useDraftStore.setState({ activeDraft: "draft-1" });
+    await useDraftStore.getState().refreshNow();
+    expect(useDraftStore.getState().board?.isSheetDraft).toBe(false);
+  });
 
   it("startPolling triggers fetch of /live and /sync-status", async () => {
     const fetchSpy = mockFetchResponses(baseLiveData, baseSyncData);
