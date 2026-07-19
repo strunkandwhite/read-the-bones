@@ -1468,6 +1468,73 @@ describe("local deck mode — deck state persistence", () => {
 });
 
 // ---------------------------------------------------------------------------
+// local deck mode — wiring (board arrival, seat switch)
+// ---------------------------------------------------------------------------
+describe("local deck mode — wiring (board arrival, seat switch)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("loads local floats and deck when board arrives with isSheetDraft", async () => {
+    localStorage.setItem("localFloats:sheet-1:3", JSON.stringify(["Doom Blade"]));
+    const stored = createEmptyDeckState("sheet-1", 3);
+    stored.zones.deck["mv-0-1"] = ["Sol Ring"];
+    localStorage.setItem("localDeckState:sheet-1:3", JSON.stringify(stored));
+
+    useDraftStore.setState({ activeDraft: "sheet-1", selectedSeat: 3 });
+    // Board arrives via first /live poll — after activeDraft is set.
+    useDraftStore.setState({ board: makeSheetBoard() });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(useLiveStore.getState().floatedCards).toEqual(["Doom Blade"]);
+    expect(useLiveStore.getState().deckState.zones.deck["mv-0-1"]).toEqual(["Sol Ring"]);
+    expect(useLiveStore.getState().deckState.seat).toBe(3);
+  });
+
+  it("switching seats flushes the old seat's pending save and loads the new seat", async () => {
+    useDraftStore.setState({ activeDraft: "sheet-1", selectedSeat: 3 });
+    useDraftStore.setState({ board: makeSheetBoard() });
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Edit seat 3's deck; do NOT wait out the 1000ms save debounce.
+    useLiveStore.getState().dispatchDeck({
+      type: "SET_BASICS",
+      basics: { Plains: 0, Island: 4, Swamp: 0, Mountain: 0, Forest: 0 },
+      scryfallData: new Map(),
+    });
+
+    useDraftStore.getState().setSelectedSeat(5);
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Old seat's pending edit was flushed to its own key…
+    const seat3 = JSON.parse(localStorage.getItem("localDeckState:sheet-1:3")!);
+    expect(seat3.basicLands.Island).toBe(4);
+    // …and the store now holds seat 5's (fresh, empty) deck.
+    expect(useLiveStore.getState().deckState.seat).toBe(5);
+    expect(useLiveStore.getState().deckState.basicLands.Island).toBe(0);
+    // Seat isolation: seat 5's key was not polluted by seat 3's edit.
+    const seat5Raw = localStorage.getItem("localDeckState:sheet-1:5");
+    if (seat5Raw) expect(JSON.parse(seat5Raw).basicLands.Island).toBe(0);
+  });
+
+  it("does nothing for live drafts", async () => {
+    localStorage.setItem("localFloats:live-1:3", JSON.stringify(["Doom Blade"]));
+    useDraftStore.setState({ activeDraft: "live-1", selectedSeat: 3 });
+    useDraftStore.setState({ board: { ...makeSheetBoard(), isSheetDraft: false } });
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(useLiveStore.getState().floatedCards).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // handlePick
 // ---------------------------------------------------------------------------
 describe("liveStore — handlePick", () => {

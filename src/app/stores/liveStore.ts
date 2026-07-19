@@ -43,6 +43,7 @@ import {
   makeSyncDeckWithPicks,
   makeDebouncedSyncDeckWithPicks,
   makeShareDeck,
+  makeSyncLocalDeck,
 } from "./live/deckSave";
 
 export type { DeckAction, MatchReportParams };
@@ -404,4 +405,13 @@ useLiveStore.subscribe(
 useLiveStore.subscribe(
   (state) => state.mySeat,
   () => debouncedSyncDeckWithPicks(),
+);
+
+// Local deck mode (sheet drafts): load per-seat local floats + deck state when
+// the board identifies the draft as sheet-based, and reload on seat switch.
+const syncLocalDeck = makeSyncLocalDeck(useLiveStore.getState, getLiveStoreRef);
+
+useDraftStore.subscribe(
+  (state) => `${state.activeDraft ?? ""}|${state.board?.isSheetDraft === true}|${state.selectedSeat ?? ""}`,
+  () => syncLocalDeck(),
 );

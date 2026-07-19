@@ -34,6 +34,10 @@ let justHydrated = false;
 
 let syncDeckTimer: ReturnType<typeof setTimeout> | null = null;
 
+// Tracks which "<draftId>:<seat>" local deck is currently loaded, so the
+// local-mode subscription only reloads when the identity actually changes.
+let loadedLocalKey: string | null = null;
+
 const DECK_SAVE_DEBOUNCE_MS = 1000;
 const DECK_SAVE_STATUS_RESET_MS = 2000;
 // After a network error, wait before retrying the save so a brief outage
@@ -65,6 +69,7 @@ export function resetDeckSaveState(): void {
     clearTimeout(syncDeckTimer);
     syncDeckTimer = null;
   }
+  loadedLocalKey = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -315,5 +320,43 @@ export function makeFetchDeckState(set: SetState, get: GetState) {
 
     deckDirty = false;
     set({ deckReady: true });
+  };
+}
+
+// ---------------------------------------------------------------------------
+// makeSyncLocalDeck — local-mode load trigger (board arrival / seat switch)
+// ---------------------------------------------------------------------------
+
+/**
+ * Loads local floats + deck state whenever local deck mode becomes available
+ * or the selected seat changes. Board data arrives on the first /live poll —
+ * after the activeDraft reset — so this subscription (not the activeDraft
+ * handler) is what actually initializes local-mode deck state.
+ */
+export function makeSyncLocalDeck(
+  get: GetState,
+  getLiveStore: () => { getState: GetState; setState: SetState },
+) {
+  return (): void => {
+    if (get().viewingSharedDeck) return;
+    const { activeDraft, selectedSeat } = useDraftStore.getState();
+    if (!getLocalDeckMode() || !activeDraft || selectedSeat === null) {
+      loadedLocalKey = null;
+      return;
+    }
+    const key = `${activeDraft}:${selectedSeat}`;
+    if (key === loadedLocalKey) return;
+
+    // Flush any pending debounced save before switching — the save key derives
+    // from deckState's own identity, so it lands on the seat being left.
+    if (deckSaveTimer) {
+      clearTimeout(deckSaveTimer);
+      deckSaveTimer = null;
+      void flushDeckSave(activeDraft, getLiveStore);
+    }
+
+    loadedLocalKey = key;
+    void get().fetchFloatedCards();
+    void get().fetchDeckState();
   };
 }

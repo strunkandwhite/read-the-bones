@@ -22,6 +22,7 @@
  *       5. floatedCards      → debouncedSyncDeckWithPicks()
  *       6. queue             → debouncedSyncDeckWithPicks()
  *       7. mySeat            → debouncedSyncDeckWithPicks() (identity fix)
+ *       8. activeDraft/board.isSheetDraft/selectedSeat → syncLocalDeck() (local deck mode load)
  *
  *   - liveStore.ts registrations:
  *       registerSeatTokenProvider — lets draftStore attach X-Seat-Token to /live polls
