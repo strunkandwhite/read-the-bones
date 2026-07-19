@@ -176,7 +176,7 @@ Search is debounced (500ms) and runs locally against cached card data. Server-si
 
 - **Active draft sync:** Drafts linked to a Google Sheet (`sheetId` in metadata) are synced automatically by a Vercel cron job that calls `GET /api/sync` every 10 minutes, authenticated via `CRON_SECRET`. There is no manual "Sync Now" button — use `pnpm sync <name>` from the CLI for on-demand syncs.
 - **Banned cards:** Drafts can specify banned cards in metadata. Banned cards are visually marked in the card table and excluded from available card queries.
-- **Deck builder:** Per-seat deck building panel with drag-and-drop, maindeck/sideboard zones, server-side persistence with save status indicator, and shareable deck snapshots via `/api/deck`.
+- **Deck builder:** Per-seat deck building panel with drag-and-drop, maindeck/sideboard zones, save status indicator, and shareable deck snapshots via `/api/deck`. Live drafts persist WIP decks server-side (seat token auth); sheet drafts persist locally in the browser (localStorage, keyed by draft + seat) with an "Add to Deck Builder" button replacing Float.
 - **Shared decks:** Immutable deck snapshots stored in the `decks` table (kind = 'snapshot'), accessible via short URLs.
 - **Seat selection:** View picks and deck data for individual seats within a draft.
 - **Decklist win rate:** Dev-only data (disabled in production via `NODE_ENV !== "production"`) showing actual win rates in the card stats modal.

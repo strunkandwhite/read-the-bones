@@ -15,7 +15,8 @@ export type Scenario =
   | "live-draft"
   | "deck-builder"
   | "spectator"
-  | "shared-deck";
+  | "shared-deck"
+  | "sheet-draft";
 
 export type MockOverrides = {
   cards?: (route: Route, request: Request) => Promise<void> | void;
@@ -54,9 +55,12 @@ export async function createMockContext(
   );
 
   // Build takenCards from board picks for scenarios with a live board
-  const hasLiveBoard = ["live-draft", "deck-builder", "spectator"].includes(
-    scenario,
-  );
+  const hasLiveBoard = [
+    "live-draft",
+    "deck-builder",
+    "spectator",
+    "sheet-draft",
+  ].includes(scenario);
   const boardData = (overrides.liveBoard ?? liveBoardFixture) as {
     picks: { cardName: string; seat: number }[];
   };
@@ -115,12 +119,17 @@ export async function createMockContext(
   );
 
   // Live draft routes
-  if (["live-draft", "deck-builder", "spectator"].includes(scenario)) {
+  if (["live-draft", "deck-builder", "spectator", "sheet-draft"].includes(scenario)) {
+    const liveBoardBody = {
+      ...liveBoardFixture,
+      ...(scenario === "sheet-draft" ? { isSheetDraft: true } : {}),
+      ...(overrides.liveBoard ?? {}),
+    };
     await page.route("**/api/drafts/*/live*", (route) =>
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify(overrides.liveBoard ?? liveBoardFixture),
+        body: JSON.stringify(liveBoardBody),
       }),
     );
   }
