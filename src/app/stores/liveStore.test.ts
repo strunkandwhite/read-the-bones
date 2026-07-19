@@ -1461,6 +1461,9 @@ describe("local deck mode — deck state persistence", () => {
     await vi.advanceTimersByTimeAsync(1100);
 
     expect(localStorage.getItem("localDeckState:sheet-1:3")).toBeNull();
+    // The guard must bail before flagging a save — a "saved" status here would
+    // be a false indicator over silently-dropped edits.
+    expect(useLiveStore.getState().deckSaveStatus).toBe("idle");
   });
 });
 
