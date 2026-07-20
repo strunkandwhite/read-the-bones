@@ -7,6 +7,7 @@ import {
   openSettings,
   openDeckBuilder,
 } from "../helpers/assertions";
+import liveBoardFixture from "../fixtures/live-board.json" with { type: "json" };
 
 test.describe("Sheet-draft deck builder (local mode)", () => {
   test.beforeEach(async ({ page }) => {
@@ -97,5 +98,95 @@ test.describe("Sheet-draft deck builder (local mode)", () => {
     }).toPass({ timeout: 10000 });
     await expect(page.getByRole("button", { name: "Queue", exact: true })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Hold to pick this card" })).toHaveCount(0);
+  });
+
+  test("a pick by the viewed seat upgrades the added card to a real pick", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("table")).toBeVisible();
+
+    await selectActiveDraft(page, "gamma");
+    await selectSeat(page, 1);
+    await closeSettings(page);
+
+    await expect(async () => {
+      await page.locator("tbody tr").filter({ hasText: "Sylvan Library" }).first().click();
+      await expect(page.getByRole("button", { name: "Add to Deck Builder" })).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 10000 });
+    await page.getByRole("button", { name: "Add to Deck Builder" }).click();
+    await expect(page.getByRole("button", { name: "Remove from Deck Builder" })).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await openDeckBuilder(page);
+    await expect(page.getByRole("button", { name: "Sylvan Library" }).first()).toBeVisible({ timeout: 10000 });
+    // While floated, the card carries the speculative ✕ control. dnd-kit's
+    // sortable wrapper also gets role="button" (name "Sylvan Library Remove
+    // speculative card"), so match the ✕ control's exact accessible name to
+    // avoid also counting that outer wrapper.
+    await expect(page.getByRole("button", { name: "Remove speculative card", exact: true })).toHaveCount(1);
+
+    // Subsequent polls report that seat 1 — the viewed seat — picked the card.
+    await page.route("**/api/drafts/*/live*", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ...liveBoardFixture,
+          isSheetDraft: true,
+          latestPickN: 23,
+          picks: [
+            ...liveBoardFixture.picks,
+            { pickN: 23, seat: 1, cardName: "Sylvan Library", oracleId: "sylvan-library-id", colorIdentity: ["G"], manaCost: "{1}{G}" },
+          ],
+        }),
+      }),
+    );
+
+    // Poll interval is 10s: after the next poll the card must remain in the
+    // deck as a real pick — no speculative ✕ — and the stored float clears.
+    await expect(page.getByRole("button", { name: "Remove speculative card", exact: true })).toHaveCount(0, { timeout: 15000 });
+    await expect(page.getByRole("button", { name: "Sylvan Library" }).first()).toBeVisible();
+    const floats = await page.evaluate(() => localStorage.getItem("localFloats:gamma:1"));
+    expect(floats).toBe("[]");
+  });
+
+  test("a pick by another seat removes the added card from the deck builder", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("table")).toBeVisible();
+
+    await selectActiveDraft(page, "gamma");
+    await selectSeat(page, 1);
+    await closeSettings(page);
+
+    await expect(async () => {
+      await page.locator("tbody tr").filter({ hasText: "Sylvan Library" }).first().click();
+      await expect(page.getByRole("button", { name: "Add to Deck Builder" })).toBeVisible({ timeout: 2000 });
+    }).toPass({ timeout: 10000 });
+    await page.getByRole("button", { name: "Add to Deck Builder" }).click();
+    await expect(page.getByRole("button", { name: "Remove from Deck Builder" })).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await openDeckBuilder(page);
+    await expect(page.getByRole("button", { name: "Sylvan Library" }).first()).toBeVisible({ timeout: 10000 });
+
+    // Subsequent polls report that seat 2 took the (only) copy.
+    await page.route("**/api/drafts/*/live*", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          ...liveBoardFixture,
+          isSheetDraft: true,
+          latestPickN: 23,
+          picks: [
+            ...liveBoardFixture.picks,
+            { pickN: 23, seat: 2, cardName: "Sylvan Library", oracleId: "sylvan-library-id", colorIdentity: ["G"], manaCost: "{1}{G}" },
+          ],
+        }),
+      }),
+    );
+
+    await expect(page.getByRole("button", { name: "Sylvan Library" })).toHaveCount(0, { timeout: 15000 });
+    const floats = await page.evaluate(() => localStorage.getItem("localFloats:gamma:1"));
+    expect(floats).toBe("[]");
   });
 });

@@ -75,6 +75,13 @@ The `isAuthed` gates in `computeMyDeckCardNames`, `DeckBuilderPanel`'s
 card that the seat later actually picks (via sheet sync) simply becomes a real
 pick — no duplicate.
 
+Synced picks additionally reconcile the float list itself
+(`reconcileLocalFloats`, triggered on every pick-driven recompute and at
+float load): a card picked by the viewed seat loses its float entry (it is
+now a real pick — undimmed, no ✕), and a card whose last copy was taken by
+another seat is removed entirely, mirroring the live-draft server's
+pick-time float cleanup.
+
 Share Deck (`POST /api/deck`) already requires no auth; with identity fields
 fixed, sharing sheet-draft decks works with no further changes.
 

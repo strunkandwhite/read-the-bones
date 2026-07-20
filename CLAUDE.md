@@ -268,3 +268,4 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/plans/2026-04-13-head-to-head-match-matrix.md` - Head-to-head match matrix implementation
 - `docs/superpowers/plans/2026-06-11-deep-clean-fixes.md` - Deep clean fixes (2026-06-11 audit, this plan)
 - `docs/superpowers/plans/2026-07-19-sheet-draft-deck-builder.md` - Sheet-draft deck builder implementation
+- `docs/superpowers/plans/2026-07-20-sheet-draft-pick-reconciliation.md` - Sheet-draft pick reconciliation (float upgrade/removal on synced picks)
