@@ -79,6 +79,10 @@ export interface LiveStoreState {
   // Float
   floatedCards: string[];
   floatedCardsSet: Set<string>;
+  // Identity ("<draftId>:<seat>") the local-mode float list was loaded/saved
+  // for — guards reconcile against writing floats to the wrong key while a
+  // seat/draft switch is mid-flight. Null outside local deck mode.
+  floatedCardsKey: string | null;
 
   // Picking
   pickError: string | null;
@@ -179,6 +183,7 @@ export const useLiveStore = create<LiveStoreState>()(
 
       floatedCards: [],
       floatedCardsSet: new Set<string>(),
+      floatedCardsKey: null,
 
       pickError: null,
       isMyTurn: false,
@@ -257,6 +262,7 @@ useDraftStore.subscribe(
         queuedCardCounts: new Map(),
         floatedCards: [],
         floatedCardsSet: new Set<string>(),
+        floatedCardsKey: null,
         deckState: createEmptyDeckState("", 0),
         deckReady: false,
         deckSaveStatus: "idle",
@@ -281,6 +287,7 @@ useDraftStore.subscribe(
         queueError: null,
         floatedCards: [],
         floatedCardsSet: new Set<string>(),
+        floatedCardsKey: null,
         pickError: null,
         isMyTurn: false,
         deckState: createEmptyDeckState("", 0),

@@ -53,6 +53,7 @@ function resetStores() {
     queueError: null,
     floatedCards: [],
     floatedCardsSet: new Set<string>(),
+    floatedCardsKey: null,
     pickError: null,
     isMyTurn: false,
     deckState: createEmptyDeckState("", 0),
@@ -61,6 +62,7 @@ function resetStores() {
     deckBuilderActive: false,
     viewingSharedDeck: false,
   });
+  useCardStore.setState({ seatCardNames: undefined, takenCardNamesSet: undefined });
 }
 
 // ---------------------------------------------------------------------------
@@ -1399,7 +1401,6 @@ describe("local deck mode — reconcileLocalFloats", () => {
   beforeEach(() => {
     localStorage.clear();
     resetStores();
-    useCardStore.setState({ seatCardNames: undefined, takenCardNamesSet: undefined });
     useDraftStore.setState({ activeDraft: "sheet-1", selectedSeat: 3, board: makeSheetBoard() });
   });
 
@@ -1538,6 +1539,26 @@ describe("local deck mode — reconcileLocalFloats", () => {
 
     expect(useLiveStore.getState().floatedCards).toEqual(["Land Tax"]);
     expect(JSON.parse(localStorage.getItem("localFloats:sheet-1:3")!)).toEqual(["Land Tax"]);
+  });
+
+  it("does not write floats to a newly selected seat's key while state still holds the previous seat's floats", async () => {
+    await useLiveStore.getState().addFloat("Doom Blade");
+    localStorage.setItem("localFloats:sheet-1:4", JSON.stringify(["Land Tax"]));
+
+    // Simulate the switch window: selection has moved to seat 4 but the
+    // float slice still carries seat 3's floats and identity.
+    useDraftStore.setState({ selectedSeat: 4 });
+    useLiveStore.setState({
+      floatedCards: ["Doom Blade"],
+      floatedCardsSet: new Set(["Doom Blade"]),
+      floatedCardsKey: "sheet-1:3",
+    });
+    useCardStore.setState({ seatCardNames: new Set(["Doom Blade"]), takenCardNamesSet: new Set() });
+
+    useLiveStore.getState().reconcileLocalFloats();
+
+    expect(JSON.parse(localStorage.getItem("localFloats:sheet-1:4")!)).toEqual(["Land Tax"]);
+    expect(JSON.parse(localStorage.getItem("localFloats:sheet-1:3")!)).toEqual(["Doom Blade"]);
   });
 });
 

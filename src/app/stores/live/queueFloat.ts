@@ -133,7 +133,7 @@ export async function mutateFloat(
     if (!getLocalDeckMode()) return;
     const { selectedSeat } = useDraftStore.getState();
     if (selectedSeat === null) return;
-    set({ floatedCards: next, floatedCardsSet: new Set(next) });
+    set({ floatedCards: next, floatedCardsSet: new Set(next), floatedCardsKey: `${activeDraft}:${selectedSeat}` });
     saveLocalFloats(activeDraft, selectedSeat, next);
     return;
   }
@@ -292,8 +292,11 @@ export function makeFetchFloatedCards(set: SetState, get: GetState) {
       const floatsChanged =
         incoming.length !== prevFloats.length ||
         incoming.some((c, i) => c !== prevFloats[i]);
+      const key = `${activeDraft}:${selectedSeat}`;
       if (floatsChanged) {
-        set({ floatedCards: incoming, floatedCardsSet: new Set(incoming) });
+        set({ floatedCards: incoming, floatedCardsSet: new Set(incoming), floatedCardsKey: key });
+      } else if (get().floatedCardsKey !== key) {
+        set({ floatedCardsKey: key });
       }
       // Stored floats may have been superseded by picks synced while this
       // tab was closed — reconcile immediately after loading.
@@ -360,6 +363,9 @@ export function makeReconcileLocalFloats(set: SetState, get: GetState) {
     if (!getLocalDeckMode()) return;
     const { activeDraft, selectedSeat } = useDraftStore.getState();
     if (!activeDraft || selectedSeat === null) return;
+    // Floats still belong to a previously viewed seat while a switch is
+    // mid-flight — never filter or persist them under the new identity.
+    if (get().floatedCardsKey !== `${activeDraft}:${selectedSeat}`) return;
     const { seatCardNames, takenCardNamesSet } = useCardStore.getState();
     if (!seatCardNames && !takenCardNamesSet) return;
 
