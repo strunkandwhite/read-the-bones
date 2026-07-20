@@ -1393,6 +1393,96 @@ describe("local deck mode — floats", () => {
 });
 
 // ---------------------------------------------------------------------------
+// local deck mode — pick reconciliation
+// ---------------------------------------------------------------------------
+describe("local deck mode — reconcileLocalFloats", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+    useCardStore.setState({ seatCardNames: undefined, takenCardNamesSet: undefined });
+    useDraftStore.setState({ activeDraft: "sheet-1", selectedSeat: 3, board: makeSheetBoard() });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("drops a float when the viewed seat has picked the card", async () => {
+    await useLiveStore.getState().addFloat("Sylvan Library");
+    await useLiveStore.getState().addFloat("Land Tax");
+    useCardStore.setState({
+      seatCardNames: new Set(["Sylvan Library"]),
+      takenCardNamesSet: new Set(["Sylvan Library"]),
+    });
+
+    useLiveStore.getState().reconcileLocalFloats();
+
+    expect(useLiveStore.getState().floatedCards).toEqual(["Land Tax"]);
+    expect(useLiveStore.getState().floatedCardsSet.has("Sylvan Library")).toBe(false);
+    expect(JSON.parse(localStorage.getItem("localFloats:sheet-1:3")!)).toEqual(["Land Tax"]);
+  });
+
+  it("drops a float when another seat takes the last copy", async () => {
+    await useLiveStore.getState().addFloat("Land Tax");
+    useCardStore.setState({
+      seatCardNames: new Set(),
+      takenCardNamesSet: new Set(["Land Tax"]),
+    });
+
+    useLiveStore.getState().reconcileLocalFloats();
+
+    expect(useLiveStore.getState().floatedCards).toEqual([]);
+    expect(JSON.parse(localStorage.getItem("localFloats:sheet-1:3")!)).toEqual([]);
+  });
+
+  it("keeps a float while copies of the card remain available", async () => {
+    await useLiveStore.getState().addFloat("Doom Blade");
+    // Another seat picked one of two copies — takenCardNamesSet only lists
+    // fully-taken cards, so the float must survive.
+    useCardStore.setState({
+      seatCardNames: new Set(),
+      takenCardNamesSet: new Set(["Some Other Card"]),
+    });
+
+    useLiveStore.getState().reconcileLocalFloats();
+
+    expect(useLiveStore.getState().floatedCards).toEqual(["Doom Blade"]);
+    expect(JSON.parse(localStorage.getItem("localFloats:sheet-1:3")!)).toEqual(["Doom Blade"]);
+  });
+
+  it("is a no-op outside local deck mode", () => {
+    useDraftStore.setState({ board: { ...makeSheetBoard(), isSheetDraft: false } });
+    useLiveStore.setState({ floatedCards: ["Land Tax"], floatedCardsSet: new Set(["Land Tax"]) });
+    useCardStore.setState({ takenCardNamesSet: new Set(["Land Tax"]) });
+
+    useLiveStore.getState().reconcileLocalFloats();
+
+    expect(useLiveStore.getState().floatedCards).toEqual(["Land Tax"]);
+  });
+
+  it("is a no-op while viewing a shared deck", () => {
+    useLiveStore.setState({
+      viewingSharedDeck: true,
+      floatedCards: ["Land Tax"],
+      floatedCardsSet: new Set(["Land Tax"]),
+    });
+    useCardStore.setState({ takenCardNamesSet: new Set(["Land Tax"]) });
+
+    useLiveStore.getState().reconcileLocalFloats();
+
+    expect(useLiveStore.getState().floatedCards).toEqual(["Land Tax"]);
+  });
+
+  it("is a no-op before card data is derived", async () => {
+    await useLiveStore.getState().addFloat("Land Tax");
+
+    useLiveStore.getState().reconcileLocalFloats();
+
+    expect(useLiveStore.getState().floatedCards).toEqual(["Land Tax"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // local deck mode — deck state persistence
 // ---------------------------------------------------------------------------
 describe("local deck mode — deck state persistence", () => {

@@ -7,6 +7,7 @@
 import { useDraftStore } from "../draftStore";
 import type { SetState, GetState, QueueGroupEntry } from "../liveStore";
 import { getLocalDeckMode, loadLocalFloats, saveLocalFloats } from "./localDeck";
+import { useCardStore } from "../cardStore";
 
 // Re-export types that consumers need (avoids importing from liveStore in modules)
 export type { QueueGroupEntry };
@@ -336,4 +337,36 @@ export function makeRemoveFloat(
 ) {
   return (cardName: string): Promise<void> =>
     mutateFloat(set, get, getLiveStore, cardName, "DELETE");
+}
+
+// ---------------------------------------------------------------------------
+// reconcileLocalFloats — drop floats superseded by synced picks (local mode)
+// ---------------------------------------------------------------------------
+
+/**
+ * Local-mode analog of the server's pick-time float cleanup (processPick →
+ * removeFloatedCardByCardId): once a floated card is picked by the viewed seat
+ * it is a real pick (the float entry only kept it dimmed), and once every copy
+ * is taken by other seats it can never be picked. Both cases remove the float;
+ * takenCardNamesSet only contains fully-taken names, so a card with copies
+ * still available keeps its float.
+ */
+export function makeReconcileLocalFloats(set: SetState, get: GetState) {
+  return (): void => {
+    if (get().viewingSharedDeck) return;
+    if (!getLocalDeckMode()) return;
+    const { activeDraft, selectedSeat } = useDraftStore.getState();
+    if (!activeDraft || selectedSeat === null) return;
+    const { seatCardNames, takenCardNamesSet } = useCardStore.getState();
+    if (!seatCardNames && !takenCardNamesSet) return;
+
+    const previous = get().floatedCards;
+    const next = previous.filter(
+      (name) => !seatCardNames?.has(name) && !takenCardNamesSet?.has(name),
+    );
+    if (next.length === previous.length) return;
+
+    set({ floatedCards: next, floatedCardsSet: new Set(next) });
+    saveLocalFloats(activeDraft, selectedSeat, next);
+  };
 }

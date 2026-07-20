@@ -25,6 +25,7 @@ import {
   makeFetchFloatedCards,
   makeAddFloat,
   makeRemoveFloat,
+  makeReconcileLocalFloats,
 } from "./live/queueFloat";
 import {
   makeRecomputePicking,
@@ -108,6 +109,7 @@ export interface LiveStoreState {
   fetchFloatedCards: () => Promise<void>;
   addFloat: (cardName: string) => Promise<void>;
   removeFloat: (cardName: string) => Promise<void>;
+  reconcileLocalFloats: () => void;
 
   // Pick actions
   handlePick: (cardName: string) => Promise<void>;
@@ -205,6 +207,7 @@ export const useLiveStore = create<LiveStoreState>()(
       fetchFloatedCards: makeFetchFloatedCards(boundSet, get),
       addFloat: makeAddFloat(boundSet, get, getLiveStoreRef),
       removeFloat: makeRemoveFloat(boundSet, get, getLiveStoreRef),
+      reconcileLocalFloats: makeReconcileLocalFloats(boundSet, get),
 
       // Pick actions
       handlePick: makeHandlePick(boundSet, get),
