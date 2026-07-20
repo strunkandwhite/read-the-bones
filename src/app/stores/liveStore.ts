@@ -376,10 +376,15 @@ useDraftStore.subscribe(
 const syncDeckWithPicks = makeSyncDeckWithPicks(useLiveStore.getState);
 const debouncedSyncDeckWithPicks = makeDebouncedSyncDeckWithPicks(syncDeckWithPicks);
 
-// Sync deck with picks when card data changes
+// Sync deck with picks when card data changes. In local deck mode a synced
+// pick can supersede a locally-added float (viewed seat picked it, or another
+// seat took the last copy) — reconcile before the deck rebuild.
 useCardStore.subscribe(
   (state) => state.seatCardList,
-  () => debouncedSyncDeckWithPicks(),
+  () => {
+    useLiveStore.getState().reconcileLocalFloats();
+    debouncedSyncDeckWithPicks();
+  },
 );
 
 // Rebuild deck when deck builder is activated

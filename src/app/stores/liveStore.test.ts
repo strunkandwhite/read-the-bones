@@ -1480,6 +1480,52 @@ describe("local deck mode — reconcileLocalFloats", () => {
 
     expect(useLiveStore.getState().floatedCards).toEqual(["Land Tax"]);
   });
+
+  it("upgrades a floated card to a real pick when the viewed seat picks it", async () => {
+    vi.useFakeTimers();
+    useCardStore.setState({ seatCardList: [], scryfallDataMap: new Map() });
+    await useLiveStore.getState().fetchDeckState();
+    useLiveStore.getState().setDeckBuilderActive(true);
+    await useLiveStore.getState().addFloat("Sylvan Library");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(useLiveStore.getState().deckState.zones.deck["mv-0-1"]).toContain("Sylvan Library");
+
+    // A synced pick lands: the viewed seat took the card (cardStore recompute
+    // fires the seatCardList subscription with fresh references).
+    useCardStore.setState({
+      seatCardList: ["Sylvan Library"],
+      seatCardNames: new Set(["Sylvan Library"]),
+      takenCardNamesSet: new Set(["Sylvan Library"]),
+    });
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(useLiveStore.getState().floatedCards).toEqual([]);
+    expect(useLiveStore.getState().deckState.zones.deck["mv-0-1"]).toContain("Sylvan Library");
+    expect(JSON.parse(localStorage.getItem("localFloats:sheet-1:3")!)).toEqual([]);
+    vi.useRealTimers();
+  });
+
+  it("removes a floated card from the deck when another seat takes the last copy", async () => {
+    vi.useFakeTimers();
+    useCardStore.setState({ seatCardList: [], scryfallDataMap: new Map() });
+    await useLiveStore.getState().fetchDeckState();
+    useLiveStore.getState().setDeckBuilderActive(true);
+    await useLiveStore.getState().addFloat("Sylvan Library");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(useLiveStore.getState().deckState.zones.deck["mv-0-1"]).toContain("Sylvan Library");
+
+    useCardStore.setState({
+      seatCardList: [],
+      seatCardNames: new Set(),
+      takenCardNamesSet: new Set(["Sylvan Library"]),
+    });
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(useLiveStore.getState().floatedCards).toEqual([]);
+    expect(useLiveStore.getState().deckState.zones.deck["mv-0-1"] ?? []).not.toContain("Sylvan Library");
+    expect(JSON.parse(localStorage.getItem("localFloats:sheet-1:3")!)).toEqual([]);
+    vi.useRealTimers();
+  });
 });
 
 // ---------------------------------------------------------------------------
