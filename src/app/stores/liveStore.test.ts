@@ -1526,6 +1526,19 @@ describe("local deck mode — reconcileLocalFloats", () => {
     expect(JSON.parse(localStorage.getItem("localFloats:sheet-1:3")!)).toEqual([]);
     vi.useRealTimers();
   });
+
+  it("fetchFloatedCards reconciles floats that were picked while the tab was closed", async () => {
+    localStorage.setItem("localFloats:sheet-1:3", JSON.stringify(["Doom Blade", "Land Tax"]));
+    useCardStore.setState({
+      seatCardNames: new Set(["Doom Blade"]),
+      takenCardNamesSet: new Set(["Doom Blade"]),
+    });
+
+    await useLiveStore.getState().fetchFloatedCards();
+
+    expect(useLiveStore.getState().floatedCards).toEqual(["Land Tax"]);
+    expect(JSON.parse(localStorage.getItem("localFloats:sheet-1:3")!)).toEqual(["Land Tax"]);
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -295,6 +295,9 @@ export function makeFetchFloatedCards(set: SetState, get: GetState) {
       if (floatsChanged) {
         set({ floatedCards: incoming, floatedCardsSet: new Set(incoming) });
       }
+      // Stored floats may have been superseded by picks synced while this
+      // tab was closed — reconcile immediately after loading.
+      get().reconcileLocalFloats();
       return;
     }
 
