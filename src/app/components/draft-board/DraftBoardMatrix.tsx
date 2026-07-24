@@ -33,8 +33,8 @@ export function DraftBoardMatrix({
   pickError = null,
 }: DraftBoardMatrixProps) {
   const matrix = useMemo(
-    () => buildPickMatrix(board.numSeats, board.picksPerPlayer),
-    [board.numSeats, board.picksPerPlayer],
+    () => buildPickMatrix(board.numSeats, board.picksPerPlayer, board.doublePickAfterRound),
+    [board.numSeats, board.picksPerPlayer, board.doublePickAfterRound],
   );
 
   // Build a lookup: pickN -> pick data
@@ -134,7 +134,10 @@ export function DraftBoardMatrix({
           {(() => {
             const rowLabelClassName = "px-1.5 py-0.5 text-center text-zinc-500 text-[10px] whitespace-nowrap border-r border-zinc-700";
             let displayRow = 0;
-            const lastSinglePickIdx = matrix.findLastIndex((r) => !r.isDoublePick);
+            // Boundary row before the double-pick region begins (drafts may also
+            // end with a trailing single round, so search forward, not backward).
+            const firstDoublePickIdx = matrix.findIndex((r) => r.isDoublePick);
+            const lastSinglePickIdx = firstDoublePickIdx === -1 ? -1 : firstDoublePickIdx - 1;
             return matrix.map((row, idx) => {
               const isCurrentRound = row.round === currentRound;
 

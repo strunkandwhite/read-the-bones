@@ -7,6 +7,12 @@ export interface PickSeatResult {
 interface SnakeDraftOpts {
   numSeats: number;
   picksPerPlayer: number;
+  /**
+   * Last single-pick round; double-pick rounds start after it. Sheet drafts
+   * declare this in the sheet ("Double Picks After:") and it is stored on the
+   * draft. When null/undefined (live drafts), the floor(N/4) heuristic applies.
+   */
+  doublePickAfterRound?: number | null;
 }
 
 // The last quarter of rounds use double-picks (each player picks twice per round).
@@ -17,11 +23,16 @@ export function derivePickSeat(
   pickNumber: number,
   opts: SnakeDraftOpts,
 ): PickSeatResult {
-  const { numSeats, picksPerPlayer } = opts;
-  const doublePickRounds = Math.floor(picksPerPlayer / DOUBLE_PICK_FINAL_FRACTION);
-  const singlePickRounds = picksPerPlayer - 2 * doublePickRounds;
+  const { numSeats, picksPerPlayer, doublePickAfterRound } = opts;
+  const singlePickRounds = doublePickAfterRound ??
+    picksPerPlayer - 2 * Math.floor(picksPerPlayer / DOUBLE_PICK_FINAL_FRACTION);
+  const doublePickRounds = Math.floor((picksPerPlayer - singlePickRounds) / 2);
+  // When the double region doesn't divide evenly (e.g. 45 picks with doubles
+  // after 20), the draft ends with one final single-pick round.
+  const trailingSingleRounds = picksPerPlayer - singlePickRounds - 2 * doublePickRounds;
   const singlePickTotal = singlePickRounds * numSeats;
   const doublePickTotal = doublePickRounds * numSeats * 2;
+  const trailingSingleTotal = trailingSingleRounds * numSeats;
   const picksPerDoubleRound = numSeats * 2;
 
   let round: number;
@@ -41,6 +52,11 @@ export function derivePickSeat(
     round = singlePickRounds + 1 + doubleRound;
     posInRound = Math.floor(posInDoubleRound / 2);
     isDoublePick = true;
+  } else if (pickNumber <= singlePickTotal + doublePickTotal + trailingSingleTotal) {
+    // Trailing single-pick round after the double region
+    round = singlePickRounds + doublePickRounds + 1;
+    posInRound = (pickNumber - singlePickTotal - doublePickTotal - 1) % numSeats;
+    isDoublePick = false;
   } else {
     throw new Error(`Pick number ${pickNumber} exceeds total picks`);
   }
@@ -66,11 +82,12 @@ export function getNextPick(
   currentPickCount: number,
   numSeats: number,
   picksPerPlayer: number,
+  doublePickAfterRound?: number | null,
 ): { pickNumber: number; seat: number } | null {
   const total = getTotalPicks(numSeats, picksPerPlayer);
   if (currentPickCount >= total) return null;
   const pickNumber = currentPickCount + 1;
-  const { seat } = derivePickSeat(pickNumber, { numSeats, picksPerPlayer });
+  const { seat } = derivePickSeat(pickNumber, { numSeats, picksPerPlayer, doublePickAfterRound });
   return { pickNumber, seat };
 }
 
@@ -81,12 +98,13 @@ export function getNextPick(
 export function buildPickMatrix(
   numSeats: number,
   picksPerPlayer: number,
+  doublePickAfterRound?: number | null,
 ): { round: number; isForward: boolean; isDoublePick: boolean; seats: number[] }[] {
   const total = getTotalPicks(numSeats, picksPerPlayer);
   const rounds: Map<number, { isForward: boolean; isDoublePick: boolean; seats: number[] }> = new Map();
 
   for (let p = 1; p <= total; p++) {
-    const { seat, round, isDoublePick } = derivePickSeat(p, { numSeats, picksPerPlayer });
+    const { seat, round, isDoublePick } = derivePickSeat(p, { numSeats, picksPerPlayer, doublePickAfterRound });
     if (!rounds.has(round)) {
       rounds.set(round, {
         isForward: round % 2 === 1,

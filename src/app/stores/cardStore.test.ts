@@ -374,6 +374,7 @@ describe("cardStore — fetchCardData", () => {
       picks: [{ pickN: 1, seat: 1, cardName: "Lightning Bolt", oracleId: "oid", colorIdentity: ["R"], manaCost: "{R}" }],
       numSeats: 10,
       picksPerPlayer: 45,
+      doublePickAfterRound: null,
       phase: "drafting",
       seatNames: {},
       bannedCards: [],

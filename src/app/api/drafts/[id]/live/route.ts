@@ -88,7 +88,7 @@ export const GET = withApiErrors(
     ]);
 
     const next = picksPerPlayer
-      ? getNextPick(currentPickN, numSeats, picksPerPlayer)
+      ? getNextPick(currentPickN, numSeats, picksPerPlayer, meta.doublePickAfterRound)
       : null;
     const totalMatches = (numSeats * (numSeats - 1)) / 2;
 
@@ -108,6 +108,7 @@ export const GET = withApiErrors(
       isSheetDraft: meta.sheetId !== null,
       numSeats,
       picksPerPlayer,
+      doublePickAfterRound: meta.doublePickAfterRound,
       latestPickN: currentPickN,
       nextSeat: next?.seat ?? null,
       recentPicks,

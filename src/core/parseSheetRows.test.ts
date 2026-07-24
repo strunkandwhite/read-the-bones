@@ -651,6 +651,55 @@ describe("parsePickRows double-pick mode", () => {
   });
 });
 
+describe("parsePickRows double-pick mode with trailing single round", () => {
+  // 3 drafters, double picks after round 2, 5 rows total: rows 3-4 form one
+  // double round, and row 5 is a final single round (2 + 2×1 + 1 = 5 picks each).
+  const trailingRows = [
+    ["", "", "Rotisserie Draft", "", "", "", ""],
+    ["", "", "", "", "", ""],
+    ["", "", "Alice", "Bob", "Carol", "↩", "", "Color1", "Color2", "Color3"],
+    [
+      "1",
+      "→",
+      "Card_A1",
+      "Card_B1",
+      "Card_C1",
+      "↩",
+      "",
+      "W",
+      "U",
+      "B",
+      "",
+      "Double Picks After:",
+      "2",
+    ],
+    ["2", "↪", "Card_A2", "Card_B2", "Card_C2", "↩", "", "W", "U", "B"],
+    ["3", "", "Card_A3", "Card_B3", "Card_C3", "↩", "", "W", "U", "B"],
+    ["4", "", "Card_A4", "Card_B4", "Card_C4", "↩", "", "W", "U", "B"],
+    ["5", "", "Card_A5", "Card_B5", "Card_C5", "↩", "", "W", "U", "B"],
+  ];
+
+  it("numbers the trailing round contiguously with single-pick stride", () => {
+    const { picks } = parsePickRows(trailingRows, "test");
+
+    // Double round (rows 3-4, forward): Alice=7,8 Bob=9,10 Carol=11,12
+    expect(picks.find((p) => p.cardName === "Card_A3")?.pickPosition).toBe(7);
+    expect(picks.find((p) => p.cardName === "Card_A4")?.pickPosition).toBe(8);
+    expect(picks.find((p) => p.cardName === "Card_C4")?.pickPosition).toBe(12);
+
+    // Trailing single round (row 5, reverse): Carol=13, Bob=14, Alice=15
+    expect(picks.find((p) => p.cardName === "Card_C5")?.pickPosition).toBe(13);
+    expect(picks.find((p) => p.cardName === "Card_B5")?.pickPosition).toBe(14);
+    expect(picks.find((p) => p.cardName === "Card_A5")?.pickPosition).toBe(15);
+  });
+
+  it("produces contiguous positions across all regions", () => {
+    const { picks } = parsePickRows(trailingRows, "test");
+    const positions = picks.map((p) => p.pickPosition).sort((a, b) => a - b);
+    expect(positions).toEqual(Array.from({ length: 15 }, (_, i) => i + 1));
+  });
+});
+
 describe("parsePickRows double-pick mode with 10 drafters", () => {
   function buildTenPlayerRows(): string[][] {
     const drafterNames = Array.from({ length: 10 }, (_, i) => `P${i}`);

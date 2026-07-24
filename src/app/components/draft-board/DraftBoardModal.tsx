@@ -77,7 +77,7 @@ export function DraftBoardModal({
 
   const nextPick =
     board
-      ? getNextPick(board.picks.length, board.numSeats, board.picksPerPlayer)
+      ? getNextPick(board.picks.length, board.numSeats, board.picksPerPlayer, board.doublePickAfterRound)
       : null;
 
   return (

@@ -230,6 +230,7 @@ describe("draftStore — patchSeatName", () => {
         picks: [],
         numSeats: 8,
         picksPerPlayer: 45,
+        doublePickAfterRound: null,
         phase: "drafting",
         seatNames: { "1": "Alice", "2": "Bob" },
         bannedCards: [],

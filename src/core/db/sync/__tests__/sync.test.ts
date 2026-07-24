@@ -916,4 +916,66 @@ describe("syncDraft", () => {
       expect(hashUpdateCalls).toHaveLength(0);
     });
   });
+
+  describe("double-pick boundary persistence", () => {
+    function findDoublePickUpdate(client: ReturnType<typeof mockClient>) {
+      return client.execute.mock.calls.find((c: any[]) =>
+        (c[0].sql as string).includes("double_pick_after_round"),
+      );
+    }
+
+    it("writes the sheet's Double Picks After value even when picks are skipped", async () => {
+      const rawData: DraftSheetRawData = {
+        pool: null,
+        picks: buildPickRows(["Alice", "Bob"], [
+          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
+          ["", "", "", "", "", "", "", "Double Picks After:", "25"],
+        ]),
+        matches: null,
+      };
+
+      // Return the current picks hash so the picks domain is skipped
+      const { hashPicks } = await import("../domains");
+      const { parsePickRows } = await import("../../../parseSheetRows");
+      const parsed = parsePickRows(rawData.picks!, "test-draft");
+      const picksHash = hashPicks(parsed.picks.filter((p) => p.wasPicked));
+
+      const client = mockClient((params) => {
+        if (params.sql.includes("pool_hash")) {
+          return { rows: [{ pool_hash: null, picks_hash: picksHash, matches_hash: null }] };
+        }
+        return { rows: [] };
+      });
+
+      const result = await syncDraft(
+        client as any,
+        "test-draft",
+        rawData,
+        populatedCache([["Lightning Bolt", 1], ["Counterspell", 2]]),
+        emptyScryfallCache,
+        emptyOptOuts,
+      );
+
+      expect(result.picksAction).toBe("skip");
+      const update = findDoublePickUpdate(client);
+      expect(update).toBeDefined();
+      expect(update![0].args).toEqual([25, "test-draft"]);
+    });
+
+    it("does not touch double_pick_after_round when the Draft tab is missing", async () => {
+      const rawData: DraftSheetRawData = { pool: null, picks: null, matches: null };
+      const client = mockClient();
+
+      await syncDraft(
+        client as any,
+        "test-draft",
+        rawData,
+        populatedCache([]),
+        emptyScryfallCache,
+        emptyOptOuts,
+      );
+
+      expect(findDoublePickUpdate(client)).toBeUndefined();
+    });
+  });
 });

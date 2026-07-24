@@ -42,6 +42,11 @@ export interface BoardData {
   }[];
   numSeats: number;
   picksPerPlayer: number;
+  /**
+   * Last single-pick round ("Double Picks After:" from the sheet). Null for
+   * live drafts, which derive the double-pick region heuristically.
+   */
+  doublePickAfterRound: number | null;
   phase: string;
   seatNames: Record<string, string>;
   bannedCards: string[];
@@ -352,6 +357,7 @@ function applyPollResults(
       picks: liveData.picks as BoardData["picks"],
       numSeats: liveData.numSeats as number,
       picksPerPlayer: liveData.picksPerPlayer as number,
+      doublePickAfterRound: (liveData.doublePickAfterRound as number | null) ?? null,
       phase: liveData.phase as string,
       seatNames: liveData.seatNames as Record<string, string>,
       bannedCards: liveData.bannedCards as string[],
@@ -400,6 +406,7 @@ function applyPollResults(
       board.phase === prev.board.phase &&
       board.numSeats === prev.board.numSeats &&
       board.picksPerPlayer === prev.board.picksPerPlayer &&
+      board.doublePickAfterRound === prev.board.doublePickAfterRound &&
       JSON.stringify(board.picks) === JSON.stringify(prev.board.picks) &&
       JSON.stringify(board.seatNames) === JSON.stringify(prev.board.seatNames) &&
       JSON.stringify(board.bannedCards) === JSON.stringify(prev.board.bannedCards) &&

@@ -222,7 +222,7 @@ describe("getCardStatus — local deck mode", () => {
       activeDraft: "sheet-1",
       selectedSeat: 3,
       board: {
-        picks: [], numSeats: 10, picksPerPlayer: 45, phase: "complete",
+        picks: [], numSeats: 10, picksPerPlayer: 45, doublePickAfterRound: null, phase: "complete",
         seatNames: {}, bannedCards: [], isSheetDraft: true,
       },
     });
@@ -239,7 +239,7 @@ describe("getCardStatus — local deck mode", () => {
       activeDraft: "live-1",
       selectedSeat: 3,
       board: {
-        picks: [], numSeats: 10, picksPerPlayer: 45, phase: "drafting",
+        picks: [], numSeats: 10, picksPerPlayer: 45, doublePickAfterRound: null, phase: "drafting",
         seatNames: {}, bannedCards: [], isSheetDraft: false,
       },
     });

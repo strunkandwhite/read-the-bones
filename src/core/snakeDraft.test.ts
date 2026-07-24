@@ -144,6 +144,87 @@ describe('derivePickSeat', () => {
     });
   });
 
+  describe('explicit doublePickAfterRound (10 seats, 45 picks, doubles after 25)', () => {
+    // Sheet drafts declare "Double Picks After: 25" — 25 single rounds (picks
+    // 1-250), then 10 double rounds (picks 251-450). The floor(N/4) heuristic
+    // would wrongly start doubles after round 23.
+    const opts = { numSeats: 10, picksPerPlayer: 45, doublePickAfterRound: 25 };
+
+    it('picks 231-250 are still single picks (rounds 24-25)', () => {
+      for (let i = 231; i <= 250; i++) {
+        expect(derivePickSeat(i, opts).isDoublePick).toBe(false);
+      }
+      expect(derivePickSeat(240, opts)).toMatchObject({ seat: 1, round: 24 });
+      expect(derivePickSeat(241, opts)).toMatchObject({ seat: 1, round: 25 });
+      expect(derivePickSeat(250, opts)).toMatchObject({ seat: 10, round: 25 });
+    });
+
+    it('pick 251 starts the double region, round 26 reverse: seat 10 picks twice', () => {
+      expect(derivePickSeat(251, opts)).toMatchObject({ seat: 10, round: 26, isDoublePick: true });
+      expect(derivePickSeat(252, opts)).toMatchObject({ seat: 10, round: 26, isDoublePick: true });
+      expect(derivePickSeat(253, opts)).toMatchObject({ seat: 9, round: 26 });
+      expect(derivePickSeat(269, opts)).toMatchObject({ seat: 1, round: 26 });
+      expect(derivePickSeat(270, opts)).toMatchObject({ seat: 1, round: 26 });
+    });
+
+    it('round 27 double region goes forward again', () => {
+      expect(derivePickSeat(271, opts)).toMatchObject({ seat: 1, round: 27, isDoublePick: true });
+      expect(derivePickSeat(290, opts)).toMatchObject({ seat: 10, round: 27 });
+    });
+
+    it('every seat gets exactly 45 picks', () => {
+      const counts = new Map<number, number>();
+      for (let i = 1; i <= 450; i++) {
+        const { seat } = derivePickSeat(i, opts);
+        counts.set(seat, (counts.get(seat) ?? 0) + 1);
+      }
+      for (let s = 1; s <= 10; s++) {
+        expect(counts.get(s)).toBe(45);
+      }
+    });
+
+    it('pick 451 throws (exceeds total)', () => {
+      expect(() => derivePickSeat(451, opts)).toThrow();
+    });
+
+    it('null override falls back to the floor(N/4) heuristic', () => {
+      const nullOpts = { numSeats: 10, picksPerPlayer: 45, doublePickAfterRound: null };
+      expect(derivePickSeat(231, nullOpts).isDoublePick).toBe(true);
+    });
+  });
+
+  describe('trailing single round (10 seats, 45 picks, doubles after 20)', () => {
+    // 20 single rounds (picks 1-200), 12 double rounds (picks 201-440), then a
+    // final single round (picks 441-450): 20 + 24 + 1 = 45 picks per player.
+    const opts = { numSeats: 10, picksPerPlayer: 45, doublePickAfterRound: 20 };
+
+    it('picks 201-440 are double picks, 441-450 are single again', () => {
+      expect(derivePickSeat(200, opts).isDoublePick).toBe(false);
+      expect(derivePickSeat(201, opts).isDoublePick).toBe(true);
+      expect(derivePickSeat(440, opts).isDoublePick).toBe(true);
+      expect(derivePickSeat(441, opts).isDoublePick).toBe(false);
+      expect(derivePickSeat(450, opts).isDoublePick).toBe(false);
+    });
+
+    it('trailing round continues the snake: round 33 forward, seats 1..10', () => {
+      // Rounds: 20 single + 12 double + 1 trailing = 33. Round 33 is odd → forward.
+      expect(derivePickSeat(441, opts)).toMatchObject({ seat: 1, round: 33 });
+      expect(derivePickSeat(450, opts)).toMatchObject({ seat: 10, round: 33 });
+    });
+
+    it('every seat gets exactly 45 picks and pick 451 throws', () => {
+      const counts = new Map<number, number>();
+      for (let i = 1; i <= 450; i++) {
+        const { seat } = derivePickSeat(i, opts);
+        counts.set(seat, (counts.get(seat) ?? 0) + 1);
+      }
+      for (let s = 1; s <= 10; s++) {
+        expect(counts.get(s)).toBe(45);
+      }
+      expect(() => derivePickSeat(451, opts)).toThrow();
+    });
+  });
+
   describe('2 seats, 10 picks each (no trailing single)', () => {
     const opts = { numSeats: 2, picksPerPlayer: 10 };
 
@@ -226,6 +307,17 @@ describe('getNextPick', () => {
     expect(result).not.toBeNull();
     expect(result!.pickNumber).toBe(total);
   });
+
+  it('honors an explicit doublePickAfterRound', () => {
+    // 10 seats, 45 picks, doubles after round 25: pick 251 is seat 10's
+    // first double pick (round 26 reverse). The heuristic would say seat 10
+    // picked doubles long before this.
+    const result = getNextPick(250, 10, 45, 25);
+    expect(result).toEqual({ pickNumber: 251, seat: 10 });
+    // Pick 232 under the heuristic is a double pick for seat 10; with the
+    // override it's a single pick in reverse round 24 → seat 9.
+    expect(getNextPick(231, 10, 45, 25)).toEqual({ pickNumber: 232, seat: 9 });
+  });
 });
 
 describe('buildPickMatrix', () => {
@@ -271,5 +363,31 @@ describe('buildPickMatrix', () => {
     for (let i = 1; i < matrix.length; i++) {
       expect(matrix[i].round).toBeGreaterThan(matrix[i - 1].round);
     }
+  });
+
+  it('renders a trailing single round after the double region', () => {
+    const matrix = buildPickMatrix(10, 45, 20);
+    // 20 single + 12 double + 1 trailing single = 33 rounds
+    expect(matrix).toHaveLength(33);
+    expect(matrix[19].isDoublePick).toBe(false);
+    expect(matrix[20].isDoublePick).toBe(true);
+    expect(matrix[31].isDoublePick).toBe(true);
+    expect(matrix[32].isDoublePick).toBe(false);
+    expect(matrix[32].seats).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    const totalPicks = matrix.reduce((sum, round) => sum + round.seats.length, 0);
+    expect(totalPicks).toBe(450);
+  });
+
+  it('honors an explicit doublePickAfterRound', () => {
+    const matrix = buildPickMatrix(10, 45, 25);
+    // 25 single rounds + 10 double rounds = 35 rounds
+    expect(matrix).toHaveLength(35);
+    expect(matrix[24].isDoublePick).toBe(false);
+    expect(matrix[25].isDoublePick).toBe(true);
+    // Round 26 is even → reverse; each seat appears twice
+    expect(matrix[25].isForward).toBe(false);
+    expect(matrix[25].seats).toEqual([10, 10, 9, 9, 8, 8, 7, 7, 6, 6, 5, 5, 4, 4, 3, 3, 2, 2, 1, 1]);
+    const totalPicks = matrix.reduce((sum, round) => sum + round.seats.length, 0);
+    expect(totalPicks).toBe(450);
   });
 });

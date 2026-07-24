@@ -116,6 +116,11 @@ export interface DraftMeta {
   picksPerPlayer: number;
   /** Google Sheet id for sheet-synced drafts; null for live (in-app) drafts. */
   sheetId: string | null;
+  /**
+   * Last single-pick round ("Double Picks After:" from the sheet). Null for
+   * live drafts, which derive the double-pick region heuristically.
+   */
+  doublePickAfterRound: number | null;
   /** Lowercase Set for fast membership testing (e.g. banned card checks). */
   bannedCards: Set<string>;
   /** Original-cased names for display in API responses. */
@@ -131,7 +136,7 @@ export async function getDraftMeta(
   draftId: string,
 ): Promise<DraftMeta | null> {
   const result = await client.execute({
-    sql: "SELECT phase, num_seats, picks_per_player, banned_cards, sheet_id FROM drafts WHERE draft_id = ?",
+    sql: "SELECT phase, num_seats, picks_per_player, banned_cards, sheet_id, double_pick_after_round FROM drafts WHERE draft_id = ?",
     args: [draftId],
   });
   if (result.rows.length === 0) return null;
@@ -142,6 +147,7 @@ export async function getDraftMeta(
     numSeats: row.num_seats as number,
     picksPerPlayer: row.picks_per_player as number,
     sheetId: (row.sheet_id as string | null) ?? null,
+    doublePickAfterRound: (row.double_pick_after_round as number | null) ?? null,
     bannedCards: parseBannedCards(bannedCardsRaw),
     bannedCardsDisplay: parseBannedCardNames(bannedCardsRaw),
   };

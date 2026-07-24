@@ -184,21 +184,23 @@ export async function syncDraft(
       await batchInsertPicks(client, pickInserts);
       result.picksCount = pickInserts.length;
 
-      // Update num_seats and picks_per_player
-      if (parsedPicks.numDrafters > 0) {
-        await client.execute({
-          sql: "UPDATE drafts SET num_seats = ? WHERE draft_id = ?",
-          args: [parsedPicks.numDrafters, draftId],
-        });
-      }
-      if (parsedPicks.picksPerPlayer > 0) {
-        await client.execute({
-          sql: "UPDATE drafts SET picks_per_player = ? WHERE draft_id = ? AND in_app = 0",
-          args: [parsedPicks.picksPerPlayer, draftId],
-        });
-      }
-
       if (options.verbose) logIndent(`Picks: replaced (${pickInserts.length} picks)`);
+    }
+
+    // Update draft-shape metadata derived from the parsed Draft tab. Written
+    // outside the picks-hash gate so a re-sync corrects stale values even when
+    // the picks themselves are unchanged.
+    if (parsedPicks.numDrafters > 0) {
+      await client.execute({
+        sql: "UPDATE drafts SET num_seats = ? WHERE draft_id = ?",
+        args: [parsedPicks.numDrafters, draftId],
+      });
+    }
+    if (parsedPicks.picksPerPlayer > 0) {
+      await client.execute({
+        sql: "UPDATE drafts SET picks_per_player = ? WHERE draft_id = ? AND in_app = 0",
+        args: [parsedPicks.picksPerPlayer, draftId],
+      });
     }
 
     // --- Matches domain ---
@@ -230,6 +232,17 @@ export async function syncDraft(
     // Handle opt-outs
     if (parsedPicks.drafterNames.length > 0) {
       await insertOptOuts(client, draftId, parsedPicks.drafterNames, optOutNames);
+    }
+
+    // Record the sheet's declared double-pick boundary. Written outside the
+    // picks-hash gate so a re-sync backfills drafts whose picks are unchanged.
+    // Only when the Draft tab was actually parsed — never clobber a stored
+    // value with the empty-parse default.
+    if (rawData.picks) {
+      await client.execute({
+        sql: "UPDATE drafts SET double_pick_after_round = ? WHERE draft_id = ?",
+        args: [parsedPicks.doublePickStartsAfterRound, draftId],
+      });
     }
 
     // Detect and update completion.

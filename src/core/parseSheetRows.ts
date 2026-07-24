@@ -176,7 +176,15 @@ export function parsePickRows(
   const copyNumberTracker = new Map<string, number>();
 
   const picks: CardPick[] = [];
+
+  // Pre-scan the highest round number so the main loop can recognize a
+  // trailing single round: when the row count past the double-pick threshold
+  // is odd, the last row is a final single round, not half of a pair.
   let maxRound = 0;
+  for (let rowIndex = 3; rowIndex < rows.length; rowIndex++) {
+    const n = parseInt(rows[rowIndex]?.[0]?.trim(), 10);
+    if (!isNaN(n) && n > maxRound) maxRound = n;
+  }
 
   // Process pick rows starting from row 4 (index 3)
   for (let rowIndex = 3; rowIndex < rows.length; rowIndex++) {
@@ -187,7 +195,6 @@ export function parsePickRows(
     const roundNumberStr = row[0]?.trim();
     const roundNumber = parseInt(roundNumberStr, 10);
     if (isNaN(roundNumber)) continue;
-    if (roundNumber > maxRound) maxRound = roundNumber;
 
     // Find where color data starts by looking for single-letter color codes at the end
     const colorPattern = /^[WUBRGC]+$/;
@@ -264,8 +271,15 @@ export function parsePickRows(
         const drafterOrderIndex = isReverse
           ? numDrafters - 1 - drafterIndex
           : drafterIndex;
-        pickPosition =
-          basePosition + drafterOrderIndex * 2 + isSecondPickInPair;
+        // When an odd number of rows follows the threshold, the last row is a
+        // trailing single round (one pick per drafter, contiguous numbering),
+        // not the first half of a double pair.
+        const isTrailingSingleRound =
+          roundNumber === maxRound &&
+          (maxRound - doublePickStartsAfterRound) % 2 === 1;
+        pickPosition = isTrailingSingleRound
+          ? basePosition + drafterOrderIndex
+          : basePosition + drafterOrderIndex * 2 + isSecondPickInPair;
       }
 
       picks.push({

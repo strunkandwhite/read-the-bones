@@ -15,6 +15,7 @@ function makeBoard(overrides: Partial<BoardData> = {}): BoardData {
     picks: [],
     numSeats: 10,
     picksPerPlayer: 45,
+    doublePickAfterRound: null,
     phase: "drafting",
     seatNames: {},
     bannedCards: [],

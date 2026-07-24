@@ -201,3 +201,7 @@ CREATE TABLE IF NOT EXISTS floated_cards (
 
 -- queue_json on seat_tokens: JSON array of queue group entries
 ALTER TABLE seat_tokens ADD COLUMN queue_json TEXT;
+
+-- Last single-pick round for sheet drafts ("Double Picks After:" in the sheet).
+-- NULL for live drafts, which derive the double-pick region heuristically.
+ALTER TABLE drafts ADD COLUMN double_pick_after_round INTEGER;
