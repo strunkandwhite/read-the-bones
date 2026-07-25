@@ -44,6 +44,8 @@ pnpm typecheck   # TypeScript type checking (tsc --noEmit)
 pnpm lint        # ESLint (zero warnings allowed)
 pnpm knip        # Detect unused files, exports, and dependencies
 pnpm precommit   # Run all checks: typecheck → lint → knip → tests → e2e
+                 # (a husky pre-push hook enforces this on every push —
+                 #  run it yourself before pushing to catch failures early)
 
 # Database commands
 pnpm db:migrate  # Run database migrations (creates tables in Turso)
