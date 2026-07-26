@@ -9,7 +9,7 @@
 //                          Must be used when the pool changes or a full reimport
 //                          is needed (e.g. after a divergence warning).
 //
-//   syncActiveDraft      — Incremental cron path (append picks + hash-compare
+//   syncActiveDraft      — Incremental cron path (insert missing picks + hash-compare
 //   (syncActiveDraft.ts)   matches only, no pool/cube/opt-out rebuild).
 //                          Used by: GET /api/sync (Vercel cron, every 10 min).
 //

@@ -3,7 +3,7 @@
  *
  * syncActiveDraft handles ONE active draft per invocation:
  *   1. Fetch sheet tabs from Google Sheets
- *   2. Parse picks and run incremental ingestion (append-only, no pool rebuild)
+ *   2. Parse picks and run incremental ingestion (inserts missing picks, no pool rebuild)
  *   3. Sync matches via hash-compare → delete + replace if changed
  *
  * This is the INCREMENTAL path. It intentionally omits pool sync, cube snapshot

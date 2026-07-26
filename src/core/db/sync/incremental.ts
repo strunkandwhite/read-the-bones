@@ -5,7 +5,7 @@
  * The CLI path (scripts/sync.ts → syncAll → syncDraft) does full-domain hash-replace
  * and does NOT go through this module — it owns the complete pool/picks/matches pipeline.
  *
- * The distinction exists because incremental ingestion only needs to append new pick
+ * The distinction exists because incremental ingestion only needs to insert missing pick
  * events, whereas the CLI needs to rebuild pool, cube snapshots, and opt-outs from scratch.
  */
 
@@ -18,14 +18,18 @@ import { sleep } from "../../utils";
 import { placeholders } from "../queries/helpers";
 
 /**
- * Given all picks parsed from CSV and the current max pick_n in the database,
- * return only the new picks that need to be inserted.
+ * Given all picks parsed from CSV and the set of pick positions already in the
+ * database, return only the new picks that need to be inserted.
+ *
+ * Compares full position sets rather than a high-water mark: a drafter who
+ * back-fills a skipped pick in the sheet after later picks have synced leaves
+ * a gap below the max, and those picks must still be inserted.
  */
 export function detectNewPicks(
   allPicks: CardPick[],
-  dbMaxPickN: number,
+  dbPositions: ReadonlySet<number>,
 ): CardPick[] {
-  return allPicks.filter((pick) => pick.pickPosition > dbMaxPickN);
+  return allPicks.filter((pick) => !dbPositions.has(pick.pickPosition));
 }
 
 /**
@@ -42,18 +46,18 @@ export function detectDivergence(
 }
 
 /**
- * Get the current max pick_n for a draft from the database.
- * Returns 0 if no picks exist.
+ * Get all stored pick positions for a draft from the database.
+ * Returns an empty set if no picks exist.
  */
-export async function getDbMaxPickN(
+export async function getDbPickPositions(
   client: Client,
   draftId: string,
-): Promise<number> {
+): Promise<Set<number>> {
   const result = await client.execute({
-    sql: "SELECT MAX(pick_n) as max_pick FROM pick_events WHERE draft_id = ?",
+    sql: "SELECT pick_n FROM pick_events WHERE draft_id = ?",
     args: [draftId],
   });
-  return (result.rows[0]?.max_pick as number) ?? 0;
+  return new Set(result.rows.map((row) => row.pick_n as number));
 }
 
 /**
@@ -242,7 +246,8 @@ export async function incrementalIngest(
   }
 
   const csvMaxPick = Math.max(...picks.map((p) => p.pickPosition));
-  const dbMaxPick = await getDbMaxPickN(client, draftId);
+  const dbPositions = await getDbPickPositions(client, draftId);
+  const dbMaxPick = dbPositions.size > 0 ? Math.max(...dbPositions) : 0;
 
   // Check for divergence (picks removed or renumbered)
   if (detectDivergence(csvMaxPick, dbMaxPick)) {
@@ -253,7 +258,7 @@ export async function incrementalIngest(
   }
 
   // Find and insert new picks
-  const newPicks = detectNewPicks(picks, dbMaxPick);
+  const newPicks = detectNewPicks(picks, dbPositions);
   if (newPicks.length === 0) {
     return { status: "no_change", picksInserted: 0 };
   }

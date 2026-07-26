@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   detectNewPicks,
   detectDivergence,
-  getDbMaxPickN,
+  getDbPickPositions,
   resolveCardNameToId,
   insertNewPicks,
   markDraftComplete,
@@ -53,27 +53,40 @@ function pick(name: string, position: number, seat: number): CardPick {
 }
 
 describe("detectNewPicks", () => {
-  it("returns only picks with pickPosition greater than currentMax", () => {
+  it("returns only picks whose positions are not already in the database", () => {
     const allPicks: CardPick[] = [
       pick("Lightning Bolt", 1, 0),
       pick("Counterspell", 2, 1),
       pick("Swords to Plowshares", 3, 0),
     ];
-    const result = detectNewPicks(allPicks, 1);
+    const result = detectNewPicks(allPicks, new Set([1]));
     expect(result).toHaveLength(2);
     expect(result[0].cardName).toBe("Counterspell");
     expect(result[1].cardName).toBe("Swords to Plowshares");
   });
 
-  it("returns all picks when currentMax is 0", () => {
+  it("includes back-filled picks in gaps below the database max", () => {
+    const allPicks: CardPick[] = [
+      pick("Lightning Bolt", 1, 0),
+      pick("Counterspell", 2, 1),
+      pick("Swords to Plowshares", 3, 0),
+      pick("Path to Exile", 4, 1),
+    ];
+    const result = detectNewPicks(allPicks, new Set([1, 2, 4]));
+    expect(result).toHaveLength(1);
+    expect(result[0].cardName).toBe("Swords to Plowshares");
+    expect(result[0].pickPosition).toBe(3);
+  });
+
+  it("returns all picks when the database has none", () => {
     const allPicks: CardPick[] = [pick("Lightning Bolt", 1, 0)];
-    const result = detectNewPicks(allPicks, 0);
+    const result = detectNewPicks(allPicks, new Set());
     expect(result).toHaveLength(1);
   });
 
-  it("returns empty array when no new picks", () => {
+  it("returns empty array when all positions are present", () => {
     const allPicks: CardPick[] = [pick("Lightning Bolt", 1, 0)];
-    const result = detectNewPicks(allPicks, 5);
+    const result = detectNewPicks(allPicks, new Set([1, 2, 3, 4, 5]));
     expect(result).toHaveLength(0);
   });
 });
@@ -92,19 +105,25 @@ describe("detectDivergence", () => {
   });
 });
 
-describe("getDbMaxPickN", () => {
-  it("returns 0 when no picks exist", async () => {
+describe("getDbPickPositions", () => {
+  it("returns empty set when no picks exist", async () => {
     const client = {
-      execute: vi.fn().mockResolvedValue({ rows: [{ max_pick: null }] }),
+      execute: vi.fn().mockResolvedValue({ rows: [] }),
     };
-    expect(await getDbMaxPickN(client as any, "draft-1")).toBe(0);
+    expect(await getDbPickPositions(client as any, "draft-1")).toEqual(
+      new Set(),
+    );
   });
 
-  it("returns max pick number", async () => {
+  it("returns the set of stored pick positions", async () => {
     const client = {
-      execute: vi.fn().mockResolvedValue({ rows: [{ max_pick: 42 }] }),
+      execute: vi.fn().mockResolvedValue({
+        rows: [{ pick_n: 1 }, { pick_n: 2 }, { pick_n: 4 }],
+      }),
     };
-    expect(await getDbMaxPickN(client as any, "draft-1")).toBe(42);
+    expect(await getDbPickPositions(client as any, "draft-1")).toEqual(
+      new Set([1, 2, 4]),
+    );
   });
 });
 
@@ -260,8 +279,10 @@ describe("incrementalIngest", () => {
   });
 
   it("returns diverged when csvMaxPick < dbMaxPick", async () => {
-    // getDbMaxPickN returns 10
-    client.execute.mockResolvedValueOnce({ rows: [{ max_pick: 10 }] });
+    // getDbPickPositions returns positions up to 10
+    client.execute.mockResolvedValueOnce({
+      rows: [{ pick_n: 9 }, { pick_n: 10 }],
+    });
 
     const result = await incrementalIngest(client as any, "draft-1", {
       picks: [pick("Bolt", 5, 0)], // csvMaxPick = 5 < dbMaxPick = 10
@@ -273,12 +294,14 @@ describe("incrementalIngest", () => {
     expect(result).toEqual({ status: "diverged", picksInserted: 0 });
   });
 
-  it("returns no_change when no new picks above dbMaxPick", async () => {
-    // getDbMaxPickN returns 5
-    client.execute.mockResolvedValueOnce({ rows: [{ max_pick: 5 }] });
+  it("returns no_change when all sheet positions are already stored", async () => {
+    // getDbPickPositions returns {3, 5}
+    client.execute.mockResolvedValueOnce({
+      rows: [{ pick_n: 3 }, { pick_n: 5 }],
+    });
 
     const result = await incrementalIngest(client as any, "draft-1", {
-      picks: [pick("Bolt", 3, 0), pick("Counter", 5, 1)], // all <= 5
+      picks: [pick("Bolt", 3, 0), pick("Counter", 5, 1)],
       numDrafters: 2,
       drafterNames: [],
       isComplete: false,
@@ -288,8 +311,10 @@ describe("incrementalIngest", () => {
   });
 
   it("returns updated when new picks are inserted", async () => {
-    // getDbMaxPickN returns 2
-    client.execute.mockResolvedValueOnce({ rows: [{ max_pick: 2 }] });
+    // getDbPickPositions returns {1, 2}
+    client.execute.mockResolvedValueOnce({
+      rows: [{ pick_n: 1 }, { pick_n: 2 }],
+    });
     // insertNewPicks: batch name resolution
     client.execute.mockResolvedValueOnce({
       rows: [{ card_id: 10, name: "Swords to Plowshares" }],
@@ -307,9 +332,40 @@ describe("incrementalIngest", () => {
     expect(result.picksInserted).toBe(1);
   });
 
+  it("inserts back-filled picks in gaps below the database max", async () => {
+    // getDbPickPositions returns {1, 2, 4} — pick 3 was back-filled in the
+    // sheet after pick 4 had already synced
+    client.execute.mockResolvedValueOnce({
+      rows: [{ pick_n: 1 }, { pick_n: 2 }, { pick_n: 4 }],
+    });
+    // insertNewPicks: batch name resolution
+    client.execute.mockResolvedValueOnce({
+      rows: [{ card_id: 30, name: "Swords to Plowshares" }],
+    });
+    client.batch.mockResolvedValueOnce(undefined);
+
+    const result = await incrementalIngest(client as any, "draft-1", {
+      picks: [
+        pick("Bolt", 1, 0),
+        pick("Counter", 2, 1),
+        pick("Swords to Plowshares", 3, 0),
+        pick("Path", 4, 1),
+      ],
+      numDrafters: 2,
+      drafterNames: [],
+      isComplete: false,
+      doublePickStartsAfterRound: null, picksPerPlayer: 0,
+    });
+    expect(result.status).toBe("updated");
+    expect(result.picksInserted).toBe(1);
+    const batchArgs = client.batch.mock.calls[0][0];
+    expect(batchArgs).toHaveLength(1);
+    expect(batchArgs[0].args).toEqual(["draft-1", 3, 1, 30]);
+  });
+
   it("returns completed and marks draft complete when isComplete is true", async () => {
-    // getDbMaxPickN returns 0
-    client.execute.mockResolvedValueOnce({ rows: [{ max_pick: 0 }] });
+    // getDbPickPositions returns empty set
+    client.execute.mockResolvedValueOnce({ rows: [] });
     // insertNewPicks: batch name resolution
     client.execute.mockResolvedValueOnce({
       rows: [{ card_id: 10, name: "Lightning Bolt" }],
