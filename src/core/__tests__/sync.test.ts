@@ -21,6 +21,7 @@ import {
   updateLastSyncedAt,
   getSyncStatus,
   getActiveDrafts,
+  completeAgedPlayingDrafts,
 } from "../db/sync/lock";
 import type { CardPick } from "../types";
 
@@ -624,27 +625,31 @@ describe("getSyncStatus", () => {
 });
 
 describe("getActiveDrafts", () => {
-  it("returns mapped draft rows", async () => {
-    const client = createMockClient();
-    client.execute.mockResolvedValueOnce({
-      rows: [
-        { draft_id: "draft-1", sheet_id: "sheet-abc" },
-        { draft_id: "draft-2", sheet_id: "sheet-def" },
-      ],
-    });
-
+  it("selects setup, drafting, and playing sheet drafts", async () => {
+    const client = {
+      execute: vi.fn().mockResolvedValue({
+        rows: [{ draft_id: "d1", sheet_id: "s1" }],
+      }),
+    };
     const result = await getActiveDrafts(client as any);
-    expect(result).toEqual([
-      { draftId: "draft-1", sheetId: "sheet-abc" },
-      { draftId: "draft-2", sheetId: "sheet-def" },
-    ]);
+    expect(result).toEqual([{ draftId: "d1", sheetId: "s1" }]);
+    const sql = client.execute.mock.calls[0][0].sql as string;
+    expect(sql).toContain("'playing'");
+    expect(sql).toContain("sheet_id IS NOT NULL");
   });
+});
 
-  it("returns empty array when no active drafts", async () => {
-    const client = createMockClient();
-    client.execute.mockResolvedValueOnce({ rows: [] });
-
-    const result = await getActiveDrafts(client as any);
-    expect(result).toEqual([]);
+describe("completeAgedPlayingDrafts", () => {
+  it("completes sheet drafts stuck in playing past the age window", async () => {
+    const client = {
+      execute: vi.fn().mockResolvedValue({ rows: [], rowsAffected: 2 }),
+    };
+    const count = await completeAgedPlayingDrafts(client as any);
+    expect(count).toBe(2);
+    const call = client.execute.mock.calls[0][0];
+    expect(call.sql).toContain("SET phase = 'complete'");
+    expect(call.sql).toContain("phase = 'playing'");
+    expect(call.sql).toContain("sheet_id IS NOT NULL");
+    expect(call.args).toEqual(["-60 days"]);
   });
 });

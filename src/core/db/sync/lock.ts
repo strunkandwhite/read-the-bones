@@ -102,20 +102,40 @@ export async function getSyncStatus(client: Client): Promise<{
 }
 
 /**
- * Get active draft IDs (phase in setup/drafting) with their sheet_ids.
- * Used by the cron sync route to determine which drafts to sync.
+ * Get active draft IDs (phase in setup/drafting/playing) with their sheet_ids.
+ * Used by the cron sync route to determine which drafts to sync. 'playing'
+ * drafts stay in the window so late match entry and post-hoc pick edits
+ * keep syncing; completeAgedPlayingDrafts caps how long that lasts.
  */
 export async function getActiveDrafts(
   client: Client,
 ): Promise<Array<{ draftId: string; sheetId: string }>> {
   const result = await client.execute({
-    sql: `SELECT draft_id, sheet_id FROM drafts WHERE phase IN ('setup', 'drafting') AND sheet_id IS NOT NULL`,
+    sql: `SELECT draft_id, sheet_id FROM drafts WHERE phase IN ('setup', 'drafting', 'playing') AND sheet_id IS NOT NULL`,
     args: [],
   });
   return result.rows.map((row) => ({
     draftId: row.draft_id as string,
     sheetId: row.sheet_id as string,
   }));
+}
+
+/** How long a playing sheet draft keeps syncing before it is force-completed. */
+const PLAYING_SYNC_WINDOW_DAYS = 60;
+
+/**
+ * Age backstop for the playing phase: pods that never record their full
+ * round robin would otherwise sync forever. Only sheet drafts — live
+ * (in-app) drafts manage their own lifecycle.
+ */
+export async function completeAgedPlayingDrafts(client: Client): Promise<number> {
+  const result = await client.execute({
+    sql: `UPDATE drafts SET phase = 'complete'
+          WHERE phase = 'playing' AND sheet_id IS NOT NULL
+            AND draft_date < date('now', ?)`,
+    args: [`-${PLAYING_SYNC_WINDOW_DAYS} days`],
+  });
+  return result.rowsAffected;
 }
 
 /**

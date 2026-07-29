@@ -6,6 +6,7 @@ import {
   releaseSyncLock,
   updateLastSyncedAt,
   getActiveDrafts,
+  completeAgedPlayingDrafts,
 } from "@/core/db/sync/lock";
 import { syncActiveDraft } from "@/core/db/sync/syncActiveDraft";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
@@ -13,7 +14,10 @@ import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 async function runSync(): Promise<NextResponse> {
   const client = await getClient();
 
-  // Check for active drafts first (cheap query)
+  // Age backstop first so long-stale playing drafts drop out of this run
+  await completeAgedPlayingDrafts(client);
+
+  // Check for active drafts (cheap query)
   const activeDrafts = await getActiveDrafts(client);
   if (activeDrafts.length === 0) {
     return NextResponse.json({ status: "no_active_drafts" });
@@ -36,12 +40,14 @@ async function runSync(): Promise<NextResponse> {
     }
 
     let totalPicksInserted = 0;
+    let totalPicksUpdated = 0;
     let totalMatchesReplaced = 0;
 
     for (const draft of activeDrafts) {
       try {
         const result = await syncActiveDraft(client, draft, apiKey);
         totalPicksInserted += result.picksInserted;
+        totalPicksUpdated += result.picksUpdated;
         totalMatchesReplaced += result.matchesReplaced;
       } catch (error) {
         console.error(`[sync] Error syncing draft ${draft.draftId}:`, error);
@@ -49,12 +55,13 @@ async function runSync(): Promise<NextResponse> {
       }
     }
 
-    if (totalPicksInserted > 0 || totalMatchesReplaced > 0) {
+    if (totalPicksInserted > 0 || totalPicksUpdated > 0 || totalMatchesReplaced > 0) {
       const lastSyncedAt = await updateLastSyncedAt(client);
       return NextResponse.json({
         status: "completed",
         lastSyncedAt,
         picksInserted: totalPicksInserted,
+        picksUpdated: totalPicksUpdated,
         matchesReplaced: totalMatchesReplaced,
       });
     }
@@ -62,6 +69,7 @@ async function runSync(): Promise<NextResponse> {
     return NextResponse.json({
       status: "no_change",
       picksInserted: 0,
+      picksUpdated: 0,
       matchesReplaced: 0,
     });
   } finally {

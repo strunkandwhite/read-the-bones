@@ -13,6 +13,7 @@ vi.mock("@/core/db/sync/lock", () => ({
   releaseSyncLock: vi.fn().mockResolvedValue(undefined),
   updateLastSyncedAt: vi.fn().mockResolvedValue("1234567890"),
   getActiveDrafts: vi.fn().mockResolvedValue([]),
+  completeAgedPlayingDrafts: vi.fn().mockResolvedValue(0),
 }));
 
 vi.mock("@/core/db/sync/syncActiveDraft", () => ({
@@ -75,6 +76,7 @@ describe("GET /api/sync (cron)", () => {
 
     expect(body.status).toBe("no_change");
     expect(body.picksInserted).toBe(0);
+    expect(body.picksUpdated).toBe(0);
     expect(body.matchesReplaced).toBe(0);
   });
 
@@ -87,7 +89,7 @@ describe("GET /api/sync (cron)", () => {
       .mockResolvedValueOnce({
         draftId: "draft-1",
         picksInserted: 3,
-        picksUpdated: 0,
+        picksUpdated: 1,
         matchesReplaced: 2,
         status: "updated",
         diverged: false,
@@ -108,6 +110,7 @@ describe("GET /api/sync (cron)", () => {
 
     expect(body.status).toBe("completed");
     expect(body.picksInserted).toBe(4);
+    expect(body.picksUpdated).toBe(1);
     expect(body.matchesReplaced).toBe(2);
   });
 
@@ -143,6 +146,7 @@ describe("GET /api/sync (cron)", () => {
     expect(syncActiveDraft).toHaveBeenCalledTimes(2);
     expect(body.status).toBe("completed");
     expect(body.picksInserted).toBe(1);
+    expect(body.picksUpdated).toBe(0);
   });
 
   it("returns 500 when GOOGLE_SHEETS_API_KEY is not set", async () => {
