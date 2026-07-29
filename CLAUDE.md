@@ -74,7 +74,7 @@ pnpm scryfall:backfill         # Fetch missing Scryfall data for cards in Turso,
 
 **Decklists:** Add sealeddeck.tech URLs to `data/decklists.txt` (grouped by draft name), then run `pnpm decklists`. The script fetches each deck, matches it to a seat by card overlap with pick data from Turso, and writes deck cards directly to the database.
 
-**Sync:** `pnpm sync` fetches data from Google Sheets and writes it to Turso. Per-domain hashing (pool, picks, matches) means only changed data is replaced. Use `pnpm draft:reset <name>` followed by `pnpm sync <name>` to force a full reimport.
+**Sync:** `pnpm sync` fetches data from Google Sheets and writes it to Turso. Per-domain hashing (pool, picks, matches) means only changed data is replaced. Use `pnpm draft:reset <name>` followed by `pnpm sync <name>` to force a full reimport. The cron path only reconciles picks and matches; pool/cube changes always need the CLI sync.
 
 **Scryfall backfill:** When a new draft uses cards not in the local Scryfall cache (`cache/scryfall.json`), those cards get inserted into Turso with `scryfall_json = NULL`. Run `pnpm scryfall:backfill` to fetch missing card data from the Scryfall API, update the local cache, and backfill the database. This is typically needed after creating a live draft with a new/updated cube.
 
@@ -176,7 +176,7 @@ Search is debounced (500ms) and runs locally against cached card data. Server-si
 
 ## Key Features
 
-- **Active draft sync:** Drafts linked to a Google Sheet (`sheetId` in metadata) are synced automatically by a Vercel cron job that calls `GET /api/sync` every 10 minutes, authenticated via `CRON_SECRET`. There is no manual "Sync Now" button — use `pnpm sync <name>` from the CLI for on-demand syncs.
+- **Active draft sync:** Drafts linked to a Google Sheet (`sheetId` in metadata) are synced by a Vercel cron job calling `GET /api/sync` every 10 minutes (authenticated via `CRON_SECRET`). The cron covers phases `setup`, `drafting`, and `playing`: it inserts missing picks, updates picks whose sheet cell was edited after the fact, and hash-syncs match results. When every pick cell is filled the draft moves `drafting → playing`; when the full round robin (n·(n−1)/2 matches) is recorded — or 60 days after the draft date — it moves `playing → complete` and leaves the sync window. `pnpm draft:admin set-phase` overrides at any time; there is no manual "Sync Now" button — use `pnpm sync <name>` from the CLI for on-demand full syncs.
 - **Banned cards:** Drafts can specify banned cards in metadata. Banned cards are visually marked in the card table and excluded from available card queries.
 - **Deck builder:** Per-seat deck building panel with drag-and-drop, maindeck/sideboard zones, save status indicator, and shareable deck snapshots via `/api/deck`. Live drafts persist WIP decks server-side (seat token auth); sheet drafts persist locally in the browser (localStorage, keyed by draft + seat) with an "Add to Deck Builder" button replacing Float.
 - **Shared decks:** Immutable deck snapshots stored in the `decks` table (kind = 'snapshot'), accessible via short URLs.
