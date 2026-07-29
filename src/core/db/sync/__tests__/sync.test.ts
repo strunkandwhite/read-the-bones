@@ -356,7 +356,7 @@ describe("syncDraft", () => {
   });
 
   describe("completion detection", () => {
-    it("marks draft as complete when picks indicate completion", async () => {
+    it("moves a draft to playing when picks are done but matches are not", async () => {
       // Build picks with ✪ marker in last row and filled picks
       const picksRows = [
         [], // row 0
@@ -401,15 +401,56 @@ describe("syncDraft", () => {
         emptyOptOuts,
       );
 
-      expect(result.markedComplete).toBe(true);
-
-      // Verify phase was set to 'complete'
+      expect(result.markedComplete).toBe(false);
       const executeCalls = client.execute.mock.calls;
       const completionUpdate = executeCalls.find(
         (c: any[]) => (c[0].sql as string).includes("UPDATE drafts SET phase"),
       );
       expect(completionUpdate).toBeDefined();
-      expect(completionUpdate![0].args[0]).toBe('complete');
+      expect(completionUpdate![0].args[0]).toBe("playing");
+    });
+
+    it("marks a draft complete when picks are done and the round robin is full", async () => {
+      const picksRows = [
+        [],
+        [],
+        ["", "", "Alice", "Bob", "↩"],
+        ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
+      ];
+      const rawData: DraftSheetRawData = {
+        pool: buildPoolRows(["Lightning Bolt", "Counterspell"]),
+        picks: picksRows,
+        matches: buildMatchRows([["Alice", 2, "Bob", 1]]), // 2 drafters → full RR
+      };
+
+      const client = mockClient((params) => {
+        if (params.sql.includes("pool_hash")) {
+          return { rows: [{ pool_hash: null, picks_hash: null, matches_hash: null }] };
+        }
+        if (params.sql.includes("SELECT cube_snapshot_id FROM cube_snapshots")) {
+          return { rows: [] };
+        }
+        if (params.sql.includes("INSERT INTO cube_snapshots")) {
+          return { rows: [], lastInsertRowid: BigInt(1) };
+        }
+        return { rows: [] };
+      });
+
+      const cache = populatedCache([
+        ["Lightning Bolt", 1],
+        ["Counterspell", 2],
+      ]);
+
+      const result = await syncDraft(
+        client as any, "test-draft", rawData, cache, emptyScryfallCache, emptyOptOuts,
+      );
+
+      expect(result.markedComplete).toBe(true);
+      const executeCalls = client.execute.mock.calls;
+      const completionUpdate = executeCalls.find(
+        (c: any[]) => (c[0].sql as string).includes("UPDATE drafts SET phase"),
+      );
+      expect(completionUpdate![0].args[0]).toBe("complete");
     });
   });
 
@@ -508,7 +549,7 @@ describe("syncDraft", () => {
       const rawData: DraftSheetRawData = {
         pool: buildPoolRows(["Lightning Bolt", "Counterspell", "Dark Ritual", "Swords to Plowshares"]),
         picks: buildCompletePickRows(), // ✪ marker = complete
-        matches: null,
+        matches: buildMatchRows([["Alice", 2, "Bob", 0]]),
       };
 
       const client = mockClient((params) => {

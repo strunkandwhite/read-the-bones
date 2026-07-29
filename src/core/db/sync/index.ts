@@ -13,8 +13,10 @@
 //   (syncActiveDraft.ts)   matches only, no pool/cube/opt-out rebuild).
 //                          Used by: GET /api/sync (Vercel cron, every 10 min).
 //
-// Both paths share buildMatchInserts (batch.ts) for the 0-indexed → 1-indexed
-// seat conversion, ensuring a single copy of that mapping in the codebase.
+// Both paths share the draft-phase lifecycle predicates (computeSyncTargetPhase,
+// isMatchesComplete) from draftPhases.ts, ensuring picks-done drafts land in
+// 'playing' only when the full round robin is recorded. Both paths also share
+// buildMatchInserts (batch.ts) for the 0-indexed → 1-indexed seat conversion.
 
 import type { Client } from "@libsql/client";
 import type { DraftSheetRawData } from "../../sheets";
@@ -55,7 +57,11 @@ import {
 import { resolveCardNamesToCache } from "../ingest/serializeScryfall";
 import { fetchDraftTabsRaw } from "../../sheets";
 import { loadOptOutNames } from "../../optOuts";
-import { isSyncPhaseTransitionLegal } from "../../draftPhases";
+import {
+  computeSyncTargetPhase,
+  isMatchesComplete,
+  isSyncPhaseTransitionLegal,
+} from "../../draftPhases";
 
 // ============================================================================
 // Types
@@ -154,7 +160,11 @@ export async function syncDraft(
     if (options.dryRun) {
       result.picksCount = pickedCards.length;
       result.matchesCount = matches.length;
-      result.markedComplete = parsedPicks.isComplete;
+      result.markedComplete =
+        computeSyncTargetPhase(
+          parsedPicks.isComplete,
+          isMatchesComplete(matches.length, parsedPicks.numDrafters),
+        ) === "complete";
       return result;
     }
 
@@ -245,12 +255,15 @@ export async function syncDraft(
       });
     }
 
-    // Detect and update completion.
-    // Only write phase when the transition is legal — never demote a draft that an
-    // admin has manually set to 'playing' or 'complete' back to 'drafting'.
-    result.markedComplete = parsedPicks.isComplete;
-    const targetPhase = parsedPicks.isComplete ? 'complete' : 'drafting';
-    if (isSyncPhaseTransitionLegal(currentPhase ?? 'drafting', targetPhase)) {
+    // Advance the phase: playing when picks are done, complete when the full
+    // round robin is also recorded. Only when the transition is legal — never
+    // demote a draft an admin has manually advanced.
+    const targetPhase = computeSyncTargetPhase(
+      parsedPicks.isComplete,
+      isMatchesComplete(matches.length, parsedPicks.numDrafters),
+    );
+    result.markedComplete = targetPhase === "complete";
+    if (isSyncPhaseTransitionLegal(currentPhase ?? "drafting", targetPhase)) {
       await client.execute({
         sql: "UPDATE drafts SET phase = ? WHERE draft_id = ?",
         args: [targetPhase, draftId],
