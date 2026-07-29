@@ -6,10 +6,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
   detectNewPicks,
-  detectDivergence,
-  getDbPickPositions,
+  detectRemovedPicks,
+  detectChangedPicks,
+  getDbPicks,
   resolveCardNameToId,
   insertNewPicks,
+  applyChangedPicks,
   markDraftComplete,
   incrementalIngest,
 } from "../db/sync/incremental";
@@ -91,39 +93,132 @@ describe("detectNewPicks", () => {
   });
 });
 
-describe("detectDivergence", () => {
-  it("detects when CSV has fewer picks than database", () => {
-    expect(detectDivergence(3, 5)).toBe(true);
+describe("detectRemovedPicks", () => {
+  it("returns DB positions missing from the sheet", () => {
+    expect(detectRemovedPicks(new Set([1, 2]), [1, 2, 3, 5])).toEqual([3, 5]);
   });
 
-  it("no divergence when CSV has more picks", () => {
-    expect(detectDivergence(5, 3)).toBe(false);
-  });
-
-  it("no divergence when counts are equal", () => {
-    expect(detectDivergence(3, 3)).toBe(false);
+  it("returns empty when the sheet covers every DB position", () => {
+    expect(detectRemovedPicks(new Set([1, 2, 3]), [1, 2])).toEqual([]);
   });
 });
 
-describe("getDbPickPositions", () => {
-  it("returns empty set when no picks exist", async () => {
-    const client = {
-      execute: vi.fn().mockResolvedValue({ rows: [] }),
-    };
-    expect(await getDbPickPositions(client as any, "draft-1")).toEqual(
-      new Set(),
-    );
+describe("getDbPicks", () => {
+  it("returns empty map when no picks exist", async () => {
+    const client = { execute: vi.fn().mockResolvedValue({ rows: [] }) };
+    expect(await getDbPicks(client as any, "draft-1")).toEqual(new Map());
   });
 
-  it("returns the set of stored pick positions", async () => {
+  it("returns stored picks keyed by position with seat, card id, and name", async () => {
     const client = {
       execute: vi.fn().mockResolvedValue({
-        rows: [{ pick_n: 1 }, { pick_n: 2 }, { pick_n: 4 }],
+        rows: [
+          { pick_n: 1, seat: 1, card_id: 10, name: "Lightning Bolt" },
+          { pick_n: 2, seat: 2, card_id: 20, name: "Counterspell" },
+        ],
       }),
     };
-    expect(await getDbPickPositions(client as any, "draft-1")).toEqual(
-      new Set([1, 2, 4]),
+    const result = await getDbPicks(client as any, "draft-1");
+    expect(result.get(1)).toEqual({ seat: 1, cardId: 10, cardName: "Lightning Bolt" });
+    expect(result.get(2)).toEqual({ seat: 2, cardId: 20, cardName: "Counterspell" });
+  });
+});
+
+describe("detectChangedPicks", () => {
+  // Structurally matches the module-internal DbPick shape
+  const db = (seat: number, cardId: number, cardName: string) => ({
+    seat,
+    cardId,
+    cardName,
+  });
+
+  it("flags a position whose card name changed in the sheet", () => {
+    const changes = detectChangedPicks(
+      [pick("Fiery Islet", 342, 4)],
+      new Map([[342, db(5, 99, "Thundering Falls")]]),
     );
+    expect(changes).toHaveLength(1);
+    expect(changes[0].pick.cardName).toBe("Fiery Islet");
+    expect(changes[0].dbCardId).toBe(99);
+  });
+
+  it("does not flag unchanged picks (case-insensitive)", () => {
+    expect(
+      detectChangedPicks(
+        [pick("lightning bolt", 1, 0)],
+        new Map([[1, db(1, 10, "Lightning Bolt")]]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("does not flag a front-face name against a stored DFC name", () => {
+    expect(
+      detectChangedPicks(
+        [pick("Brazen Borrower", 1, 0)],
+        new Map([[1, db(1, 10, "Brazen Borrower // Petty Theft")]]),
+      ),
+    ).toEqual([]);
+  });
+
+  it("flags a seat change even when the card matches", () => {
+    const changes = detectChangedPicks(
+      [pick("Lightning Bolt", 1, 3)], // sheet drafter index 3 → stored seat 4, DB has seat 1
+      new Map([[1, db(1, 10, "Lightning Bolt")]]),
+    );
+    expect(changes).toHaveLength(1);
+  });
+
+  it("ignores positions not in the database", () => {
+    expect(detectChangedPicks([pick("Lightning Bolt", 7, 0)], new Map())).toEqual([]);
+  });
+});
+
+describe("applyChangedPicks", () => {
+  it("updates card_id and seat when the resolved card differs", async () => {
+    const client = {
+      execute: vi.fn().mockImplementation(({ sql }: { sql: string }) => {
+        if (sql.includes("LOWER(name) = LOWER(?)")) {
+          return Promise.resolve({ rows: [{ card_id: 55 }] });
+        }
+        return Promise.resolve({ rows: [] });
+      }),
+    };
+    const result = await applyChangedPicks(client as any, "draft-1", [
+      { pick: pick("Fiery Islet", 342, 4), dbCardId: 99, dbSeat: 5 },
+    ]);
+    expect(result).toEqual({ updated: 1, unresolved: 0 });
+    const updateCall = client.execute.mock.calls.find(([p]: any[]) =>
+      p.sql.includes("UPDATE pick_events"),
+    );
+    expect(updateCall![0].sql).toContain("SET card_id = ?, seat = ?");
+    expect(updateCall![0].args).toEqual([55, 5, "draft-1", 342]);
+  });
+
+  it("is a no-op when the sheet name resolves to the stored card (alias)", async () => {
+    const client = {
+      execute: vi.fn().mockImplementation(({ sql }: { sql: string }) => {
+        if (sql.includes("LOWER(name) = LOWER(?)")) {
+          return Promise.resolve({ rows: [{ card_id: 99 }] });
+        }
+        return Promise.resolve({ rows: [] });
+      }),
+    };
+    const result = await applyChangedPicks(client as any, "draft-1", [
+      { pick: pick("Fiery Islet", 342, 4), dbCardId: 99, dbSeat: 5 },
+    ]);
+    expect(result).toEqual({ updated: 0, unresolved: 0 });
+    const updateCall = client.execute.mock.calls.find(([p]: any[]) =>
+      p.sql.includes("UPDATE pick_events"),
+    );
+    expect(updateCall).toBeUndefined();
+  });
+
+  it("counts unresolvable names without updating", async () => {
+    const client = { execute: vi.fn().mockResolvedValue({ rows: [] }) };
+    const result = await applyChangedPicks(client as any, "draft-1", [
+      { pick: pick("Not A Real Card", 342, 4), dbCardId: 99, dbSeat: 5 },
+    ]);
+    expect(result).toEqual({ updated: 0, unresolved: 1 });
   });
 });
 
@@ -196,7 +291,7 @@ describe("insertNewPicks", () => {
 
   it("returns 0 when newPicks is empty", async () => {
     const result = await insertNewPicks(client as any, "draft-1", []);
-    expect(result).toBe(0);
+    expect(result).toEqual({ inserted: 0, unresolved: 0 });
     expect(client.execute).not.toHaveBeenCalled();
   });
 
@@ -217,7 +312,7 @@ describe("insertNewPicks", () => {
     ];
     const result = await insertNewPicks(client as any, "draft-1", picks);
 
-    expect(result).toBe(2);
+    expect(result).toEqual({ inserted: 2, unresolved: 0 });
     expect(client.batch).toHaveBeenCalledTimes(1);
     const batchArgs = client.batch.mock.calls[0][0];
     expect(batchArgs).toHaveLength(2);
@@ -226,22 +321,45 @@ describe("insertNewPicks", () => {
     expect(batchArgs[1].args).toEqual(["draft-1", 2, 2, 20]);
   });
 
-  it("skips picks whose card names are not found", async () => {
-    // Only Lightning Bolt resolves
-    client.execute.mockResolvedValueOnce({
-      rows: [{ card_id: 10, name: "Lightning Bolt" }],
-    });
-    client.batch.mockResolvedValueOnce(undefined);
-
-    const picks: CardPick[] = [
+  it("falls back to fuzzy resolution, and counts picks unresolved when that also fails", async () => {
+    // Exact-match batch query returns only Lightning Bolt; "Mystery Card"
+    // must go through resolveCardNameToId (whose Scryfall fallback is mocked
+    // to return null), landing in unresolved.
+    const client = {
+      execute: vi.fn().mockImplementation(({ sql }: { sql: string }) => {
+        if (sql.includes("IN (")) {
+          return Promise.resolve({ rows: [{ card_id: 1, name: "Lightning Bolt" }] });
+        }
+        return Promise.resolve({ rows: [] });
+      }),
+      batch: vi.fn().mockResolvedValue([]),
+    };
+    const result = await insertNewPicks(client as any, "test-draft", [
       pick("Lightning Bolt", 1, 0),
-      pick("Unknown Card", 2, 1),
-    ];
-    const result = await insertNewPicks(client as any, "draft-1", picks);
+      pick("Mystery Card", 2, 1),
+    ]);
+    expect(result).toEqual({ inserted: 1, unresolved: 1 });
+    expect(client.batch.mock.calls[0][0]).toHaveLength(1);
+  });
 
-    expect(result).toBe(1);
-    const batchArgs = client.batch.mock.calls[0][0];
-    expect(batchArgs).toHaveLength(1);
+  it("inserts via the fuzzy resolver when the exact batch query misses", async () => {
+    // Batch query misses, but the per-name exact lookup inside
+    // resolveCardNameToId hits — e.g. stored DFC name "Front // Back".
+    const client = {
+      execute: vi.fn().mockImplementation(({ sql }: { sql: string }) => {
+        if (sql.includes("IN (")) return Promise.resolve({ rows: [] });
+        if (sql.includes("LIKE LOWER(? || ' // %')")) {
+          return Promise.resolve({ rows: [{ card_id: 42 }] });
+        }
+        return Promise.resolve({ rows: [] });
+      }),
+      batch: vi.fn().mockResolvedValue([]),
+    };
+    const result = await insertNewPicks(client as any, "test-draft", [
+      pick("Brazen Borrower", 1, 0),
+    ]);
+    expect(result).toEqual({ inserted: 1, unresolved: 0 });
+    expect(client.batch.mock.calls[0][0][0].args).toEqual(["test-draft", 1, 1, 42]);
   });
 });
 
@@ -260,129 +378,158 @@ describe("markDraftComplete", () => {
 });
 
 describe("incrementalIngest", () => {
-  let client: ReturnType<typeof createMockClient>;
-
-  beforeEach(() => {
-    client = createMockClient();
-    vi.clearAllMocks();
-  });
-
-  it("returns no_change when picks array is empty", async () => {
-    const result = await incrementalIngest(client as any, "draft-1", {
-      picks: [],
+  function parsed(picks: CardPick[], isComplete = false) {
+    return {
+      picks,
       numDrafters: 2,
-      drafterNames: [],
-      isComplete: false,
-      doublePickStartsAfterRound: null, picksPerPlayer: 0,
-    });
-    expect(result).toEqual({ status: "no_change", picksInserted: 0 });
+      drafterNames: ["Alice", "Bob"],
+      isComplete,
+      doublePickStartsAfterRound: null,
+      picksPerPlayer: 1,
+    };
+  }
+
+  // Routes the mock client by SQL shape: stored picks, exact-name batch
+  // resolution, and a call log for inserts/updates/hash writes.
+  function reconcilingClient(opts: {
+    dbPicks: Array<{ pick_n: number; seat: number; card_id: number; name: string }>;
+    cards: Array<{ card_id: number; name: string }>;
+  }) {
+    return {
+      execute: vi.fn().mockImplementation(({ sql }: { sql: string }) => {
+        if (sql.includes("JOIN cards")) return Promise.resolve({ rows: opts.dbPicks });
+        if (sql.includes("IN (")) return Promise.resolve({ rows: opts.cards });
+        if (sql.includes("LOWER(name) = LOWER(?)")) {
+          return Promise.resolve({ rows: [] });
+        }
+        return Promise.resolve({ rows: [] });
+      }),
+      batch: vi.fn().mockResolvedValue([]),
+    };
+  }
+
+  it("returns no_change without touching the DB when the picks hash matches", async () => {
+    const { hashPicks } = await import("../db/sync/domains");
+    const picks = [pick("Lightning Bolt", 1, 0)];
+    const client = reconcilingClient({ dbPicks: [], cards: [] });
+    const result = await incrementalIngest(
+      client as any,
+      "test-draft",
+      parsed(picks),
+      hashPicks(picks),
+    );
+    expect(result).toEqual({ status: "no_change", picksInserted: 0, picksUpdated: 0 });
+    expect(client.execute).not.toHaveBeenCalled();
   });
 
-  it("returns diverged when csvMaxPick < dbMaxPick", async () => {
-    // getDbPickPositions returns positions up to 10
-    client.execute.mockResolvedValueOnce({
-      rows: [{ pick_n: 9 }, { pick_n: 10 }],
-    });
-
-    const result = await incrementalIngest(client as any, "draft-1", {
-      picks: [pick("Bolt", 5, 0)], // csvMaxPick = 5 < dbMaxPick = 10
-      numDrafters: 2,
-      drafterNames: [],
-      isComplete: false,
-      doublePickStartsAfterRound: null, picksPerPlayer: 0,
-    });
-    expect(result).toEqual({ status: "diverged", picksInserted: 0 });
+  it("returns no_change when the sheet has no picks", async () => {
+    const client = reconcilingClient({ dbPicks: [], cards: [] });
+    const result = await incrementalIngest(client as any, "test-draft", parsed([]), null);
+    expect(result.status).toBe("no_change");
+    expect(client.execute).not.toHaveBeenCalled();
   });
 
-  it("returns no_change when all sheet positions are already stored", async () => {
-    // getDbPickPositions returns {3, 5}
-    client.execute.mockResolvedValueOnce({
-      rows: [{ pick_n: 3 }, { pick_n: 5 }],
-    });
-
-    const result = await incrementalIngest(client as any, "draft-1", {
-      picks: [pick("Bolt", 3, 0), pick("Counter", 5, 1)],
-      numDrafters: 2,
-      drafterNames: [],
-      isComplete: false,
-      doublePickStartsAfterRound: null, picksPerPlayer: 0,
-    });
-    expect(result).toEqual({ status: "no_change", picksInserted: 0 });
-  });
-
-  it("returns updated when new picks are inserted", async () => {
-    // getDbPickPositions returns {1, 2}
-    client.execute.mockResolvedValueOnce({
-      rows: [{ pick_n: 1 }, { pick_n: 2 }],
-    });
-    // insertNewPicks: batch name resolution
-    client.execute.mockResolvedValueOnce({
-      rows: [{ card_id: 10, name: "Swords to Plowshares" }],
-    });
-    client.batch.mockResolvedValueOnce(undefined);
-
-    const result = await incrementalIngest(client as any, "draft-1", {
-      picks: [pick("Bolt", 1, 0), pick("Swords to Plowshares", 3, 0)],
-      numDrafters: 2,
-      drafterNames: [],
-      isComplete: false,
-      doublePickStartsAfterRound: null, picksPerPlayer: 0,
-    });
-    expect(result.status).toBe("updated");
-    expect(result.picksInserted).toBe(1);
-  });
-
-  it("inserts back-filled picks in gaps below the database max", async () => {
-    // getDbPickPositions returns {1, 2, 4} — pick 3 was back-filled in the
-    // sheet after pick 4 had already synced
-    client.execute.mockResolvedValueOnce({
-      rows: [{ pick_n: 1 }, { pick_n: 2 }, { pick_n: 4 }],
-    });
-    // insertNewPicks: batch name resolution
-    client.execute.mockResolvedValueOnce({
-      rows: [{ card_id: 30, name: "Swords to Plowshares" }],
-    });
-    client.batch.mockResolvedValueOnce(undefined);
-
-    const result = await incrementalIngest(client as any, "draft-1", {
-      picks: [
-        pick("Bolt", 1, 0),
-        pick("Counter", 2, 1),
-        pick("Swords to Plowshares", 3, 0),
-        pick("Path", 4, 1),
+  it("returns diverged when the DB has positions the sheet lost", async () => {
+    const client = reconcilingClient({
+      dbPicks: [
+        { pick_n: 1, seat: 1, card_id: 10, name: "Lightning Bolt" },
+        { pick_n: 2, seat: 2, card_id: 20, name: "Counterspell" },
       ],
-      numDrafters: 2,
-      drafterNames: [],
-      isComplete: false,
-      doublePickStartsAfterRound: null, picksPerPlayer: 0,
+      cards: [],
     });
-    expect(result.status).toBe("updated");
-    expect(result.picksInserted).toBe(1);
-    const batchArgs = client.batch.mock.calls[0][0];
-    expect(batchArgs).toHaveLength(1);
-    expect(batchArgs[0].args).toEqual(["draft-1", 3, 1, 30]);
+    const result = await incrementalIngest(
+      client as any,
+      "test-draft",
+      parsed([pick("Lightning Bolt", 1, 0)]),
+      null,
+    );
+    expect(result.status).toBe("diverged");
+    expect(client.batch).not.toHaveBeenCalled();
   });
 
-  it("returns completed and marks draft complete when isComplete is true", async () => {
-    // getDbPickPositions returns empty set
-    client.execute.mockResolvedValueOnce({ rows: [] });
-    // insertNewPicks: batch name resolution
-    client.execute.mockResolvedValueOnce({
-      rows: [{ card_id: 10, name: "Lightning Bolt" }],
+  it("inserts missing picks and updates the stored picks hash", async () => {
+    const client = reconcilingClient({
+      dbPicks: [{ pick_n: 1, seat: 1, card_id: 10, name: "Lightning Bolt" }],
+      cards: [{ card_id: 20, name: "Counterspell" }],
     });
-    client.batch.mockResolvedValueOnce(undefined);
-    // markDraftComplete: UPDATE
-    client.execute.mockResolvedValueOnce({ rows: [], rowsAffected: 1 });
+    const result = await incrementalIngest(
+      client as any,
+      "test-draft",
+      parsed([pick("Lightning Bolt", 1, 0), pick("Counterspell", 2, 1)]),
+      "stale-hash",
+    );
+    expect(result).toEqual({ status: "updated", picksInserted: 1, picksUpdated: 0 });
+    const hashWrite = client.execute.mock.calls.find(([p]: any[]) =>
+      p.sql.includes("picks_hash"),
+    );
+    expect(hashWrite).toBeDefined();
+  });
 
-    const result = await incrementalIngest(client as any, "draft-1", {
-      picks: [pick("Lightning Bolt", 1, 0)],
-      numDrafters: 2,
-      drafterNames: [],
-      isComplete: true,
-      doublePickStartsAfterRound: null, picksPerPlayer: 0,
+  it("updates a position whose card changed in the sheet", async () => {
+    const client = {
+      execute: vi.fn().mockImplementation(({ sql }: { sql: string }) => {
+        if (sql.includes("JOIN cards")) {
+          return Promise.resolve({
+            rows: [{ pick_n: 342, seat: 5, card_id: 99, name: "Thundering Falls" }],
+          });
+        }
+        if (sql.includes("LOWER(name) = LOWER(?)")) {
+          return Promise.resolve({ rows: [{ card_id: 55 }] });
+        }
+        return Promise.resolve({ rows: [] });
+      }),
+      batch: vi.fn().mockResolvedValue([]),
+    };
+    const result = await incrementalIngest(
+      client as any,
+      "test-draft",
+      parsed([pick("Fiery Islet", 342, 4)]),
+      "stale-hash",
+    );
+    expect(result).toEqual({ status: "updated", picksInserted: 0, picksUpdated: 1 });
+    const updateCall = client.execute.mock.calls.find(([p]: any[]) =>
+      p.sql.includes("UPDATE pick_events"),
+    );
+    expect(updateCall![0].args).toEqual([55, 5, "test-draft", 342]);
+  });
+
+  it("does not persist the picks hash while any pick is unresolved", async () => {
+    const client = reconcilingClient({
+      dbPicks: [],
+      cards: [], // nothing resolves; Scryfall fallback mocked to null
     });
+    const result = await incrementalIngest(
+      client as any,
+      "test-draft",
+      parsed([pick("Mystery Card", 1, 0)]),
+      "stale-hash",
+    );
+    expect(result.picksInserted).toBe(0);
+    const hashWrite = client.execute.mock.calls.find(([p]: any[]) =>
+      p.sql.includes("picks_hash"),
+    );
+    expect(hashWrite).toBeUndefined();
+  });
+
+  it("marks the draft complete when the parsed sheet is complete", async () => {
+    const client = reconcilingClient({
+      dbPicks: [],
+      cards: [
+        { card_id: 10, name: "Lightning Bolt" },
+        { card_id: 20, name: "Counterspell" },
+      ],
+    });
+    const result = await incrementalIngest(
+      client as any,
+      "test-draft",
+      parsed([pick("Lightning Bolt", 1, 0), pick("Counterspell", 2, 1)], true),
+      null,
+    );
     expect(result.status).toBe("completed");
-    expect(result.picksInserted).toBe(1);
+    const phaseCall = client.execute.mock.calls.find(([p]: any[]) =>
+      p.sql.includes("UPDATE drafts SET phase"),
+    );
+    expect(phaseCall).toBeDefined();
   });
 });
 

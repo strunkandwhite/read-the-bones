@@ -19,6 +19,7 @@ vi.mock("@/core/db/sync/syncActiveDraft", () => ({
   syncActiveDraft: vi.fn().mockResolvedValue({
     draftId: "test-draft",
     picksInserted: 0,
+    picksUpdated: 0,
     matchesReplaced: 0,
     status: "no_change",
     diverged: false,
@@ -61,6 +62,7 @@ describe("GET /api/sync (cron)", () => {
     vi.mocked(syncActiveDraft).mockResolvedValue({
       draftId: "draft-1",
       picksInserted: 0,
+      picksUpdated: 0,
       matchesReplaced: 0,
       status: "no_change",
       diverged: false,
@@ -83,6 +85,7 @@ describe("GET /api/sync (cron)", () => {
       .mockResolvedValueOnce({
         draftId: "draft-1",
         picksInserted: 3,
+        picksUpdated: 0,
         matchesReplaced: 2,
         status: "updated",
         diverged: false,
@@ -90,6 +93,7 @@ describe("GET /api/sync (cron)", () => {
       .mockResolvedValueOnce({
         draftId: "draft-2",
         picksInserted: 1,
+        picksUpdated: 0,
         matchesReplaced: 0,
         status: "updated",
         diverged: false,
@@ -122,6 +126,7 @@ describe("GET /api/sync (cron)", () => {
       .mockResolvedValueOnce({
         draftId: "draft-2",
         picksInserted: 1,
+        picksUpdated: 0,
         matchesReplaced: 0,
         status: "updated",
         diverged: false,

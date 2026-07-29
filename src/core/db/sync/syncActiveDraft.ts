@@ -33,6 +33,7 @@ import {
 export interface SyncActiveDraftResult {
   draftId: string;
   picksInserted: number;
+  picksUpdated: number;
   matchesReplaced: number;
   status: "no_change" | "updated" | "completed" | "diverged";
   diverged: boolean;
@@ -56,6 +57,7 @@ export async function syncActiveDraft(
   const result: SyncActiveDraftResult = {
     draftId: draft.draftId,
     picksInserted: 0,
+    picksUpdated: 0,
     matchesReplaced: 0,
     status: "no_change",
     diverged: false,
@@ -69,11 +71,18 @@ export async function syncActiveDraft(
     return result;
   }
 
-  // Parse rows and run incremental pick ingestion
+  // Parse rows and reconcile picks (inserts + post-hoc edit updates)
   const parsedPicks = parsePickRows(sheetData.picks, draft.draftId);
-  const ingestResult = await incrementalIngest(client, draft.draftId, parsedPicks);
+  const stored = await getDomainHashes(client, draft.draftId);
+  const ingestResult = await incrementalIngest(
+    client,
+    draft.draftId,
+    parsedPicks,
+    stored?.picksHash ?? null,
+  );
 
   result.picksInserted = ingestResult.picksInserted;
+  result.picksUpdated = ingestResult.picksUpdated;
   result.status = ingestResult.status;
 
   if (ingestResult.status === "diverged") {
@@ -88,7 +97,6 @@ export async function syncActiveDraft(
   const matches = parseMatchRows(sheetData.matches, parsedPicks.drafterNames);
   if (matches.length > 0) {
     const newMatchesHash = hashMatches(matches);
-    const stored = await getDomainHashes(client, draft.draftId);
     const storedMatchesHash = stored?.matchesHash ?? null;
 
     if (compareDomainHash(newMatchesHash, storedMatchesHash) === "replace") {
