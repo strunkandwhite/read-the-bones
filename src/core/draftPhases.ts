@@ -4,18 +4,22 @@
  * A draft moves through these phases:
  *   setup → drafting → playing → complete
  *
+ * For sheet drafts the sync process drives the lifecycle:
+ *   drafting → playing   (every pick cell in the sheet is filled)
+ *   playing  → complete  (full round robin recorded, or the 60-day age
+ *                         backstop in completeAgedPlayingDrafts fires)
+ *
+ * 'playing' drafts keep syncing on the cron so late match entry and
+ * post-hoc pick corrections in the sheet still reach the database.
+ *
  * For stats purposes, drafts in 'playing' (drafting finished, matches ongoing)
  * count the same as 'complete' — both have all picks locked in.
  * Using 'complete' alone in stats queries omits live-match drafts and causes
  * Pick Score and pick history to disagree with the main card table.
  *
- * LEGAL PHASE TRANSITIONS (sync-driven):
- *   drafting → complete   (all picks done, detected by ✪ marker)
- *   drafting → drafting   (no-op, picks still in progress)
- *
- * Phases that syncDraft must NEVER overwrite:
- *   playing  (set by admin; indicates matches are in progress)
- *   complete (terminal)
+ * Sync must NEVER demote a phase (complete → playing, playing → drafting):
+ * an admin may have advanced the phase manually, and demotion would clobber
+ * that intent. pnpm draft:admin set-phase remains the manual override.
  */
 
 /** Phases that count as "completed for stats" — picks are fully locked in. */
@@ -49,32 +53,52 @@ export function statsPhaseFilter(column: string): { fragment: string; args: stri
   };
 }
 
+/** Number of matches in a full single round robin for a pod of numSeats. */
+function expectedMatchCount(numSeats: number): number {
+  return (numSeats * (numSeats - 1)) / 2;
+}
+
 /**
- * Returns true when syncDraft is allowed to write the given target phase.
- *
- * The sync process only knows two outcomes: picks are complete ('complete')
- * or still in progress ('drafting'). It must never demote a draft that an
- * admin has manually advanced to 'playing' or 'complete' back to 'drafting'.
- *
- * Legal writes:
- *   any → complete       (picks finished — always safe to mark complete)
- *   setup → drafting     (first sync of a newly created Sheets draft)
- *   drafting → drafting  (no-op, harmless)
- *
- * Illegal (would clobber admin intent):
- *   playing → drafting
- *   complete → drafting
+ * True when every round-robin match has been recorded. Extra matches
+ * (double round robin) also count as complete. Never true for pods of
+ * fewer than 2 seats — there is nothing meaningful to complete.
+ */
+export function isMatchesComplete(matchCount: number, numSeats: number): boolean {
+  return numSeats >= 2 && matchCount >= expectedMatchCount(numSeats);
+}
+
+/**
+ * The phase the sync process wants a sheet draft to be in, given what the
+ * sheet currently shows. Matches entered before picks finish do not advance
+ * the phase — picks completing is the gate into playing.
+ */
+export function computeSyncTargetPhase(
+  picksComplete: boolean,
+  matchesComplete: boolean,
+): "drafting" | "playing" | "complete" {
+  if (picksComplete && matchesComplete) return "complete";
+  if (picksComplete) return "playing";
+  return "drafting";
+}
+
+/**
+ * Returns true when sync is allowed to write the given target phase.
+ * Forward progress only — never demote a phase (see file header).
  */
 export function isSyncPhaseTransitionLegal(
   currentPhase: string,
   targetPhase: string,
 ): boolean {
-  // Always legal to mark complete (picks are done)
   if (targetPhase === "complete") return true;
-  // Forward progress into (or within) drafting is fine
+  if (targetPhase === "playing") {
+    return (
+      currentPhase === "setup" ||
+      currentPhase === "drafting" ||
+      currentPhase === "playing"
+    );
+  }
   if (targetPhase === "drafting") {
     return currentPhase === "setup" || currentPhase === "drafting";
   }
-  // Anything else would demote playing/complete back to drafting — illegal
   return false;
 }
