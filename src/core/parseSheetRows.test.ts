@@ -360,8 +360,13 @@ describe("parsePickRows", () => {
       expect(isComplete).toBe(false);
     });
 
-    it("is incomplete for sheets with no pick rows", () => {
-      const { isComplete } = parsePickRows(rows([]), "test-draft");
+    it("is incomplete when rows exist but none have a valid round number", () => {
+      // Exercises the maxRound > 0 guard: numDrafters is 2 but no row parses
+      // to a round, so without the guard 0 === 2 * 0 would read as complete.
+      const { isComplete } = parsePickRows(
+        rows([["", "→", "", "", "", ""]]),
+        "test-draft",
+      );
       expect(isComplete).toBe(false);
     });
 
