@@ -3,7 +3,6 @@ import {
   normalizeCardName,
   cardNameKey,
   isArrow,
-  isDraftComplete,
   parsePoolRows,
   parsePickRows,
   parseMatchRows,
@@ -85,56 +84,6 @@ describe("isArrow", () => {
     expect(isArrow("Alice")).toBe(false);
     expect(isArrow("->")).toBe(false);
     expect(isArrow("VS")).toBe(false);
-  });
-});
-
-describe("isDraftComplete", () => {
-  it("should return true when ✪ row has picks", () => {
-    const rows = [
-      ["", "", "Header"],
-      ["", ""],
-      ["", "", "Alice", "Bob", "↩"],
-      ["1", "→", "Card1", "Card2", "↩"],
-      ["2", "✪", "Card3", "Card4", "↩"],
-    ];
-    expect(isDraftComplete(rows)).toBe(true);
-  });
-
-  it("should return false when ✪ row has no picks", () => {
-    const rows = [
-      ["", "", "Header"],
-      ["", ""],
-      ["", "", "Alice", "Bob", "↩"],
-      ["1", "→", "Card1", "Card2", "↩"],
-      ["2", "✪", "", "", "↩"],
-    ];
-    expect(isDraftComplete(rows)).toBe(false);
-  });
-
-  it("should return false when ✪ row has only arrow in drafter column", () => {
-    const rows = [
-      ["", "", "Header"],
-      ["", ""],
-      ["", "", "Alice", "Bob", "↩"],
-      ["1", "→", "Card1", "Card2", "↩"],
-      ["2", "✪", "↩", "", ""],
-    ];
-    expect(isDraftComplete(rows)).toBe(false);
-  });
-
-  it("should return true when no ✪ marker found", () => {
-    const rows = [
-      ["", "", "Header"],
-      ["", ""],
-      ["", "", "Alice", "Bob", "↩"],
-      ["1", "→", "Card1", "Card2", "↩"],
-    ];
-    expect(isDraftComplete(rows)).toBe(true);
-  });
-
-  it("should handle empty rows", () => {
-    expect(isDraftComplete([])).toBe(true);
-    expect(isDraftComplete([[""]])).toBe(true);
   });
 });
 
@@ -366,33 +315,60 @@ describe("parsePickRows", () => {
     expect(picks).toHaveLength(3);
   });
 
-  it("should return isComplete based on ✪ marker", () => {
-    const incompleteRows = [
-      ["", "", "Header"],
-      ["", ""],
-      ["", "", "Alice", "Bob", "↩"],
-      ["1", "→", "Card1", "Card2", "↩"],
-      ["2", "✪", "", "", "↩"],
-    ];
-    const { isComplete } = parsePickRows(incompleteRows, "test-draft");
-    expect(isComplete).toBe(false);
-  });
+  describe("completion detection (all cells filled)", () => {
+    function rows(pickRows: string[][]): string[][] {
+      return [
+        [], // row 0
+        [], // row 1
+        ["", "", "Alice", "Bob", "↩"], // row 2: drafter names
+        ...pickRows,
+      ];
+    }
 
-  it("should return isComplete true when ✪ row has picks", () => {
-    const completeRows = [
-      ["", "", "Header"],
-      ["", ""],
-      ["", "", "Alice", "Bob", "↩"],
-      ["1", "→", "Card1", "Card2", "↩"],
-      ["2", "✪", "Card3", "Card4", "↩"],
-    ];
-    const { isComplete } = parsePickRows(completeRows, "test-draft");
-    expect(isComplete).toBe(true);
-  });
+    it("is complete when every drafter column in every round row is filled", () => {
+      const { isComplete } = parsePickRows(
+        rows([
+          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
+          ["2", "↩", "Dark Ritual", "Swords to Plowshares", "B", "W"],
+        ]),
+        "test-draft",
+      );
+      expect(isComplete).toBe(true);
+    });
 
-  it("should return isComplete true when no ✪ marker", () => {
-    const { isComplete } = parsePickRows(minimalRows, "test-draft");
-    expect(isComplete).toBe(true);
+    it("is incomplete when any cell in an earlier round is empty", () => {
+      const { isComplete } = parsePickRows(
+        rows([
+          ["1", "→", "Lightning Bolt", "", "R", ""],
+          ["2", "↩", "Dark Ritual", "Swords to Plowshares", "B", "W"],
+        ]),
+        "test-draft",
+      );
+      expect(isComplete).toBe(false);
+    });
+
+    it("is incomplete when only the first drafter finished the last round", () => {
+      // Regression: goose-mother was marked complete when seat 1 filled the
+      // final row while seats 2-10 were still drafting.
+      const { isComplete } = parsePickRows(
+        rows([
+          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
+          ["2", "↩", "Dark Ritual", "", "B", ""],
+        ]),
+        "test-draft",
+      );
+      expect(isComplete).toBe(false);
+    });
+
+    it("is incomplete for sheets with no pick rows", () => {
+      const { isComplete } = parsePickRows(rows([]), "test-draft");
+      expect(isComplete).toBe(false);
+    });
+
+    it("is incomplete for empty or headers-only input", () => {
+      expect(parsePickRows([], "test-draft").isComplete).toBe(false);
+      expect(parsePickRows([[], [], []], "test-draft").isComplete).toBe(false);
+    });
   });
 });
 

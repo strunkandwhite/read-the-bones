@@ -21,6 +21,7 @@ export interface ParsedPicks {
   picks: CardPick[];
   numDrafters: number;
   drafterNames: string[];
+  /** True only when every pick cell in every round row is filled. */
   isComplete: boolean;
   doublePickStartsAfterRound: number | null;
   picksPerPlayer: number;
@@ -31,27 +32,6 @@ export interface ParsedPicks {
  */
 export function isArrow(value: string): boolean {
   return ["→", "↪", "↩", "✪"].includes(value.trim());
-}
-
-/**
- * Check if a draft is complete by examining the ✪ marker row.
- *
- * Finds the row with ✪ marker (indicates last row of draft).
- * If that row has picks filled in drafter columns, draft is complete.
- * If no ✪ row found, assume complete.
- */
-export function isDraftComplete(rows: string[][]): boolean {
-  for (const row of rows) {
-    if (row.some((cell) => cell?.includes("✪"))) {
-      // Found the marker row - check if drafter columns have picks
-      // Drafter columns start at index 2 (after pick# and arrow)
-      const firstDrafterPick = row[2]?.trim();
-      return !!firstDrafterPick && !isArrow(firstDrafterPick);
-    }
-  }
-
-  // No ✪ marker found - assume complete
-  return true;
 }
 
 /**
@@ -100,7 +80,7 @@ export function parsePickRows(
       picks: [],
       numDrafters: 0,
       drafterNames: [],
-      isComplete: true,
+      isComplete: false,
       doublePickStartsAfterRound: null,
       picksPerPlayer: 0,
     };
@@ -148,7 +128,7 @@ export function parsePickRows(
       picks: [],
       numDrafters: 0,
       drafterNames: [],
-      isComplete: true,
+      isComplete: false,
       doublePickStartsAfterRound: null,
       picksPerPlayer: 0,
     };
@@ -168,9 +148,6 @@ export function parsePickRows(
     }
     if (doublePickStartsAfterRound !== null) break;
   }
-
-  // Check draft completion via ✪ marker
-  const isComplete = isDraftComplete(rows);
 
   // Track copy numbers for each card name across the entire draft
   const copyNumberTracker = new Map<string, number>();
@@ -293,6 +270,12 @@ export function parsePickRows(
       });
     }
   }
+
+  // A draft is complete only when every drafter column in every round row is
+  // filled. Anything keyed off a single cell (the old ✪-marker check) marks
+  // the draft complete as soon as the first drafter finishes, stranding the
+  // other seats' final picks outside the sync window.
+  const isComplete = maxRound > 0 && picks.length === numDrafters * maxRound;
 
   return {
     picks,
