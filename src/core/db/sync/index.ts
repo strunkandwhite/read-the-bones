@@ -127,7 +127,7 @@ export async function syncDraft(
     const poolNames = rawData.pool ? parsePoolRows(rawData.pool) : [];
     const parsedPicks = rawData.picks
       ? parsePickRows(rawData.picks, draftId)
-      : { picks: [], numDrafters: 0, drafterNames: [], isComplete: true, doublePickStartsAfterRound: null, picksPerPlayer: 0 };
+      : { picks: [], numDrafters: 0, drafterNames: [], isComplete: false, doublePickStartsAfterRound: null, picksPerPlayer: 0 };
     const matches = parseMatchRows(
       rawData.matches,
       parsedPicks.drafterNames,
@@ -175,6 +175,7 @@ export async function syncDraft(
     }
 
     // --- Picks domain ---
+    const unresolvedCardNames: string[] = [];
     if (result.picksAction === "replace") {
       await deleteDomainData(client, draftId, "picks");
 
@@ -188,6 +189,8 @@ export async function syncDraft(
             seat: pick.seat + 1, // 0-indexed -> 1-indexed
             cardId,
           });
+        } else {
+          unresolvedCardNames.push(pick.cardName);
         }
       }
 
@@ -195,6 +198,12 @@ export async function syncDraft(
       result.picksCount = pickInserts.length;
 
       if (options.verbose) logIndent(`Picks: replaced (${pickInserts.length} picks)`);
+
+      if (unresolvedCardNames.length > 0) {
+        console.warn(
+          `syncDraft(${draftId}): dropped ${unresolvedCardNames.length} pick(s) with cards unresolved in cardCache: ${unresolvedCardNames.join(", ")}`,
+        );
+      }
     }
 
     // Update draft-shape metadata derived from the parsed Draft tab. Written
@@ -229,7 +238,7 @@ export async function syncDraft(
     if (result.poolAction === "replace" && newPoolHash) {
       hashUpdates.poolHash = newPoolHash;
     }
-    if (result.picksAction === "replace" && newPicksHash) {
+    if (result.picksAction === "replace" && newPicksHash && unresolvedCardNames.length === 0) {
       hashUpdates.picksHash = newPicksHash;
     }
     if (result.matchesAction === "replace" && newMatchesHash) {

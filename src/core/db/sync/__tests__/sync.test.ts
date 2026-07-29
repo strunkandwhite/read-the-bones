@@ -352,6 +352,19 @@ describe("syncDraft", () => {
       expect(result.poolAction).toBe("skip");
       expect(result.picksAction).toBe("skip");
       expect(result.matchesAction).toBe("skip");
+
+      // A missing Draft tab must not be treated as isComplete: true — that
+      // would advance a pick-less draft into 'playing'. A write of
+      // 'drafting' may legitimately occur from setup; only 'playing' and
+      // 'complete' are forbidden here.
+      const executeCalls = client.execute.mock.calls;
+      const phaseWrites = executeCalls.filter(
+        (c: any[]) => (c[0].sql as string).includes("UPDATE drafts SET phase"),
+      );
+      const advancingWrites = phaseWrites.filter(
+        (c: any[]) => c[0].args[0] === "playing" || c[0].args[0] === "complete",
+      );
+      expect(advancingWrites).toHaveLength(0);
     });
   });
 
@@ -831,6 +844,68 @@ describe("syncDraft", () => {
         (sql: string) =>
           sql.includes("SET") &&
           (sql.includes("picks_hash") || sql.includes("pool_hash") || sql.includes("matches_hash")),
+      );
+      expect(hashUpdateCalls).toHaveLength(0);
+    });
+  });
+
+  describe("partial-failure invariant: hash NOT sealed when a pick is unresolved in cardCache", () => {
+    it("replaces resolvable picks but does not update picks_hash when a pick's card is missing from cardCache", async () => {
+      const rawData: DraftSheetRawData = {
+        pool: buildPoolRows(["Lightning Bolt", "Counterspell"]),
+        picks: buildPickRows(["Alice", "Bob"], [
+          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
+        ]),
+        matches: null,
+      };
+
+      const { hashPool: hp } = await import("../domains");
+      const { parsePoolRows: ppr } = await import("../../../parseSheetRows");
+      const poolHash = hp(ppr(rawData.pool!));
+
+      const client = mockClient((params) => {
+        if (params.sql.includes("pool_hash")) {
+          return {
+            rows: [{
+              pool_hash: poolHash, // pool unchanged
+              picks_hash: "stale-hash", // mismatch triggers replace
+              matches_hash: null,
+            }],
+          };
+        }
+        if (params.sql.includes("SELECT cube_snapshot_id FROM cube_snapshots")) {
+          return { rows: [{ cube_snapshot_id: 1 }] };
+        }
+        if (params.sql.includes("SELECT card_id, qty FROM cube_snapshot_cards")) {
+          return { rows: [{ card_id: 1, qty: 1 }] };
+        }
+        return { rows: [] };
+      });
+
+      // Counterspell is NOT in the cache — its pick is unresolved and will
+      // be dropped from pickInserts.
+      const cache = populatedCache([["Lightning Bolt", 1]]);
+
+      const result = await syncDraft(
+        client as any,
+        "test-draft",
+        rawData,
+        cache,
+        emptyScryfallCache,
+        emptyOptOuts,
+      );
+
+      // The resolvable pick still gets replaced.
+      expect(result.picksAction).toBe("replace");
+      expect(result.picksCount).toBe(1);
+
+      // But picks_hash must NOT be sealed — the stored hash stays stale so
+      // the cron reconciler's fuzzy resolver retries the dropped card.
+      const executeCalls = client.execute.mock.calls;
+      const hashUpdateCalls = executeCalls.filter(
+        (c: any[]) =>
+          (c[0].sql as string).includes("SET") &&
+          (c[0].sql as string).includes("picks_hash"),
       );
       expect(hashUpdateCalls).toHaveLength(0);
     });
