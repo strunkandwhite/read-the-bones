@@ -23,6 +23,7 @@ vi.mock("@/core/db/sync/syncActiveDraft", () => ({
     matchesReplaced: 0,
     status: "no_change",
     diverged: false,
+    phaseSet: null,
   }),
 }));
 
@@ -66,6 +67,7 @@ describe("GET /api/sync (cron)", () => {
       matchesReplaced: 0,
       status: "no_change",
       diverged: false,
+      phaseSet: null,
     });
 
     const res = await GET(cronRequest());
@@ -89,6 +91,7 @@ describe("GET /api/sync (cron)", () => {
         matchesReplaced: 2,
         status: "updated",
         diverged: false,
+        phaseSet: null,
       })
       .mockResolvedValueOnce({
         draftId: "draft-2",
@@ -97,6 +100,7 @@ describe("GET /api/sync (cron)", () => {
         matchesReplaced: 0,
         status: "updated",
         diverged: false,
+        phaseSet: null,
       });
 
     const res = await GET(cronRequest());
@@ -130,6 +134,7 @@ describe("GET /api/sync (cron)", () => {
         matchesReplaced: 0,
         status: "updated",
         diverged: false,
+        phaseSet: null,
       });
 
     const res = await GET(cronRequest());

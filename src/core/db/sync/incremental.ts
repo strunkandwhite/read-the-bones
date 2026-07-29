@@ -311,15 +311,17 @@ export async function insertNewPicks(
 }
 
 /**
- * Mark a draft as complete in the database.
+ * Write a draft's phase. Callers are responsible for checking
+ * isSyncPhaseTransitionLegal first — this is a raw write.
  */
-export async function markDraftComplete(
+export async function setDraftPhase(
   client: Client,
   draftId: string,
+  phase: "drafting" | "playing" | "complete",
 ): Promise<void> {
   await client.execute({
-    sql: "UPDATE drafts SET phase = 'complete' WHERE draft_id = ?",
-    args: [draftId],
+    sql: "UPDATE drafts SET phase = ? WHERE draft_id = ?",
+    args: [phase, draftId],
   });
 }
 
@@ -340,11 +342,11 @@ export async function incrementalIngest(
   parsedPicks: ParsedPicks,
   storedPicksHash: string | null,
 ): Promise<{
-  status: "no_change" | "updated" | "completed" | "diverged";
+  status: "no_change" | "updated" | "diverged";
   picksInserted: number;
   picksUpdated: number;
 }> {
-  const { picks, isComplete } = parsedPicks;
+  const { picks } = parsedPicks;
   if (picks.length === 0) {
     return { status: "no_change", picksInserted: 0, picksUpdated: 0 };
   }
@@ -384,12 +386,6 @@ export async function incrementalIngest(
 
   if (insertUnresolved === 0 && changeUnresolved === 0) {
     await updateDomainHashes(client, draftId, { picksHash: newHash });
-  }
-
-  if (isComplete) {
-    await markDraftComplete(client, draftId);
-    console.log(`[sync] Draft ${draftId} marked as complete`);
-    return { status: "completed", picksInserted: inserted, picksUpdated: updated };
   }
 
   if (inserted === 0 && updated === 0) {

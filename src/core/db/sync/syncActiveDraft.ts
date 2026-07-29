@@ -5,6 +5,7 @@
  *   1. Fetch sheet tabs from Google Sheets
  *   2. Parse picks and run incremental ingestion (inserts missing picks, no pool rebuild)
  *   3. Sync matches via hash-compare → delete + replace if changed
+ *   4. Advance the phase (drafting → playing → complete) when the sheet calls for it
  *
  * This is the INCREMENTAL path. It intentionally omits pool sync, cube snapshot
  * rebuild, opt-out sync, and Scryfall backfill — those are full-domain operations
@@ -17,7 +18,7 @@
 import type { Client } from "@libsql/client";
 import { fetchDraftTabsRaw } from "../../sheets";
 import { parsePickRows, parseMatchRows } from "../../parseSheetRows";
-import { incrementalIngest } from "./incremental";
+import { incrementalIngest, setDraftPhase } from "./incremental";
 import {
   hashMatches,
   getDomainHashes,
@@ -29,6 +30,11 @@ import {
   buildMatchInserts,
   deleteDomainData,
 } from "./batch";
+import {
+  computeSyncTargetPhase,
+  isMatchesComplete,
+  isSyncPhaseTransitionLegal,
+} from "../../draftPhases";
 
 export interface SyncActiveDraftResult {
   draftId: string;
@@ -37,14 +43,22 @@ export interface SyncActiveDraftResult {
   matchesReplaced: number;
   status: "no_change" | "updated" | "completed" | "diverged";
   diverged: boolean;
+  /** Phase written this run, or null when no transition happened. */
+  phaseSet: "drafting" | "playing" | "complete" | null;
 }
 
 /**
  * Sync a single active draft for the cron path.
  *
- * Fetches sheet tabs, runs incremental pick ingestion, and hash-compares matches.
- * Does NOT rebuild pool, cube snapshots, opt-outs, or Scryfall data — use the
- * CLI sync (pnpm sync) for full-domain replacement.
+ * 1. Fetch sheet tabs from Google Sheets
+ * 2. Reconcile picks (insert missing positions, update post-hoc edits)
+ * 3. Sync matches via hash-compare → delete + replace if changed
+ * 4. Advance the phase: drafting → playing when all picks are in,
+ *    playing → complete when the full round robin is recorded.
+ *
+ * This is the INCREMENTAL path. It intentionally omits pool sync, cube
+ * snapshot rebuild, opt-out sync, and Scryfall backfill — those are
+ * full-domain operations only the CLI sync performs.
  *
  * Throws on unrecoverable errors (e.g. Sheets API failure); the caller is
  * responsible for per-draft try/catch to continue syncing other drafts.
@@ -61,9 +75,9 @@ export async function syncActiveDraft(
     matchesReplaced: 0,
     status: "no_change",
     diverged: false,
+    phaseSet: null,
   };
 
-  // Fetch row data from Google Sheets
   const sheetData = await fetchDraftTabsRaw(draft.sheetId, apiKey);
 
   if (!sheetData.picks) {
@@ -71,7 +85,7 @@ export async function syncActiveDraft(
     return result;
   }
 
-  // Parse rows and reconcile picks (inserts + post-hoc edit updates)
+  // Reconcile picks (inserts + post-hoc edit updates)
   const parsedPicks = parsePickRows(sheetData.picks, draft.draftId);
   const stored = await getDomainHashes(client, draft.draftId);
   const ingestResult = await incrementalIngest(
@@ -113,9 +127,29 @@ export async function syncActiveDraft(
         `[sync] Replaced ${matchInserts.length} matches for draft ${draft.draftId}`,
       );
 
-      // Upgrade status to reflect matches were also updated
       if (result.status === "no_change") {
         result.status = "updated";
+      }
+    }
+  }
+
+  // Advance the phase when the sheet state calls for it. Divergence skips
+  // this — a draft whose picks can't be trusted shouldn't change phase.
+  if (!result.diverged) {
+    const currentPhase = stored?.currentPhase ?? "drafting";
+    const targetPhase = computeSyncTargetPhase(
+      parsedPicks.isComplete,
+      isMatchesComplete(matches.length, parsedPicks.numDrafters),
+    );
+    if (
+      targetPhase !== currentPhase &&
+      isSyncPhaseTransitionLegal(currentPhase, targetPhase)
+    ) {
+      await setDraftPhase(client, draft.draftId, targetPhase);
+      result.phaseSet = targetPhase;
+      console.log(`[sync] Draft ${draft.draftId} phase → ${targetPhase}`);
+      if (targetPhase === "complete") {
+        result.status = "completed";
       }
     }
   }

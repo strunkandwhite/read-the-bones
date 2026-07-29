@@ -12,7 +12,7 @@ import {
   resolveCardNameToId,
   insertNewPicks,
   applyChangedPicks,
-  markDraftComplete,
+  setDraftPhase,
   incrementalIngest,
 } from "../db/sync/incremental";
 import {
@@ -363,16 +363,13 @@ describe("insertNewPicks", () => {
   });
 });
 
-describe("markDraftComplete", () => {
-  it("executes UPDATE with correct draft_id", async () => {
-    const client = createMockClient();
-    client.execute.mockResolvedValueOnce({ rows: [], rowsAffected: 1 });
-
-    await markDraftComplete(client as any, "draft-99");
-
+describe("setDraftPhase", () => {
+  it("writes the given phase for the draft", async () => {
+    const client = { execute: vi.fn().mockResolvedValue({ rows: [] }) };
+    await setDraftPhase(client as any, "test-draft", "playing");
     expect(client.execute).toHaveBeenCalledWith({
-      sql: "UPDATE drafts SET phase = 'complete' WHERE draft_id = ?",
-      args: ["draft-99"],
+      sql: "UPDATE drafts SET phase = ? WHERE draft_id = ?",
+      args: ["playing", "test-draft"],
     });
   });
 });
@@ -511,7 +508,7 @@ describe("incrementalIngest", () => {
     expect(hashWrite).toBeUndefined();
   });
 
-  it("marks the draft complete when the parsed sheet is complete", async () => {
+  it("does not write any phase — the caller owns the lifecycle decision", async () => {
     const client = reconcilingClient({
       dbPicks: [],
       cards: [
@@ -525,11 +522,11 @@ describe("incrementalIngest", () => {
       parsed([pick("Lightning Bolt", 1, 0), pick("Counterspell", 2, 1)], true),
       null,
     );
-    expect(result.status).toBe("completed");
+    expect(result.status).toBe("updated");
     const phaseCall = client.execute.mock.calls.find(([p]: any[]) =>
       p.sql.includes("UPDATE drafts SET phase"),
     );
-    expect(phaseCall).toBeDefined();
+    expect(phaseCall).toBeUndefined();
   });
 });
 
