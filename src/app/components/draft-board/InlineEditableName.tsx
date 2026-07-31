@@ -29,7 +29,7 @@ export function InlineEditableName({
 
   // Keep editValue in sync when currentName changes externally (polling)
   useEffect(() => {
-    if (!isEditing) setEditValue(currentName);
+    if (!isEditing) setEditValue(currentName); // eslint-disable-line react-hooks/set-state-in-effect -- syncing local edit buffer from external (polled) prop
   }, [currentName, isEditing]);
 
   const handleSave = useCallback(async () => {

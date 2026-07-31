@@ -71,7 +71,7 @@ export function CardStatsModal() {
   // When cardStatus changes AND minimum time has elapsed, re-enable.
   useEffect(() => {
     if (actionPending && minimumElapsedRef.current) {
-      setActionPending(false); // eslint-disable-line react-hooks/set-state-in-effect -- resetting derived UI state in response to external (store) change
+      setActionPending(false);
       minimumElapsedRef.current = false;
     }
   }, [cardStatus, queuePosition]); // eslint-disable-line react-hooks/exhaustive-deps

@@ -45,7 +45,7 @@ export function useModalManagement({
     const stored = localStorage.getItem("deckBuilderOpen");
     if (stored === "true") {
       setDeckBuilderActive(true);
-      setDeckBuilderModalOpen(true);
+      setDeckBuilderModalOpen(true); // eslint-disable-line react-hooks/set-state-in-effect -- restoring state from an external system (localStorage) after hydration
     }
   }, [activeDraft, selectedSeat, setDeckBuilderActive]);
 
@@ -65,7 +65,7 @@ export function useModalManagement({
   useEffect(() => {
     if (!activeDraft || selectedSeat === null) {
       setDeckBuilderActive(false);
-      setDeckBuilderModalOpen(false);
+      setDeckBuilderModalOpen(false); // eslint-disable-line react-hooks/set-state-in-effect -- closing modal in response to prop-driven deselection
     }
   }, [activeDraft, selectedSeat, setDeckBuilderActive]);
 
