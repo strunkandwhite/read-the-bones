@@ -13,6 +13,7 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { EnrichedCardStats } from "@/core/types";
+import type { WorthCard } from "@/core/worthModel";
 import { filterCardsByColor } from "@/core/colorFilter";
 import { ManaSymbols, ColorPills } from "./ManaSymbols";
 import { CardNameCell } from "./CardNameCell";
@@ -38,6 +39,36 @@ Weighting factors:
 • Copy weight: 0.5^(n-1) for nth copy
 • Unpicked cards: 0.5x weight (position set to pool size)`;
 
+/** "+4.7%" / "-2.3%" — signed percentage with one decimal, for worth-model values. */
+export function formatSignedPercent(value: number): string {
+  const percent = value * 100;
+  return `${percent >= 0 ? "+" : ""}${percent.toFixed(1)}%`;
+}
+
+/** "+1.6σ" / "-2.9σ" — PVI is a z-score (standard errors vs the price curve), not a rate. */
+export function formatSignedZ(value: number): string {
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}σ`;
+}
+
+/** Shared cell renderer for the dev-only Worth and PVI columns. */
+function renderWorthModelValue(
+  worthCard: WorthCard | undefined,
+  value: number | null | undefined,
+  format: (value: number) => string = formatSignedPercent,
+) {
+  if (!worthCard || worthCard.no_data || value == null) {
+    return <span className="text-sm text-zinc-400 dark:text-zinc-500">—</span>;
+  }
+  return (
+    <span
+      className="font-mono text-sm font-semibold text-zinc-800 dark:text-zinc-200"
+      title={`${worthCard.games} games${worthCard.prior_only ? " · prior only" : ""}`}
+    >
+      {format(value)}
+    </span>
+  );
+}
+
 export function CardTable({
   cards,
   onCardClick,
@@ -51,6 +82,7 @@ export function CardTable({
   const takenCardNames = useCardStore((s) => s.takenCardNamesSet);
   const takenCardCounts = useCardStore((s) => s.takenCardCounts);
   const seatCardNames = useCardStore((s) => s.seatCardNames);
+  const worthCards = useCardStore((s) => s.worthCards);
 
   const [sorting, setSorting] = useState<SortingState>([{ id: "pickScore", desc: false }]);
 
@@ -83,6 +115,8 @@ export function CardTable({
       type: isDesktopOrWider,
       colors: showSm,
       gpwr: isDesktopOrWider,
+      worth: isDesktopOrWider,
+      pvi: isDesktopOrWider,
     };
   }, [breakpoint, isDesktopOrWider]);
 
@@ -224,9 +258,49 @@ export function CardTable({
             );
           },
         }),
+        columnHelper.accessor((row) => {
+          const worthCard = worthCards.get(row.cardName);
+          return worthCard != null && !worthCard.no_data && worthCard.worth != null
+            ? worthCard.worth
+            : undefined;
+        }, {
+          id: "worth",
+          size: 90,
+          sortUndefined: "last",
+          header: () => (
+            <span className="inline-flex items-center">
+              Worth
+              <InfoTooltip text="Worth model: posterior win-rate delta vs the color baseline, shrunk toward the pick-price curve. Hover a value for sample size." />
+            </span>
+          ),
+          cell: ({ row }) => {
+            const worthCard = worthCards.get(row.original.cardName);
+            return renderWorthModelValue(worthCard, worthCard?.worth);
+          },
+        }),
+        columnHelper.accessor((row) => {
+          const worthCard = worthCards.get(row.cardName);
+          return worthCard != null && !worthCard.no_data && worthCard.pvi != null
+            ? worthCard.pvi
+            : undefined;
+        }, {
+          id: "pvi",
+          size: 85,
+          sortUndefined: "last",
+          header: () => (
+            <span className="inline-flex items-center">
+              PVI
+              <InfoTooltip text="Pick Value Index: over/under-delivery versus the price paid at this pick position." />
+            </span>
+          ),
+          cell: ({ row }) => {
+            const worthCard = worthCards.get(row.original.cardName);
+            return renderWorthModelValue(worthCard, worthCard?.pvi, formatSignedZ);
+          },
+        }),
       ] : []),
     ],
-    [currentCubeCopies]
+    [currentCubeCopies, worthCards]
   );
 
   const filteredData = useMemo(() => {

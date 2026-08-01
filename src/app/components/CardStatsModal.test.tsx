@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent, act } from "@testing-library/react";
 import { CardStatsModal } from "./CardStatsModal";
+import type { WorthCard } from "@/core/worthModel";
 import { useCardStore } from "@/app/stores/cardStore";
 import { useDraftStore } from "@/app/stores/draftStore";
 import { useLiveStore } from "@/app/stores/liveStore";
@@ -59,6 +60,26 @@ const mockCardStatsData = {
   color_pair_breakdown: [{ colorPair: "RW", percentage: 55, deckCount: 3 }],
 };
 
+const mockWorthCard: WorthCard = {
+  card_name: "Lightning Bolt",
+  colors: "R",
+  is_land: false,
+  in_current_cube: true,
+  geomean: 4.2,
+  games: 33,
+  wins: 20,
+  losses: 13,
+  wr: 0.606,
+  se: 0.085,
+  delta: 0.05,
+  expected: 0.003,
+  pvi: 1.63,
+  worth: 0.047,
+  prior_only: false,
+  no_data: false,
+  act_by: 17,
+};
+
 function setupStoreMocks(overrides: {
   selectedCard?: string | null;
   isOpen?: boolean;
@@ -67,6 +88,8 @@ function setupStoreMocks(overrides: {
   mySeat?: number | null;
   selectedSeat?: number | null;
   isMyTurn?: boolean;
+  worthCard?: WorthCard;
+  worthModel?: { tau: number; sigma: number; kappa: number } | null;
 } = {}) {
   const cardState: Record<string, unknown> = {
     selectedCard: overrides.selectedCard ?? "Lightning Bolt",
@@ -74,6 +97,10 @@ function setupStoreMocks(overrides: {
     cardStatsDetail: mockCardStatsData,
     cardStatsLoading: false,
     selectCard: vi.fn(),
+    worthCards: overrides.worthCard
+      ? new Map([[overrides.worthCard.card_name, overrides.worthCard]])
+      : new Map(),
+    worthModel: overrides.worthModel ?? null,
   };
 
   const draftState: Record<string, unknown> = {
@@ -202,6 +229,8 @@ describe("CardStatsModal", () => {
             cardStatsDetail: mockCardStatsData,
             cardStatsLoading: false,
             selectCard: vi.fn(),
+            worthCards: new Map(),
+            worthModel: null,
           }),
       );
       (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
@@ -283,6 +312,8 @@ describe("CardStatsModal", () => {
             cardStatsDetail: mockCardStatsData,
             cardStatsLoading: false,
             selectCard: vi.fn(),
+            worthCards: new Map(),
+            worthModel: null,
           }),
       );
       (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
@@ -315,6 +346,8 @@ describe("CardStatsModal", () => {
             cardStatsDetail: mockCardStatsData,
             cardStatsLoading: false,
             selectCard: vi.fn(),
+            worthCards: new Map(),
+            worthModel: null,
           }),
       );
       (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
@@ -350,6 +383,8 @@ describe("CardStatsModal", () => {
             cardStatsDetail: mockCardStatsData,
             cardStatsLoading: false,
             selectCard: vi.fn(),
+            worthCards: new Map(),
+            worthModel: null,
           }),
       );
       (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
@@ -372,6 +407,70 @@ describe("CardStatsModal", () => {
       fireEvent.click(pickScore);
 
       expect(clearSelectedCard).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("worth model block (dev-only)", () => {
+    const mockWorthModel = { tau: 0.035, sigma: 0.51, kappa: 0.5 };
+
+    async function setLocalClient(value: boolean) {
+      const { isLocalClient } = await import("@/core/isLocal");
+      (isLocalClient as unknown as ReturnType<typeof vi.fn>).mockReturnValue(value);
+    }
+
+    afterEach(async () => {
+      await setLocalClient(false);
+    });
+
+    it("renders Worth, PVI, act_by, games, and the model footnote on localhost", async () => {
+      await setLocalClient(true);
+      setupStoreMocks({ worthCard: mockWorthCard, worthModel: mockWorthModel });
+
+      render(<CardStatsModal />);
+
+      expect(screen.getByText("Worth Model")).toBeTruthy();
+      expect(screen.getByText("+4.7%")).toBeTruthy(); // worth
+      expect(screen.getByText("+1.6σ")).toBeTruthy(); // pvi
+      expect(screen.getByText("17")).toBeTruthy(); // act_by
+      expect(screen.getByText("33")).toBeTruthy(); // games
+      expect(screen.getByText(/τ 0\.035 · σ 0\.510 · κ/)).toBeTruthy();
+    });
+
+    it("shows em-dashes for null worth/pvi/act_by", async () => {
+      await setLocalClient(true);
+      setupStoreMocks({
+        worthCard: {
+          ...mockWorthCard,
+          worth: null,
+          pvi: null,
+          act_by: null,
+          no_data: true,
+          games: 0,
+        },
+        worthModel: mockWorthModel,
+      });
+
+      render(<CardStatsModal />);
+
+      expect(screen.getByText("Worth Model")).toBeTruthy();
+      expect(screen.getAllByText("—")).toHaveLength(3);
+    });
+
+    it("does not render the block off localhost", () => {
+      setupStoreMocks({ worthCard: mockWorthCard, worthModel: mockWorthModel });
+
+      render(<CardStatsModal />);
+
+      expect(screen.queryByText("Worth Model")).toBeNull();
+    });
+
+    it("does not render the block when no worth data exists for the card", async () => {
+      await setLocalClient(true);
+      setupStoreMocks({ worthModel: mockWorthModel });
+
+      render(<CardStatsModal />);
+
+      expect(screen.queryByText("Worth Model")).toBeNull();
     });
   });
 });

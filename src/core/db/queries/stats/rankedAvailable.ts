@@ -2,13 +2,27 @@
  * Ranked available cards query — bulk-ranks available cards by historical performance.
  */
 
+import type { Client } from "@libsql/client";
 import { getClient } from "../../client";
 import { fetchOptOuts, getSeatsMatchingColors, placeholders } from "../helpers";
 import { getAvailableCards } from "../picks";
+import { getDraftMeta } from "../drafts";
+import { getWorthTable } from "./worth";
 import { calculatePickWeight, round3, weightedGeometricMean } from "../../../utils";
 import { wilsonInterval } from "../../../wilsonInterval";
 import { DEFAULT_POOL_SIZE } from "../../../types";
 import { MIN_SAMPLE_SIZE } from "../../../constants";
+import {
+  colorFlag,
+  danger,
+  pairSupply,
+  type WorthCard,
+} from "../../../worthModel";
+import {
+  derivePickSeat,
+  getTotalPicks,
+  picksUntilNextTurn,
+} from "../../../snakeDraft";
 
 export interface RankAvailableCardsParams {
   draft_id: string;
@@ -17,7 +31,22 @@ export interface RankAvailableCardsParams {
   type_contains?: string;
   deck_colors?: string;
   limit?: number;
-  sort_by?: "geomean_pick" | "win_rate" | "play_rate";
+  sort_by?:
+    | "geomean_pick"
+    | "win_rate"
+    | "play_rate"
+    | "pick_value"
+    | "first_pick_score";
+  /** Seat whose snake schedule defines the danger horizon and supply slots. */
+  seat?: number;
+  /**
+   * Commitment state for color_flag: "" (uncommitted), one WUBRG letter
+   * (one color locked), or two (pair locked). Presence of the param — even
+   * as "" — turns on color_flag/first_pick_score per row.
+   */
+  committed_colors?: string;
+  /** Dev-only worth-model fields (same gating shape as includeWinStats). */
+  include_worth?: boolean;
 }
 
 /**
@@ -35,13 +64,131 @@ export interface RankedCard {
   win_rate_ci: { lower: number; center: number; upper: number } | null;
   low_sample: boolean;
   win_rate_filtered: boolean;
+  // Worth-model fields (dev-only) — present only when include_worth is set.
+  worth?: number | null;
+  danger?: number | null;
+  pick_value?: number | null;
+  // Present only when include_worth AND committed_colors were both provided.
+  color_flag?: number | null;
+  first_pick_score?: number | null;
 }
 
 export interface RankAvailableCardsResult {
   draft_id: string;
   before_pick_n: number;
   total_available: number;
+  /** Danger horizon used (picks). Present only when include_worth is set. */
+  horizon?: number;
+  /**
+   * Per two-color-pair obtainable count of positive-worth current-cube cards
+   * (supply/urgency signal, not a deck-quality prediction). Present only
+   * when include_worth is set.
+   */
+  pair_supply?: Record<string, number>;
   cards: RankedCard[];
+}
+
+// All ten two-color pairs in canonical WUBRG order (matches pairEdges keys).
+const WUBRG_PAIRS = [
+  "WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG",
+];
+
+interface WorthContext {
+  worthByName: Map<string, WorthCard>;
+  sigma: number;
+  kappa: number;
+  pairEdges: Record<string, number>;
+  horizon: number;
+  pairSupplyByPair: Record<string, number>;
+}
+
+/**
+ * Assemble everything the worth-model row fields need: the worth table
+ * (joined by card name), the danger horizon, and per-pair supply counts.
+ * Returns null when the draft has no metadata row (defensive — available
+ * cards for a nonexistent draft already short-circuit earlier).
+ */
+async function buildWorthContext(
+  client: Client,
+  params: RankAvailableCardsParams,
+): Promise<WorthContext | null> {
+  const meta = await getDraftMeta(client, params.draft_id);
+  if (!meta) return null;
+
+  const worthTable = await getWorthTable();
+  const { sigma, kappa, pairEdges } = worthTable.model;
+  const snakeOpts = {
+    numSeats: meta.numSeats,
+    picksPerPlayer: meta.picksPerPlayer,
+    doublePickAfterRound: meta.doublePickAfterRound,
+  };
+  const totalPicks = getTotalPicks(meta.numSeats, meta.picksPerPlayer);
+
+  // Horizon semantics (off-by-one decision): before_pick_n is the pick ABOUT
+  // to be made. Danger asks "if I pass this card at before_pick_n, does it
+  // survive until I act again?" — so the current pick counts as already
+  // spent, and the horizon runs to the seat's NEXT turn:
+  // picksUntilNextTurn(before_pick_n, seat). Seat 1 at before_pick_n = 1 with
+  // 10 seats next acts at pick 20 → horizon 19, not 0 ("you are picking
+  // right now") and not 20. When the seat never picks again the horizon
+  // degrades to all remaining picks after the current one.
+  let horizon: number;
+  if (params.seat !== undefined) {
+    horizon =
+      picksUntilNextTurn(params.before_pick_n, params.seat, snakeOpts) ??
+      Math.max(totalPicks - params.before_pick_n, 0);
+  } else {
+    // One full snake turn: any seat acts again within 2 × numSeats picks.
+    horizon = 2 * meta.numSeats;
+  }
+
+  // The seat's future pick slots (including before_pick_n itself when it is
+  // the seat's own pick) drive pair supply. Without a seat, use a generic
+  // one-slot-every-2×numSeats schedule starting at the current pick.
+  const slots: number[] = [];
+  if (params.seat !== undefined) {
+    for (let pickN = params.before_pick_n; pickN <= totalPicks; pickN++) {
+      if (derivePickSeat(pickN, snakeOpts).seat === params.seat) {
+        slots.push(pickN);
+      }
+    }
+  } else {
+    const stride = 2 * meta.numSeats;
+    for (let pickN = params.before_pick_n; pickN <= totalPicks; pickN += stride) {
+      slots.push(pickN);
+    }
+  }
+
+  // Pair supply is a live-market metric: current-cube, positive-worth,
+  // priced cards only. A pair's pool is cards whose identity fits inside the
+  // pair — which includes colorless (empty identity fits every pair).
+  const supplyCards = worthTable.cards.filter(
+    (card) =>
+      card.in_current_cube &&
+      card.worth !== null &&
+      card.worth > 0 &&
+      card.geomean !== null &&
+      card.geomean > 0,
+  );
+  const pairSupplyByPair: Record<string, number> = {};
+  for (const pair of WUBRG_PAIRS) {
+    const pairCards = supplyCards
+      .filter((card) => [...card.colors].every((color) => pair.includes(color)))
+      .map((card) => ({ worth: card.worth!, geo: card.geomean! }));
+    pairSupplyByPair[pair] =
+      sigma > 0
+        ? pairSupply(pairCards, slots, params.before_pick_n, sigma)
+        : 0;
+  }
+
+  return {
+    worthByName: new Map(worthTable.cards.map((card) => [card.card_name, card])),
+    sigma,
+    kappa,
+    pairEdges,
+    horizon,
+    pairSupplyByPair,
+  };
 }
 
 /**
@@ -72,6 +219,10 @@ export async function rankAvailableCards(
       cards: [],
     };
   }
+
+  const worthContext = params.include_worth
+    ? await buildWorthContext(client, params)
+    : null;
 
   const cardNames = available.cards.map((c) => c.card_name);
 
@@ -325,7 +476,7 @@ export async function rankAvailableCards(
       winFiltered = false;
     }
 
-    rankedCards.push({
+    const rankedCard: RankedCard = {
       card_name: cardName,
       geomean_pick: geomean,
       drafts_in_pool: drafts.size,
@@ -336,11 +487,61 @@ export async function rankAvailableCards(
       win_rate_ci: winRateCi,
       low_sample: lowSample,
       win_rate_filtered: winFiltered,
-    });
+    };
+
+    if (worthContext) {
+      const worthCard = worthContext.worthByName.get(cardName);
+      const worth = worthCard?.worth ?? null;
+      // Danger uses the worth table's geomean (all-drafts, unpicked-penalty
+      // convention), not this query's pool-filtered geomean_pick.
+      const worthGeomean = worthCard?.geomean ?? null;
+      const dangerValue =
+        worthGeomean !== null && worthGeomean > 0 && worthContext.sigma > 0
+          ? danger(
+              params.before_pick_n,
+              worthContext.horizon,
+              worthGeomean,
+              worthContext.sigma,
+            )
+          : null;
+      rankedCard.worth = worth;
+      rankedCard.danger = dangerValue;
+      rankedCard.pick_value =
+        worth !== null && dangerValue !== null ? worth * dangerValue : null;
+
+      if (params.committed_colors !== undefined) {
+        // colorFlag needs the card's color identity — unknown to the worth
+        // table means no flag, not a zero flag.
+        const flag = worthCard
+          ? colorFlag(
+              worthCard.colors,
+              worthContext.pairEdges,
+              { committed: params.committed_colors },
+              worthContext.kappa,
+            )
+          : null;
+        rankedCard.color_flag = flag;
+        rankedCard.first_pick_score =
+          rankedCard.pick_value !== null && flag !== null
+            ? rankedCard.pick_value + flag
+            : null;
+      }
+    }
+
+    rankedCards.push(rankedCard);
   }
 
   // Sort
   rankedCards.sort((a, b) => {
+    if (sortBy === "pick_value" || sortBy === "first_pick_score") {
+      // Higher score first, nulls (and rows computed without worth) last.
+      const aScore = a[sortBy] ?? null;
+      const bScore = b[sortBy] ?? null;
+      if (aScore === null && bScore === null) return a.geomean_pick - b.geomean_pick;
+      if (aScore === null) return 1;
+      if (bScore === null) return -1;
+      return bScore - aScore;
+    }
     if (sortBy === "win_rate") {
       // Higher win rate first, nulls last
       if (a.win_rate === null && b.win_rate === null) return a.geomean_pick - b.geomean_pick;
@@ -358,10 +559,15 @@ export async function rankAvailableCards(
     return a.geomean_pick - b.geomean_pick;
   });
 
-  return {
+  const result: RankAvailableCardsResult = {
     draft_id: params.draft_id,
     before_pick_n: params.before_pick_n,
     total_available: available.cards.length,
     cards: rankedCards.slice(0, limit),
   };
+  if (worthContext) {
+    result.horizon = worthContext.horizon;
+    result.pair_supply = worthContext.pairSupplyByPair;
+  }
+  return result;
 }

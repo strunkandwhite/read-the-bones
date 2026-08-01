@@ -9,8 +9,13 @@ import {
   type CardStatsData,
 } from "./cardStore";
 import type { EnrichedCardStats } from "@/core/types";
+import type { WorthCard } from "@/core/worthModel";
 
-vi.mock("@/core/isLocal", () => ({ isLocalClient: () => false }));
+// Default to a non-local client; worth-table tests flip this to true.
+const { isLocalClientMock } = vi.hoisted(() => ({
+  isLocalClientMock: vi.fn(() => false),
+}));
+vi.mock("@/core/isLocal", () => ({ isLocalClient: isLocalClientMock }));
 vi.mock("@vercel/analytics/react", () => ({ track: vi.fn() }));
 vi.mock("@/core/localSearch", () => ({
   searchLocalCards: vi.fn(() => []),
@@ -93,6 +98,8 @@ function resetStores() {
     selectedCard: null,
     cardStatsDetail: null,
     cardStatsLoading: false,
+    worthCards: new Map(),
+    worthModel: null,
   });
 }
 
@@ -976,6 +983,156 @@ describe("cardStore — card stats modal", () => {
     // Repeat with the same excludeDraftId — cache hit, no fetch
     await useCardStore.getState().selectCard("Lightning Bolt", "draft-xyz");
     expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Worth table (dev-only)
+// ---------------------------------------------------------------------------
+
+describe("cardStore — worth table", () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  const mockWorthCard: WorthCard = {
+    card_name: "Lightning Bolt",
+    colors: "R",
+    is_land: false,
+    in_current_cube: true,
+    geomean: 4.2,
+    games: 33,
+    wins: 20,
+    losses: 13,
+    wr: 0.606,
+    se: 0.085,
+    delta: 0.05,
+    expected: 0.003,
+    pvi: 0.021,
+    worth: 0.047,
+    prior_only: false,
+    no_data: false,
+    act_by: 17,
+  };
+
+  const mockWorthResponse = {
+    cards: [mockWorthCard],
+    model: {
+      a: 0.0255,
+      b: -0.007,
+      tau: 0.035,
+      sigma: 0.51,
+      tau_a: 0.0187,
+      kappa: 0.5,
+      baselines: { R: 0.52 },
+      pair_edges: { UR: 0.0271 },
+    },
+  };
+
+  beforeEach(() => {
+    resetStores();
+    isLocalClientMock.mockReturnValue(true);
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+    fetchSpy.mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes("/api/cards/worth")) {
+        return new Response(JSON.stringify(mockWorthResponse));
+      }
+      return new Response("", { status: 404 });
+    });
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+    isLocalClientMock.mockReturnValue(false);
+  });
+
+  it("hydration triggers the worth fetch and stores cards keyed by card_name plus the model", async () => {
+    useCardStore
+      .getState()
+      .hydrate(
+        { ...EMPTY_CARD_DATA, ingestionHash: "hash-v1" },
+        EMPTY_DRAFT_STATS,
+      );
+
+    await vi.waitFor(() =>
+      expect(useCardStore.getState().worthCards.size).toBe(1),
+    );
+
+    expect(fetchSpy).toHaveBeenCalledWith("/api/cards/worth");
+    const state = useCardStore.getState();
+    expect(state.worthCards.get("Lightning Bolt")).toEqual(mockWorthCard);
+    expect(state.worthModel).toEqual(mockWorthResponse.model);
+  });
+
+  it("does not fetch when not a local client (production route 404s)", async () => {
+    isLocalClientMock.mockReturnValue(false);
+
+    await useCardStore.getState().fetchWorthTable();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(useCardStore.getState().worthCards.size).toBe(0);
+  });
+
+  it("caches by ingestionHash: repeat calls with the same hash do not refetch", async () => {
+    useCardStore.setState({
+      cardData: { ...EMPTY_CARD_DATA, ingestionHash: "hash-v1" },
+    });
+    await vi.waitFor(() =>
+      expect(useCardStore.getState().worthCards.size).toBe(1),
+    );
+    fetchSpy.mockClear();
+
+    await useCardStore.getState().fetchWorthTable();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("refetches when the ingestionHash changes", async () => {
+    useCardStore.setState({
+      cardData: { ...EMPTY_CARD_DATA, ingestionHash: "hash-v1" },
+    });
+    await vi.waitFor(() =>
+      expect(useCardStore.getState().worthCards.size).toBe(1),
+    );
+    fetchSpy.mockClear();
+
+    useCardStore.setState({
+      cardData: { ...EMPTY_CARD_DATA, ingestionHash: "hash-v2" },
+    });
+
+    await vi.waitFor(() =>
+      expect(
+        fetchSpy.mock.calls.some((c: unknown[]) =>
+          String(c[0]).includes("/api/cards/worth"),
+        ),
+      ).toBe(true),
+    );
+  });
+
+  it("swallows network errors into an empty state, then retries on the next call", async () => {
+    fetchSpy.mockRejectedValue(new Error("dev server mid-compile"));
+
+    await useCardStore.getState().fetchWorthTable();
+
+    expect(useCardStore.getState().worthCards.size).toBe(0);
+    expect(useCardStore.getState().worthModel).toBeNull();
+
+    // The cache marker was cleared on failure, so a retry actually fetches.
+    fetchSpy.mockImplementation(
+      async () => new Response(JSON.stringify(mockWorthResponse)),
+    );
+    await useCardStore.getState().fetchWorthTable();
+
+    expect(useCardStore.getState().worthCards.size).toBe(1);
+  });
+
+  it("treats a non-ok response as an error (empty state, no throw)", async () => {
+    fetchSpy.mockImplementation(
+      async () => new Response("", { status: 404 }),
+    );
+
+    await useCardStore.getState().fetchWorthTable();
+
+    expect(useCardStore.getState().worthCards.size).toBe(0);
+    expect(useCardStore.getState().worthModel).toBeNull();
   });
 });
 

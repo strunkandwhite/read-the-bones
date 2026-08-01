@@ -5,6 +5,7 @@ import { useDraftStore } from "./draftStore";
 import type { CardStatsResponse } from "@/core/getCards";
 import type { DraftStatsResponse } from "@/core/getDraftStats";
 import type { ScryCard, EnrichedCardStats } from "@/core/types";
+import type { WorthCard } from "@/core/worthModel";
 import type { ColorFilterMode } from "@/core/colorFilter";
 import { isLocalClient } from "@/core/isLocal";
 import { getFrontFace } from "@/core/cardNames";
@@ -76,6 +77,12 @@ interface CardStatsCacheEntry {
 }
 let cardStatsCache = new Map<string, CardStatsCacheEntry>();
 
+// Module-scoped cache marker for /api/cards/worth (dev-only route).
+// Records the ingestionHash the worth table was fetched for, so the table is
+// refetched only when the hash changes. Reset to null on failure so the next
+// hash-change trigger retries (the dev server may have been mid-compile).
+let worthFetchedForHash: string | null = null;
+
 /** Exported for tests to clear debounce and cache state between runs. */
 export function _resetSearchState() {
   if (searchTimeout) {
@@ -89,6 +96,7 @@ export function _resetSearchState() {
   cachedScryfallDataMap = new Map();
   cachedCardStatsMap = new Map();
   cardStatsCache = new Map();
+  worthFetchedForHash = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -104,6 +112,24 @@ export type CardStatsData = {
   times_banned: number;
   color_pair_breakdown: Array<{ colorPair: string; percentage: number; deckCount: number }>;
 };
+
+// Fit parameters as returned by /api/cards/worth (snake_case at the API
+// boundary). Only the fields the UI reads are typed; the route may include more.
+interface WorthModelSummary {
+  a: number;
+  b: number;
+  tau: number;
+  sigma: number;
+  tau_a: number;
+  kappa: number;
+  baselines: Record<string, number>;
+  pair_edges: Record<string, number>;
+}
+
+interface WorthTableResponse {
+  cards: WorthCard[];
+  model: WorthModelSummary;
+}
 
 interface DraftListItem {
   id: string;
@@ -148,6 +174,10 @@ interface CardStoreState {
   cardStatsDetail: CardStatsData | null;
   cardStatsLoading: boolean;
 
+  // Worth model state (dev-only; populated from /api/cards/worth on localhost)
+  worthCards: Map<string, WorthCard>;
+  worthModel: WorthModelSummary | null;
+
   // Actions
   //
   // fetchCardData({ includeDraftStats }) — pass false to skip the /api/draft-stats
@@ -161,6 +191,7 @@ interface CardStoreState {
   clearSearch: () => void;
   selectCard: (name: string, excludeDraftId?: string) => Promise<void>;
   clearSelectedCard: () => void;
+  fetchWorthTable: () => Promise<void>;
 }
 
 // ---------------------------------------------------------------------------
@@ -326,6 +357,10 @@ export const useCardStore = create<CardStoreState>()(
     selectedCard: null,
     cardStatsDetail: null,
     cardStatsLoading: false,
+
+    // Worth model state
+    worthCards: new Map(),
+    worthModel: null,
 
     // Derived state (initial empty values)
     scryfallDataMap: new Map(),
@@ -534,7 +569,43 @@ export const useCardStore = create<CardStoreState>()(
     },
 
     clearSelectedCard: () => set({ selectedCard: null, cardStatsDetail: null }),
+
+    fetchWorthTable: async () => {
+      // Dev-only: /api/cards/worth 404s in production builds, so production
+      // clients must never request it.
+      if (!isLocalClient()) return;
+
+      const currentHash = get().cardData.ingestionHash;
+      if (worthFetchedForHash === currentHash) return;
+      // Mark before awaiting so overlapping triggers don't double-fetch.
+      worthFetchedForHash = currentHash;
+
+      try {
+        const res = await fetch("/api/cards/worth");
+        if (!res.ok) throw new Error(`Worth fetch failed: ${res.status}`);
+        const data: WorthTableResponse = await res.json();
+        const worthCards = new Map(
+          data.cards.map((card) => [card.card_name, card]),
+        );
+        set({ worthCards, worthModel: data.model ?? null });
+      } catch {
+        // Swallow: the dev server may still be compiling the route. Empty
+        // state hides the worth UI; clearing the marker lets the next
+        // ingestionHash trigger retry.
+        worthFetchedForHash = null;
+        set({ worthCards: new Map(), worthModel: null });
+      }
+    },
   })),
+);
+
+// Worth table (dev-only): fetch whenever the committed card data's
+// ingestionHash changes — fires after SSR hydration and after any fetch that
+// landed new data. fetchWorthTable itself no-ops off localhost and when the
+// hash is one it already fetched for.
+useCardStore.subscribe(
+  (state) => state.cardData.ingestionHash,
+  () => void useCardStore.getState().fetchWorthTable(),
 );
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { derivePickSeat, getTotalPicks, getNextPick, buildPickMatrix } from './snakeDraft';
+import { derivePickSeat, getTotalPicks, getNextPick, buildPickMatrix, picksUntilNextTurn } from './snakeDraft';
 
 describe('derivePickSeat', () => {
   describe('single-pick region (4 seats, 6 picks each)', () => {
@@ -317,6 +317,73 @@ describe('getNextPick', () => {
     // Pick 232 under the heuristic is a double pick for seat 10; with the
     // override it's a single pick in reverse round 24 → seat 9.
     expect(getNextPick(231, 10, 45, 25)).toEqual({ pickNumber: 232, seat: 9 });
+  });
+});
+
+describe('picksUntilNextTurn', () => {
+  describe('single-pick region (10 seats, 45 picks)', () => {
+    const opts = { numSeats: 10, picksPerPlayer: 45 };
+
+    it('seat 1 at pick 1 next acts at pick 20 (snake turn): returns 19', () => {
+      expect(picksUntilNextTurn(1, 1, opts)).toBe(19);
+    });
+
+    it('seat 10 at pick 10 picks again immediately at pick 11: returns 1', () => {
+      expect(picksUntilNextTurn(10, 10, opts)).toBe(1);
+    });
+
+    it('mid-seat forward round: seat 5 at pick 5 next acts at pick 16', () => {
+      expect(picksUntilNextTurn(5, 5, opts)).toBe(11);
+    });
+
+    it('reverse round into forward: seat 1 at pick 20 next acts at pick 21', () => {
+      expect(picksUntilNextTurn(20, 1, opts)).toBe(1);
+    });
+
+    it('currentPickN 0 counts up to the seat\'s first pick', () => {
+      expect(picksUntilNextTurn(0, 3, opts)).toBe(3);
+    });
+  });
+
+  describe('double-pick region (4 seats, 8 picks)', () => {
+    // Round 5 forward doubles (17-24: seats 1,1,2,2,3,3,4,4), round 6
+    // reverse doubles (25-32: seats 4,4,3,3,2,2,1,1).
+    const opts = { numSeats: 4, picksPerPlayer: 8 };
+
+    it('a seat\'s own second double pick counts: seat 1 at pick 17 returns 1', () => {
+      expect(picksUntilNextTurn(17, 1, opts)).toBe(1);
+    });
+
+    it('after its double, seat 1 at pick 18 next acts at pick 31', () => {
+      expect(picksUntilNextTurn(18, 1, opts)).toBe(13);
+    });
+  });
+
+  describe('explicit doublePickAfterRound (10 seats, 45 picks, doubles after 25)', () => {
+    const opts = { numSeats: 10, picksPerPlayer: 45, doublePickAfterRound: 25 };
+
+    it('single-to-double boundary: seat 10 at pick 250 doubles at 251', () => {
+      expect(picksUntilNextTurn(250, 10, opts)).toBe(1);
+    });
+
+    it('across the double snake turn: seat 10 at pick 252 next acts at 289', () => {
+      expect(picksUntilNextTurn(252, 10, opts)).toBe(37);
+    });
+  });
+
+  describe('end of draft (4 seats, 6 picks)', () => {
+    const opts = { numSeats: 4, picksPerPlayer: 6 };
+
+    it('returns null once a seat has made its final pick', () => {
+      // Seat 1's last picks are 17-18 in the final double round.
+      expect(picksUntilNextTurn(18, 1, opts)).toBeNull();
+      expect(picksUntilNextTurn(24, 3, opts)).toBeNull();
+    });
+
+    it('returns null at or past the last pick of the draft', () => {
+      expect(picksUntilNextTurn(24, 4, opts)).toBeNull();
+      expect(picksUntilNextTurn(99, 1, opts)).toBeNull();
+    });
   });
 });
 

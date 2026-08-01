@@ -4,7 +4,7 @@ export interface PickSeatResult {
   isDoublePick: boolean;
 }
 
-interface SnakeDraftOpts {
+export interface DerivePickSeatOptions {
   numSeats: number;
   picksPerPlayer: number;
   /**
@@ -21,7 +21,7 @@ const DOUBLE_PICK_FINAL_FRACTION = 4;
 
 export function derivePickSeat(
   pickNumber: number,
-  opts: SnakeDraftOpts,
+  opts: DerivePickSeatOptions,
 ): PickSeatResult {
   const { numSeats, picksPerPlayer, doublePickAfterRound } = opts;
   const singlePickRounds = doublePickAfterRound ??
@@ -89,6 +89,28 @@ export function getNextPick(
   const pickNumber = currentPickCount + 1;
   const { seat } = derivePickSeat(pickNumber, { numSeats, picksPerPlayer, doublePickAfterRound });
   return { pickNumber, seat };
+}
+
+/**
+ * How many picks pass before the given seat is next on the clock, defined as
+ * nextPickN − currentPickN where nextPickN is the first pick after
+ * currentPickN belonging to the seat. Example: seat 1 picking at pick 1 with
+ * 10 seats next acts at pick 20, so this returns 19. During a double pick the
+ * seat's own second pick counts: the same call at pick 17 of a double round
+ * returns 1. Returns null when the seat never picks again.
+ */
+export function picksUntilNextTurn(
+  currentPickN: number,
+  seat: number,
+  opts: DerivePickSeatOptions,
+): number | null {
+  const total = getTotalPicks(opts.numSeats, opts.picksPerPlayer);
+  for (let pickN = currentPickN + 1; pickN <= total; pickN++) {
+    if (derivePickSeat(pickN, opts).seat === seat) {
+      return pickN - currentPickN;
+    }
+  }
+  return null;
 }
 
 /**

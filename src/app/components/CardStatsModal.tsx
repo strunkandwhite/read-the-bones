@@ -15,7 +15,9 @@ import { ColorPills } from "./ManaSymbols";
 import type { DraftScore } from "@/core/types";
 
 import type { CardStatus } from "@/core/cardStatus";
+import type { WorthCard } from "@/core/worthModel";
 import { ciMarginPct } from "@/core/wilsonInterval";
+import { formatSignedPercent, formatSignedZ } from "./CardTable";
 
 // Minimum duration (ms) to show the disabled state after a queue/pick/float action,
 // so the UI change is perceptible even if the server responds instantly.
@@ -27,6 +29,10 @@ export function CardStatsModal() {
   const clearSelectedCard = useCardStore((s) => s.clearSelectedCard);
   const data = useCardStore((s) => s.cardStatsDetail);
   const loading = useCardStore((s) => s.cardStatsLoading);
+  const worthCard = useCardStore((s) =>
+    s.selectedCard ? s.worthCards.get(s.selectedCard) : undefined,
+  );
+  const worthModel = useCardStore((s) => s.worthModel);
 
   // Draft store
   const activeDraft = useDraftStore((s) => s.activeDraft);
@@ -204,7 +210,12 @@ export function CardStatsModal() {
             {loading ? (
               <div className="text-sm text-gray-500">Loading stats...</div>
             ) : data ? (
-              <StatsContent data={data} isLocal={isLocal} />
+              <StatsContent
+                data={data}
+                isLocal={isLocal}
+                worthCard={worthCard}
+                worthModel={worthModel}
+              />
             ) : null}
           </div>
         </div>
@@ -268,7 +279,17 @@ function aggregateByDate(
 
 type StatsData = CardStatsData;
 
-function StatsContent({ data, isLocal }: { data: StatsData; isLocal?: boolean }) {
+function StatsContent({
+  data,
+  isLocal,
+  worthCard,
+  worthModel,
+}: {
+  data: StatsData;
+  isLocal?: boolean;
+  worthCard?: WorthCard;
+  worthModel?: { tau: number; sigma: number; kappa: number } | null;
+}) {
   const { pick, wins, pick_history, pick_distribution, times_banned, color_pair_breakdown } = data;
 
   // Transform pick_history to DraftScore[], aggregating same-date drafts
@@ -292,6 +313,35 @@ function StatsContent({ data, isLocal }: { data: StatsData; isLocal?: boolean })
           />
         )}
       </div>
+
+      {/* Worth model (dev-only) */}
+      {isLocal && worthCard && (
+        <div>
+          <div className="mb-1.5 text-xs font-medium text-zinc-400">Worth Model</div>
+          <div className="grid grid-cols-2 gap-3 text-sm">
+            <StatRow
+              label="Worth"
+              value={worthCard.worth != null ? formatSignedPercent(worthCard.worth) : "—"}
+              annotation={worthCard.prior_only ? "prior only" : undefined}
+            />
+            <StatRow
+              label="PVI"
+              value={worthCard.pvi != null ? formatSignedZ(worthCard.pvi) : "—"}
+            />
+            <StatRow
+              label="Act by"
+              value={worthCard.act_by != null ? String(worthCard.act_by) : "—"}
+            />
+            <StatRow label="Games" value={String(worthCard.games)} />
+          </div>
+          {worthModel && (
+            <div className="mt-1.5 text-xs text-zinc-500">
+              τ {worthModel.tau.toFixed(3)} · σ {worthModel.sigma.toFixed(3)} · κ{" "}
+              {worthModel.kappa}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Color pair breakdown */}
       {color_pair_breakdown.length > 0 && (
