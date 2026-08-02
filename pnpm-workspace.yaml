@@ -3,6 +3,16 @@ allowBuilds:
   sharp: true
   unrs-resolver: true
 minimumReleaseAgeStrict: true
+# The repo is bind-mounted into a Linux sandbox that shares node_modules with
+# the macOS host, so native binaries for both platforms must be installed.
+supportedArchitectures:
+  os:
+    - darwin
+    - linux
+  cpu:
+    - arm64
+  libc:
+    - glibc
 overrides:
   postcss: '>=8.5.25'
   sharp: '>=0.35.3'

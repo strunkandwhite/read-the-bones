@@ -346,6 +346,11 @@ export function CardTable({
     getScrollElement: () => scrollContainerRef.current,
     estimateSize: () => ROW_HEIGHT_ESTIMATE,
     overscan: 10,
+    // React 19 concurrent rendering can deliver scroll events mid-render, where
+    // the virtualizer's flushSync trips "flushSync was called from inside a
+    // lifecycle method" (TanStack/virtual#1094). Batched updates are fine here:
+    // fixed-height rows with overscan never visibly lag a scroll frame.
+    useFlushSync: false,
   });
 
   const virtualRows = rowVirtualizer.getVirtualItems();
