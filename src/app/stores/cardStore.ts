@@ -119,6 +119,7 @@ interface WorthModelSummary {
   a: number;
   b: number;
   tau: number;
+  tau0: number;
   sigma: number;
   tau_a: number;
   kappa: number;
@@ -177,6 +178,9 @@ interface CardStoreState {
   // Worth model state (dev-only; populated from /api/cards/worth on localhost)
   worthCards: Map<string, WorthCard>;
   worthModel: WorthModelSummary | null;
+  // Dev-only override for the pick desire is evaluated at (null = automatic:
+  // the live draft's current pick, else 1). Session state, not persisted.
+  desirePickOverride: number | null;
 
   // Actions
   //
@@ -192,6 +196,7 @@ interface CardStoreState {
   selectCard: (name: string, excludeDraftId?: string) => Promise<void>;
   clearSelectedCard: () => void;
   fetchWorthTable: () => Promise<void>;
+  setDesirePickOverride: (pick: number | null) => void;
 }
 
 // ---------------------------------------------------------------------------
@@ -361,6 +366,7 @@ export const useCardStore = create<CardStoreState>()(
     // Worth model state
     worthCards: new Map(),
     worthModel: null,
+    desirePickOverride: null,
 
     // Derived state (initial empty values)
     scryfallDataMap: new Map(),
@@ -569,6 +575,15 @@ export const useCardStore = create<CardStoreState>()(
     },
 
     clearSelectedCard: () => set({ selectedCard: null, cardStatsDetail: null }),
+
+    setDesirePickOverride: (pick) =>
+      set({
+        // Guard against NaN and fractional input; the override is a pick number.
+        desirePickOverride:
+          pick !== null && Number.isFinite(pick) && pick >= 1
+            ? Math.floor(pick)
+            : null,
+      }),
 
     fetchWorthTable: async () => {
       // Dev-only: /api/cards/worth 404s in production builds, so production

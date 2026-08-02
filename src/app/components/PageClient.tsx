@@ -14,6 +14,7 @@ import type { CardStatsResponse } from "@/core/getCards";
 import type { DraftStatsResponse } from "@/core/getDraftStats";
 import dynamic from "next/dynamic";
 import { useScrollLock } from "@/app/hooks/useScrollLock";
+import { isLocalClient } from "@/core/isLocal";
 
 // DeckBuilderPanel pulls in @dnd-kit (heavy); DraftBoardModal is interaction-only.
 // Both are gated behind activeDraft + selectedSeat conditionals, so they never
@@ -126,6 +127,14 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   // Mobile deck filter: shows only picked/queued/floated cards in card table
   const [deckFilterActive, setDeckFilterActive] = useState(false);
 
+  // SSR-safe localhost detection: isLocalClient() is false during prerender,
+  // and this outer shell may never re-render from store changes, so the SSR
+  // value would stick without a post-mount state update.
+  const [isLocalView, setIsLocalView] = useState(false);
+  useEffect(() => {
+    setIsLocalView(isLocalClient()); // eslint-disable-line react-hooks/set-state-in-effect -- intentional post-mount client detection
+  }, []);
+
   // When mySeat resolves from token auth, auto-select that seat
   useEffect(() => {
     if (mySeat !== null && selectedSeat === null) {
@@ -153,7 +162,13 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <div className="mx-auto max-w-7xl px-4 pb-0 pt-4 sm:px-6 lg:px-8">
+      {/* Localhost shows the extra worth-model columns (Worth, PVI, Desire),
+          which need more width than the production column set. */}
+      <div
+        className={`mx-auto px-4 pb-0 pt-4 sm:px-6 lg:px-8 ${
+          isLocalView ? "max-w-[100rem]" : "max-w-7xl"
+        }`}
+      >
         {/* Toolbar — single row: Logo | Search | Color Filters | Actions */}
         <div className="mb-3 flex items-center gap-3">
           {/* Logo + Title */}

@@ -14,7 +14,7 @@ import { DEFAULT_POOL_SIZE } from "../../../types";
 import { MIN_SAMPLE_SIZE } from "../../../constants";
 import {
   colorFlag,
-  danger,
+  overdueDanger,
   pairSupply,
   type WorthCard,
 } from "../../../worthModel";
@@ -501,7 +501,7 @@ export async function rankAvailableCards(
       const dangerWindow = Math.max(worthContext.horizon - 1, 0);
       const dangerValue =
         worthGeomean !== null && worthGeomean > 0 && worthContext.sigma > 0 && dangerWindow > 0
-          ? danger(
+          ? overdueDanger(
               params.before_pick_n,
               dangerWindow,
               worthGeomean,

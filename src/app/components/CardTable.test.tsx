@@ -1,28 +1,60 @@
 // @vitest-environment jsdom
 /**
- * Tests that CardTable's card-status subscriptions update reactively from
- * queue/float store changes without requiring a parent re-render.
+ * CardTable tests, in two groups:
  *
- * The full CardTable uses @tanstack/react-virtual which doesn't render rows in
- * jsdom (no layout engine). These tests instead render a minimal component that
- * calls useCardStatuses — the same hook CardTable uses — so we verify the hook's
- * reactive contract without fighting the virtualizer in tests.
+ * 1. Card-status subscriptions: a minimal probe component around
+ *    useCardStatuses verifies the reactive contract without the table.
+ * 2. The dev-only desire column: the FULL CardTable rendered through a
+ *    virtualizer stub (the real @tanstack/react-virtual renders zero rows in
+ *    jsdom's layout-less DOM), exercising the real TanStack table — column
+ *    gating, pick-1 fallback, and the tableData clone memo that busts
+ *    TanStack's per-row accessor value caches.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, cleanup, act } from "@testing-library/react";
+import { render, screen, cleanup, act } from "@testing-library/react";
 import { useCardStatuses } from "@/app/stores/selectors";
 import { useCardStore, EMPTY_CARD_DATA } from "@/app/stores/cardStore";
 import { useDraftStore } from "@/app/stores/draftStore";
 import { useLiveStore } from "@/app/stores/liveStore";
 import { createEmptyDeckState } from "@/core/deckBuilder";
+import { CardTable } from "./CardTable";
+import { desireAt, desireIndex, formatDesireIndex } from "./desireCurve";
+import type { WorthCard } from "@/core/worthModel";
+import type { EnrichedCardStats } from "@/core/types";
 
+const isLocalClientMock = vi.fn<() => boolean>(() => false);
 vi.mock("@/core/isLocal", () => ({
-  isLocalClient: () => false,
+  isLocalClient: () => isLocalClientMock(),
 }));
 
 vi.mock("@vercel/analytics/react", () => ({
   track: vi.fn(),
 }));
+
+// The real virtualizer renders zero rows in jsdom (no layout engine). This
+// stub renders every row so the full CardTable — real TanStack table, real
+// columns, real accessor caching — can be exercised.
+vi.mock("@tanstack/react-virtual", () => ({
+  useVirtualizer: ({ count }: { count: number }) => ({
+    getVirtualItems: () =>
+      Array.from({ length: count }, (_, index) => ({
+        index,
+        key: index,
+        start: index * 48,
+        end: (index + 1) * 48,
+        size: 48,
+      })),
+    getTotalSize: () => count * 48,
+    measureElement: () => {},
+  }),
+}));
+
+// jsdom has no ResizeObserver; CardTable's breakpoint observer needs a stub.
+globalThis.ResizeObserver = class {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+} as unknown as typeof ResizeObserver;
 
 // Thin component that renders status for a single card via the hook CardTable uses.
 // Renders a <span title={status}> so tests can assert the status without the virtualizer.
@@ -194,5 +226,130 @@ describe("useCardStatuses reactive subscriptions (used by CardTable)", () => {
 
     // mySeat(2) !== selectedSeat(1) → not authed → no queued status
     expect(getStatus()).not.toBe("Queue position 1");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Desire column (dev-only) — rendered through the real table via the
+// virtualizer stub above.
+// ---------------------------------------------------------------------------
+
+const SIGMA = 0.5;
+
+function worthCardFixture(name: string, worth: number, geomean: number): WorthCard {
+  return {
+    card_name: name,
+    colors: "R",
+    is_land: false,
+    in_current_cube: true,
+    geomean,
+    games: 200,
+    wins: 100,
+    losses: 100,
+    wr: 0.5,
+    se: 0.03,
+    delta: worth,
+    expected: 0,
+    pvi: 1,
+    worth,
+    prior_only: false,
+    no_data: false,
+    act_by: null,
+  };
+}
+
+function tableCardFixture(name: string, geomean: number): EnrichedCardStats {
+  return {
+    cardName: name,
+    colors: ["R"],
+    weightedGeomean: geomean,
+    timesAvailable: 2,
+  } as unknown as EnrichedCardStats;
+}
+
+// Early Bird: taken almost immediately (geo 5). Late Bloomer: geo 300, desire
+// dashes at pick 1 and wakes up under a mid-draft override.
+const WORTH_SCALE = 0.05; // max |worth| across the two fixtures
+const earlyBird = { worth: 0.04, geomean: 5, sigma: SIGMA };
+const lateBloomer = { worth: 0.05, geomean: 300, sigma: SIGMA };
+
+function expectedIndex(pick: number, inputs: typeof earlyBird): string {
+  return formatDesireIndex(desireIndex(desireAt(pick, inputs), WORTH_SCALE)!);
+}
+
+function rowText(cardName: string): string {
+  const row = [...document.querySelectorAll("tbody tr")].find((tr) =>
+    tr.textContent?.includes(cardName),
+  );
+  return row?.textContent ?? "";
+}
+
+describe("CardTable desire column (dev-only)", () => {
+  beforeEach(() => {
+    isLocalClientMock.mockReturnValue(true);
+    useCardStore.setState({
+      worthCards: new Map([
+        ["Early Bird", worthCardFixture("Early Bird", earlyBird.worth, earlyBird.geomean)],
+        ["Late Bloomer", worthCardFixture("Late Bloomer", lateBloomer.worth, lateBloomer.geomean)],
+      ]),
+      worthModel: {
+        a: 0,
+        b: 0,
+        tau: 0.03,
+        tau0: 0.035,
+        sigma: SIGMA,
+        tau_a: 0.01,
+        kappa: 0.5,
+        baselines: {},
+        pair_edges: {},
+      },
+      desirePickOverride: null,
+    });
+  });
+
+  const cards = [
+    tableCardFixture("Early Bird", 5),
+    tableCardFixture("Late Bloomer", 300),
+  ];
+
+  it("renders desire at pick 1 when no draft is active", () => {
+    render(<CardTable cards={cards} />);
+
+    expect(screen.getByText(/Desire \(1\)/)).toBeTruthy();
+    expect(rowText("Early Bird")).toContain(expectedIndex(1, earlyBird));
+    // Late-geo card at pick 1: danger is remote, index rounds to 0 → dash.
+    expect(rowText("Late Bloomer")).toContain("—");
+  });
+
+  it("hides the worth-model columns off localhost", () => {
+    isLocalClientMock.mockReturnValue(false);
+    render(<CardTable cards={cards} />);
+
+    expect(screen.queryByText(/Desire/)).toBeNull();
+    expect(screen.queryByText("Worth")).toBeNull();
+    expect(screen.queryByText("PVI")).toBeNull();
+  });
+
+  it("live-recalculates desire when the pick override changes (row cache-bust regression)", async () => {
+    // Regression for the tableData clone memo: TanStack caches each row's
+    // accessor values keyed by data identity only, so without the clone the
+    // header would update while the cells served stale pre-override values.
+    render(<CardTable cards={cards} />);
+    expect(rowText("Late Bloomer")).toContain("—");
+
+    await act(async () => {
+      useCardStore.setState({ desirePickOverride: 250 });
+    });
+
+    expect(screen.getByText(/Desire \(250\)/)).toBeTruthy();
+    expect(rowText("Late Bloomer")).toContain(expectedIndex(250, lateBloomer));
+    expect(rowText("Early Bird")).toContain(expectedIndex(250, earlyBird));
+
+    await act(async () => {
+      useCardStore.setState({ desirePickOverride: null });
+    });
+
+    expect(screen.getByText(/Desire \(1\)/)).toBeTruthy();
+    expect(rowText("Late Bloomer")).toContain("—");
   });
 });

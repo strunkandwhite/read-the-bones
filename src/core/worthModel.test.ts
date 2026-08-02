@@ -3,7 +3,8 @@ import {
   fitPriceCurve,
   estimateTau,
   estimateTauDL,
-  shrinkWorth,
+  overdueDanger,
+  shrinkQuality,
   normalCdf,
   pickCdf,
   danger,
@@ -107,28 +108,32 @@ describe("estimateTauDL", () => {
   });
 });
 
-describe("shrinkWorth", () => {
+describe("shrinkQuality", () => {
   it("gives full weight to the observation as se → 0", () => {
-    const { worth, w } = shrinkWorth(0.08, 0.02, 0.03, 0);
+    const { worth, w } = shrinkQuality(0.08, 0.03, 0);
     expect(w).toBe(1);
     expect(worth).toBeCloseTo(0.08, 10);
   });
 
-  it("gives full weight to the prior as se → ∞", () => {
-    const { worth, w } = shrinkWorth(0.08, 0.02, 0.03, 1e9);
+  it("shrinks fully to zero as se → ∞", () => {
+    const { worth, w } = shrinkQuality(0.08, 0.03, 1e9);
     expect(w).toBeCloseTo(0, 10);
-    expect(worth).toBeCloseTo(0.02, 10);
+    expect(worth).toBeCloseTo(0, 10);
   });
 
-  it("splits evenly when tau equals se", () => {
-    const { worth, w } = shrinkWorth(0.08, 0.02, 0.03, 0.03);
+  it("halves the observation when tau0 equals se", () => {
+    const { worth, w } = shrinkQuality(0.08, 0.03, 0.03);
     expect(w).toBeCloseTo(0.5, 10);
-    expect(worth).toBeCloseTo(0.05, 10);
+    expect(worth).toBeCloseTo(0.04, 10);
   });
 
-  it("falls back to the prior when tau = 0, even at se = 0", () => {
-    expect(shrinkWorth(0.08, 0.02, 0, 0)).toEqual({ worth: 0.02, w: 0 });
-    expect(shrinkWorth(0.08, 0.02, 0, 0.05).worth).toBeCloseTo(0.02, 10);
+  it("preserves sign for negative deltas", () => {
+    expect(shrinkQuality(-0.06, 0.03, 0.03).worth).toBeCloseTo(-0.03, 10);
+  });
+
+  it("collapses to zero when tau0 = 0, even at se = 0", () => {
+    expect(shrinkQuality(0.08, 0, 0)).toEqual({ worth: 0, w: 0 });
+    expect(shrinkQuality(0.08, 0, 0.05).worth).toBeCloseTo(0, 10);
   });
 });
 
@@ -198,22 +203,63 @@ describe("danger", () => {
   });
 });
 
+describe("overdueDanger", () => {
+  const geo = 50;
+  const sigma = 0.5;
+  const h = 20;
+
+  it("matches danger while the card's window is still ahead", () => {
+    // F(n) ≈ 0 well before the geomean, so the floor never binds there.
+    for (const n of [1, 5, 10]) {
+      expect(overdueDanger(n, h, geo, sigma)).toBeCloseTo(danger(n, h, geo, sigma), 6);
+    }
+  });
+
+  it("floors at F(n) once the card is overdue — no wheel-again discount", () => {
+    // Deep past the geomean the conditional hazard sags; the floor holds
+    // at the (near-1) probability the card should already be gone.
+    const n = geo * 6;
+    expect(overdueDanger(n, h, geo, sigma)).toBeCloseTo(pickCdf(n, geo, sigma), 10);
+    expect(overdueDanger(n, h, geo, sigma)).toBeGreaterThan(danger(n, h, geo, sigma));
+  });
+
+  it("is monotone non-decreasing over the whole draft", () => {
+    // The raw conditional hazard is not monotone (it sags in the tail);
+    // the overdue floor is what restores monotonicity.
+    let prev = 0;
+    for (let n = 1; n <= 459; n++) {
+      const d = overdueDanger(n, h, geo, sigma);
+      expect(d).toBeGreaterThanOrEqual(prev - 1e-9);
+      expect(d).toBeLessThanOrEqual(1);
+      prev = d;
+    }
+  });
+});
+
 describe("actBy", () => {
-  it("returns the first pick where danger crosses 0.5", () => {
+  it("returns the first pick where overdueDanger crosses 0.5", () => {
     const geo = 50;
     const sigma = 0.5;
     const h = 20;
     const n = actBy(geo, h, sigma);
     expect(n).not.toBeNull();
-    expect(danger(n!, h, geo, sigma)).toBeGreaterThanOrEqual(0.5);
-    expect(danger(n! - 1, h, geo, sigma)).toBeLessThan(0.5);
+    expect(overdueDanger(n!, h, geo, sigma)).toBeGreaterThanOrEqual(0.5);
+    expect(overdueDanger(n! - 1, h, geo, sigma)).toBeLessThan(0.5);
   });
 
   it("returns 1 for a card the market takes immediately", () => {
     expect(actBy(1, 20, 0.5)).toBe(1);
   });
 
-  it("returns null when danger never crosses 0.5", () => {
+  it("never exceeds the geomean — an overdue card is never safe to wait on", () => {
+    // Even with a tiny horizon (raw danger stays low), F(n) crosses 0.5 at
+    // the geomean, so actBy caps there.
+    const n = actBy(100, 1, 0.5);
+    expect(n).not.toBeNull();
+    expect(n!).toBeLessThanOrEqual(100);
+  });
+
+  it("returns null only when the scan bound precedes the card's window", () => {
     expect(actBy(1e8, 1, 0.5)).toBeNull();
   });
 });

@@ -4,6 +4,8 @@
  * (src/core/worthModel.ts), and produces the per-card worth table.
  *
  * Model reference: docs/superpowers/specs/2026-08-01-card-worth-model-design.md
+ * (worth redefined to the zero-prior quality estimate:
+ * docs/superpowers/specs/2026-08-02-desire-metric-design.md)
  */
 
 import type { Client } from "@libsql/client";
@@ -24,7 +26,7 @@ import {
   estimateTau,
   estimateTauDL,
   fitPriceCurve,
-  shrinkWorth,
+  shrinkQuality,
   type WorthCard,
   type WorthModelFit,
 } from "../../../worthModel";
@@ -473,6 +475,12 @@ async function assembleWorthTable(
       se,
     })),
   );
+  // Quality spread around the ZERO prior (raw deltas, not curve residuals):
+  // worth shrinks toward zero, so its weight must use total spread or the
+  // shrinkage understates true quality variance.
+  const tau0 = estimateTau(
+    fitPoints.map(({ delta, se }) => ({ resid: delta, se })),
+  );
 
   const cards: WorthCard[] = [];
   for (const name of [...tableNames].sort()) {
@@ -499,7 +507,7 @@ async function assembleWorthTable(
       // se = 0 (all-win or all-loss record) leaves pvi undefined; shrinkage
       // then puts full weight on the observation, which is the se→0 limit.
       pvi = se !== null && se > 0 ? (delta! - expected!) / se : null;
-      worth = shrinkWorth(delta!, expected!, tau, se!).worth;
+      worth = shrinkQuality(delta!, tau0, se!).worth;
     }
 
     const actByPick =
@@ -532,6 +540,7 @@ async function assembleWorthTable(
     a,
     b,
     tau,
+    tau0,
     sigma,
     tauA,
     grandMean,

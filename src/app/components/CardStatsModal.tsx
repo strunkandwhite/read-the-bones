@@ -22,20 +22,19 @@ import {
   formatSignedZ,
   WORTH_EXPLANATION,
   PVI_EXPLANATION,
+  DESIRE_EXPLANATION,
 } from "./CardTable";
 import { InfoTooltip } from "./InfoTooltip";
-
-const ACT_BY_EXPLANATION = `Pick number by which the odds this card is gone within one snake turn (two times the pod's seats) pass 50%, given it's still on the board.
-
-"—" = the odds never reach 50%; it usually wheels.`;
+import {
+  desireAt,
+  desireIndex,
+  formatDesireIndex,
+  maxAbsWorth,
+  DEFAULT_TOTAL_PICKS,
+} from "./desireCurve";
+import { DesireCurveChart } from "./DesireCurveChart";
 
 const GAMES_EXPLANATION = `Games played by decks that maindecked this card, across stats-eligible drafts — the sample behind Worth and PVI.`;
-
-const MODEL_PARAMS_EXPLANATION = `Live model fit, recomputed as drafts complete:
-
-τ — true spread of card quality around the price curve (how much the market misprices, overall)
-σ — spread of actual pick timing around a card's typical position
-κ — weight on color-commitment cost for uncommitted picks`;
 
 // Minimum duration (ms) to show the disabled state after a queue/pick/float action,
 // so the UI change is perceptible even if the server responds instantly.
@@ -51,10 +50,25 @@ export function CardStatsModal() {
     s.selectedCard ? s.worthCards.get(s.selectedCard) : undefined,
   );
   const worthModel = useCardStore((s) => s.worthModel);
+  const worthCards = useCardStore((s) => s.worthCards);
+  // Desire-index denominator: the cube's largest |worth| (see desireCurve.ts).
+  const worthScale = useMemo(() => maxAbsWorth(worthCards.values()), [worthCards]);
 
   // Draft store
   const activeDraft = useDraftStore((s) => s.activeDraft);
-  const boardPhase = useDraftStore((s) => s.board?.phase);
+  const board = useDraftStore((s) => s.board);
+  const boardPhase = board?.phase;
+
+  // Desire is evaluated at the live draft's current pick while drafting,
+  // at pick 1 (draft-start view) otherwise — mirrors the CardTable column,
+  // including the dev-only settings override.
+  const desirePickOverride = useCardStore((s) => s.desirePickOverride);
+  const isDrafting = boardPhase === "drafting" && Array.isArray(board?.picks);
+  const currentPick =
+    desirePickOverride ?? (isDrafting ? board!.picks.length + 1 : 1);
+  const totalPicks = board
+    ? board.numSeats * board.picksPerPlayer
+    : DEFAULT_TOTAL_PICKS;
 
   // Live store
   const isMyTurn = useLiveStore((s) => s.isMyTurn);
@@ -233,6 +247,9 @@ export function CardStatsModal() {
                 isLocal={isLocal}
                 worthCard={worthCard}
                 worthModel={worthModel}
+                worthScale={worthScale}
+                currentPick={currentPick}
+                totalPicks={totalPicks}
               />
             ) : null}
           </div>
@@ -302,11 +319,17 @@ function StatsContent({
   isLocal,
   worthCard,
   worthModel,
+  worthScale,
+  currentPick,
+  totalPicks,
 }: {
   data: StatsData;
   isLocal?: boolean;
   worthCard?: WorthCard;
-  worthModel?: { tau: number; sigma: number; kappa: number } | null;
+  worthModel?: { sigma: number } | null;
+  worthScale: number;
+  currentPick: number;
+  totalPicks: number;
 }) {
   const { pick, wins, pick_history, pick_distribution, times_banned, color_pair_breakdown } = data;
 
@@ -350,26 +373,53 @@ function StatsContent({
               tooltipAlign="right"
             />
             <StatRow
-              label="Act by"
-              value={worthCard.act_by != null ? String(worthCard.act_by) : "—"}
-              tooltip={ACT_BY_EXPLANATION}
-            />
-            <StatRow
               label="Games"
               value={String(worthCard.games)}
               tooltip={GAMES_EXPLANATION}
-              tooltipAlign="right"
             />
+            {worthModel &&
+              worthModel.sigma > 0 &&
+              worthScale > 0 &&
+              worthCard.worth != null &&
+              worthCard.geomean != null && (
+                <StatRow
+                  label="Desire"
+                  value={formatDesireIndex(
+                    desireIndex(
+                      desireAt(currentPick, {
+                        worth: worthCard.worth,
+                        geomean: worthCard.geomean,
+                        sigma: worthModel.sigma,
+                      }),
+                      worthScale,
+                    )!,
+                  )}
+                  annotation={`at pick ${currentPick}`}
+                  tooltip={DESIRE_EXPLANATION}
+                />
+              )}
           </div>
-          {worthModel && (
-            <div className="mt-1.5 text-xs text-zinc-500">
-              <span className="inline-flex items-center">
-                τ {worthModel.tau.toFixed(3)} · σ {worthModel.sigma.toFixed(3)} · κ{" "}
-                {worthModel.kappa}
-                <InfoTooltip text={MODEL_PARAMS_EXPLANATION} />
-              </span>
-            </div>
-          )}
+          {worthModel &&
+            worthModel.sigma > 0 &&
+            worthScale > 0 &&
+            worthCard.worth != null &&
+            worthCard.geomean != null && (
+              <div className="mt-3">
+                <div className="mb-1.5 text-xs font-medium text-zinc-400">
+                  Desire by Pick
+                </div>
+                <DesireCurveChart
+                  inputs={{
+                    worth: worthCard.worth,
+                    geomean: worthCard.geomean,
+                    sigma: worthModel.sigma,
+                  }}
+                  worthScale={worthScale}
+                  totalPicks={totalPicks}
+                  currentPick={currentPick}
+                />
+              </div>
+            )}
         </div>
       )}
 

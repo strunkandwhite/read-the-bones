@@ -150,6 +150,7 @@ describe("getWorthTable", () => {
     expect(Number.isFinite(result.model.a)).toBe(true);
     expect(Number.isFinite(result.model.b)).toBe(true);
     expect(result.model.tau).toBeGreaterThanOrEqual(0);
+    expect(result.model.tau0).toBeGreaterThanOrEqual(0);
     expect(result.model.sigma).toBeGreaterThan(0);
     expect(result.model.kappa).toBe(0.5);
     expect(result.model.baselines).toEqual({
@@ -185,13 +186,11 @@ describe("getWorthTable", () => {
     expect(nullstone.delta).toBeCloseTo(0.2, 10);
     expect(nullstone.pvi).not.toBeNull();
     expect(nullstone.pvi!).toBeGreaterThan(0);
-    // Shrinkage keeps worth between the prior and the observation.
-    expect(nullstone.worth!).toBeGreaterThanOrEqual(
-      Math.min(nullstone.expected!, nullstone.delta!),
-    );
-    expect(nullstone.worth!).toBeLessThanOrEqual(
-      Math.max(nullstone.expected!, nullstone.delta!),
-    );
+    // Zero-prior shrinkage: worth = w·delta with w from tau0 and the card's
+    // se — the price curve plays no part in a data-driven worth.
+    const zeroPriorWeight =
+      result.model.tau0 ** 2 / (result.model.tau0 ** 2 + nullstone.se! ** 2);
+    expect(nullstone.worth!).toBeCloseTo(zeroPriorWeight * nullstone.delta!, 10);
     // Not in the current cube → no act_by even though it has a geomean.
     expect(nullstone.act_by).toBeNull();
   });

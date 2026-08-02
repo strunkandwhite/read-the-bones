@@ -23,6 +23,7 @@ export const GET = withApiErrors(async () => {
       a: model.a,
       b: model.b,
       tau: model.tau,
+      tau0: model.tau0,
       sigma: model.sigma,
       tau_a: model.tauA,
       kappa: model.kappa,

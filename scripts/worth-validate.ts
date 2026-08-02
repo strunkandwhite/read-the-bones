@@ -21,7 +21,7 @@ import { getClient } from "../src/core/db/client";
 import { statsPhaseFilter } from "../src/core/draftPhases";
 import { getStandings } from "../src/core/db/queries/picks";
 import { getWorthTable } from "../src/core/db/queries/stats/worth";
-import { colorFlag, danger, type WorthCard } from "../src/core/worthModel";
+import { colorFlag, overdueDanger, type WorthCard } from "../src/core/worthModel";
 import { loadEnv } from "../src/core/db/ingest/utils";
 
 /** Seats covering less than this fraction of their picks are excluded. */
@@ -297,7 +297,7 @@ async function evaluateDraftLodo(
     ) {
       const firstPickScore =
         firstPickCard.worth *
-          danger(firstPick.pickN, P1_DANGER_HORIZON, firstPickCard.geomean, sigma) +
+          overdueDanger(firstPick.pickN, P1_DANGER_HORIZON, firstPickCard.geomean, sigma) +
         colorFlag(firstPickCard.colors, pairEdges, { committed: "" }, kappa);
       p1Group.scores.push(firstPickScore);
       p1Group.wins.push(wins);
@@ -429,7 +429,7 @@ async function main() {
 
   console.log("\nP1 diagnostic (underpowered by design — reported, NOT gated):");
   console.log(
-    `  first-pick score = worth x danger(pickN, ${P1_DANGER_HORIZON}, geo, sigma) + colorFlag(colors, pairEdges, uncommitted, kappa)`,
+    `  first-pick score = worth x overdueDanger(pickN, ${P1_DANGER_HORIZON}, geo, sigma) + colorFlag(colors, pairEdges, uncommitted, kappa)`,
   );
   console.log(
     `  seats scored: ${p1SeatTotal}; pooled within-draft rho: ${formatRho(observedP1Rho)}`,

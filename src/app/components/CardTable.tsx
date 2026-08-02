@@ -21,9 +21,15 @@ import { track } from "@vercel/analytics/react";
 import { useSlowRenderTracking } from "../hooks/useSlowRenderTracking";
 import { InfoTooltip } from "./InfoTooltip";
 import { useCardStore } from "../stores/cardStore";
+import { useDraftStore } from "../stores/draftStore";
 import { useCardStatuses } from "../stores/selectors";
 import { isLocalClient } from "@/core/isLocal";
-import { ciMarginPct } from "@/core/wilsonInterval";
+import {
+  desireAt,
+  desireIndex,
+  formatDesireIndex,
+  maxAbsWorth,
+} from "./desireCurve";
 
 export interface CardTableProps {
   cards: EnrichedCardStats[];
@@ -35,7 +41,11 @@ const columnHelper = createColumnHelper<EnrichedCardStats>();
 
 export const WORTH_EXPLANATION = `Best estimate of the win-rate points this card adds to a deck, vs its color's baseline.
 
-Observed deck win rate blended with the market's expectation for its pick position — the fewer the games, the more it leans on the market.`;
+Observed deck win rate shrunk toward zero in proportion to sample noise — the market's opinion of the card plays no part. Cards under the games threshold fall back to the price curve ("prior only").`;
+
+export const DESIRE_EXPLANATION = `Worth × the odds you don't get another look: the chance the card is taken within one snake turn (20 picks), floored by how overdue it already is. A card past its market window reads at full strength — "it wheeled twice, it'll wheel again" is how good cards get lost.
+
+An index from −100 to 100: ±100 is the cube's strongest quality signal fully on the line ("do not touch" ↔ "grab it now"). "—" = danger is remote, nothing is on the line yet. Evaluated at the pick in the header: the live draft's current pick, or pick 1 when no draft is in progress. The card's stats modal charts the full curve by pick.`;
 
 export const PVI_EXPLANATION = `Pick Value Index: how far results diverge from what the card's price predicts, in standard errors (σ).
 
@@ -94,6 +104,19 @@ export function CardTable({
   const takenCardCounts = useCardStore((s) => s.takenCardCounts);
   const seatCardNames = useCardStore((s) => s.seatCardNames);
   const worthCards = useCardStore((s) => s.worthCards);
+  const worthModel = useCardStore((s) => s.worthModel);
+  const board = useDraftStore((s) => s.board);
+
+  // Desire is state-dependent: evaluated at the live draft's current pick
+  // while drafting, at pick 1 (a draft-start priority board) otherwise.
+  // The dev-only settings override wins over both when set.
+  const desirePickOverride = useCardStore((s) => s.desirePickOverride);
+  const isDrafting = board?.phase === "drafting" && Array.isArray(board.picks);
+  const currentPick =
+    desirePickOverride ?? (isDrafting ? board!.picks.length + 1 : 1);
+
+  // Desire-index denominator: the cube's largest |worth| (see desireCurve.ts).
+  const worthScale = useMemo(() => maxAbsWorth(worthCards.values()), [worthCards]);
 
   const [sorting, setSorting] = useState<SortingState>([{ id: "pickScore", desc: false }]);
 
@@ -125,9 +148,9 @@ export function CardTable({
       manaCost: showSm,
       type: isDesktopOrWider,
       colors: showSm,
-      gpwr: isDesktopOrWider,
       worth: isDesktopOrWider,
       pvi: isDesktopOrWider,
+      desire: isDesktopOrWider,
     };
   }, [breakpoint, isDesktopOrWider]);
 
@@ -236,39 +259,6 @@ export function CardTable({
         },
       }),
       ...(isLocalClient() ? [
-        columnHelper.accessor((row) => row.gpwr != null ? row.gpwr : undefined, {
-          id: "gpwr",
-          size: 95,
-          sortUndefined: "last",
-          header: () => (
-            <span className="inline-flex items-center">
-              GPWR
-              <InfoTooltip text="Game Play Win Rate — win rate of seats that maindecked this card, with 95% confidence interval." />
-            </span>
-          ),
-          cell: ({ row }) => {
-            const gpwr = row.original.gpwr;
-            if (gpwr == null) {
-              return (
-                <span className="text-sm text-zinc-400 dark:text-zinc-500">
-                  -
-                </span>
-              );
-            }
-            const ci = row.original.gpwrCi;
-            const margin = ci ? ciMarginPct(ci) : 0;
-            return (
-              <span className="font-mono text-sm text-zinc-800 dark:text-zinc-200">
-                <span className="font-semibold">{(gpwr * 100).toFixed(0)}%</span>
-                {margin > 0 && (
-                  <span className="ml-0.5 text-xs text-zinc-400 dark:text-zinc-500">
-                    ±{margin}
-                  </span>
-                )}
-              </span>
-            );
-          },
-        }),
         columnHelper.accessor((row) => {
           const worthCard = worthCards.get(row.cardName);
           return worthCard != null && !worthCard.no_data && worthCard.worth != null
@@ -312,18 +302,86 @@ export function CardTable({
             return renderWorthModelValue(worthCard, worthCard?.pvi, formatSignedZ);
           },
         }),
+        columnHelper.accessor((row) => {
+          const worthCard = worthCards.get(row.cardName);
+          if (
+            worthCard == null ||
+            worthCard.no_data ||
+            worthCard.worth == null ||
+            worthCard.geomean == null ||
+            worthModel == null ||
+            worthModel.sigma <= 0
+          ) {
+            return undefined;
+          }
+          const index = desireIndex(
+            desireAt(currentPick, {
+              worth: worthCard.worth,
+              geomean: worthCard.geomean,
+              sigma: worthModel.sigma,
+            }),
+            worthScale,
+          );
+          return index ?? undefined;
+        }, {
+          id: "desire",
+          size: 105,
+          sortUndefined: "last",
+          header: () => (
+            <span className="inline-flex items-center">
+              Desire ({currentPick})
+              <InfoTooltip align="right" text={DESIRE_EXPLANATION} />
+            </span>
+          ),
+          cell: ({ row, getValue }) => {
+            const worthCard = worthCards.get(row.original.cardName);
+            const value = getValue();
+            if (worthCard == null || value === undefined) {
+              return <span className="text-sm text-zinc-400 dark:text-zinc-500">—</span>;
+            }
+            const label = formatDesireIndex(value);
+            if (label === "—") {
+              return <span className="text-sm text-zinc-400 dark:text-zinc-500">—</span>;
+            }
+            const flags = [
+              worthCard.prior_only ? "prior only" : null,
+              worthCard.is_land ? "land (unreliable)" : null,
+            ].filter(Boolean);
+            return (
+              <span
+                className="font-mono text-sm font-semibold text-zinc-800 dark:text-zinc-200"
+                title={[`${worthCard.games} games`, ...flags].join(" · ")}
+              >
+                {label}
+              </span>
+            );
+          },
+        }),
       ] : []),
     ],
-    [currentCubeCopies, worthCards]
+    [currentCubeCopies, worthCards, worthModel, currentPick, worthScale]
   );
 
   const filteredData = useMemo(() => {
     return filterCardsByColor(cards, colorFilter, colorFilterMode);
   }, [cards, colorFilter, colorFilterMode]);
 
+  // TanStack caches each row's accessor values keyed ONLY by data identity
+  // (getCoreRowModel memoizes on options.data; row.getValue caches per
+  // column id). The worth/desire accessors close over store state, so their
+  // cached values go stale when that state changes without a data refetch —
+  // e.g. the worth table arriving after cards, or the desire pick override
+  // changing. Cloning the array whenever any accessor input changes forces
+  // the row model (and its value caches) to rebuild.
+  const tableData = useMemo(
+    () => [...filteredData],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the "unnecessary" deps ARE the point: they bust TanStack's per-row value caches when accessor inputs change
+    [filteredData, worthCards, worthModel, currentPick, worthScale],
+  );
+
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table API is incompatible with React Compiler memoization
   const table = useReactTable({
-    data: filteredData,
+    data: tableData,
     columns,
     state: { sorting, columnVisibility },
     onSortingChange: handleSortingChange,

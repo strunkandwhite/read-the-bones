@@ -10,7 +10,8 @@
 export interface WorthModelFit {
   a: number;
   b: number; // E[dWR|geo] = a + b*ln(geo)
-  tau: number; // card-quality spread
+  tau: number; // quality spread around the price curve (diagnostic)
+  tau0: number; // quality spread around zero (drives worth shrinkage)
   sigma: number; // ln-pick spread
   tauA: number; // pair-edge spread (DerSimonian-Laird)
   grandMean: number; // precision-weighted pair WR mean
@@ -132,19 +133,23 @@ export function estimateTauDL(items: { delta: number; se: number }[]): {
 }
 
 /**
- * Shrink an observed ΔWR toward the price prior:
- *   w = τ²/(τ² + se²),  worth = w·delta + (1−w)·expected.
- * τ = 0 (or τ = se = 0) means no card-quality spread, so the prior wins: w = 0.
+ * Shrink an observed ΔWR toward the zero (color-neutral) prior:
+ *   w = τ₀²/(τ₀² + se²),  worth = w·delta.
+ * τ₀ is the quality spread measured around zero (estimateTau over raw
+ * deltas), not around the price curve — a zero-mean prior must use total
+ * spread or the shrinkage is inconsistent. The price curve stays out of
+ * the quality number by design: it explains ~5% of true quality variance
+ * (see docs/superpowers/specs/2026-08-02-desire-metric-design.md).
+ * τ₀ = 0 (or τ₀ = se = 0) means no card-quality spread: the prior wins, w = 0.
  */
-export function shrinkWorth(
+export function shrinkQuality(
   delta: number,
-  expected: number,
-  tau: number,
+  tau0: number,
   se: number,
 ): { worth: number; w: number } {
-  const denominator = tau * tau + se * se;
-  const w = denominator > 0 ? (tau * tau) / denominator : 0;
-  return { worth: w * delta + (1 - w) * expected, w };
+  const denominator = tau0 * tau0 + se * se;
+  const w = denominator > 0 ? (tau0 * tau0) / denominator : 0;
+  return { worth: w * delta, w };
 }
 
 /**
@@ -198,17 +203,40 @@ export function danger(
   return (pickCdf(n + h, geo, sigma) - pickCdf(n, geo, sigma)) / survival;
 }
 
+/**
+ * Danger with the wheel-again inference removed: max(danger, F(n)).
+ *
+ * The raw conditional hazard reads long survival as evidence a card will
+ * keep wheeling ("nobody here wants it"), discounting stranded good cards
+ * exactly when they should scream — and "it wheeled twice, it'll wheel
+ * again" is how good cards get lost in real drafts. Flooring at F(n), the
+ * probability the card SHOULD already be gone, treats every look at an
+ * overdue card as possibly the last. Early in a card's window F(n) ≈ 0 and
+ * this is identical to danger(). Policy decision 2026-08-02; raw danger()
+ * remains exported for callers that want the pure conditional hazard.
+ */
+export function overdueDanger(
+  n: number,
+  h: number,
+  geo: number,
+  sigma: number,
+): number {
+  return Math.max(danger(n, h, geo, sigma), pickCdf(n, geo, sigma));
+}
+
 // Scan bound for actBy: comfortably past the deepest real pick position
 // (450-pick drafts); beyond it the card is effectively never in danger.
 const ACT_BY_MAX_PICK = 459;
 
 /**
- * The smallest pick position n where danger(n, h) ≥ 0.5 — the last safe
- * moment to act. Null when danger never crosses 0.5 within the scan bound.
+ * The smallest pick position n where overdueDanger(n, h) ≥ 0.5 — the last
+ * safe moment to act. The overdue floor caps this at roughly the geomean:
+ * past its market window a card is never "safe to wait on." Null when the
+ * threshold is never crossed within the scan bound.
  */
 export function actBy(geo: number, h: number, sigma: number): number | null {
   for (let n = 1; n <= ACT_BY_MAX_PICK; n++) {
-    if (danger(n, h, geo, sigma) >= 0.5) return n;
+    if (overdueDanger(n, h, geo, sigma) >= 0.5) return n;
   }
   return null;
 }

@@ -89,7 +89,7 @@ function setupStoreMocks(overrides: {
   selectedSeat?: number | null;
   isMyTurn?: boolean;
   worthCard?: WorthCard;
-  worthModel?: { tau: number; sigma: number; kappa: number } | null;
+  worthModel?: { tau0: number; sigma: number; kappa: number } | null;
 } = {}) {
   const cardState: Record<string, unknown> = {
     selectedCard: overrides.selectedCard ?? "Lightning Bolt",
@@ -168,6 +168,8 @@ describe("CardStatsModal", () => {
           cardStatsDetail: null,
           cardStatsLoading: false,
           selectCard: vi.fn(),
+          worthCards: new Map(),
+          worthModel: null,
         }),
     );
     (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
@@ -411,7 +413,7 @@ describe("CardStatsModal", () => {
   });
 
   describe("worth model block (dev-only)", () => {
-    const mockWorthModel = { tau: 0.035, sigma: 0.51, kappa: 0.5 };
+    const mockWorthModel = { tau0: 0.035, sigma: 0.51, kappa: 0.5 };
 
     async function setLocalClient(value: boolean) {
       const { isLocalClient } = await import("@/core/isLocal");
@@ -422,7 +424,7 @@ describe("CardStatsModal", () => {
       await setLocalClient(false);
     });
 
-    it("renders Worth, PVI, act_by, games, and the model footnote on localhost", async () => {
+    it("renders Worth, PVI, games, desire, and the desire chart on localhost", async () => {
       await setLocalClient(true);
       setupStoreMocks({ worthCard: mockWorthCard, worthModel: mockWorthModel });
 
@@ -431,9 +433,13 @@ describe("CardStatsModal", () => {
       expect(screen.getByText("Worth Model")).toBeTruthy();
       expect(screen.getByText("+4.7%")).toBeTruthy(); // worth
       expect(screen.getByText("+1.6σ")).toBeTruthy(); // pvi
-      expect(screen.getByText("17")).toBeTruthy(); // act_by
       expect(screen.getByText("33")).toBeTruthy(); // games
-      expect(screen.getByText(/τ 0\.035 · σ 0\.510 · κ/)).toBeTruthy();
+      expect(screen.getByText("Desire")).toBeTruthy();
+      // Sole card in the table → worthScale is its own worth; at geo 4.2
+      // danger ≈ 1 at pick 1, so the desire row AND the chart's y-axis max
+      // label both read +100.
+      expect(screen.getAllByText("+100")).toHaveLength(2);
+      expect(screen.getByText("Desire by Pick")).toBeTruthy();
     });
 
     it("renders metric definition tooltips in the worth model block", async () => {
@@ -441,14 +447,13 @@ describe("CardStatsModal", () => {
       setupStoreMocks({ worthCard: mockWorthCard, worthModel: mockWorthModel });
       render(<CardStatsModal />);
       // Tooltip bodies are in the DOM (hover-revealed); spot-check each definition.
-      expect(screen.getByText(/blended with the market's expectation/)).toBeTruthy();
+      expect(screen.getByText(/shrunk toward zero in proportion to sample noise/)).toBeTruthy();
+      expect(screen.getByText(/the odds you don't get another look/)).toBeTruthy();
       expect(screen.getByText(/how far results diverge from what the card's price predicts/)).toBeTruthy();
-      expect(screen.getByText(/gone within one snake turn/)).toBeTruthy();
       expect(screen.getByText(/the sample behind Worth and PVI/)).toBeTruthy();
-      expect(screen.getByText(/Live model fit, recomputed as drafts complete/)).toBeTruthy();
     });
 
-    it("shows em-dashes for null worth/pvi/act_by", async () => {
+    it("shows em-dashes for null worth/pvi", async () => {
       await setLocalClient(true);
       setupStoreMocks({
         worthCard: {
@@ -465,7 +470,7 @@ describe("CardStatsModal", () => {
       render(<CardStatsModal />);
 
       expect(screen.getByText("Worth Model")).toBeTruthy();
-      expect(screen.getAllByText("—")).toHaveLength(3);
+      expect(screen.getAllByText("—")).toHaveLength(2);
     });
 
     it("does not render the block off localhost", () => {

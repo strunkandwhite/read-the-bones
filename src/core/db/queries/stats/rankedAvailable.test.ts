@@ -17,7 +17,7 @@ import {
   insertCubeCard,
   insertDraft,
 } from "../../__tests__/testDb";
-import { danger, type WorthCard } from "../../../worthModel";
+import { danger, pickCdf, type WorthCard } from "../../../worthModel";
 
 // rankAvailableCards calls getClient() internally — redirect to the memdb.
 vi.mock("../../client", () => ({
@@ -78,6 +78,7 @@ function worthTableFixture() {
       a: 0,
       b: 0,
       tau: 0.02,
+      tau0: 0.025,
       sigma: SIGMA,
       tauA: 0.01,
       grandMean: 0.5,
@@ -179,6 +180,25 @@ describe("rankAvailableCards worth-model extensions", () => {
     // committed_colors was not provided — no flag fields, even with worth on.
     expect(alpha).not.toHaveProperty("color_flag");
     expect(alpha).not.toHaveProperty("first_pick_score");
+  });
+
+  it("floors danger at overdueness for a card past its window", async () => {
+    await seedDraft();
+
+    const result = await rankAvailableCards({
+      draft_id: "d1",
+      before_pick_n: 30,
+      seat: 1,
+      include_worth: true,
+    });
+
+    // Geo-5 Alpha still available at pick 30 is long overdue: F(30) ≈ 0.9998
+    // dominates the sagging conditional hazard, so danger reports the floor.
+    // Reverting the endpoint to raw danger() ("it wheeled, it'll wheel
+    // again") must fail this assertion — this is the MCP recommendation path.
+    const alpha = findCard(result, "Alpha");
+    expect(alpha.danger).toBeCloseTo(pickCdf(30, 5, SIGMA), 10);
+    expect(alpha.pick_value).toBeCloseTo(0.05 * alpha.danger!, 10);
   });
 
   describe("horizon", () => {

@@ -1200,3 +1200,24 @@ describe("cardStore — analytics debounce for plain-name search", () => {
     expect(call.result_count).not.toBe(-1);
   });
 });
+
+describe("cardStore — setDesirePickOverride", () => {
+  it("stores valid picks, flooring fractional input", () => {
+    useCardStore.getState().setDesirePickOverride(120);
+    expect(useCardStore.getState().desirePickOverride).toBe(120);
+    useCardStore.getState().setDesirePickOverride(45.7);
+    expect(useCardStore.getState().desirePickOverride).toBe(45);
+  });
+
+  it("normalizes null, NaN, and sub-1 picks to null (automatic)", () => {
+    useCardStore.getState().setDesirePickOverride(120);
+    useCardStore.getState().setDesirePickOverride(null);
+    expect(useCardStore.getState().desirePickOverride).toBeNull();
+    useCardStore.getState().setDesirePickOverride(Number.NaN);
+    expect(useCardStore.getState().desirePickOverride).toBeNull();
+    useCardStore.getState().setDesirePickOverride(0);
+    expect(useCardStore.getState().desirePickOverride).toBeNull();
+    useCardStore.getState().setDesirePickOverride(-3);
+    expect(useCardStore.getState().desirePickOverride).toBeNull();
+  });
+});

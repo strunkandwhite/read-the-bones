@@ -9,6 +9,7 @@ import { useDraftStore } from "../stores/draftStore";
 import { useCardStore } from "../stores/cardStore";
 import { useLiveStore } from "../stores/liveStore";
 import { useIsAuthed } from "../stores/selectors";
+import { isLocalClient } from "@/core/isLocal";
 
 export function Settings() {
   // Draft store
@@ -27,6 +28,12 @@ export function Settings() {
   // Card store
   const drafts = useCardStore((s) => s.drafts);
   const isLoading = useCardStore((s) => s.isLoading);
+  const desirePickOverride = useCardStore((s) => s.desirePickOverride);
+  const setDesirePickOverride = useCardStore((s) => s.setDesirePickOverride);
+
+  // The worth-model section only exists on localhost (settings modal renders
+  // post-interaction, so this never runs during SSR prerender).
+  const isLocal = useMemo(() => isLocalClient(), []);
 
   // Live store
   const mySeat = useLiveStore((s) => s.mySeat);
@@ -306,6 +313,44 @@ export function Settings() {
                   disabled={isLoading}
                 />
               </div>
+
+              {/* Worth model (dev-only) */}
+              {isLocal && (
+                <div className="mb-6 border-t border-zinc-200 pt-6 dark:border-zinc-700">
+                  <h3 className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
+                    Worth model (localhost)
+                  </h3>
+                  <label className="flex items-center gap-3 text-sm text-zinc-600 dark:text-zinc-400">
+                    Set pick to
+                    <input
+                      type="number"
+                      min={1}
+                      step={1}
+                      value={desirePickOverride ?? ""}
+                      placeholder="auto"
+                      onChange={(e) =>
+                        setDesirePickOverride(
+                          e.target.value === "" ? null : Number(e.target.value),
+                        )
+                      }
+                      className="w-24 rounded-lg border border-zinc-300 bg-white py-1.5 px-3 text-sm text-zinc-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                    />
+                    {desirePickOverride !== null && (
+                      <button
+                        type="button"
+                        onClick={() => setDesirePickOverride(null)}
+                        className="cursor-pointer text-xs text-zinc-500 underline hover:text-zinc-700 dark:hover:text-zinc-300"
+                      >
+                        clear
+                      </button>
+                    )}
+                  </label>
+                  <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
+                    Evaluates the Desire column and modal at this pick instead of the
+                    live draft&apos;s current pick. Empty = automatic.
+                  </p>
+                </div>
+              )}
 
               {/* Clear local state */}
               <div className="border-t border-zinc-200 pt-6 dark:border-zinc-700">
