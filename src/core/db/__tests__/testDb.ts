@@ -48,6 +48,9 @@ export async function createTestSchema(client: Client): Promise<void> {
       picks_hash TEXT,
       matches_hash TEXT,
       num_seats INTEGER NOT NULL DEFAULT 10,
+      picks_per_player INTEGER NOT NULL DEFAULT 45,
+      sheet_id TEXT,
+      double_pick_after_round INTEGER,
       phase TEXT NOT NULL DEFAULT 'complete',
       in_app INTEGER NOT NULL DEFAULT 0,
       banned_cards TEXT

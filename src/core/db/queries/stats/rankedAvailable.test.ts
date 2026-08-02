@@ -95,12 +95,6 @@ let db: Client;
 beforeEach(async () => {
   vi.clearAllMocks();
   db = await createMemDb();
-  // getDraftMeta reads live-draft columns the shared schema doesn't carry.
-  await db.execute(
-    "ALTER TABLE drafts ADD COLUMN picks_per_player INTEGER NOT NULL DEFAULT 45",
-  );
-  await db.execute("ALTER TABLE drafts ADD COLUMN sheet_id TEXT");
-  await db.execute("ALTER TABLE drafts ADD COLUMN double_pick_after_round INTEGER");
   vi.mocked(getClient).mockResolvedValue(db);
   vi.mocked(getWorthTable).mockResolvedValue(worthTableFixture());
 });
@@ -165,8 +159,9 @@ describe("rankAvailableCards worth-model extensions", () => {
 
     const alpha = findCard(result, "Alpha");
     expect(alpha.worth).toBe(0.05);
-    // Danger uses the worth table's geomean and sigma with the seat horizon.
-    expect(alpha.danger).toBeCloseTo(danger(1, 19, 5, SIGMA), 10);
+    // Danger uses the worth table's geomean and sigma over the picks
+    // strictly between now and the seat's next turn (horizon 19 -> window 18orizon.
+    expect(alpha.danger).toBeCloseTo(danger(1, 18, 5, SIGMA), 10);
     expect(alpha.pick_value).toBeCloseTo(0.05 * alpha.danger!, 10);
 
     // Unpriced card: worth carries over but danger and pick_value are null.

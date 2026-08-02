@@ -495,15 +495,21 @@ export async function rankAvailableCards(
       // Danger uses the worth table's geomean (all-drafts, unpicked-penalty
       // convention), not this query's pool-filtered geomean_pick.
       const worthGeomean = worthCard?.geomean ?? null;
+      // The loss window is picks strictly between now and the seat's next
+      // turn: pick (before_pick_n + horizon) is the seat acting again, not a
+      // chance for an opponent to take the card.
+      const dangerWindow = Math.max(worthContext.horizon - 1, 0);
       const dangerValue =
-        worthGeomean !== null && worthGeomean > 0 && worthContext.sigma > 0
+        worthGeomean !== null && worthGeomean > 0 && worthContext.sigma > 0 && dangerWindow > 0
           ? danger(
               params.before_pick_n,
-              worthContext.horizon,
+              dangerWindow,
               worthGeomean,
               worthContext.sigma,
             )
-          : null;
+          : worthGeomean !== null && worthGeomean > 0 && worthContext.sigma > 0
+            ? 0
+            : null;
       rankedCard.worth = worth;
       rankedCard.danger = dangerValue;
       rankedCard.pick_value =

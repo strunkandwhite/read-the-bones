@@ -584,6 +584,9 @@ export const useCardStore = create<CardStoreState>()(
         const res = await fetch("/api/cards/worth");
         if (!res.ok) throw new Error(`Worth fetch failed: ${res.status}`);
         const data: WorthTableResponse = await res.json();
+        // A newer hash may have started its own fetch while this one was in
+        // flight; only the fetch that still owns the marker may write.
+        if (worthFetchedForHash !== currentHash) return;
         const worthCards = new Map(
           data.cards.map((card) => [card.card_name, card]),
         );
@@ -591,7 +594,9 @@ export const useCardStore = create<CardStoreState>()(
       } catch {
         // Swallow: the dev server may still be compiling the route. Empty
         // state hides the worth UI; clearing the marker lets the next
-        // ingestionHash trigger retry.
+        // ingestionHash trigger retry. A stale failure must not clobber a
+        // newer fetch's data or marker.
+        if (worthFetchedForHash !== currentHash) return;
         worthFetchedForHash = null;
         set({ worthCards: new Map(), worthModel: null });
       }

@@ -135,17 +135,53 @@ describe("GET /api/drafts/[id]/available/ranked", () => {
       );
     });
 
-    it("accepts first_pick_score as a sort_by value", async () => {
+    it("accepts first_pick_score as a sort_by value alongside committed_colors", async () => {
       vi.mocked(queries.rankAvailableCards).mockResolvedValue(emptyResult);
       await GET(
-        makeRequest("tarkir", { before_pick_n: "50", sort_by: "first_pick_score" }),
+        makeRequest("tarkir", {
+          before_pick_n: "50",
+          sort_by: "first_pick_score",
+          committed_colors: "",
+        }),
         { params: Promise.resolve({ id: "tarkir" }) },
       );
       expect(queries.rankAvailableCards).toHaveBeenCalledWith(
         expect.objectContaining({
           sort_by: "first_pick_score",
+          committed_colors: "",
           include_worth: true,
         }),
+      );
+    });
+
+    it("rejects first_pick_score without committed_colors with 400", async () => {
+      const response = await GET(
+        makeRequest("tarkir", { before_pick_n: "50", sort_by: "first_pick_score" }),
+        { params: Promise.resolve({ id: "tarkir" }) },
+      );
+      expect(response.status).toBe(400);
+      expect((await response.json()).error).toBe(
+        "sort_by=first_pick_score requires committed_colors",
+      );
+      expect(queries.rankAvailableCards).not.toHaveBeenCalled();
+    });
+
+    it("rejects duplicate committed_colors letters with 400", async () => {
+      const response = await GET(
+        makeRequest("tarkir", { before_pick_n: "50", committed_colors: "WW" }),
+        { params: Promise.resolve({ id: "tarkir" }) },
+      );
+      expect(response.status).toBe(400);
+    });
+
+    it("rejects a non-positive seat with 400", async () => {
+      const response = await GET(
+        makeRequest("tarkir", { before_pick_n: "50", seat: "-3" }),
+        { params: Promise.resolve({ id: "tarkir" }) },
+      );
+      expect(response.status).toBe(400);
+      expect((await response.json()).error).toBe(
+        "seat must be a positive integer (1-indexed)",
       );
     });
 
@@ -177,7 +213,7 @@ describe("GET /api/drafts/[id]/available/ranked", () => {
         expect(res.status).toBe(400);
         const body = await res.json();
         expect(body.error).toBe(
-          "committed_colors must be at most two letters from WUBRG",
+          "committed_colors must be at most two distinct letters from WUBRG",
         );
         expect(queries.rankAvailableCards).not.toHaveBeenCalled();
       },

@@ -36,7 +36,7 @@ const WORTH_MIN_GAMES = 100;
 const WORTH_KAPPA = 0.5;
 
 /** Danger horizon (picks) for act_by: one full snake turn at 10 seats. */
-const ACT_BY_HORIZON = 20;
+const DEFAULT_ACT_BY_HORIZON = 20;
 
 /** @public Consumed by the /api/cards/worth route (task A3). */
 export interface WorthTableResult {
@@ -54,10 +54,12 @@ interface StatsDraftRef {
 // Module-level memo keyed by the ingestion hash of the stats-phase drafts'
 // domain hashes — the table only changes when a draft's synced data does.
 let worthCache: { key: string; result: WorthTableResult } | null = null;
+let worthPending: { key: string; promise: Promise<WorthTableResult> } | null = null;
 
 /** @public Test hook: clears the module-level worth-table memo. */
 export function _resetWorthCache(): void {
   worthCache = null;
+  worthPending = null;
 }
 
 /**
@@ -81,15 +83,30 @@ export async function getWorthTable(opts?: {
   });
 
   const bypassCache = opts?.excludeDraftId !== undefined;
-  const cacheKey = computeIngestionHash(
+  // The current cube (in_current_cube, act_by, pair supply inputs) comes from
+  // the latest draft by date in ANY phase, so a freshly created live draft
+  // must invalidate the cache even though no stats-phase hash changed.
+  const latestResult = await client.execute({
+    sql: `SELECT draft_id, cube_snapshot_id, num_seats
+          FROM drafts ORDER BY draft_date DESC, draft_id DESC LIMIT 1`,
+    args: [],
+  });
+  const latestRow = latestResult.rows[0];
+  const latestFingerprint = latestRow
+    ? `${latestRow.draft_id}:${latestRow.cube_snapshot_id}:${latestRow.num_seats}`
+    : "none";
+  const cacheKey = `${computeIngestionHash(
     draftsResult.rows as unknown as Array<{
       pool_hash: unknown;
       picks_hash: unknown;
       matches_hash: unknown;
     }>,
-  );
+  )}|${latestFingerprint}`;
   if (!bypassCache && worthCache?.key === cacheKey) {
     return worthCache.result;
+  }
+  if (!bypassCache && worthPending?.key === cacheKey) {
+    return worthPending.promise;
   }
 
   const statsDrafts: StatsDraftRef[] = draftsResult.rows
@@ -99,11 +116,20 @@ export async function getWorthTable(opts?: {
     }))
     .filter((draft) => draft.draftId !== opts?.excludeDraftId);
 
-  const result = await assembleWorthTable(client, statsDrafts);
+  const assembly = assembleWorthTable(client, statsDrafts);
   if (!bypassCache) {
-    worthCache = { key: cacheKey, result };
+    // Share one in-flight assembly between concurrent cold callers (UI fetch
+    // and MCP tool typically race on dev-server start).
+    worthPending = { key: cacheKey, promise: assembly };
+    try {
+      const result = await assembly;
+      worthCache = { key: cacheKey, result };
+      return result;
+    } finally {
+      worthPending = null;
+    }
   }
-  return result;
+  return assembly;
 }
 
 /**
@@ -139,13 +165,19 @@ async function assembleWorthTable(
   // act_by models. Deliberately not affected by excludeDraftId: cube
   // membership is not a fit input.
   const latestDraftResult = await client.execute({
-    sql: `SELECT cube_snapshot_id FROM drafts ORDER BY draft_date DESC, draft_id DESC LIMIT 1`,
+    sql: `SELECT cube_snapshot_id, num_seats FROM drafts ORDER BY draft_date DESC, draft_id DESC LIMIT 1`,
     args: [],
   });
   const currentCubeSnapshotId =
     latestDraftResult.rows.length > 0
       ? (latestDraftResult.rows[0].cube_snapshot_id as number)
       : null;
+  // act_by's "gone within your next h picks" horizon is one snake turn of the
+  // live pod, not a hardcoded ten-seat assumption.
+  const actByHorizon =
+    latestDraftResult.rows.length > 0
+      ? 2 * (latestDraftResult.rows[0].num_seats as number)
+      : DEFAULT_ACT_BY_HORIZON;
 
   const snapshotIds = new Set<number>(
     statsDrafts.map((draft) => draft.cubeSnapshotId),
@@ -375,21 +407,23 @@ async function assembleWorthTable(
     }
     geomeanByName.set(
       name,
-      weightedItems.length > 0
-        ? roundToTenth(weightedGeometricMean(weightedItems))
-        : null,
+      weightedItems.length > 0 ? weightedGeometricMean(weightedItems) : null,
     );
   }
 
   // Pooled σ: sd of ln(pickPosition) − ln(geomean of that card's picked
-  // positions), over all picked events of non-land cards. Residuals are
-  // centered per card, so the pooled sd is sqrt(mean of squared residuals).
+  // positions), over all picked events of non-land cards. Centering per card
+  // consumes one degree of freedom per card, so the unbiased pooled estimator
+  // divides by (events − cards); a card picked once contributes a guaranteed
+  // zero residual and zero degrees of freedom, dropping out naturally.
   let residualSquaredSum = 0;
   let residualCount = 0;
+  let centeredCardCount = 0;
   for (const [name, byDraft] of picksByName) {
     if (cardMeta.get(name)?.isLand) continue;
     const allPicks = [...byDraft.values()].flat();
     if (allPicks.length === 0) continue;
+    centeredCardCount++;
     const meanLogPick =
       allPicks.reduce((sum, pick) => sum + Math.log(pick), 0) / allPicks.length;
     for (const pick of allPicks) {
@@ -398,7 +432,9 @@ async function assembleWorthTable(
       residualCount++;
     }
   }
-  const sigma = residualCount > 0 ? Math.sqrt(residualSquaredSum / residualCount) : 0;
+  const sigmaDegreesOfFreedom = residualCount - centeredCardCount;
+  const sigma =
+    sigmaDegreesOfFreedom > 0 ? Math.sqrt(residualSquaredSum / sigmaDegreesOfFreedom) : 0;
 
   const baselineMeanFor = (colors: string): number => {
     if (colors === "") return 0.5;
@@ -468,7 +504,7 @@ async function assembleWorthTable(
 
     const actByPick =
       inCurrentCube && priced && sigma > 0
-        ? actBy(geomean, ACT_BY_HORIZON, sigma)
+        ? actBy(geomean, actByHorizon, sigma)
         : null;
 
     cards.push({
@@ -476,7 +512,7 @@ async function assembleWorthTable(
       colors: meta.colors,
       is_land: meta.isLand,
       in_current_cube: inCurrentCube,
-      geomean,
+      geomean: geomean !== null ? roundToTenth(geomean) : null,
       games,
       wins: totals.wins,
       losses: totals.losses,

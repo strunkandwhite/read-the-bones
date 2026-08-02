@@ -272,6 +272,28 @@ describe("getWorthTable", () => {
   });
 
   describe("caching", () => {
+    it("invalidates when a newer draft changes the current cube, without any stats-phase change", async () => {
+      await seedWorthFixture();
+      const first = await getWorthTable();
+
+      // A freshly created live pod: not stats-eligible (phase drafting), but
+      // it IS the new latest draft, so in_current_cube/act_by must follow it.
+      await insertCard(db, 90, "Brand New Card", {
+        scryfallJson: { type_line: "Instant", color_identity: ["R"] },
+      });
+      await insertCubeSnapshot(db, 9);
+      await insertCubeCard(db, 9, 90);
+      await insertDraft(db, "new-pod", {
+        date: "2026-12-01",
+        phase: "drafting",
+        cubeSnapshotId: 9,
+      });
+
+      const second = await getWorthTable();
+      expect(second).not.toBe(first);
+      expect(findCard(second, "Brand New Card").in_current_cube).toBe(true);
+    });
+
     it("serves warm calls from the memo without re-querying", async () => {
       await seedWorthFixture();
       const first = await getWorthTable();
@@ -279,8 +301,9 @@ describe("getWorthTable", () => {
       const executeSpy = vi.spyOn(db, "execute");
       const second = await getWorthTable();
 
-      // Only the drafts/hash fingerprint query runs on a warm call.
-      expect(executeSpy).toHaveBeenCalledTimes(1);
+      // Only the fingerprint queries (stats-draft hashes + latest-draft
+      // cube identity) run on a warm call.
+      expect(executeSpy).toHaveBeenCalledTimes(2);
       expect(second).toBe(first);
     });
 
@@ -328,7 +351,7 @@ describe("getWorthTable", () => {
       // The LODO call neither read nor overwrote the plain-call memo.
       const executeSpy = vi.spyOn(db, "execute");
       const plainAgain = await getWorthTable();
-      expect(executeSpy).toHaveBeenCalledTimes(1);
+      expect(executeSpy).toHaveBeenCalledTimes(2);
       expect(plainAgain).toBe(cached);
     });
   });

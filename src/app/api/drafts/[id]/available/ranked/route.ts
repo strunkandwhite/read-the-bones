@@ -32,6 +32,12 @@ export const GET = withApiErrors(
     }
 
     const seat = intParam(searchParams.get("seat"));
+    if (seat !== undefined && seat < 1) {
+      return NextResponse.json(
+        { error: "seat must be a positive integer (1-indexed)" },
+        { status: 400 },
+      );
+    }
 
     const committedColorsRaw = searchParams.get("committed_colors");
     let committedColors: string | undefined;
@@ -40,10 +46,11 @@ export const GET = withApiErrors(
       // outside WUBRG is a caller error.
       const isValid =
         committedColorsRaw.length <= 2 &&
-        [...committedColorsRaw].every((letter) => WUBRG.includes(letter));
+        [...committedColorsRaw].every((letter) => WUBRG.includes(letter)) &&
+        new Set(committedColorsRaw).size === committedColorsRaw.length;
       if (!isValid) {
         return NextResponse.json(
-          { error: "committed_colors must be at most two letters from WUBRG" },
+          { error: "committed_colors must be at most two distinct letters from WUBRG" },
           { status: 400 },
         );
       }
@@ -51,8 +58,8 @@ export const GET = withApiErrors(
     }
 
     // Unrecognized legacy sort_by values silently fall through to undefined
-    // (documented quirk, preserved as-is). Only the two worth-model values
-    // participate in the production gating rule below.
+    // rather than erroring. Only the two worth-model values participate in
+    // the production gating rule below.
     const rawSortBy = searchParams.get("sort_by");
     const sortBy =
       rawSortBy !== null && (ALL_SORT_VALUES as readonly string[]).includes(rawSortBy)
@@ -71,6 +78,16 @@ export const GET = withApiErrors(
         { status: 400 },
       );
     }
+
+    if (sortBy === "first_pick_score" && committedColors === undefined) {
+      // Without a commitment state every first_pick_score is null and the
+      // sort would silently fall back to geomean order.
+      return NextResponse.json(
+        { error: "sort_by=first_pick_score requires committed_colors" },
+        { status: 400 },
+      );
+    }
+
 
     const result = await queries.rankAvailableCards({
       draft_id: id,

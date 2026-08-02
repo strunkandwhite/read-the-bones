@@ -443,7 +443,7 @@ describe("CardStatsModal", () => {
       // Tooltip bodies are in the DOM (hover-revealed); spot-check each definition.
       expect(screen.getByText(/blended with the market's expectation/)).toBeTruthy();
       expect(screen.getByText(/how far results diverge from what the card's price predicts/)).toBeTruthy();
-      expect(screen.getByText(/gone within your next 20 picks/)).toBeTruthy();
+      expect(screen.getByText(/gone within one snake turn/)).toBeTruthy();
       expect(screen.getByText(/the sample behind Worth and PVI/)).toBeTruthy();
       expect(screen.getByText(/Live model fit, recomputed as drafts complete/)).toBeTruthy();
     });

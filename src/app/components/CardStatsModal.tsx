@@ -25,7 +25,7 @@ import {
 } from "./CardTable";
 import { InfoTooltip } from "./InfoTooltip";
 
-const ACT_BY_EXPLANATION = `Pick number by which the odds this card is gone within your next 20 picks pass 50%, given it's still on the board.
+const ACT_BY_EXPLANATION = `Pick number by which the odds this card is gone within one snake turn (two times the pod's seats) pass 50%, given it's still on the board.
 
 "—" = the odds never reach 50%; it usually wheels.`;
 

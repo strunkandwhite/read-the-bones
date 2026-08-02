@@ -60,9 +60,14 @@ counts — not recovered from Wilson CI widths.
    `Worth = w·ΔWR + (1−w)·E[ΔWR|geo]`.
    (2026-08-01: τ ≈ 3.5%.)
 5. **Danger.** Pick positions are modeled lognormal around geomean with
-   pooled σ = sd of `ln(pickPosition) − ln(geomeanOfPicked)` over all picked
-   pick-history events. (2026-08-01: σ ≈ 0.51.)
-   `danger(n, h, geo) = [F(n+h) − F(n)] / [1 − F(n)]` where
+   pooled σ over per-card-centered `ln(pickPosition)` residuals of picked
+   events, using the unbiased divisor (events − cards): per-card centering
+   consumes one degree of freedom per card. (2026-08-01 session estimate
+   σ ≈ 0.51 used the biased N divisor; the app computes the corrected form.)
+   `danger(n, h, geo) = [F(n+h) − F(n)] / [1 − F(n)]` where h counts only
+   opponent picks — in the ranked endpoint the window is horizon − 1, since
+   the horizon's far endpoint is the seat acting again, not a loss event —
+   and where
    `F(x) = Φ((ln x − ln geo)/σ)` — the probability the card is taken within
    the next `h` picks given it is still available at pick `n`.
    `act_by(geo, h)` = smallest n where danger ≥ 0.5, or null if never.
@@ -176,8 +181,8 @@ restarts just recompute once.
 - **`GET /api/cards/worth`** — the full model output: per-card
   `{ card_name, colors, is_land, geomean, games, wr, se, delta, expected,
   pvi, worth, prior_only, no_data, act_by }` plus
-  `model: { a, b, tau, sigma, tau_a, kappa, baselines, pair_edges,
-  cards_fit, computed_at }`.
+  `model: { a, b, tau, sigma, tau_a, kappa, grand_mean, baselines,
+  pair_edges }` and top-level `cards_fit` / `computed_at`.
 - **`/api/drafts/[id]/available/ranked`** gains `sort_by=pick_value` and
   optional `seat` and `committed_colors` params. With `seat`, the horizon h
   (picks until that seat acts again, snake-aware, including double-pick
