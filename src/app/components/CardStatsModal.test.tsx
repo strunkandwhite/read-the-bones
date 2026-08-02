@@ -436,6 +436,18 @@ describe("CardStatsModal", () => {
       expect(screen.getByText(/τ 0\.035 · σ 0\.510 · κ/)).toBeTruthy();
     });
 
+    it("renders metric definition tooltips in the worth model block", async () => {
+      await setLocalClient(true);
+      setupStoreMocks({ worthCard: mockWorthCard, worthModel: mockWorthModel });
+      render(<CardStatsModal />);
+      // Tooltip bodies are in the DOM (hover-revealed); spot-check each definition.
+      expect(screen.getByText(/blended with the market's expectation/)).toBeTruthy();
+      expect(screen.getByText(/how far results diverge from what the card's price predicts/)).toBeTruthy();
+      expect(screen.getByText(/gone within your next 20 picks/)).toBeTruthy();
+      expect(screen.getByText(/the sample behind Worth and PVI/)).toBeTruthy();
+      expect(screen.getByText(/Live model fit, recomputed as drafts complete/)).toBeTruthy();
+    });
+
     it("shows em-dashes for null worth/pvi/act_by", async () => {
       await setLocalClient(true);
       setupStoreMocks({

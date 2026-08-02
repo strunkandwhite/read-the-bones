@@ -33,6 +33,14 @@ export interface CardTableProps {
 const columnHelper = createColumnHelper<EnrichedCardStats>();
 
 
+export const WORTH_EXPLANATION = `Best estimate of the win-rate points this card adds to a deck, vs its color's baseline.
+
+Observed deck win rate blended with the market's expectation for its pick position — the fewer the games, the more it leans on the market.`;
+
+export const PVI_EXPLANATION = `Pick Value Index: how far results diverge from what the card's price predicts, in standard errors (σ).
+
+Positive = the table underprices it. Negative = the table overpays.`;
+
 const PICK_EXPLANATION = `Weighted geometric mean of pick positions across all drafts.
 
 Weighting factors:
@@ -270,7 +278,10 @@ export function CardTable({
           header: () => (
             <span className="inline-flex items-center">
               Worth
-              <InfoTooltip text="Worth model: posterior win-rate delta vs the color baseline, shrunk toward the pick-price curve. Hover a value for sample size." />
+              <InfoTooltip
+                align="right"
+                text={WORTH_EXPLANATION}
+              />
             </span>
           ),
           cell: ({ row }) => {
@@ -290,7 +301,7 @@ export function CardTable({
           header: () => (
             <span className="inline-flex items-center">
               PVI
-              <InfoTooltip text="Pick Value Index: over/under-delivery versus the price paid at this pick position." />
+              <InfoTooltip align="right" text={PVI_EXPLANATION} />
             </span>
           ),
           cell: ({ row }) => {

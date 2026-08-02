@@ -17,7 +17,25 @@ import type { DraftScore } from "@/core/types";
 import type { CardStatus } from "@/core/cardStatus";
 import type { WorthCard } from "@/core/worthModel";
 import { ciMarginPct } from "@/core/wilsonInterval";
-import { formatSignedPercent, formatSignedZ } from "./CardTable";
+import {
+  formatSignedPercent,
+  formatSignedZ,
+  WORTH_EXPLANATION,
+  PVI_EXPLANATION,
+} from "./CardTable";
+import { InfoTooltip } from "./InfoTooltip";
+
+const ACT_BY_EXPLANATION = `Pick number by which the odds this card is gone within your next 20 picks pass 50%, given it's still on the board.
+
+"—" = the odds never reach 50%; it usually wheels.`;
+
+const GAMES_EXPLANATION = `Games played by decks that maindecked this card, across stats-eligible drafts — the sample behind Worth and PVI.`;
+
+const MODEL_PARAMS_EXPLANATION = `Live model fit, recomputed as drafts complete:
+
+τ — true spread of card quality around the price curve (how much the market misprices, overall)
+σ — spread of actual pick timing around a card's typical position
+κ — weight on color-commitment cost for uncommitted picks`;
 
 // Minimum duration (ms) to show the disabled state after a queue/pick/float action,
 // so the UI change is perceptible even if the server responds instantly.
@@ -323,21 +341,33 @@ function StatsContent({
               label="Worth"
               value={worthCard.worth != null ? formatSignedPercent(worthCard.worth) : "—"}
               annotation={worthCard.prior_only ? "prior only" : undefined}
+              tooltip={WORTH_EXPLANATION}
             />
             <StatRow
               label="PVI"
               value={worthCard.pvi != null ? formatSignedZ(worthCard.pvi) : "—"}
+              tooltip={PVI_EXPLANATION}
+              tooltipAlign="right"
             />
             <StatRow
               label="Act by"
               value={worthCard.act_by != null ? String(worthCard.act_by) : "—"}
+              tooltip={ACT_BY_EXPLANATION}
             />
-            <StatRow label="Games" value={String(worthCard.games)} />
+            <StatRow
+              label="Games"
+              value={String(worthCard.games)}
+              tooltip={GAMES_EXPLANATION}
+              tooltipAlign="right"
+            />
           </div>
           {worthModel && (
             <div className="mt-1.5 text-xs text-zinc-500">
-              τ {worthModel.tau.toFixed(3)} · σ {worthModel.sigma.toFixed(3)} · κ{" "}
-              {worthModel.kappa}
+              <span className="inline-flex items-center">
+                τ {worthModel.tau.toFixed(3)} · σ {worthModel.sigma.toFixed(3)} · κ{" "}
+                {worthModel.kappa}
+                <InfoTooltip text={MODEL_PARAMS_EXPLANATION} />
+              </span>
             </div>
           )}
         </div>
@@ -379,10 +409,25 @@ function StatsContent({
   );
 }
 
-function StatRow({ label, value, annotation }: { label: string; value: string; annotation?: string }) {
+function StatRow({
+  label,
+  value,
+  annotation,
+  tooltip,
+  tooltipAlign,
+}: {
+  label: string;
+  value: string;
+  annotation?: string;
+  tooltip?: string;
+  tooltipAlign?: "left" | "right";
+}) {
   return (
     <div>
-      <div className="text-xs text-zinc-400">{label}</div>
+      <div className="inline-flex items-center text-xs text-zinc-400">
+        {label}
+        {tooltip && <InfoTooltip text={tooltip} align={tooltipAlign} />}
+      </div>
       <div className="font-medium text-white">
         {value}
         {annotation && (
