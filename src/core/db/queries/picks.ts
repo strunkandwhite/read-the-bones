@@ -4,7 +4,7 @@
 
 import type { Client } from "@libsql/client";
 import { getOptedOutSeats, parseScryfallJson, matchesColorFilter, parseBannedCards } from "./helpers";
-import { aggregateMatchRecords, computeTiebreakers } from "./matches";
+import { aggregateMatchRecords, computeTiebreakers, getHeadToHeadWinner } from "./matches";
 import { getFrontFace } from "../../cardNames";
 
 export interface GetPicksParams {
@@ -275,11 +275,15 @@ export interface StandingsResult {
 export async function getStandings(client: Client, draftId: string, numSeats?: number, optedOutSeats?: Set<number>): Promise<StandingsResult> {
   const resolvedOptedOutSeats = optedOutSeats ?? await getOptedOutSeats(client, draftId);
 
-  // Get all match events for this draft
+  // Get all match events for this draft. The explicit ordering keeps
+  // standings deterministic for seats that stay tied through every
+  // tiebreaker — their relative order falls back to row order via the
+  // stable sort below.
   const result = await client.execute({
     sql: `SELECT draft_id, seat1, seat2, seat1_wins, seat2_wins
           FROM match_events
-          WHERE draft_id = ?`,
+          WHERE draft_id = ?
+          ORDER BY seat1, seat2`,
     args: [draftId],
   });
 
@@ -301,20 +305,16 @@ export async function getStandings(client: Client, draftId: string, numSeats?: n
   // Compute tiebreakers (OMW%, OGW%)
   const tiebreakers = computeTiebreakers(stats, matches);
 
-  // Convert to array and sort
-  const redactedSeatsInResult = new Set<number>();
-  const standings: StandingsEntry[] = [];
+  // Convert to array and sort. Seats stay numeric until redaction at the
+  // end — the head-to-head pass below needs real seat numbers.
+  const entries: Array<Omit<StandingsEntry, "seat"> & { seat: number }> = [];
   const seatsInStandings = new Set<number>();
 
   for (const [seat, s] of stats) {
     seatsInStandings.add(seat);
-    const isRedacted = resolvedOptedOutSeats.has(seat);
-    if (isRedacted) {
-      redactedSeatsInResult.add(seat);
-    }
     const tb = tiebreakers.get(seat);
-    standings.push({
-      seat: isRedacted ? "[REDACTED]" : seat,
+    entries.push({
+      seat,
       matchWins: s.matchWins,
       matchLosses: s.matchLosses,
       gameWins: s.gameWins,
@@ -324,29 +324,56 @@ export async function getStandings(client: Client, draftId: string, numSeats?: n
     });
   }
 
+  // Quantize a tiebreaker percentage for comparison, treating null as
+  // sorting last. OMW%/OGW% are averages of small fractions, so values that
+  // genuinely differ do so by far more than 1e-12 — but float summation
+  // order can leave ~1e-16 noise between values that are equal in exact
+  // arithmetic (e.g. two seats whose opponent sets differ only by swapping
+  // opponents with identical records). Rounding before comparing lets such
+  // values tie so the next tiebreaker decides.
+  const quantizePct = (pct: number | null): number =>
+    pct === null ? -1 : Math.round(pct * 1e12);
+
   // Sort: match wins DESC → OMW% DESC (nulls last) → OGW% DESC (nulls last)
-  standings.sort((a, b) => {
+  entries.sort((a, b) => {
     if (b.matchWins !== a.matchWins) return b.matchWins - a.matchWins;
-    // OMW% descending, nulls last
-    const aOmw = a.omwPct ?? -1;
-    const bOmw = b.omwPct ?? -1;
+    const aOmw = quantizePct(a.omwPct);
+    const bOmw = quantizePct(b.omwPct);
     if (bOmw !== aOmw) return bOmw - aOmw;
-    // OGW% descending, nulls last
-    const aOgw = a.ogwPct ?? -1;
-    const bOgw = b.ogwPct ?? -1;
+    const aOgw = quantizePct(a.ogwPct);
+    const bOgw = quantizePct(b.ogwPct);
     return bOgw - aOgw;
   });
+
+  // Final tiebreaker: when exactly two seats remain tied after OGW% and one
+  // beat the other, the head-to-head winner ranks higher. Groups of three or
+  // more keep their sorted order — pairwise results there can be cyclic, so
+  // head-to-head is ill-defined.
+  for (let i = 0; i < entries.length; ) {
+    let groupEnd = i + 1;
+    while (
+      groupEnd < entries.length &&
+      entries[groupEnd].matchWins === entries[i].matchWins &&
+      quantizePct(entries[groupEnd].omwPct) === quantizePct(entries[i].omwPct) &&
+      quantizePct(entries[groupEnd].ogwPct) === quantizePct(entries[i].ogwPct)
+    ) {
+      groupEnd++;
+    }
+    if (groupEnd - i === 2) {
+      const winner = getHeadToHeadWinner(matches, entries[i].seat, entries[i + 1].seat);
+      if (winner === entries[i + 1].seat) {
+        [entries[i], entries[i + 1]] = [entries[i + 1], entries[i]];
+      }
+    }
+    i = groupEnd;
+  }
 
   // Append seats with no matches (if numSeats provided)
   if (numSeats != null) {
     for (let seat = 1; seat <= numSeats; seat++) {
       if (!seatsInStandings.has(seat)) {
-        const isRedacted = resolvedOptedOutSeats.has(seat);
-        if (isRedacted) {
-          redactedSeatsInResult.add(seat);
-        }
-        standings.push({
-          seat: isRedacted ? "[REDACTED]" : seat,
+        entries.push({
+          seat,
           matchWins: 0,
           matchLosses: 0,
           gameWins: 0,
@@ -357,6 +384,16 @@ export async function getStandings(client: Client, draftId: string, numSeats?: n
       }
     }
   }
+
+  // Redact opted-out seats now that ordering is settled
+  const redactedSeatsInResult = new Set<number>();
+  const standings: StandingsEntry[] = entries.map((entry) => {
+    const isRedacted = resolvedOptedOutSeats.has(entry.seat);
+    if (isRedacted) {
+      redactedSeatsInResult.add(entry.seat);
+    }
+    return { ...entry, seat: isRedacted ? "[REDACTED]" : entry.seat };
+  });
 
   return {
     standings,

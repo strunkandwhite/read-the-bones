@@ -183,7 +183,7 @@ Search is debounced (500ms) and runs locally against cached card data. Server-si
 - **Seat selection:** View picks and deck data for individual seats within a draft.
 - **Decklist win rate:** Dev-only data (disabled in production via `NODE_ENV !== "production"`) showing actual win rates in the card stats modal.
 - **Live drafts:** Run rotisserie drafts in-app with snake order, pick queues, and auto-pick cascades. Created via `pnpm draft:create-live`, managed via seat tokens for player identity. Draft board modal shows pick matrix, standings, and match reporting.
-- **Head-to-head match matrix:** Interactive grid in the draft board showing all pairwise results with inline editing and OMW%/OGW% tiebreaker columns in standings.
+- **Head-to-head match matrix:** Interactive grid in the draft board showing all pairwise results with inline editing and OMW%/OGW% tiebreaker columns in standings. Standings sort by match wins → OMW% → OGW% → head-to-head (two-way ties only; larger tied groups can be cyclic and keep sorted order).
 - **Queue groups with per-entry modes:** Queue entries can be grouped (buttons-only, not drag) so the auto-pick cascade treats grouped cards as interchangeable alternatives. Each entry supports pause mode (stops cascade at that entry) or flow-through mode (cascade continues past it).
 - **Multi-copy queue support:** Queue entries reference cards by ID; multiple copies of the same card are tracked correctly through the cascade.
 

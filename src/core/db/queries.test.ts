@@ -1194,6 +1194,10 @@ describe("getStandings", () => {
     expect(seat1?.matchLosses).toBe(0);
     expect(seat2?.matchWins).toBe(0);
     expect(seat2?.matchLosses).toBe(0);
+
+    // The seats tie on every tiebreaker and their only match was a draw, so
+    // head-to-head resolves nothing and the original order is kept
+    expect(result.standings.map((s) => s.seat)).toEqual([1, 2]);
   });
 
   it("should return empty array when no matches", async () => {
@@ -1235,6 +1239,71 @@ describe("getStandings", () => {
     expect(result.standings[0].seat).toBe(1);
     expect(result.standings[1].seat).toBe(2);
     expect(result.standings[2].seat).toBe(3);
+  });
+
+  it("breaks exact OMW% ties by OGW% despite float summation noise", async () => {
+    // Real pod data where seats 2, 3, and 8 all finish 5-4 with OMW% values
+    // that are exactly equal in real arithmetic — each seat's opponent set
+    // differs from the others' only by swapping in an opponent with an
+    // identical record — but float summation order leaves ~1e-16 differences
+    // between them. OGW% must decide the tie: seat 3 (≈49.0%) ranks above
+    // seats 8 and 2 (≈48.5%).
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+    const matches: Array<[number, number, number, number]> = [
+      [1, 2, 1, 2], [1, 3, 2, 1], [1, 5, 2, 0], [1, 6, 2, 1], [1, 8, 1, 2],
+      [1, 9, 0, 2], [2, 3, 1, 2], [2, 4, 2, 1], [2, 5, 2, 1], [2, 6, 2, 0],
+      [2, 7, 2, 0], [2, 8, 1, 2], [2, 9, 1, 2], [2, 10, 0, 2], [3, 4, 2, 1],
+      [3, 5, 0, 2], [3, 6, 0, 2], [3, 7, 2, 0], [3, 8, 2, 1], [3, 9, 2, 1],
+      [3, 10, 1, 2], [4, 5, 2, 1], [4, 6, 2, 0], [4, 7, 2, 1], [4, 8, 2, 1],
+      [4, 9, 2, 1], [4, 10, 0, 2], [5, 6, 1, 2], [5, 8, 2, 1], [5, 9, 2, 0],
+      [5, 10, 1, 2], [6, 8, 0, 2], [6, 10, 0, 2], [7, 8, 1, 2], [7, 10, 2, 1],
+      [8, 9, 2, 0], [8, 10, 0, 2], [9, 10, 1, 2],
+    ];
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult(
+        matches.map(([seat1, seat2, seat1Wins, seat2Wins]) => ({
+          draft_id: "draft1",
+          seat1,
+          seat2,
+          seat1_wins: seat1Wins,
+          seat2_wins: seat2Wins,
+        }))
+      )
+    );
+
+    const result = await getStandings(mockClient as never, "draft1");
+
+    const seats = result.standings.map((s) => s.seat);
+    expect(seats[0]).toBe(10); // 7-1, clear first
+    expect(seats[1]).toBe(3); // 5-4, wins the OGW% tiebreak among the 5-4 group
+    expect(seats[2]).toBe(8); // 5-4, tied with seat 2 through OGW% but won head-to-head 2-1
+    expect(seats[3]).toBe(2);
+    expect(seats[4]).toBe(4); // 5-3, same match wins as the 5-4 group but lower OMW%
+    // Seats 6 and 9 (both 2-5) also tie exactly on OMW%/OGW% but have no
+    // reported match against each other, so head-to-head leaves their order
+    expect(seats[7]).toBe(6);
+    expect(seats[8]).toBe(9);
+  });
+
+  it("leaves ties of three or more seats in sorted order (head-to-head can be cyclic)", async () => {
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+    // Seats 1, 2, 3 beat each other in a cycle (1>2, 2>3, 3>1, all 2-0) and
+    // all sweep seat 4, so they tie exactly on record, OMW%, and OGW%.
+    // Head-to-head is cyclic, so the group keeps its sorted (insertion) order.
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { draft_id: "draft1", seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 0 },
+        { draft_id: "draft1", seat1: 2, seat2: 3, seat1_wins: 2, seat2_wins: 0 },
+        { draft_id: "draft1", seat1: 1, seat2: 3, seat1_wins: 0, seat2_wins: 2 },
+        { draft_id: "draft1", seat1: 1, seat2: 4, seat1_wins: 2, seat2_wins: 0 },
+        { draft_id: "draft1", seat1: 2, seat2: 4, seat1_wins: 2, seat2_wins: 0 },
+        { draft_id: "draft1", seat1: 3, seat2: 4, seat1_wins: 2, seat2_wins: 0 },
+      ])
+    );
+
+    const result = await getStandings(mockClient as never, "draft1");
+
+    expect(result.standings.map((s) => s.seat)).toEqual([1, 2, 3, 4]);
   });
 
   it("should redact opted-out seats in standings", async () => {

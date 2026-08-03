@@ -127,6 +127,28 @@ export function computeTiebreakers(
 }
 
 /**
+ * Determine the head-to-head winner between two seats.
+ * Returns the winning seat, or null if the pair has no reported match
+ * or their match was a draw.
+ */
+export function getHeadToHeadWinner(
+  matches: Array<{ seat1: number; seat2: number; seat1Wins: number; seat2Wins: number }>,
+  seatA: number,
+  seatB: number,
+): number | null {
+  for (const m of matches) {
+    const isPair =
+      (m.seat1 === seatA && m.seat2 === seatB) ||
+      (m.seat1 === seatB && m.seat2 === seatA);
+    if (!isPair) continue;
+    if (m.seat1Wins > m.seat2Wins) return m.seat1;
+    if (m.seat2Wins > m.seat1Wins) return m.seat2;
+    return null;
+  }
+  return null;
+}
+
+/**
  * Report (or update) a match result between two seats.
  * Uses INSERT OR REPLACE to allow corrections.
  * seat1 must be less than seat2 (caller normalizes).
