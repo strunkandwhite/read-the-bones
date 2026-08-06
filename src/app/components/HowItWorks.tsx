@@ -101,8 +101,8 @@ export function HowItWorks() {
 
         <p>
           <span className="font-semibold text-zinc-700 dark:text-zinc-300">Reordering.</span>{" "}
-          In the pod view&apos;s queue, drag a card to move it, or nudge it with the
-          up/down arrows.
+          In the pod view&apos;s queue, drag a card to move it. Within a group, use
+          the up/down arrows to reorder the cards.
         </p>
 
         <p>
@@ -122,7 +122,8 @@ export function HowItWorks() {
           Group cards (the <span className="font-semibold">⧉</span> button) to mean
           &ldquo;any one of these&rdquo;, such as three removal spells you&apos;d be
           happy with. Auto-pick takes the first available card in the group, and
-          when one is picked the whole group leaves your queue. Use the{" "}
+          the rest of the group moves to your floats. If you pick one yourself,
+          the others stay in your queue. Use the{" "}
           <span className="font-semibold">⏏</span> button to pull a card back out.
         </p>
 
