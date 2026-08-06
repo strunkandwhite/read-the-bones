@@ -5,7 +5,7 @@ import { PodViewIcon, DeckBuilderIcon } from "./icons";
 
 /**
  * Collapsible "How it works" help section shown in the Settings panel.
- * Static content — orients players on the card list, deck builder, pod view,
+ * Static content that orients players on the card list, deck builder, pod view,
  * and the queue / float / auto-pick model. Reuses the same icons players see
  * in the toolbar and card table as visual cues.
  */
@@ -29,14 +29,14 @@ export function HowItWorks() {
       <div className="mt-3 space-y-3 text-xs leading-relaxed text-zinc-600 dark:text-zinc-400">
         <p>
           Read the Bones is a combined draft and stats app. Browse every card in
-          the cube with stats from past rotisserie drafts, and — during a live
-          draft — queue and pick cards when it&apos;s your turn.
+          the cube with stats from past rotisserie drafts, and, during a live
+          draft, queue and pick cards when it&apos;s your turn.
         </p>
 
         <p>
           <span className="font-semibold text-zinc-700 dark:text-zinc-300">Your seat link.</span>{" "}
           Each player gets a unique link to log in to a seat. Don&apos;t share it.
-          Once you visit it, that device remembers your seat — you won&apos;t need
+          Once you visit it, that device remembers your seat, and you won&apos;t need
           the link again unless you log in somewhere else.
         </p>
 
@@ -44,27 +44,27 @@ export function HowItWorks() {
           <span className="font-semibold text-zinc-700 dark:text-zinc-300">Three views:</span>
           <ul className="mt-1.5 space-y-2 pl-1">
             <li>
-              <span className="font-medium text-zinc-700 dark:text-zinc-300">Card list</span> — the
+              <span className="font-medium text-zinc-700 dark:text-zinc-300">Card list.</span> The
               main screen: every card in the cube, with stats from previous
               drafts. Click a card for details. Search supports Scryfall-style
               queries (e.g. <code className="rounded bg-zinc-200 px-1 dark:bg-zinc-700">t:creature</code>,{" "}
               <code className="rounded bg-zinc-200 px-1 dark:bg-zinc-700">c:ur</code>,{" "}
-              <code className="rounded bg-zinc-200 px-1 dark:bg-zinc-700">o:flying</code>) — tap the{" "}
+              <code className="rounded bg-zinc-200 px-1 dark:bg-zinc-700">o:flying</code>). Tap the{" "}
               <span className="font-semibold">?</span> by the search box for the full syntax.
             </li>
             <li className="flex gap-2">
               <DeckBuilderIcon className="mt-0.5 h-4 w-4 shrink-0 text-zinc-500" />
               <span>
-                <span className="font-medium text-zinc-700 dark:text-zinc-300">Deck builder</span> —
-                the cards you&apos;ve picked, queued, and floated; build and share
+                <span className="font-medium text-zinc-700 dark:text-zinc-300">Deck builder.</span>{" "}
+                The cards you&apos;ve picked, queued, and floated; build and share
                 your decklist here.
               </span>
             </li>
             <li className="flex gap-2">
               <PodViewIcon className="mt-0.5 h-4 w-4 shrink-0 text-zinc-500" />
               <span>
-                <span className="font-medium text-zinc-700 dark:text-zinc-300">Pod view</span> —
-                what everyone has picked. Pick here on your turn, manage your
+                <span className="font-medium text-zinc-700 dark:text-zinc-300">Pod view.</span>{" "}
+                What everyone has picked. Pick here on your turn, manage your
                 queue, and (after the draft) report match results. The icon turns
                 green and pulses when it&apos;s <span className="font-medium">your pick</span>.
               </span>
@@ -94,7 +94,7 @@ export function HowItWorks() {
             <span className="font-semibold text-zinc-700 dark:text-zinc-300">Queue vs. float.</span>{" "}
             A <span className="font-medium">queued</span> card will be picked on
             your turn (if auto-pick is on), in queue order. A{" "}
-            <span className="font-medium">floated</span> card won&apos;t — it&apos;s
+            <span className="font-medium">floated</span> card won&apos;t; it&apos;s
             just a private shortlist of cards you&apos;re hoping to get later.
           </span>
         </p>
@@ -120,7 +120,7 @@ export function HowItWorks() {
         <p>
           <span className="font-semibold text-zinc-700 dark:text-zinc-300">Grouping.</span>{" "}
           Group cards (the <span className="font-semibold">⧉</span> button) to mean
-          &ldquo;any one of these&rdquo; — e.g. three removal spells you&apos;d be
+          &ldquo;any one of these&rdquo;, such as three removal spells you&apos;d be
           happy with. Auto-pick takes the first available card in the group, and
           when one is picked the whole group leaves your queue. Use the{" "}
           <span className="font-semibold">⏏</span> button to pull a card back out.
