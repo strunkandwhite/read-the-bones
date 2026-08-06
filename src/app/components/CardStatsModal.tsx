@@ -490,6 +490,16 @@ function StatRow({
 
 // --- Action buttons per card state ---
 
+// Queueing a card clears its float, and unqueueing restores it (see
+// addToQueue / removeFromQueue in stores/live/queueFloat.ts), which is why the
+// unqueue copy promises the card stays in your floats.
+const QUEUE_TOOLTIP = "Auto-pick takes this on your turn, in queue order. Private to you.";
+const UNQUEUE_TOOLTIP = "Take this off your queue. It stays in your floats.";
+const FLOAT_TOOLTIP = "Private shortlist; won't be picked for you, but shows up in your deck builder.";
+const UNFLOAT_TOOLTIP = "Drop this from your shortlist.";
+const ADD_TO_DECK_BUILDER_TOOLTIP = "Track this in your deck builder as a card you're hoping to get.";
+const REMOVE_FROM_DECK_BUILDER_TOOLTIP = "Stop tracking this card.";
+
 interface ActionButtonsProps {
   cardStatus?: CardStatus;
   isMyTurn?: boolean;
@@ -513,6 +523,8 @@ function ActionButtons(props: ActionButtonsProps) {
 
   const floatLabel = props.localDeckMode ? "Add to Deck Builder" : "Float";
   const unfloatLabel = props.localDeckMode ? "Remove from Deck Builder" : "Unfloat";
+  const floatTooltip = props.localDeckMode ? ADD_TO_DECK_BUILDER_TOOLTIP : FLOAT_TOOLTIP;
+  const unfloatTooltip = props.localDeckMode ? REMOVE_FROM_DECK_BUILDER_TOOLTIP : UNFLOAT_TOOLTIP;
 
   switch (cardStatus) {
     case "none":
@@ -520,12 +532,12 @@ function ActionButtons(props: ActionButtonsProps) {
         <>
           {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} disabled={disabled} />}
           {props.onQueue && (
-            <button className={queueBtn} onClick={props.onQueue} disabled={disabled}>
+            <button className={queueBtn} onClick={props.onQueue} disabled={disabled} title={QUEUE_TOOLTIP}>
               Queue
             </button>
           )}
           {props.onFloat && (
-            <button className={secondaryBtn} onClick={props.onFloat} disabled={disabled}>
+            <button className={secondaryBtn} onClick={props.onFloat} disabled={disabled} title={floatTooltip}>
               {floatLabel}
             </button>
           )}
@@ -544,12 +556,12 @@ function ActionButtons(props: ActionButtonsProps) {
         <>
           {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} disabled={disabled} />}
           {canQueueMore && (
-            <button className={queueBtn} onClick={props.onQueue} disabled={disabled}>
+            <button className={queueBtn} onClick={props.onQueue} disabled={disabled} title={QUEUE_TOOLTIP}>
               Queue
             </button>
           )}
           {props.onUnqueue && (
-            <button className={secondaryBtn} onClick={props.onUnqueue} disabled={disabled}>
+            <button className={secondaryBtn} onClick={props.onUnqueue} disabled={disabled} title={UNQUEUE_TOOLTIP}>
               Unqueue{props.queuePosition != null ? ` (#${props.queuePosition})` : ""}{countLabel}
             </button>
           )}
@@ -562,12 +574,12 @@ function ActionButtons(props: ActionButtonsProps) {
         <>
           {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} disabled={disabled} />}
           {props.onQueue && (
-            <button className={queueBtn} onClick={props.onQueue} disabled={disabled}>
+            <button className={queueBtn} onClick={props.onQueue} disabled={disabled} title={QUEUE_TOOLTIP}>
               Queue
             </button>
           )}
           {props.onUnfloat && (
-            <button className={secondaryBtn} onClick={props.onUnfloat} disabled={disabled}>
+            <button className={secondaryBtn} onClick={props.onUnfloat} disabled={disabled} title={unfloatTooltip}>
               {unfloatLabel}
             </button>
           )}
@@ -581,12 +593,12 @@ function ActionButtons(props: ActionButtonsProps) {
           <>
             {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} disabled={disabled} />}
             {props.onQueue && (
-              <button className={queueBtn} onClick={props.onQueue} disabled={disabled}>
+              <button className={queueBtn} onClick={props.onQueue} disabled={disabled} title={QUEUE_TOOLTIP}>
                 Queue
               </button>
             )}
             {props.onFloat && (
-              <button className={secondaryBtn} onClick={props.onFloat} disabled={disabled}>
+              <button className={secondaryBtn} onClick={props.onFloat} disabled={disabled} title={floatTooltip}>
                 {floatLabel}
               </button>
             )}
