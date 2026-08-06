@@ -112,7 +112,7 @@ async function regenToken(client: Client, draftId: string, args: string[]) {
 
   const newToken = await regenerateToken(client, draftId, seat);
   console.log(`Regenerated token for seat ${seat} in draft "${draftId}"`);
-  console.log(`  New URL: https://readthebones.app/drafts/${draftId}?token=${newToken}`);
+  console.log(`  New URL: https://read-the-bones.vercel.app/drafts/${draftId}?token=${newToken}`);
 }
 
 async function setPhase(client: Client, draftId: string, args: string[]) {
