@@ -1,7 +1,7 @@
 // scripts/draft-create-live.ts
 //
 // Create a new live (in-app) draft record in Turso.
-// Usage: pnpm draft:create-live --name "Tarkir Rotisserie" --date 2026-04-01 --seats 10 --picks-per-player 45 --pool cubecobra:modern_cube_id [--banned-cards "Card A,Card B"]
+// Usage: pnpm draft:create-live --name "Tarkir Rotisserie" --date 2026-04-01 --seats 10 --picks-per-player 45 --pool cubecobra:modern_cube_id [--banned-cards "Card A,Card B"] [--double-pick-after 25]
 
 import { createClient } from "@libsql/client";
 import { loadEnv, computeCubeHash } from "../src/core/db/ingest/utils";
@@ -20,6 +20,7 @@ function parseArgs(args: string[]) {
     seats = 0,
     picksPerPlayer = 0,
     bannedCards: string[] = [];
+  let doublePickAfterRound: number | null = null;
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
@@ -41,6 +42,9 @@ function parseArgs(args: string[]) {
       case "--banned-cards":
         bannedCards = args[++i].split(",").map((s) => s.trim());
         break;
+      case "--double-pick-after":
+        doublePickAfterRound = parseInt(args[++i], 10);
+        break;
     }
   }
 
@@ -52,15 +56,20 @@ function parseArgs(args: string[]) {
   if (!picksPerPlayer || picksPerPlayer < 1)
     throw new Error("--picks-per-player is required (minimum 1)");
   if (!pool) throw new Error("--pool is required (cubecobra:<id> or file:<path>)");
+  if (doublePickAfterRound !== null) {
+    if (isNaN(doublePickAfterRound) || doublePickAfterRound < 1)
+      throw new Error("--double-pick-after must be a positive integer");
+    if (doublePickAfterRound > picksPerPlayer)
+      throw new Error("--double-pick-after cannot exceed --picks-per-player");
+  }
 
-  return { name, date, seats, picksPerPlayer, pool, bannedCards };
+  return { name, date, seats, picksPerPlayer, pool, bannedCards, doublePickAfterRound };
 }
 
 async function main() {
   loadEnv();
-  const { name, date, seats, picksPerPlayer, pool, bannedCards } = parseArgs(
-    process.argv.slice(2),
-  );
+  const { name, date, seats, picksPerPlayer, pool, bannedCards, doublePickAfterRound } =
+    parseArgs(process.argv.slice(2));
   const draftId = slugify(name);
 
   const client = createClient({
@@ -126,8 +135,8 @@ async function main() {
 
   // 4. Insert draft record
   await client.execute({
-    sql: `INSERT INTO drafts (draft_id, draft_name, draft_date, cube_snapshot_id, num_seats, phase, in_app, picks_per_player, banned_cards, import_hash)
-          VALUES (?, ?, ?, ?, ?, 'setup', 1, ?, ?, '')`,
+    sql: `INSERT INTO drafts (draft_id, draft_name, draft_date, cube_snapshot_id, num_seats, phase, in_app, picks_per_player, banned_cards, double_pick_after_round, import_hash)
+          VALUES (?, ?, ?, ?, ?, 'setup', 1, ?, ?, ?, '')`,
     args: [
       draftId,
       name,
@@ -136,11 +145,17 @@ async function main() {
       seats,
       picksPerPlayer,
       bannedCards.length > 0 ? JSON.stringify(bannedCards) : null,
+      doublePickAfterRound,
     ],
   });
 
   console.log(`\nCreated live draft: ${draftId} (${name}, ${date})`);
   console.log(`  Seats: ${seats}, Picks per player: ${picksPerPlayer}`);
+  console.log(
+    doublePickAfterRound !== null
+      ? `  Double picks after round: ${doublePickAfterRound}`
+      : `  Double picks after round: unset (falls back to the floor(N/4) heuristic)`,
+  );
   if (bannedCards.length > 0) console.log(`  Banned: ${bannedCards.join(", ")}`);
 
   // 5. Generate seat tokens

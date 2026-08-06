@@ -58,9 +58,12 @@ pnpm draft:reset <draft-name>  # Reset a draft (clear all data, re-sync from scr
 pnpm draft:delete <draft-id>   # Permanently delete a draft and all associated data
 
 # Draft lifecycle (live — for running rotisserie drafts in-app)
-pnpm draft:create-live --name "Name" --date 2026-04-01 --seats 10 --picks-per-player 45 --pool cubecobra:<id> [--banned-cards "Card A,Card B"]
+pnpm draft:create-live --name "Name" --date 2026-04-01 --seats 10 --picks-per-player 45 --pool cubecobra:<id> --double-pick-after 25 [--banned-cards "Card A,Card B"]
 # --pool accepts cubecobra:<id> or file:<path>
 # Default cube ID for new drafts: cubecobra:samp
+# --double-pick-after is the last single-pick round; 45-pick drafts use 25.
+# Omitting it stores NULL, which falls back to the floor(N/4) heuristic
+# (round 23 for a 45-pick draft) — pass it explicitly for 45-pick drafts.
 pnpm draft:start <name>              # Start drafting (setup → drafting)
 pnpm draft:admin <subcommand>        # Admin tools (undo-pick, edit-pick, regen-token, set-phase, add-ban, remove-ban, enter-match, reorder-seats)
 
