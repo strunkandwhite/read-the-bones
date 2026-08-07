@@ -260,8 +260,11 @@ export async function rankAvailableCards(
   // Both queries are restricted to stats-complete drafts (complete/playing):
   // an in-progress draft otherwise contributes an "unpicked at pool size"
   // observation for every card that simply hasn't come up yet, including
-  // the very draft being ranked. statsPhaseFilter's args are positional, so
-  // each query needs its own call rather than sharing one result.
+  // the very draft being ranked. statsPhaseFilter is pure, so sharing one
+  // call's result between both queries would be equally correct — each gets
+  // its own call here only so that each query's args stay in the order that
+  // query's own placeholders expect, not because the filter itself is
+  // stateful.
   const draftPhase = statsPhaseFilter("d.phase");
   const pickPhase = statsPhaseFilter("d.phase");
 
@@ -277,7 +280,8 @@ export async function rankAvailableCards(
       sql: `SELECT pe.card_id, pe.draft_id, pe.pick_n, pe.seat
             FROM pick_events pe
             JOIN drafts d ON d.draft_id = pe.draft_id
-            WHERE pe.card_id IN (${idPlaceholderStr}) AND ${pickPhase.fragment}`,
+            WHERE pe.card_id IN (${idPlaceholderStr}) AND ${pickPhase.fragment}
+            ORDER BY pe.draft_id, pe.pick_n`,
       args: [...cardIds, ...pickPhase.args],
     }),
     client.execute({

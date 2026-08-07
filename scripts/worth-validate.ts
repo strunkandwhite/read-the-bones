@@ -35,18 +35,18 @@ const PRNG_SEED = 42;
 
 const PERMUTATION_ITERATIONS = 2000;
 
-/** Margin subtracted from the measured pooled rho for the pinned gate. */
-const GATE_MARGIN = 0.1;
-
 /**
  * Currently pinned gate: minPooledRho 0.0755 (measured pooled rho 0.1755,
  * p=0.0040, 27 stats-phase drafts, same set as the prior pin). Re-measured
  * 2026-08-07 after switching the worth model's geomean inputs to
  * recency-weighted pick data (half-life 4 sessions) — the re-fit pooled rho
- * came in at or above the prior pin (0.1707), so recency weighting did not
- * damage the model's ability to predict wins. Re-measure and re-pin
- * whenever the worth model's fit changes.
+ * came in at or above the prior measured pooled rho (0.1707), so recency
+ * weighting did not damage the model's ability to predict wins. Re-measure
+ * and re-pin whenever the worth model's fit changes.
  */
+
+/** Margin subtracted from the measured pooled rho for the pinned gate. */
+const GATE_MARGIN = 0.1;
 
 /** Danger horizon for the P1 diagnostic: one full snake turn at 10 seats. */
 const P1_DANGER_HORIZON = 20;

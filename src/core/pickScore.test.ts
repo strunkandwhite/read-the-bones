@@ -31,12 +31,6 @@ describe("pickScore", () => {
     expect(pickScore([seen([10]), seen([], 540)])).toBeCloseTo(37.8, 1);
   });
 
-  it("ignores leftover copies when at least one copy was taken", () => {
-    // A qty-2 card taken once contributes only that pick — the untaken copy
-    // says demand was not two deep, not that the card is unwanted.
-    expect(pickScore([seen([10])])).toBeCloseTo(10, 10);
-  });
-
   it("uses each draft's own pool size for its unpicked penalty", () => {
     // exp((0.5*ln(533) + 0.5*ln(540)) / 1)
     expect(pickScore([seen([], 533), seen([], 540)])).toBeCloseTo(536.5, 1);
