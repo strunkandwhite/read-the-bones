@@ -105,10 +105,11 @@ export async function getCardPickStats(
   const allDraftIds = draftsWithCardResult.rows.map((r) => r.draft_id as string);
 
   // Exclude drafts where this card is banned. Cube sizes depend only on
-  // draftsWithCardResult, so run that query in parallel with the ban lookup.
+  // draftsWithCardResult, so run that query in parallel with the ban lookup
+  // and with the session-ordinal draft set below.
   const cubeSnapshotIds = draftsWithCardResult.rows.map((r) => r.cube_snapshot_id as number);
 
-  const [bannedResult, cubeSizesResult] = await Promise.all([
+  const [bannedResult, cubeSizesResult, allStatsDraftsResult] = await Promise.all([
     client.execute({
       sql: `SELECT draft_id, banned_cards FROM drafts
             WHERE draft_id IN (${placeholders(allDraftIds.length)})
@@ -122,6 +123,19 @@ export async function getCardPickStats(
             GROUP BY cube_snapshot_id`,
       args: [...cubeSnapshotIds],
     }),
+    // Session ordinals must span every stats-phase draft matching this
+    // query's filters, not just the ones this card's cube included — a
+    // card that sat out an interior session (cube-absent, not banned) must
+    // keep the real gap on either side of it (same principle documented in
+    // rankedAvailable.ts, next to its own ordinal map). No ban filter here:
+    // a draft where THIS card was banned still happened and still occupies
+    // a session slot for numbering purposes. The ban only removes it from
+    // draftIds, the set that produces observations, below.
+    client.execute({
+      sql: `SELECT draft_id, draft_date FROM drafts d
+            WHERE ${phaseFragment} ${draftWhere}`,
+      args: [...phaseArgs, ...draftArgs],
+    }),
   ]);
 
   const bannedInDrafts = new Set<string>();
@@ -134,15 +148,15 @@ export async function getCardPickStats(
 
   const draftIds = allDraftIds.filter((id) => !bannedInDrafts.has(id));
 
-  // Ordinals are computed over the post-ban-filter draft set: a draft where
-  // the card was banned is not an observation of that card at all.
+  // draftIds is always a subset of allStatsDraftsResult's rows (that query
+  // has no cube join or ban filter, so it is a strict superset of every
+  // narrower draft set derived above), so sessionsAgo.get(draftId)! below
+  // is always defined.
   const sessionsAgo = sessionsAgoByDraft(
-    draftsWithCardResult.rows
-      .map((row) => ({
-        draftId: row.draft_id as string,
-        draftDate: row.draft_date as string,
-      }))
-      .filter((draft) => !bannedInDrafts.has(draft.draftId)),
+    allStatsDraftsResult.rows.map((row) => ({
+      draftId: row.draft_id as string,
+      draftDate: row.draft_date as string,
+    })),
   );
 
   if (draftIds.length === 0) {

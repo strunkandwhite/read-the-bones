@@ -1431,6 +1431,10 @@ describe("getCardPickStats", () => {
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([{ cube_snapshot_id: 1, total_cards: 540 }])
     );
+    // Global stats-phase draft set (session ordinals)
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ draft_id: "draft1", draft_date: "2026-01-01" }])
+    );
     // Picks of this card
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([{ draft_id: "draft1", pick_n: 5, seat: 1 }])
@@ -1469,6 +1473,14 @@ describe("getCardPickStats", () => {
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([{ cube_snapshot_id: 1, total_cards: 540 }])
     );
+    // Global stats-phase draft set (session ordinals)
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { draft_id: "draft1", draft_date: "2026-01-01" },
+        { draft_id: "draft2", draft_date: "2026-01-01" },
+        { draft_id: "draft3", draft_date: "2026-01-01" },
+      ])
+    );
     // Picks - positions 5, 10, 20
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
@@ -1505,6 +1517,13 @@ describe("getCardPickStats", () => {
     // Cube sizes
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([{ cube_snapshot_id: 1, total_cards: 540 }])
+    );
+    // Global stats-phase draft set (session ordinals)
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { draft_id: "draft1", draft_date: "2026-01-01" },
+        { draft_id: "draft2", draft_date: "2026-01-01" },
+      ])
     );
     // Picks
     mockClient.execute.mockResolvedValueOnce(
@@ -1546,6 +1565,10 @@ describe("getCardPickStats", () => {
     // Cube sizes
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([{ cube_snapshot_id: 1, total_cards: 540 }])
+    );
+    // Global stats-phase draft set (session ordinals)
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ draft_id: "draft1", draft_date: "2026-01-01" }])
     );
     // Picks: seat 1 picked at 5, seat 2 (opted out) picked at 50
     mockClient.execute.mockResolvedValueOnce(
@@ -1637,6 +1660,14 @@ describe("getCardPickStats", () => {
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([{ cube_snapshot_id: 1, total_cards: 540 }])
     );
+    // Global stats-phase draft set (session ordinals) — same two sessions,
+    // so numbering matches the (card-scoped) drafts-with-card set above.
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { draft_id: "recent", draft_date: "2026-07-17" },
+        { draft_id: "older", draft_date: "2026-03-08" },
+      ])
+    );
     // Picks of this card
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
@@ -1676,6 +1707,12 @@ describe("getCardPickStats", () => {
     );
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
+        { draft_id: "recent", draft_date: "2026-07-17" },
+        { draft_id: "older", draft_date: "2026-07-10" },
+      ])
+    );
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
         { draft_id: "recent", pick_n: 10, seat: 1 },
         { draft_id: "older", pick_n: 100, seat: 1 },
       ])
@@ -1686,6 +1723,61 @@ describe("getCardPickStats", () => {
     const result = await getCardPickStats(mockClient as never, { card_name: "Test Card" });
 
     expect(result?.weighted_geomean).toBeCloseTo(28.6, 1);
+  });
+
+  it("numbers sessions globally, not densely over the drafts this card's cube included", async () => {
+    // Three sessions exist, but the card's cube only included it in the
+    // newest and oldest — it sat out the interior "sessionB" entirely
+    // (absent from that cube, not banned). The drafts-with-card query (the
+    // cube join) therefore only returns sessionA and sessionC.
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ card_id: 1, oracle_id: "abc", name: "Test Card", scryfall_json: null }])
+    );
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { draft_id: "sessionA", cube_snapshot_id: 1, draft_date: "2026-07-17" },
+        { draft_id: "sessionC", cube_snapshot_id: 1, draft_date: "2026-01-01" },
+      ])
+    );
+    // Banned cards check (none)
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+    // Cube sizes
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ cube_snapshot_id: 1, total_cards: 540 }])
+    );
+    // Global stats-phase draft set (no cube join, no ban filter) — includes
+    // the interior sessionB the card sat out.
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { draft_id: "sessionA", draft_date: "2026-07-17" },
+        { draft_id: "sessionB", draft_date: "2026-04-01" },
+        { draft_id: "sessionC", draft_date: "2026-01-01" },
+      ])
+    );
+    // Picks of this card
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { draft_id: "sessionA", pick_n: 10, seat: 1 },
+        { draft_id: "sessionC", pick_n: 100, seat: 1 },
+      ])
+    );
+    // Opt-outs (none)
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+    // Deck cards (no decklist data)
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+
+    const result = await getCardPickStats(mockClient as never, { card_name: "Test Card" });
+
+    // Correct global numbering: sessionA=0 sessions back, sessionB=1,
+    // sessionC=2 (the interior gap is preserved). sessionC's weight is
+    // 0.5^(2/4) = 0.70711:
+    // exp((1*ln(10) + 0.70711*ln(100)) / 1.70711) = 25.95 -> rounds to 26.0
+    //
+    // A dense (buggy) numbering that only sees the two drafts this card's
+    // cube included would instead treat sessionC as 1 session back (weight
+    // 0.5^(1/4) = 0.84090), collapsing the gap sessionB leaves:
+    // exp((1*ln(10) + 0.84090*ln(100)) / 1.84090) = 28.63 -> rounds to 28.6
+    expect(result?.weighted_geomean).toBeCloseTo(26.0, 1);
   });
 });
 
