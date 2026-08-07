@@ -65,14 +65,14 @@ export function ManaSymbols({ cost }: { cost: string }) {
 /**
  * Render color identity as Scryfall mana symbols.
  */
-export function ColorPills({ colors }: { colors: string[] }) {
+export function ColorPills({ colors, size = 16 }: { colors: string[]; size?: number }) {
   if (!colors || colors.length === 0) {
     return (
       <img
         src="/mana/C.svg"
         alt="C"
-        width={16}
-        height={16}
+        width={size}
+        height={size}
         className="inline-block opacity-50"
       />
     );
@@ -85,8 +85,8 @@ export function ColorPills({ colors }: { colors: string[] }) {
           key={color}
           src={`/mana/${color}.svg`}
           alt={color}
-          width={16}
-          height={16}
+          width={size}
+          height={size}
           className="inline-block"
           onError={(e) => {
             const span = document.createElement("span");

@@ -9,11 +9,36 @@ import {
   columnKeysForZone,
   toBaseColumnKey,
 } from "@/core/deckBuilder";
+import { colorSourceSplits, isNotableColor } from "@/core/manaSources";
+import { isLocalClient } from "@/core/isLocal";
+import { ColorPills } from "../ManaSymbols";
 import type { DeckColumnKey } from "@/core/deckBuilder";
+import type { ColorSourceSplit, ManaColor } from "@/core/manaSources";
 import type { ColumnMap, ScryCard, CardStats } from "@/core/types";
 import type { WorthCard } from "@/core/worthModel";
 
 const BASIC_LAND_SET = new Set(["Plains", "Island", "Swamp", "Mountain", "Forest"]);
+
+const COLOR_NAMES: Record<ManaColor, string> = {
+  W: "white",
+  U: "blue",
+  B: "black",
+  R: "red",
+  G: "green",
+};
+
+function colorSourceTooltip({
+  color,
+  sources,
+  required,
+  requiredBy,
+}: ColorSourceSplit): string {
+  const name = COLOR_NAMES[color];
+  if (!requiredBy) {
+    return `${sources} ${name} sources — no maindeck spell asks for ${name}.`;
+  }
+  return `${sources} of the ${required} ${name} sources ${requiredBy} wants to be castable on curve.`;
+}
 
 const COLUMN_LABELS: Record<string, string> = {
   "mv-0-1": "0-1",
@@ -73,6 +98,16 @@ export function DeckZone({
     }
     return { creatureCount: creatures, spellCount: spells, landCount: lands };
   }, [columns, scryfallData]);
+
+  // Actual vs. wanted colored sources is a localhost-only readout, and only the
+  // maindeck has a manabase to say anything about.
+  const isLocal = useMemo(() => isLocalClient(), []);
+
+  const colorSplits = useMemo(() => {
+    if (!isLocal || zone !== "deck") return [];
+    const cardNames = columnKeysForZone(zone).flatMap((key) => columns[key] ?? []);
+    return colorSourceSplits(cardNames, scryfallData).filter(isNotableColor);
+  }, [isLocal, zone, columns, scryfallData]);
 
   // Compute which specific card instances are floated.
   // Cards that are both floated AND queued show as queued (stronger intent).
@@ -183,6 +218,32 @@ export function DeckZone({
         {totalCards > 0 && (
           <span className="text-[11px] text-zinc-500">
             {creatureCount}c · {spellCount}s · {landCount}l
+          </span>
+        )}
+        {colorSplits.length > 0 && (
+          <span className="flex items-center gap-1.5 text-[11px] text-zinc-500">
+            {colorSplits.map((split, index) => (
+              <span
+                key={split.color}
+                className="flex items-center gap-1"
+                title={colorSourceTooltip(split)}
+              >
+                {index > 0 && <span className="mr-0.5 text-zinc-600">·</span>}
+                <span className="font-mono">
+                  <span
+                    className={
+                      split.sources >= split.required
+                        ? "text-zinc-300"
+                        : "text-amber-500/90"
+                    }
+                  >
+                    {split.sources}
+                  </span>
+                  /{split.required}
+                </span>
+                <ColorPills colors={[split.color]} size={12} />
+              </span>
+            ))}
           </span>
         )}
       </div>

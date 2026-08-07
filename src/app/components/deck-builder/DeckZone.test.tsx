@@ -1,12 +1,18 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, screen, cleanup, within } from "@testing-library/react";
 import { DndContext } from "@dnd-kit/core";
 import { DeckZone } from "./DeckZone";
 import { createEmptyColumnMap } from "@/core/deckBuilder";
-import type { ColumnMap } from "@/core/types";
+import type { ColumnMap, ScryCard } from "@/core/types";
+
+const { isLocalClientMock } = vi.hoisted(() => ({
+  isLocalClientMock: vi.fn(() => true),
+}));
+vi.mock("@/core/isLocal", () => ({ isLocalClient: isLocalClientMock }));
 
 afterEach(cleanup);
+beforeEach(() => isLocalClientMock.mockReturnValue(true));
 
 function renderZone(
   zone: "deck" | "sideboard",
@@ -115,5 +121,57 @@ describe("DeckZone", () => {
 
     expect(screen.getByLabelText("Remove speculative card")).toBeTruthy();
     expect(within(zoneHeader("deck")).getByText("1 floated")).toBeTruthy();
+  });
+});
+
+describe("DeckZone color sources", () => {
+  const scryfallData = new Map<string, ScryCard>([
+    [
+      "Tarmogoyf",
+      {
+        name: "Tarmogoyf",
+        imageUri: "",
+        manaCost: "{1}{G}",
+        manaValue: 2,
+        typeLine: "Creature — Lhurgoyf",
+        colors: ["G"],
+        colorIdentity: ["G"],
+        oracleText: "",
+      },
+    ],
+  ]);
+
+  /** A green two-drop plus two Forests: eight sources wanted, two held. */
+  const GREEN_DECK: ColumnMap = { "mv-2": ["Tarmogoyf"], lands: ["Forest", "Forest"] };
+
+  it("shows sources over the sources the deck's spells want", () => {
+    renderZone("deck", GREEN_DECK, { scryfallData });
+
+    expect(within(zoneHeader("deck")).getByText("2")).toBeTruthy();
+    expect(within(zoneHeader("deck")).getByText("/8")).toBeTruthy();
+    expect(within(zoneHeader("deck")).getByAltText("G")).toBeTruthy();
+  });
+
+  it("names the spell driving the requirement", () => {
+    renderZone("deck", GREEN_DECK, { scryfallData });
+
+    expect(
+      within(zoneHeader("deck")).getByTitle(
+        "2 of the 8 green sources Tarmogoyf wants to be castable on curve.",
+      ),
+    ).toBeTruthy();
+  });
+
+  it("does not show the split off localhost", () => {
+    isLocalClientMock.mockReturnValue(false);
+    renderZone("deck", GREEN_DECK, { scryfallData });
+
+    expect(within(zoneHeader("deck")).queryByText("/8")).toBeNull();
+  });
+
+  it("does not show the split for the sideboard", () => {
+    renderZone("sideboard", { "mv-2": ["Tarmogoyf"], lands: ["Forest"] }, { scryfallData });
+
+    expect(within(zoneHeader("sideboard")).queryByText("/8")).toBeNull();
   });
 });
