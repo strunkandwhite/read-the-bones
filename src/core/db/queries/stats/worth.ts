@@ -17,7 +17,7 @@ import {
   parseScryfallJson,
   placeholders,
 } from "../helpers";
-import { calculatePickWeight, weightedGeometricMean } from "../../../utils";
+import { pickScore, type DraftObservation } from "../../../pickScore";
 import { DEFAULT_POOL_SIZE } from "../../../types";
 import { computeIngestionHash } from "../../sync/domains";
 import { normalizeColorIdentity } from "../../../manaColors";
@@ -370,9 +370,8 @@ async function assembleWorthTable(
     pairEdges[pair] = shrinkFactor * (delta - grandMean) + grandMean - 0.5;
   }
 
-  // Per-card pick aggregates. Geomean uses the unpicked-penalty convention:
-  // in a draft where the card sat in the pool unpicked, it contributes one
-  // half-weight observation at the pool size (mirrors rankedAvailable.ts).
+  // Per-card pick aggregates. A draft in which the card sat in the pool
+  // untaken contributes one half-weight observation at the pool size.
   const tableNames = new Set<string>(currentCubeNames);
   for (const draft of statsDrafts) {
     for (const name of snapshotCardNames.get(draft.cubeSnapshotId) ?? []) {
@@ -383,34 +382,15 @@ async function assembleWorthTable(
   const geomeanByName = new Map<string, number | null>();
   for (const name of tableNames) {
     const byDraft = picksByName.get(name);
-    const weightedItems: { value: number; weight: number }[] = [];
+    const observations: DraftObservation[] = [];
     for (const draft of statsDrafts) {
-      const inPool = snapshotCardNames
-        .get(draft.cubeSnapshotId)
-        ?.has(name);
-      if (!inPool) continue;
-      const draftPicks = byDraft?.get(draft.draftId);
-      if (draftPicks && draftPicks.length > 0) {
-        for (let copyIndex = 0; copyIndex < draftPicks.length; copyIndex++) {
-          weightedItems.push({
-            value: draftPicks[copyIndex],
-            weight: calculatePickWeight({
-              copyNumber: copyIndex + 1,
-              wasPicked: true,
-            }),
-          });
-        }
-      } else {
-        weightedItems.push({
-          value: poolSizeBySnapshot.get(draft.cubeSnapshotId) || DEFAULT_POOL_SIZE,
-          weight: calculatePickWeight({ copyNumber: 1, wasPicked: false }),
-        });
-      }
+      if (!snapshotCardNames.get(draft.cubeSnapshotId)?.has(name)) continue;
+      observations.push({
+        pickPositions: byDraft?.get(draft.draftId) ?? [],
+        poolSize: poolSizeBySnapshot.get(draft.cubeSnapshotId) || DEFAULT_POOL_SIZE,
+      });
     }
-    geomeanByName.set(
-      name,
-      weightedItems.length > 0 ? weightedGeometricMean(weightedItems) : null,
-    );
+    geomeanByName.set(name, observations.length > 0 ? pickScore(observations) : null);
   }
 
   // Pooled σ: sd of ln(pickPosition) − ln(geomean of that card's picked
