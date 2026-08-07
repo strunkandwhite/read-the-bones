@@ -353,3 +353,75 @@ describe("CardTable desire column (dev-only)", () => {
     expect(rowText("Late Bloomer")).toContain("—");
   });
 });
+
+// ---------------------------------------------------------------------------
+// Cost column — prepared cards show the front face only.
+// ---------------------------------------------------------------------------
+
+function multiFaceCardFixture(
+  name: string,
+  manaCost: string,
+  oracleText: string,
+): EnrichedCardStats {
+  return {
+    cardName: name,
+    colors: ["B"],
+    weightedGeomean: 100,
+    timesAvailable: 2,
+    scryfall: {
+      manaCost,
+      oracleText,
+      manaValue: 2,
+      typeLine: "Creature",
+      colorIdentity: ["B"],
+    },
+  } as unknown as EnrichedCardStats;
+}
+
+// ColorPills and the card-name cell also render <img> elements, so the symbols
+// are read from the Cost cell specifically — which doubles as a check that the
+// Cost column is visible at the rendered breakpoint.
+function costSymbols(cardName: string): string[] {
+  const headers = [...document.querySelectorAll("thead th")];
+  const costIndex = headers.findIndex((th) => th.textContent?.includes("Cost"));
+  expect(costIndex).toBeGreaterThanOrEqual(0);
+
+  const row = [...document.querySelectorAll("tbody tr")].find((tr) =>
+    tr.textContent?.includes(cardName),
+  );
+  const cell = row?.querySelectorAll("td")[costIndex];
+  return [...(cell?.querySelectorAll("img") ?? [])].map(
+    (img) => img.getAttribute("alt") ?? "",
+  );
+}
+
+describe("CardTable cost column", () => {
+  beforeEach(() => {
+    isLocalClientMock.mockReturnValue(false);
+  });
+
+  const cards = [
+    multiFaceCardFixture(
+      "Scheming Silvertongue",
+      "{1}{B} // {B}{B}",
+      "When this creature enters, it becomes prepared. (While it's prepared, you may cast a copy of the other half.)",
+    ),
+    multiFaceCardFixture(
+      "Bonecrusher Giant",
+      "{2}{R} // {1}{R}",
+      "Whenever this creature becomes the target of a spell, Bonecrusher Giant deals 2 damage to that spell's controller.",
+    ),
+  ];
+
+  it("shows only the front face of a prepared card's cost", () => {
+    render(<CardTable cards={cards} />);
+
+    expect(costSymbols("Scheming Silvertongue")).toEqual(["{1}", "{B}"]);
+  });
+
+  it("keeps both halves of an Adventure's cost", () => {
+    render(<CardTable cards={cards} />);
+
+    expect(costSymbols("Bonecrusher Giant")).toEqual(["{2}", "{R}", "{1}", "{R}"]);
+  });
+});

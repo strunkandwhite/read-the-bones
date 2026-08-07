@@ -4,6 +4,7 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { formatSignedPercent } from "../worthFormat";
 
 interface DeckCardProps {
   cardName: string;
@@ -17,9 +18,10 @@ interface DeckCardProps {
   pickScore?: number;
   gpwr?: number;
   gpwrCi?: { lower: number; upper: number };
+  worth?: number;
 }
 
-export function DeckCard({ cardName, imageUri, isFloated, isQueued, isLast, id, onRemoveFloat, onToggleQueue, pickScore, gpwr, gpwrCi }: DeckCardProps) {
+export function DeckCard({ cardName, imageUri, isFloated, isQueued, isLast, id, onRemoveFloat, onToggleQueue, pickScore, gpwr, gpwrCi, worth }: DeckCardProps) {
   const {
     attributes,
     listeners,
@@ -134,8 +136,8 @@ export function DeckCard({ cardName, imageUri, isFloated, isQueued, isLast, id, 
             className="rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-800"
             draggable={false}
           />
-          {(pickScore != null || gpwr != null) && (
-            <div className="mt-1.5 flex items-center gap-3 rounded-lg bg-zinc-900/95 border border-zinc-700/60 px-3 py-2 text-xs shadow-lg backdrop-blur-sm">
+          {(pickScore != null || gpwr != null || worth != null) && (
+            <div className="mt-1.5 flex max-w-[320px] flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-zinc-900/95 border border-zinc-700/60 px-3 py-2 text-xs shadow-lg backdrop-blur-sm">
               {pickScore != null && (
                 <span className="text-zinc-400">
                   Pick <span className="font-mono font-semibold text-zinc-100">{pickScore.toFixed(1)}</span>
@@ -149,6 +151,11 @@ export function DeckCard({ cardName, imageUri, isFloated, isQueued, isLast, id, 
                       {"\u00b1"}{Math.round((gpwrCi.upper - gpwrCi.lower) * 50)}%
                     </span>
                   )}
+                </span>
+              )}
+              {worth != null && (
+                <span className="text-zinc-400">
+                  Worth <span className="font-mono font-semibold text-zinc-100">{formatSignedPercent(worth)}</span>
                 </span>
               )}
             </div>

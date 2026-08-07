@@ -7,6 +7,7 @@ import {
 } from "@dnd-kit/sortable";
 import { DeckCard } from "./DeckCard";
 import type { ScryCard, CardStats } from "@/core/types";
+import type { WorthCard } from "@/core/worthModel";
 import { BASIC_LAND_IMAGES } from "./basicLandImages";
 
 interface DeckColumnProps {
@@ -16,6 +17,7 @@ interface DeckColumnProps {
   zone: "deck" | "sideboard";
   scryfallData: Map<string, ScryCard>;
   cardStats: Map<string, CardStats>;
+  worthCards: Map<string, WorthCard>;
   floatedIndices: Set<string>;
   queuedIndices: Set<string>;
   onRemoveFloat?: (cardName: string) => void;
@@ -29,6 +31,7 @@ export function DeckColumn({
   zone,
   scryfallData,
   cardStats,
+  worthCards,
   floatedIndices,
   queuedIndices,
   onRemoveFloat,
@@ -67,6 +70,8 @@ export function DeckColumn({
             const scryfall = scryfallData.get(name);
             const imageUri = scryfall?.imageUri ?? BASIC_LAND_IMAGES[name];
             const stats = cardStats.get(name);
+            const worthCard = worthCards.get(name);
+            const showWorth = worthCard != null && !worthCard.no_data;
             return (
               <DeckCard
                 key={`${zone}:${columnKey}:${idx}:${name}`}
@@ -81,6 +86,7 @@ export function DeckColumn({
                 pickScore={stats?.weightedGeomean}
                 gpwr={stats?.gpwr}
                 gpwrCi={stats?.gpwrCi}
+                worth={showWorth ? worthCard.worth ?? undefined : undefined}
               />
             );
           })}

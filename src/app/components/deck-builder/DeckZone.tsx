@@ -4,6 +4,7 @@ import { useMemo } from "react";
 import { DeckColumn } from "./DeckColumn";
 import { COLUMN_KEYS } from "@/core/deckBuilder";
 import type { ColumnMap, ScryCard, CardStats } from "@/core/types";
+import type { WorthCard } from "@/core/worthModel";
 
 const BASIC_LAND_SET = new Set(["Plains", "Island", "Swamp", "Mountain", "Forest"]);
 
@@ -22,6 +23,7 @@ interface DeckZoneProps {
   columns: ColumnMap;
   scryfallData: Map<string, ScryCard>;
   cardStats: Map<string, CardStats>;
+  worthCards: Map<string, WorthCard>;
   floatedCards: string[];
   queuedCardNames: string[];
   onRemoveFloat?: (cardName: string) => void;
@@ -33,6 +35,7 @@ export function DeckZone({
   columns,
   scryfallData,
   cardStats,
+  worthCards,
   floatedCards,
   queuedCardNames,
   onRemoveFloat,
@@ -161,6 +164,7 @@ export function DeckZone({
             zone={zone}
             scryfallData={scryfallData}
             cardStats={cardStats}
+            worthCards={worthCards}
             floatedIndices={floatedIndices}
             queuedIndices={queuedIndices}
             onRemoveFloat={onRemoveFloat}

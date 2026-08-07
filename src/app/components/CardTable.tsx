@@ -15,6 +15,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import type { EnrichedCardStats } from "@/core/types";
 import type { WorthCard } from "@/core/worthModel";
 import { filterCardsByColor } from "@/core/colorFilter";
+import { displayManaCost } from "@/core/manaCost";
 import { ManaSymbols, ColorPills } from "./ManaSymbols";
 import { CardNameCell } from "./CardNameCell";
 import { track } from "@vercel/analytics/react";
@@ -30,6 +31,7 @@ import {
   formatDesireIndex,
   maxAbsWorth,
 } from "./desireCurve";
+import { formatSignedPercent, formatSignedZ } from "./worthFormat";
 
 export interface CardTableProps {
   cards: EnrichedCardStats[];
@@ -56,20 +58,6 @@ const PICK_EXPLANATION = `Weighted geometric mean of pick positions across all d
 Weighting factors:
 • Copy weight: 0.5^(n-1) for nth copy
 • Unpicked cards: 0.5x weight (position set to pool size)`;
-
-/** "+4.7%" / "-2.3%" — signed percentage with one decimal, for worth-model values. */
-export function formatSignedPercent(value: number): string {
-  const percent = value * 100;
-  // Values that round to zero display as +0.0% regardless of sign bit.
-  if (Math.abs(percent) < 0.05) return "+0.0%";
-  return `${percent >= 0 ? "+" : ""}${percent.toFixed(1)}%`;
-}
-
-/** "+1.6σ" / "-2.9σ" — PVI is a z-score (standard errors vs the price curve), not a rate. */
-export function formatSignedZ(value: number): string {
-  if (Math.abs(value) < 0.05) return "+0.0σ";
-  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}σ`;
-}
 
 /** Shared cell renderer for the dev-only Worth and PVI columns. */
 function renderWorthModelValue(
@@ -214,8 +202,9 @@ export function CardTable({
       columnHelper.accessor((row) => row.scryfall?.manaValue ?? 0, {
         id: "manaCost",
         header: "Cost",
-        size: 80,
-        cell: ({ row }) => <ManaSymbols cost={row.original.scryfall?.manaCost || ""} />,
+        // Wide enough that a two-face cost like {2}{R} // {1}{R} stays on one line.
+        size: 112,
+        cell: ({ row }) => <ManaSymbols cost={displayManaCost(row.original.scryfall)} />,
       }),
       columnHelper.accessor((row) => row.scryfall?.typeLine || "", {
         id: "type",

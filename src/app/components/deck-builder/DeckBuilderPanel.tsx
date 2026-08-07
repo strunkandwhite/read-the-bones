@@ -62,6 +62,7 @@ export function DeckBuilderPanel({
   // Card store
   const scryfallData = useCardStore((s) => s.scryfallDataMap);
   const cardStats = useCardStore((s) => s.cardStatsMap);
+  const worthCards = useCardStore((s) => s.worthCards);
 
   const isAuthed = useIsAuthed();
   const localDeckMode = useLocalDeckMode();
@@ -293,6 +294,7 @@ export function DeckBuilderPanel({
             columns={state.zones.sideboard}
             scryfallData={scryfallData}
             cardStats={cardStats}
+            worthCards={worthCards}
             floatedCards={effectiveFloatedCards}
             queuedCardNames={effectiveQueuedCardNames}
             onRemoveFloat={handleRemoveFloat}
@@ -304,6 +306,7 @@ export function DeckBuilderPanel({
             columns={state.zones.deck}
             scryfallData={scryfallData}
             cardStats={cardStats}
+            worthCards={worthCards}
             floatedCards={effectiveFloatedCards}
             queuedCardNames={effectiveQueuedCardNames}
             onRemoveFloat={handleRemoveFloat}

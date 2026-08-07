@@ -18,12 +18,11 @@ import type { CardStatus } from "@/core/cardStatus";
 import type { WorthCard } from "@/core/worthModel";
 import { ciMarginPct } from "@/core/wilsonInterval";
 import {
-  formatSignedPercent,
-  formatSignedZ,
   WORTH_EXPLANATION,
   PVI_EXPLANATION,
   DESIRE_EXPLANATION,
 } from "./CardTable";
+import { formatSignedPercent, formatSignedZ } from "./worthFormat";
 import { InfoTooltip } from "./InfoTooltip";
 import {
   desireAt,
