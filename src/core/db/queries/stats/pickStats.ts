@@ -5,7 +5,8 @@
 import type { Client } from "@libsql/client";
 import { resolveCard } from "../cards";
 import { fetchOptOuts, parseBannedCards, placeholders } from "../helpers";
-import { calculatePickWeight, round3, weightedGeometricMean } from "../../../utils";
+import { round3 } from "../../../utils";
+import { pickScore, type DraftObservation } from "../../../pickScore";
 import { DEFAULT_POOL_SIZE } from "../../../types";
 import { statsPhaseFilter } from "../../../draftPhases";
 
@@ -33,7 +34,7 @@ export interface CardPickStatsResult {
 
 /**
  * Get aggregate pick statistics for a card across drafts.
- * Uses the weighted geometric mean formula from calculateStats.ts.
+ * The weighted score comes from the canonical formula in pickScore.ts.
  */
 export async function getCardPickStats(
   client: Client,
@@ -191,46 +192,20 @@ export async function getCardPickStats(
     });
   }
 
-  // Collect all pick positions for stats
+  // Taken positions feed avg/median; observations feed the weighted score.
   const pickPositions: number[] = [];
-  const weightedItems: { value: number; weight: number }[] = [];
+  const observations: DraftObservation[] = [];
 
   for (const draftId of draftIds) {
     const picks = picksByDraft.get(draftId) || [];
-    // Get actual cube size from cube_snapshot_cards
     const cubeSnapshotId = draftCubeSnapshots.get(draftId);
-    const poolSize = cubeSnapshotId ? (cubeSizes.get(cubeSnapshotId) || DEFAULT_POOL_SIZE) : DEFAULT_POOL_SIZE;
+    const poolSize = cubeSnapshotId
+      ? cubeSizes.get(cubeSnapshotId) || DEFAULT_POOL_SIZE
+      : DEFAULT_POOL_SIZE;
 
-    if (picks.length > 0) {
-      // Card was picked in this draft
-      for (let i = 0; i < picks.length; i++) {
-        const pick = picks[i];
-        const copyNumber = i + 1; // 1st copy, 2nd copy, etc.
-
-        // Use shared utility for weight calculation
-        const weight = calculatePickWeight({
-          copyNumber,
-          wasPicked: true,
-        });
-
-        pickPositions.push(pick.pick_n);
-        weightedItems.push({
-          value: pick.pick_n,
-          weight,
-        });
-      }
-    } else {
-      // Card was available but not picked - assign pool size as pick position
-      // Use shared utility for weight calculation
-      const weight = calculatePickWeight({
-        copyNumber: 1,
-        wasPicked: false,
-      });
-      weightedItems.push({
-        value: poolSize,
-        weight,
-      });
-    }
+    const positions = picks.map((pick) => pick.pick_n);
+    pickPositions.push(...positions);
+    observations.push({ pickPositions: positions, poolSize });
   }
 
   // Calculate stats
@@ -252,7 +227,7 @@ export async function getCardPickStats(
         : sorted[mid];
   }
 
-  const weighted_geomean = weightedGeometricMean(weightedItems);
+  const weighted_geomean = pickScore(observations);
 
   const result: CardPickStatsResult = {
     card_name: card_name,
