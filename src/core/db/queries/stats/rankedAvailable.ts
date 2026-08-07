@@ -7,6 +7,7 @@ import { getClient } from "../../client";
 import { fetchOptOuts, getSeatsMatchingColors, placeholders } from "../helpers";
 import { getAvailableCards } from "../picks";
 import { getDraftMeta } from "../drafts";
+import { statsPhaseFilter } from "../../../draftPhases";
 import { getWorthTable } from "./worth";
 import { round3 } from "../../../utils";
 import { pickScore, type DraftObservation } from "../../../pickScore";
@@ -254,20 +255,29 @@ export async function rankAvailableCards(
 
   const idPlaceholderStr = placeholders(cardIds.length);
 
-  // Step 3: Batch pick stats — get all drafts where these cards appear
+  // Step 3: Batch pick stats — get all drafts where these cards appear.
+  // Both queries are restricted to stats-complete drafts (complete/playing):
+  // an in-progress draft otherwise contributes an "unpicked at pool size"
+  // observation for every card that simply hasn't come up yet, including
+  // the very draft being ranked. statsPhaseFilter's args are positional, so
+  // each query needs its own call rather than sharing one result.
+  const draftPhase = statsPhaseFilter("d.phase");
+  const pickPhase = statsPhaseFilter("d.phase");
+
   const [draftsResult, picksResult, cubeSizesResult] = await Promise.all([
     client.execute({
       sql: `SELECT DISTINCT d.draft_id, d.cube_snapshot_id, csc.card_id
             FROM drafts d
             JOIN cube_snapshot_cards csc ON d.cube_snapshot_id = csc.cube_snapshot_id
-            WHERE csc.card_id IN (${idPlaceholderStr})`,
-      args: cardIds,
+            WHERE csc.card_id IN (${idPlaceholderStr}) AND ${draftPhase.fragment}`,
+      args: [...cardIds, ...draftPhase.args],
     }),
     client.execute({
-      sql: `SELECT pe.card_id, pe.draft_id, pe.pick_n
+      sql: `SELECT pe.card_id, pe.draft_id, pe.pick_n, pe.seat
             FROM pick_events pe
-            WHERE pe.card_id IN (${idPlaceholderStr})`,
-      args: cardIds,
+            JOIN drafts d ON d.draft_id = pe.draft_id
+            WHERE pe.card_id IN (${idPlaceholderStr}) AND ${pickPhase.fragment}`,
+      args: [...cardIds, ...pickPhase.args],
     }),
     client.execute({
       sql: `SELECT cube_snapshot_id, SUM(qty) as total_cards
@@ -281,34 +291,6 @@ export async function rankAvailableCards(
       args: cardIds,
     }),
   ]);
-
-  // Build lookup structures for pick stats
-  const cubeSizes = new Map<number, number>();
-  for (const row of cubeSizesResult.rows) {
-    cubeSizes.set(row.cube_snapshot_id as number, row.total_cards as number);
-  }
-
-  // Map: cardId -> Set of draftIds where card was in pool
-  const cardDrafts = new Map<number, Map<string, number>>(); // cardId -> (draftId -> cubeSnapshotId)
-  for (const row of draftsResult.rows) {
-    const cardId = row.card_id as number;
-    const draftId = row.draft_id as string;
-    const cubeSnapshotId = row.cube_snapshot_id as number;
-    if (!cardDrafts.has(cardId)) cardDrafts.set(cardId, new Map());
-    cardDrafts.get(cardId)!.set(draftId, cubeSnapshotId);
-  }
-
-  // Map: cardId -> draftId -> pick positions
-  const cardPicks = new Map<number, Map<string, number[]>>();
-  for (const row of picksResult.rows) {
-    const cardId = row.card_id as number;
-    const draftId = row.draft_id as string;
-    const pickN = row.pick_n as number;
-    if (!cardPicks.has(cardId)) cardPicks.set(cardId, new Map());
-    const byDraft = cardPicks.get(cardId)!;
-    if (!byDraft.has(draftId)) byDraft.set(draftId, []);
-    byDraft.get(draftId)!.push(pickN);
-  }
 
   // Step 4: Batch play/win stats
   const [playResult, winResult] = await Promise.all([
@@ -335,18 +317,54 @@ export async function rankAvailableCards(
     }),
   ]);
 
-  // Collect all draft IDs for opt-out and color filtering
+  // Collect all draft IDs for opt-out and color filtering. Picks contribute
+  // their own draft ids here too (not just play/win rows) so fetchOptOuts
+  // below can resolve pick-side opt-outs — its lookup key is
+  // "draftId:seat", so a draft missing from this set means the pick-side
+  // .has() check below never matches.
   const allDraftIds = new Set<string>();
+  for (const row of picksResult.rows) allDraftIds.add(row.draft_id as string);
   for (const row of playResult.rows) allDraftIds.add(row.draft_id as string);
   for (const row of winResult.rows) allDraftIds.add(row.draft_id as string);
 
-  // Get opt-outs for all relevant drafts
+  // Get opt-outs for all relevant drafts once, shared by pick, play, and
+  // win stats below.
   const optedOut = await fetchOptOuts(client, [...allDraftIds]);
 
   // If deck_colors is set, get matching seats across all relevant drafts
   let matchingSeats: Set<string> | null = null;
   if (params.deck_colors) {
     matchingSeats = await getSeatsMatchingColors(client, [...allDraftIds], params.deck_colors);
+  }
+
+  // Build lookup structures for pick stats
+  const cubeSizes = new Map<number, number>();
+  for (const row of cubeSizesResult.rows) {
+    cubeSizes.set(row.cube_snapshot_id as number, row.total_cards as number);
+  }
+
+  // Map: cardId -> Set of draftIds where card was in pool
+  const cardDrafts = new Map<number, Map<string, number>>(); // cardId -> (draftId -> cubeSnapshotId)
+  for (const row of draftsResult.rows) {
+    const cardId = row.card_id as number;
+    const draftId = row.draft_id as string;
+    const cubeSnapshotId = row.cube_snapshot_id as number;
+    if (!cardDrafts.has(cardId)) cardDrafts.set(cardId, new Map());
+    cardDrafts.get(cardId)!.set(draftId, cubeSnapshotId);
+  }
+
+  // Map: cardId -> draftId -> pick positions, skipping opted-out seats
+  const cardPicks = new Map<number, Map<string, number[]>>();
+  for (const row of picksResult.rows) {
+    const cardId = row.card_id as number;
+    const draftId = row.draft_id as string;
+    const pickN = row.pick_n as number;
+    const seat = row.seat as number;
+    if (optedOut.has(`${draftId}:${seat}`)) continue;
+    if (!cardPicks.has(cardId)) cardPicks.set(cardId, new Map());
+    const byDraft = cardPicks.get(cardId)!;
+    if (!byDraft.has(draftId)) byDraft.set(draftId, []);
+    byDraft.get(draftId)!.push(pickN);
   }
 
   // Aggregate play stats per card, skipping opted-out and non-matching seats

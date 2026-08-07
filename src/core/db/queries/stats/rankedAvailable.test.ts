@@ -16,6 +16,8 @@ import {
   insertCubeSnapshot,
   insertCubeCard,
   insertDraft,
+  insertPickEvent,
+  insertPrivacyOptOut,
 } from "../../__tests__/testDb";
 import { danger, pickCdf, type WorthCard } from "../../../worthModel";
 
@@ -336,5 +338,56 @@ describe("rankAvailableCards worth-model extensions", () => {
       // No positive-worth B or G cards exist at all.
       expect(result.pair_supply!.BG).toBe(0);
     });
+  });
+});
+
+describe("rankAvailableCards — pick-score inputs", () => {
+  it("excludes in-progress drafts from geomean_pick", async () => {
+    // A card untaken in a 'drafting' draft must not be scored as unwanted:
+    // it may simply not have come up yet.
+    await insertCubeSnapshot(db, 1);
+    await insertCard(db, 1, "Alpha");
+    await insertCubeCard(db, 1, 1);
+    await insertDraft(db, "done", { phase: "complete", cubeSnapshotId: 1 });
+    await insertDraft(db, "live", { phase: "drafting", cubeSnapshotId: 1 });
+    await insertPickEvent(db, "done", 10, 1, 1);
+
+    const result = await rankAvailableCards({
+      draft_id: "live",
+      before_pick_n: 5,
+    });
+
+    const card = result.cards.find((c) => c.card_name === "Alpha")!;
+    // Only the completed draft counts, so the score is that single pick.
+    expect(card.geomean_pick).toBeCloseTo(10, 1);
+    expect(card.drafts_in_pool).toBe(1);
+  });
+
+  it("excludes opted-out seats from geomean_pick", async () => {
+    await insertCubeSnapshot(db, 1);
+    await insertCard(db, 1, "Alpha");
+    await insertCubeCard(db, 1, 1);
+    // The opted-out pick lives in a separate historical draft, not the one
+    // being ranked: a pick inside "current" itself would remove the card
+    // from availability entirely (Step 1's getAvailableCards is correctly
+    // opt-out-blind — it reports real remaining supply), so it would never
+    // reach result.cards to be scored at all.
+    await insertDraft(db, "current", { phase: "complete", cubeSnapshotId: 1 });
+    await insertDraft(db, "hist", { phase: "complete", cubeSnapshotId: 1 });
+    await insertPickEvent(db, "hist", 10, 3, 1);
+    await insertPrivacyOptOut(db, "hist", 3);
+
+    const result = await rankAvailableCards({
+      draft_id: "current",
+      before_pick_n: 500,
+    });
+
+    const card = result.cards.find((c) => c.card_name === "Alpha")!;
+    // The only pick was by an opted-out seat, so the card reads as untaken
+    // in both drafts and takes the half-weight pool-size penalty in each.
+    // The cube here holds a single card, so SUM(qty) makes the pool size 1
+    // — not the 540-card production default.
+    expect(card.geomean_pick).toBeCloseTo(1, 1);
+    expect(card.times_picked).toBe(0);
   });
 });
