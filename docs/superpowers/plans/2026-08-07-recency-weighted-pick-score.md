@@ -811,35 +811,82 @@ Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>"
 
 - [ ] **Step 1: Compare main-table P# before and after**
 
+`npx tsx -e` rejects top-level `await` (Task 2 hit this). Write a scratch file
+and run it instead — put it outside the repo so it never risks being committed:
+
 ```bash
-npx tsx -e '
+cat > /tmp/phase-a-check.mts <<'EOF'
 import { getCards } from "/Users/arpanet/code/read-the-bones/src/core/getCards";
 import { loadEnv } from "/Users/arpanet/code/read-the-bones/src/core/db/ingest/utils";
+
 loadEnv();
-const r = await getCards({});
-const want = ["Temple Garden","Godless Shrine","Stomping Ground","Sacred Foundry","Overgrown Tomb","Polluted Delta","Misty Rainforest"];
-for (const n of want) {
-  const c = r.cards.find((c) => c.cardName === n);
-  if (c) console.log(n.padEnd(20), c.weightedGeomean.toFixed(1));
+
+const result = await getCards({});
+const multiCopy = ["Temple Garden","Godless Shrine","Stomping Ground","Sacred Foundry","Overgrown Tomb","Polluted Delta","Misty Rainforest"];
+const singleCopy = ["Counterspell","Dark Ritual","Korvold, Fae-Cursed King","Lurrus of the Dream-Den","Mockingbird"];
+
+for (const label of ["multi-copy (expected to move)", "single-copy (expected unchanged)"]) {
+  console.log(`\n${label}`);
+  for (const name of label.startsWith("multi") ? multiCopy : singleCopy) {
+    const card = result.cards.find((c) => c.cardName === name);
+    console.log(" ", name.padEnd(28), card ? card.weightedGeomean.toFixed(1) : "NOT FOUND");
+  }
 }
-'
+EOF
+npx tsx /tmp/phase-a-check.mts
 ```
 
-Expected, matching the worth-table column measured on 2026-08-07:
+`loadEnv()` prints dotenv "tip" lines to stdout; ignore them, or filter them out
+if you pipe this into anything that parses the output.
 
-| card | expected |
-|---|---|
-| Temple Garden | 215.8 |
-| Godless Shrine | 221.0 |
-| Stomping Ground | 170.4 |
-| Sacred Foundry | 154.1 |
-| Overgrown Tomb | 174.4 |
-| Polluted Delta | 83.6 |
-| Misty Rainforest | 60.0 |
+Expected values, measured on 2026-08-07 after Task 6:
+
+| card | main table (expected) | worth table | gap |
+|---|---|---|---|
+| Temple Garden | 215.8 | 215.8 | — |
+| Godless Shrine | 221.1 | 221.0 | 0.1 |
+| Stomping Ground | 170.4 | 170.4 | — |
+| Sacred Foundry | 155.2 | 154.1 | 1.1 |
+| Overgrown Tomb | 176.7 | 174.4 | 2.3 |
+| Polluted Delta | 79.5 | 83.6 | 4.1 |
+| Misty Rainforest | 58.7 | 60.0 | 1.3 |
+
+**The main table does not fully converge on the worth table, and that is expected.**
+An earlier draft of this plan predicted exact convergence; that was wrong. The
+residual gap is a *sixth* inconsistency, independent of pick-score convention:
+`getCards.ts` applies **no privacy opt-out filtering at all** (grep it — there
+are zero references), while `worth.ts` and `pickStats.ts` both exclude
+opted-out seats. With 9 rows in `privacy_opt_outs`, cards those seats took read
+lower on the main table.
+
+This was confirmed by computing the post-Task-6 convention both ways: every
+main-table value above matches the no-opt-out computation exactly, and every
+worth-table value matches the opt-out-filtered one. So a gap here is evidence
+the convention change worked, not that it failed.
+
+Fixing it is **out of scope for this plan** — see Non-goals. Note that
+`worth.ts:312-315` documents a deliberate precedent for *not* applying opt-outs
+to pod-level aggregates, so which behaviour is correct is a judgment call, not
+an obvious bug.
 
 - [ ] **Step 2: Confirm qty-1 cards did not move**
 
-Spot-check five single-copy cards (e.g. Counterspell, Dark Ritual, Korvold Fae-Cursed King, Lurrus of the Dream-Den, Mockingbird) against the pre-change main table. All must be unchanged — the convention fix touches multi-copy cards only.
+The convention change touches multi-copy cards only, so every single-copy card
+must read exactly as it did before Task 6. The script above prints these five;
+compare against the pre-change main table:
+
+| card | expected (unchanged) |
+|---|---|
+| Counterspell | 72.6 |
+| Dark Ritual | 172.9 |
+| Korvold, Fae-Cursed King | 307.0 |
+| Lurrus of the Dream-Den | 147.8 |
+| Mockingbird | 294.6 |
+
+Do **not** compare these to the worth table — they differ there for the opt-out
+reason above (Dark Ritual is 182.5 in the worth table, a 9.6 gap that has
+nothing to do with this change). Any movement in this column is a real
+regression.
 
 - [ ] **Step 3: Run the e2e suite**
 
@@ -849,6 +896,42 @@ Expected: PASS. If a spec asserts a hard-coded P#, update it to the new value an
 - [ ] **Step 4: Record the result**
 
 Append a short "Phase A measured effect" note to this plan file listing the observed before/after for the seven cards above, then commit the plan update. Phase B's diffs are read against this baseline.
+
+#### Phase A measured effect (2026-08-07, Task 8 verification)
+
+Ran the Step 1/2 script against production Turso data (27/30 drafts loaded,
+520 cards). All twelve values matched the brief's expected values exactly —
+zero deviation on every card, including the tenths place.
+
+Multi-copy cards (expected to move, main table vs. worth table gap from
+missing opt-out filtering in `getCards.ts` is expected and unrelated to this
+plan):
+
+| card | main table (measured) | expected | match |
+|---|---|---|---|
+| Temple Garden | 215.8 | 215.8 | yes |
+| Godless Shrine | 221.1 | 221.1 | yes |
+| Stomping Ground | 170.4 | 170.4 | yes |
+| Sacred Foundry | 155.2 | 155.2 | yes |
+| Overgrown Tomb | 176.7 | 176.7 | yes |
+| Polluted Delta | 79.5 | 79.5 | yes |
+| Misty Rainforest | 58.7 | 58.7 | yes |
+
+Single-copy controls (expected unchanged since Task 6 touches only the 20
+quantity-2 cards in the cube):
+
+| card | main table (measured) | expected (unchanged) | match |
+|---|---|---|---|
+| Counterspell | 72.6 | 72.6 | yes |
+| Dark Ritual | 172.9 | 172.9 | yes |
+| Korvold, Fae-Cursed King | 307.0 | 307.0 | yes |
+| Lurrus of the Dream-Den | 147.8 | 147.8 | yes |
+| Mockingbird | 294.6 | 294.6 | yes |
+
+No single-copy card moved. `pnpm test:e2e` was run with chromium already
+installed (`~/.cache/ms-playwright`); all 50 specs passed with no hard-coded
+pick-score assertions needing an update. Full detail (script output, e2e log)
+is in `.superpowers/sdd/2026-08-07-recency-weighted-pick-score/task-8-report.md`.
 
 ---
 
@@ -1218,7 +1301,7 @@ describe("session ordinals under leave-one-draft-out", () => {
 
     _resetWorthCache();
     const withoutSolo = await getWorthTable({ excludeDraftId: "solo" });
-    const geomean = withoutSolo.cards.find((c) => c.name === "Alpha")!.geomean!;
+    const geomean = withoutSolo.cards.find((c) => c.card_name === "Alpha")!.geomean!;
 
     // 'oldest' stays two sessions back: weight 0.5^(2/4) = 0.7071.
     // exp((1*ln(10) + 0.7071*ln(40)) / 1.7071) = 17.76
