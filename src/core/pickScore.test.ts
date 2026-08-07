@@ -1,10 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { pickScore, type DraftObservation } from "./pickScore";
+import { pickScore, RECENCY_HALF_LIFE_SESSIONS, type DraftObservation } from "./pickScore";
 
-const seen = (pickPositions: number[], poolSize = 540): DraftObservation => ({
-  pickPositions,
-  poolSize,
-});
+const seen = (
+  pickPositions: number[],
+  poolSize = 540,
+  sessionsAgo = 0,
+): DraftObservation => ({ sessionsAgo, pickPositions, poolSize });
 
 describe("pickScore", () => {
   it("returns 0 when there is nothing to average", () => {
@@ -54,5 +55,38 @@ describe("pickScore", () => {
     const result = pickScore([seen([10000])]);
     expect(result).toBeCloseTo(10000, 10);
     expect(Number.isFinite(result)).toBe(true);
+  });
+});
+
+describe("pickScore recency", () => {
+  it("halves an observation's weight every RECENCY_HALF_LIFE_SESSIONS sessions", () => {
+    // Recent pick at 10 (weight 1), pick four sessions back at 40 (weight 0.5):
+    // exp((1*ln(10) + 0.5*ln(40)) / 1.5)
+    expect(
+      pickScore([seen([10], 540, 0), seen([40], 540, RECENCY_HALF_LIFE_SESSIONS)]),
+    ).toBeCloseTo(15.9, 1);
+  });
+
+  it("pulls the score toward the more recent observation", () => {
+    const flat = pickScore([seen([10], 540, 0), seen([40], 540, 0)]);
+    const decayed = pickScore([seen([10], 540, 0), seen([40], 540, 8)]);
+    expect(decayed).toBeLessThan(flat);
+  });
+
+  it("is unchanged by shifting every observation back equally", () => {
+    // Weights are normalized by their sum, so a uniform shift cancels: P# moves
+    // when new data lands, never merely because time passed.
+    const anchored = pickScore([seen([10], 540, 0), seen([40], 540, 2)]);
+    const shifted = pickScore([seen([10], 540, 3), seen([40], 540, 5)]);
+    expect(shifted).toBeCloseTo(anchored, 10);
+  });
+
+  it("compounds with the copy factor", () => {
+    // Four sessions back, both copies also take the 0.5 recency factor:
+    // first copy 1*0.5 = 0.5, second copy 0.5*0.5 = 0.25.
+    // exp((1*ln(10) + 0.5*ln(40) + 0.25*ln(40)) / 1.75) = 18.11
+    expect(pickScore([seen([10], 540, 0), seen([40, 40], 540, 4)])).toBeCloseTo(18.1, 1);
+    // Without decay the same observations score 22.97.
+    expect(pickScore([seen([10]), seen([40, 40])])).toBeCloseTo(23.0, 1);
   });
 });
