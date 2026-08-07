@@ -237,3 +237,10 @@ Collect all unique player names across drafts. Flag potential duplicates (typos,
 ### Color Filtering
 
 Inclusive matching: filtering "Red" shows all cards containing red, including multicolor (BR, UR, etc.).
+
+## 2026-08-07 update
+
+The weight gained a third factor, `0.5^(sessionsAgo/4)`, and the unpicked
+penalty now applies only when a draft took no copy at all. All four call sites
+were consolidated into `src/core/pickScore.ts`. See
+`docs/superpowers/plans/2026-08-07-recency-weighted-pick-score.md`.

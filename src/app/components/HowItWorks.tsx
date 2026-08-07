@@ -52,6 +52,14 @@ export function HowItWorks() {
               <code className="rounded bg-zinc-200 px-1 dark:bg-zinc-700">o:flying</code>). Tap the{" "}
               <span className="font-semibold">?</span> by the search box for the full syntax.
             </li>
+            <li>
+              <span className="font-medium text-zinc-700 dark:text-zinc-300">Pick Score (P#).</span>{" "}
+              How early a card tends to get taken, pooled across past drafts;
+              lower is better. A recent draft counts for more than an old one,
+              and drafts sharing a date count as one session, not one per pod.
+              Between drafts the score holds steady; it only moves when a new
+              session&apos;s data comes in.
+            </li>
             <li className="flex gap-2">
               <DeckBuilderIcon className="mt-0.5 h-4 w-4 shrink-0 text-zinc-500" />
               <span>
