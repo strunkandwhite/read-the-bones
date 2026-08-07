@@ -14,6 +14,7 @@ import {
   type ScryCard,
 } from "./types";
 import { calculateCardStats } from "./calculateStats";
+import { sessionsAgoByDraft } from "./draftSessions";
 import { getClient, type Client } from "./db/client";
 import { computeIngestionHash } from "./db/sync/domains";
 import { transformScryfallJson, parseBannedCardNames, placeholders } from "./db/queries/helpers";
@@ -421,10 +422,11 @@ function assembleCardStats(
   scryfallDataMap: Map<string, ScryCard>,
   currentCubeSet: Set<string>,
   currentCubeKeySet: Set<string>,
+  sessionsAgoByDraftId: Map<string, number>,
   winStats?: Map<string, BulkWinStatsEntry>,
 ): EnrichedCardStats[] {
   // 8. Calculate card stats
-  const stats = calculateCardStats(allPicks);
+  const stats = calculateCardStats(allPicks, sessionsAgoByDraftId);
 
   // 9. Enrich stats with Scryfall data + optional GPWR
   const enrichedStats: EnrichedCardStats[] = stats.map((stat) => {
@@ -503,6 +505,15 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
 
   const selectedDraftSet = new Set(selectedDraftIds);
 
+  // Ordinals span the selected drafts only: with a draft filter applied, the
+  // newest selected session is the reference point.
+  const sessionsAgo = sessionsAgoByDraft(
+    selectedDraftIds.map((draftId) => ({
+      draftId,
+      draftDate: draftMetadataMap.get(draftId)!.date,
+    })),
+  );
+
   // 2. Collect cube snapshots needed for selected drafts + display snapshot
   const selectedSnapshotIds = new Set<number>();
   for (const id of selectedDraftIds) {
@@ -551,6 +562,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
   const allCards = assembleCardStats(
     allPicks, scryfallDataMap,
     currentCubeSet, currentCubeKeySet,
+    sessionsAgo,
     winStats,
   );
 

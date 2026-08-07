@@ -21,17 +21,21 @@ export const DISTRIBUTION_BUCKET_SIZE = 30;
 function calculateSingleCardStats(
   cardName: string,
   cardPicks: CardPick[],
+  sessionsAgoByDraftId: Map<string, number>,
 ): CardStats {
   // Group by draft: the score treats each draft as one observation, and a
   // draft that took at least one copy contributes only the copies it took.
   const picksByDraft = groupBy(cardPicks, (pick) => pick.draftId);
   const observations: DraftObservation[] = [];
-  for (const [, draftPicks] of picksByDraft) {
+  for (const [draftId, draftPicks] of picksByDraft) {
     const taken = draftPicks
       .filter((pick) => pick.wasPicked)
       .sort((a, b) => a.copyNumber - b.copyNumber);
     const untaken = draftPicks.find((pick) => !pick.wasPicked);
     observations.push({
+      // A draft absent from the map (shouldn't happen once callers pass every
+      // selected draft) falls back to the most-recent weight rather than NaN.
+      sessionsAgo: sessionsAgoByDraftId.get(draftId) ?? 0,
       pickPositions: taken.map((pick) => pick.pickPosition),
       // An unpicked entry carries the pool size as its pickPosition. A draft
       // with no untaken entry never reaches pickScore's pool-size branch, so
@@ -80,10 +84,12 @@ function calculateSingleCardStats(
  * Calculate stats for all cards from a collection of picks.
  *
  * @param picks - All card picks across all drafts
+ * @param sessionsAgoByDraftId - How many drafting sessions back each draft is
  * @returns Array of CardStats sorted by weightedGeomean (lower = better)
  */
 export function calculateCardStats(
   picks: CardPick[],
+  sessionsAgoByDraftId: Map<string, number>,
 ): CardStats[] {
   if (picks.length === 0) return [];
 
@@ -94,7 +100,7 @@ export function calculateCardStats(
   for (const [, cardPicks] of picksByCard) {
     // Use the first occurrence's cardName for display (preserves original casing)
     const displayName = cardPicks[0].cardName;
-    stats.push(calculateSingleCardStats(displayName, cardPicks));
+    stats.push(calculateSingleCardStats(displayName, cardPicks, sessionsAgoByDraftId));
   }
 
   // Sort by weightedGeomean ascending (lower = picked earlier = better)
