@@ -13,13 +13,24 @@
 - Repo root: `/Users/arpanet/code/read-the-bones`. **Every git command uses `git -C /Users/arpanet/code/read-the-bones …` — never `cd … && git …`.**
 - Commit co-author line (exact): `Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>`
 - Commit messages explain *why*, not *what*; 1–2 sentences.
-- Quality gates: `pnpm typecheck`, `pnpm lint` (zero warnings), `pnpm knip` (zero unused exports), `pnpm test`. `pnpm lint` and `pnpm test` must pass before **every** commit, with no exceptions.
-- **`typecheck` and `knip` have three declared exceptions, and only three.** This plan deliberately lands a shared module before its consumers, so those two gates cannot hold at every intermediate commit:
+- Quality gates: `pnpm typecheck`, `pnpm lint` (zero warnings), `pnpm knip` (zero unused exports), `pnpm test`. **`pnpm lint` must pass before every commit, with no exceptions.**
+- **`typecheck`, `knip` and `test` have declared exceptions during Phase B, because this plan deliberately lands a shared module before its consumers.**
   - **Task 1** — `knip` flags `pickScore` as unused until Task 2 consumes it. Skip `knip` for this commit only.
-  - **Task 9** — `typecheck` fails in the four call sites, because `DraftObservation.sessionsAgo` is deliberately required so the compiler locates them. Skip `typecheck` for this commit only.
-  - **Tasks 10-12** — `typecheck` still fails in the call sites not yet migrated. Skip `typecheck` for these commits only.
+  - **Task 9** — making `DraftObservation.sessionsAgo` *required* is what makes the compiler locate the four call sites, so `typecheck` fails there by design. Skip `typecheck` for this commit.
+  - **Tasks 10-12** — `typecheck` still fails in the call sites not yet migrated.
 
-  Task 7 is the first commit where `knip` must be clean; Task 13 is the first where `typecheck` must be clean again. Every other commit runs all four. A task that hits an unexpected gate failure is not covered by this list — that is a real failure, so stop and report rather than assuming a new exception.
+  **The runtime consequence, which is easy to miss:** an un-migrated call site passes `sessionsAgo: undefined` at runtime, and `Math.pow(0.5, undefined / 4)` is `NaN`, which propagates through the whole score. So `pnpm test` is also red during this window — this is not optional breakage a task can avoid. Measured after Task 11: **17 failures across 4 files**, and they map exactly onto the two remaining sites:
+
+  | failing file | tests | fixed by |
+  |---|---|---|
+  | `src/core/calculateStats.test.ts` | 13 | Task 13 |
+  | `src/core/getCards.test.ts` | 1 | Task 13 |
+  | `src/core/db/queries/stats/rankedAvailable.test.ts` | 2 | Task 12 |
+  | `src/core/db/queries.test.ts` | 1 | Task 12 |
+
+  During Tasks 9-12, a task's test gate is **its own scoped test files**, not the full suite. Before committing, confirm the failures outside your scope are still confined to the table above — a failure anywhere else is a real regression, so stop and report.
+
+  Task 7 is the first commit where `knip` must be clean. **Task 13 must restore `typecheck` AND the full suite to green — that is its completion criterion, and Task 13 must run the full `pnpm test`, not a scoped file.** Tasks 14 and 15 run all four gates normally.
 - **`pnpm knip` is why exports must be deleted, not merely unreferenced.** Any helper that loses its last consumer has to be unexported or removed in the same commit.
 - `RECENCY_HALF_LIFE_SESSIONS = 4` (exact).
 - Session ordinals are **0-based**: `0` is the most recent session in scope.
