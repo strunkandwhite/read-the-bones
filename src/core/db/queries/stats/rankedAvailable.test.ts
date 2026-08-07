@@ -390,4 +390,37 @@ describe("rankAvailableCards — pick-score inputs", () => {
     expect(card.geomean_pick).toBeCloseTo(1, 1);
     expect(card.times_picked).toBe(0);
   });
+
+  it("keeps the real session gap for a card that sat out a session", async () => {
+    // Four sessions; Beta is in the cube for sessions 1 and 3 only. Numbering
+    // per card would compress that two-session gap to one and overweight the
+    // older pick (18.84 instead of 17.76).
+    await insertCubeSnapshot(db, 1); // sessions 0 and 2 — no Beta
+    await insertCubeSnapshot(db, 2); // sessions 1 and 3 — Beta present
+    await insertCard(db, 1, "Alpha");
+    await insertCard(db, 2, "Beta");
+    await insertCubeCard(db, 1, 1);
+    await insertCubeCard(db, 2, 1);
+    await insertCubeCard(db, 2, 2);
+    await insertDraft(db, "s0", { date: "2026-07-17", cubeSnapshotId: 1 });
+    await insertDraft(db, "s1", { date: "2026-05-23", cubeSnapshotId: 2 });
+    await insertDraft(db, "s2", { date: "2026-03-30", cubeSnapshotId: 1 });
+    await insertDraft(db, "s3", { date: "2026-03-08", cubeSnapshotId: 2 });
+    await insertPickEvent(db, "s1", 10, 1, 2);
+    await insertPickEvent(db, "s3", 40, 1, 2);
+
+    // Rank against s1 rather than s0 (Beta isn't in s0's cube snapshot at
+    // all — see the fixture comment above). before_pick_n must land before
+    // s1's own pick_n 10, or Beta's remaining qty in s1 goes to zero and it
+    // drops out of availability entirely; the historical geomean below draws
+    // on all completed drafts regardless of this value.
+    const result = await rankAvailableCards({
+      draft_id: "s1",
+      before_pick_n: 1,
+    });
+
+    // exp((0.5^(1/4)*ln(10) + 0.5^(3/4)*ln(40)) / (0.8409 + 0.5946)) = 17.76
+    const beta = result.cards.find((c) => c.card_name === "Beta")!;
+    expect(beta.geomean_pick).toBeCloseTo(17.8, 1);
+  });
 });

@@ -11,6 +11,7 @@ import { statsPhaseFilter } from "../../../draftPhases";
 import { getWorthTable } from "./worth";
 import { round3 } from "../../../utils";
 import { pickScore, type DraftObservation } from "../../../pickScore";
+import { sessionsAgoByDraft } from "../../../draftSessions";
 import { wilsonInterval } from "../../../wilsonInterval";
 import { DEFAULT_POOL_SIZE } from "../../../types";
 import { MIN_SAMPLE_SIZE } from "../../../constants";
@@ -266,7 +267,7 @@ export async function rankAvailableCards(
 
   const [draftsResult, picksResult, cubeSizesResult] = await Promise.all([
     client.execute({
-      sql: `SELECT DISTINCT d.draft_id, d.cube_snapshot_id, csc.card_id
+      sql: `SELECT DISTINCT d.draft_id, d.cube_snapshot_id, d.draft_date, csc.card_id
             FROM drafts d
             JOIN cube_snapshot_cards csc ON d.cube_snapshot_id = csc.cube_snapshot_id
             WHERE csc.card_id IN (${idPlaceholderStr}) AND ${draftPhase.fragment}`,
@@ -343,15 +344,26 @@ export async function rankAvailableCards(
     cubeSizes.set(row.cube_snapshot_id as number, row.total_cards as number);
   }
 
-  // Map: cardId -> Set of draftIds where card was in pool
-  const cardDrafts = new Map<number, Map<string, number>>(); // cardId -> (draftId -> cubeSnapshotId)
+  // Map: cardId -> draftId -> { cubeSnapshotId, draftDate }, where card was in pool
+  const cardDrafts = new Map<number, Map<string, { cubeSnapshotId: number; draftDate: string }>>();
+  const draftDates = new Map<string, string>();
   for (const row of draftsResult.rows) {
     const cardId = row.card_id as number;
     const draftId = row.draft_id as string;
-    const cubeSnapshotId = row.cube_snapshot_id as number;
+    const draftDate = row.draft_date as string;
+    draftDates.set(draftId, draftDate);
     if (!cardDrafts.has(cardId)) cardDrafts.set(cardId, new Map());
-    cardDrafts.get(cardId)!.set(draftId, cubeSnapshotId);
+    cardDrafts.get(cardId)!.set(draftId, {
+      cubeSnapshotId: row.cube_snapshot_id as number,
+      draftDate,
+    });
   }
+
+  // Ordinals span every draft in play, not just the ones a given card was in.
+  // A card that sat out a session must keep the real gap on either side of it.
+  const sessionsAgo = sessionsAgoByDraft(
+    [...draftDates].map(([draftId, draftDate]) => ({ draftId, draftDate })),
+  );
 
   // Map: cardId -> draftId -> pick positions, skipping opted-out seats
   const cardPicks = new Map<number, Map<string, number[]>>();
@@ -435,10 +447,11 @@ export async function rankAvailableCards(
     const observations: DraftObservation[] = [];
     let timesPicked = 0;
 
-    for (const [draftId, cubeSnapshotId] of drafts) {
+    for (const [draftId, { cubeSnapshotId }] of drafts) {
       const draftPicks = picks.get(draftId) ?? [];
       timesPicked += draftPicks.length;
       observations.push({
+        sessionsAgo: sessionsAgo.get(draftId)!,
         pickPositions: draftPicks,
         poolSize: cubeSizes.get(cubeSnapshotId) || DEFAULT_POOL_SIZE,
       });
