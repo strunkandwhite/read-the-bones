@@ -18,6 +18,7 @@ import {
   placeholders,
 } from "../helpers";
 import { pickScore, type DraftObservation } from "../../../pickScore";
+import { sessionsAgoByDraft } from "../../../draftSessions";
 import { DEFAULT_POOL_SIZE } from "../../../types";
 import { computeIngestionHash } from "../../sync/domains";
 import { normalizeColorIdentity } from "../../../manaColors";
@@ -51,6 +52,8 @@ export interface WorthTableResult {
 interface StatsDraftRef {
   draftId: string;
   cubeSnapshotId: number;
+  draftDate: string;
+  sessionsAgo: number;
 }
 
 // Module-level memo keyed by the ingestion hash of the stats-phase drafts'
@@ -79,7 +82,7 @@ export async function getWorthTable(opts?: {
 
   const phaseFilter = statsPhaseFilter("phase");
   const draftsResult = await client.execute({
-    sql: `SELECT draft_id, cube_snapshot_id, pool_hash, picks_hash, matches_hash
+    sql: `SELECT draft_id, cube_snapshot_id, draft_date, pool_hash, picks_hash, matches_hash
           FROM drafts WHERE ${phaseFilter.fragment} ORDER BY draft_id`,
     args: phaseFilter.args,
   });
@@ -111,11 +114,18 @@ export async function getWorthTable(opts?: {
     return worthPending.promise;
   }
 
-  const statsDrafts: StatsDraftRef[] = draftsResult.rows
-    .map((row) => ({
-      draftId: row.draft_id as string,
-      cubeSnapshotId: row.cube_snapshot_id as number,
-    }))
+  const allStatsDrafts = draftsResult.rows.map((row) => ({
+    draftId: row.draft_id as string,
+    cubeSnapshotId: row.cube_snapshot_id as number,
+    draftDate: row.draft_date as string,
+  }));
+
+  // Ordinals come from the full set so a leave-one-out fold that removes the
+  // only pod of a session does not renumber every older session.
+  const sessionsAgo = sessionsAgoByDraft(allStatsDrafts);
+
+  const statsDrafts: StatsDraftRef[] = allStatsDrafts
+    .map((draft) => ({ ...draft, sessionsAgo: sessionsAgo.get(draft.draftId)! }))
     .filter((draft) => draft.draftId !== opts?.excludeDraftId);
 
   const assembly = assembleWorthTable(client, statsDrafts);
@@ -386,6 +396,7 @@ async function assembleWorthTable(
     for (const draft of statsDrafts) {
       if (!snapshotCardNames.get(draft.cubeSnapshotId)?.has(name)) continue;
       observations.push({
+        sessionsAgo: draft.sessionsAgo,
         pickPositions: byDraft?.get(draft.draftId) ?? [],
         poolSize: poolSizeBySnapshot.get(draft.cubeSnapshotId) || DEFAULT_POOL_SIZE,
       });

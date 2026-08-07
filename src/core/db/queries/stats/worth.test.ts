@@ -167,7 +167,10 @@ describe("getWorthTable", () => {
     expect(alpha.colors).toBe("R");
     expect(alpha.is_land).toBe(false);
     expect(alpha.in_current_cube).toBe(true);
-    expect(alpha.geomean).toBeCloseTo(2.4, 5); // √(2·3) rounded to a tenth
+    // d1 (2026-01-01) is one session behind d2 (2026-02-01), so its pick of 2
+    // counts for weight 0.5^(1/4) against d2's full-weight pick of 3:
+    // exp((0.8409·ln2 + ln3) / 1.8409) ≈ 2.493, rounded to a tenth.
+    expect(alpha.geomean).toBeCloseTo(2.5, 5);
     expect(alpha.games).toBe(200);
     expect(alpha.wins).toBe(140);
     expect(alpha.wr).toBeCloseTo(0.7, 10);
@@ -201,8 +204,9 @@ describe("getWorthTable", () => {
 
     const alpha = findCard(result, "Alpha Strike");
     // d3 has a pick of Alpha Strike at position 1, a deck entry, and a 10-0
-    // match. None of it may count: geomean stays √6 and games stay 200.
-    expect(alpha.geomean).toBeCloseTo(2.4, 5);
+    // match. None of it may count: geomean stays session-weighted over
+    // d1/d2 only (see the recency-weighting note above) and games stay 200.
+    expect(alpha.geomean).toBeCloseTo(2.5, 5);
     expect(alpha.games).toBe(200);
     expect(alpha.wins).toBe(140);
   });
@@ -352,6 +356,32 @@ describe("getWorthTable", () => {
       const plainAgain = await getWorthTable();
       expect(executeSpy).toHaveBeenCalledTimes(2);
       expect(plainAgain).toBe(cached);
+    });
+  });
+
+  describe("session ordinals under leave-one-draft-out", () => {
+    it("does not renumber older sessions when a fold removes a single-pod session", async () => {
+      // Sessions: 2026-07-17 (newest), 2026-03-08 (one pod), 2026-01-01.
+      // Dropping the lone 2026-03-08 pod must not promote 2026-01-01 from two
+      // sessions back to one, or LODO folds stop being comparable.
+      await insertCubeSnapshot(db, 1);
+      await insertCard(db, 1, "Alpha");
+      await insertCubeCard(db, 1, 1);
+      await insertDraft(db, "newest", { date: "2026-07-17", cubeSnapshotId: 1 });
+      await insertDraft(db, "solo", { date: "2026-03-08", cubeSnapshotId: 1 });
+      await insertDraft(db, "oldest", { date: "2026-01-01", cubeSnapshotId: 1 });
+      await insertPickEvent(db, "newest", 10, 1, 1);
+      await insertPickEvent(db, "oldest", 40, 1, 1);
+
+      _resetWorthCache();
+      const withoutSolo = await getWorthTable({ excludeDraftId: "solo" });
+      const geomean = withoutSolo.cards.find((c) => c.card_name === "Alpha")!.geomean!;
+
+      // 'oldest' stays two sessions back: weight 0.5^(2/4) = 0.7071.
+      // exp((1*ln(10) + 0.7071*ln(40)) / 1.7071) = 17.76
+      // Had it been renumbered to one session back (weight 0.8409) the score
+      // would be 18.84, so this distinguishes the two orderings.
+      expect(geomean).toBeCloseTo(17.8, 1);
     });
   });
 });
