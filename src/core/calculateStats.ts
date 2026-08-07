@@ -33,9 +33,9 @@ function calculateSingleCardStats(
       .sort((a, b) => a.copyNumber - b.copyNumber);
     const untaken = draftPicks.find((pick) => !pick.wasPicked);
     observations.push({
-      // A draft absent from the map (shouldn't happen once callers pass every
-      // selected draft) falls back to the most-recent weight rather than NaN.
-      sessionsAgo: sessionsAgoByDraftId.get(draftId) ?? 0,
+      // getCards.ts builds this map from the same selectedDraftIds that
+      // produce cardPicks, so every draftId reaching this loop has an entry.
+      sessionsAgo: sessionsAgoByDraftId.get(draftId)!,
       pickPositions: taken.map((pick) => pick.pickPosition),
       // An unpicked entry carries the pool size as its pickPosition. A draft
       // with no untaken entry never reaches pickScore's pool-size branch, so

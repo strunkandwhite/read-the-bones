@@ -134,7 +134,6 @@ describe("calculateCardStats", () => {
 
       expect(stats[0].weightedGeomean).toBeCloseTo(21.5, 1);
     });
-
   });
 
   describe("aggregation stats", () => {
