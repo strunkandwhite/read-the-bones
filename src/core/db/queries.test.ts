@@ -1618,6 +1618,75 @@ describe("getCardPickStats", () => {
       })
     );
   });
+
+  it("weights the more recent session more heavily", async () => {
+    // Card lookup
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ card_id: 1, oracle_id: "abc", name: "Test Card", scryfall_json: null }])
+    );
+    // Drafts with card — two sessions
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { draft_id: "recent", cube_snapshot_id: 1, draft_date: "2026-07-17" },
+        { draft_id: "older", cube_snapshot_id: 1, draft_date: "2026-03-08" },
+      ])
+    );
+    // Banned cards check (none)
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+    // Cube sizes
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ cube_snapshot_id: 1, total_cards: 540 }])
+    );
+    // Picks of this card
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { draft_id: "recent", pick_n: 10, seat: 1 },
+        { draft_id: "older", pick_n: 100, seat: 1 },
+      ])
+    );
+    // Opt-outs (none)
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+    // Deck cards (no decklist data)
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+
+    const result = await getCardPickStats(mockClient as never, { card_name: "Test Card" });
+
+    // 'older' is one session back, weight 0.5^(1/4) = 0.8409:
+    // exp((1*ln(10) + 0.8409*ln(100)) / 1.8409) = 28.63.
+    // Flat weighting would give exp((ln(10) + ln(100)) / 2) = 31.62.
+    expect(result?.weighted_geomean).toBeCloseTo(28.6, 1);
+  });
+
+  it("counts sessions rather than elapsed time", async () => {
+    // Identical to the previous fixture except the older draft is one week
+    // back instead of four months. It is still one session back, so the score
+    // must be identical — recency decays over drafting, not over the calendar.
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ card_id: 1, oracle_id: "abc", name: "Test Card", scryfall_json: null }])
+    );
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { draft_id: "recent", cube_snapshot_id: 1, draft_date: "2026-07-17" },
+        { draft_id: "older", cube_snapshot_id: 1, draft_date: "2026-07-10" },
+      ])
+    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ cube_snapshot_id: 1, total_cards: 540 }])
+    );
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        { draft_id: "recent", pick_n: 10, seat: 1 },
+        { draft_id: "older", pick_n: 100, seat: 1 },
+      ])
+    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+
+    const result = await getCardPickStats(mockClient as never, { card_name: "Test Card" });
+
+    expect(result?.weighted_geomean).toBeCloseTo(28.6, 1);
+  });
 });
 
 // ============================================================================

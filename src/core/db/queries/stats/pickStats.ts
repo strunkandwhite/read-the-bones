@@ -9,6 +9,7 @@ import { round3 } from "../../../utils";
 import { pickScore, type DraftObservation } from "../../../pickScore";
 import { DEFAULT_POOL_SIZE } from "../../../types";
 import { statsPhaseFilter } from "../../../draftPhases";
+import { sessionsAgoByDraft } from "../../../draftSessions";
 
 export interface GetCardPickStatsParams {
   card_name: string;
@@ -83,7 +84,7 @@ export async function getCardPickStats(
   // Include both 'complete' and 'playing' phases — picks are finalised in both.
   const { fragment: phaseFragment, args: phaseArgs } = statsPhaseFilter("d.phase");
   const draftsWithCardResult = await client.execute({
-    sql: `SELECT DISTINCT d.draft_id, d.cube_snapshot_id
+    sql: `SELECT DISTINCT d.draft_id, d.cube_snapshot_id, d.draft_date
           FROM drafts d
           JOIN cube_snapshot_cards csc ON d.cube_snapshot_id = csc.cube_snapshot_id
           WHERE csc.card_id = ? AND ${phaseFragment} ${draftWhere}`,
@@ -132,6 +133,17 @@ export async function getCardPickStats(
   }
 
   const draftIds = allDraftIds.filter((id) => !bannedInDrafts.has(id));
+
+  // Ordinals are computed over the post-ban-filter draft set: a draft where
+  // the card was banned is not an observation of that card at all.
+  const sessionsAgo = sessionsAgoByDraft(
+    draftsWithCardResult.rows
+      .map((row) => ({
+        draftId: row.draft_id as string,
+        draftDate: row.draft_date as string,
+      }))
+      .filter((draft) => !bannedInDrafts.has(draft.draftId)),
+  );
 
   if (draftIds.length === 0) {
     return {
@@ -205,7 +217,11 @@ export async function getCardPickStats(
 
     const positions = picks.map((pick) => pick.pick_n);
     pickPositions.push(...positions);
-    observations.push({ pickPositions: positions, poolSize });
+    observations.push({
+      sessionsAgo: sessionsAgo.get(draftId)!,
+      pickPositions: positions,
+      poolSize,
+    });
   }
 
   // Calculate stats
