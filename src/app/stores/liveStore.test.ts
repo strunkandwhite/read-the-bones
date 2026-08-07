@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import type { MockInstance } from "vitest";
 import { useLiveStore, recomputePicking, _resetDeckState, _applyMeDataForTest } from "./liveStore";
 import { useDraftStore, _resetPollingState } from "./draftStore";
 import type { BoardData } from "./draftStore";
 import { _resetSearchState, useCardStore } from "./cardStore";
 import { createEmptyDeckState } from "@/core/deckBuilder";
+import type { DeckAction } from "@/core/deckBuilder";
+import type { DeckState, ScryCard } from "@/core/types";
 import { makeSyncDeckWithPicks } from "./live/deckSave";
 
 vi.mock("@vercel/analytics/react", () => ({ track: vi.fn() }));
@@ -3713,5 +3716,195 @@ describe("liveStore — syncDeckWithPicks", () => {
     const allCards = Object.values(deckState.zones.deck).flat();
     const boltCount = allCards.filter((c) => c === "Lightning Bolt").length;
     expect(boltCount).toBe(1); // pick wins, queue dedup removes the speculative copy
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Deck row migration (MIGRATE_ROWS dispatch)
+// ---------------------------------------------------------------------------
+describe("liveStore — deck row migration", () => {
+  const counterspell: ScryCard = {
+    name: "Counterspell",
+    imageUri: "",
+    manaCost: "{U}{U}",
+    manaValue: 2,
+    typeLine: "Instant",
+    colors: ["U"],
+    colorIdentity: ["U"],
+    oracleText: "Counter target spell.",
+  };
+  const scryfallData = new Map([[counterspell.name, counterspell]]);
+
+  function deckStatePutBodies(fetchSpy: MockInstance<typeof fetch>): DeckState[] {
+    return fetchSpy.mock.calls
+      .filter((c) => String(c[0]).includes("deck-state") && (c[1] as RequestInit)?.method === "PUT")
+      .map((c) => JSON.parse(String((c[1] as RequestInit).body)) as DeckState);
+  }
+
+  /** A deck state whose maindeck holds Counterspell in the given column. Omitting
+   *  `version` produces a pre-split deck — the shape MIGRATE_ROWS acts on. */
+  function deckStateWithCounterspell(column: string, version?: number): DeckState {
+    const base = createEmptyDeckState("draft-1", 1);
+    const state: DeckState = {
+      ...base,
+      zones: {
+        deck: { ...base.zones.deck, [column]: ["Counterspell"] },
+        sideboard: base.zones.sideboard,
+      },
+    };
+    if (version === undefined) delete state.version;
+    else state.version = version;
+    return state;
+  }
+
+  // Captured before any test swaps in a recording stub; resetStores() only
+  // resets data fields, so the real action has to be put back by hand.
+  const realDispatchDeck = useLiveStore.getState().dispatchDeck;
+
+  beforeEach(() => {
+    localStorage.clear();
+    resetStores();
+    useLiveStore.setState({ dispatchDeck: realDispatchDeck });
+    useCardStore.setState({ seatCardList: [], scryfallDataMap: new Map() });
+    useDraftStore.setState({ activeDraft: "draft-1", selectedSeat: 1 });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("dispatches MIGRATE_ROWS before REBUILD when the deck builder syncs", () => {
+    const dispatched: DeckAction["type"][] = [];
+    useLiveStore.setState({
+      deckBuilderActive: true,
+      deckReady: true,
+      viewingSharedDeck: false,
+      mySeat: 1,
+      dispatchDeck: (action: DeckAction) => {
+        dispatched.push(action.type);
+      },
+    });
+    useCardStore.setState({ seatCardList: ["Counterspell"], scryfallDataMap: scryfallData });
+
+    makeSyncDeckWithPicks(useLiveStore.getState)();
+
+    expect(dispatched).toEqual(["MIGRATE_ROWS", "REBUILD"]);
+  });
+
+  it("migrates rows but does not REBUILD while viewing a shared deck", () => {
+    useLiveStore.setState({
+      deckBuilderActive: true,
+      deckReady: true,
+      viewingSharedDeck: true,
+      mySeat: 1,
+      deckState: deckStateWithCounterspell("mv-2"),
+    });
+    useCardStore.setState({ seatCardList: ["Lightning Bolt"], scryfallDataMap: scryfallData });
+
+    makeSyncDeckWithPicks(useLiveStore.getState)();
+
+    const { deckState } = useLiveStore.getState();
+    expect(deckState.zones.deck["nc-mv-2"]).toEqual(["Counterspell"]);
+    expect(deckState.zones.deck["mv-2"]).toEqual([]);
+    // A REBUILD would have pulled the seat's pick into the snapshot.
+    expect(Object.values(deckState.zones.deck).flat()).not.toContain("Lightning Bolt");
+  });
+
+  it("marks the deck ready on entering a shared view, so the sync can migrate it", () => {
+    useLiveStore
+      .getState()
+      .enterSharedView("draft-1", 1, deckStateWithCounterspell("mv-2"));
+    useLiveStore.setState({ deckBuilderActive: true });
+    // Entering a shared view resets the card store, so card data lands after
+    // the snapshot does — which is why the migration is driven by a sync rather
+    // than done once at load.
+    useCardStore.setState({ scryfallDataMap: scryfallData });
+
+    // fetchDeckState bails in shared view, so enterSharedView is the only thing
+    // that can mark the snapshot loaded — and the sync is gated on it.
+    expect(useLiveStore.getState().deckReady).toBe(true);
+
+    makeSyncDeckWithPicks(useLiveStore.getState)();
+
+    expect(useLiveStore.getState().deckState.zones.deck["nc-mv-2"]).toEqual(["Counterspell"]);
+  });
+
+  it("does not mark the deck dirty when the state is already at the current version", async () => {
+    vi.useFakeTimers();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      deckBuilderActive: true,
+      deckReady: true,
+      viewingSharedDeck: false,
+      mySeat: 1,
+      deckState: deckStateWithCounterspell("nc-mv-2", 1),
+    });
+    useCardStore.setState({ seatCardList: ["Counterspell"], scryfallDataMap: scryfallData });
+
+    const deckStateRef = useLiveStore.getState().deckState;
+    makeSyncDeckWithPicks(useLiveStore.getState)();
+    await vi.advanceTimersByTimeAsync(2000);
+
+    expect(useLiveStore.getState().deckState).toBe(deckStateRef);
+    expect(deckStatePutBodies(fetchSpy)).toHaveLength(0);
+  });
+
+  it("persists the migration once for a pre-split deck", async () => {
+    vi.useFakeTimers();
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response("{}", { status: 200 }),
+    );
+
+    useLiveStore.setState({
+      seatToken: "tok-abc",
+      deckBuilderActive: true,
+      deckReady: true,
+      viewingSharedDeck: false,
+      mySeat: 1,
+      deckState: deckStateWithCounterspell("mv-2"),
+    });
+    useCardStore.setState({ seatCardList: ["Counterspell"], scryfallDataMap: scryfallData });
+
+    const syncDeck = makeSyncDeckWithPicks(useLiveStore.getState);
+    syncDeck();
+    await vi.advanceTimersByTimeAsync(2000);
+
+    const bodies = deckStatePutBodies(fetchSpy);
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0].zones.deck["nc-mv-2"]).toEqual(["Counterspell"]);
+    expect(bodies[0].version).toBe(1);
+
+    // The version stamp makes every later sync a no-op — no second PUT.
+    syncDeck();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(deckStatePutBodies(fetchSpy)).toHaveLength(1);
+  });
+
+  it("re-runs the sync when scryfallDataMap arrives", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
+
+    useLiveStore.setState({
+      deckBuilderActive: true,
+      deckReady: true,
+      viewingSharedDeck: false,
+      mySeat: 1,
+      deckState: deckStateWithCounterspell("mv-2"),
+    });
+
+    // Picks land first, while card data is still loading: nothing to classify.
+    useCardStore.setState({ seatCardList: ["Counterspell"] });
+    await vi.advanceTimersByTimeAsync(100);
+    expect(useLiveStore.getState().deckState.zones.deck["mv-2"]).toEqual(["Counterspell"]);
+
+    useCardStore.setState({ scryfallDataMap: scryfallData });
+    await vi.advanceTimersByTimeAsync(100);
+
+    expect(useLiveStore.getState().deckState.zones.deck["nc-mv-2"]).toEqual(["Counterspell"]);
   });
 });

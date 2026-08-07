@@ -166,7 +166,13 @@ export function makeSyncDeckWithPicks(get: GetState) {
     const { scryfallDataMap, seatCardList } = useCardStore.getState();
     const { selectedSeat } = useDraftStore.getState();
 
-    if (!deckBuilderActive || !deckReady || viewingSharedDeck) return;
+    if (!deckBuilderActive || !deckReady) return;
+
+    dispatchDeck({ type: "MIGRATE_ROWS", scryfallData: scryfallDataMap });
+
+    // Shared snapshots are immutable — they get their rows split for display,
+    // but must never be rebuilt from the viewer's picks.
+    if (viewingSharedDeck) return;
 
     const isAuthed = mySeat !== null && mySeat === selectedSeat;
     const canonicalCards = computeMyDeckCardNames({
@@ -255,6 +261,11 @@ export function makeEnterSharedView(set: SetState, get: GetState) {
       enteringSharedView = false;
     }
     get().dispatchDeck({ type: "INIT_FROM_SNAPSHOT", snapshot: sharedDeckState });
+    // The snapshot is the deck state — there is nothing further to load, and
+    // fetchDeckState bails in shared view, so nothing else would ever set this.
+    // Without it the deck sync never runs and a pre-split snapshot keeps its
+    // non-creatures in the creature row.
+    set({ deckReady: true });
   };
 }
 

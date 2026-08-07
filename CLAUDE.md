@@ -181,7 +181,7 @@ Search is debounced (500ms) and runs locally against cached card data. Server-si
 
 - **Active draft sync:** Drafts linked to a Google Sheet (`sheetId` in metadata) are synced by a Vercel cron job calling `GET /api/sync` every 10 minutes (authenticated via `CRON_SECRET`). The cron covers phases `setup`, `drafting`, and `playing`: it inserts missing picks, updates picks whose sheet cell was edited after the fact, and hash-syncs match results. When every pick cell is filled the draft moves `drafting → playing`; when the full round robin (n·(n−1)/2 matches) is recorded — or 60 days after the draft date — it moves `playing → complete` and leaves the sync window. `pnpm draft:admin set-phase` overrides at any time; there is no manual "Sync Now" button — use `pnpm sync <name>` from the CLI for on-demand full syncs.
 - **Banned cards:** Drafts can specify banned cards in metadata. Banned cards are visually marked in the card table and excluded from available card queries.
-- **Deck builder:** Per-seat deck building panel with drag-and-drop, maindeck/sideboard zones, save status indicator, and shareable deck snapshots via `/api/deck`. Live drafts persist WIP decks server-side (seat token auth); sheet drafts persist locally in the browser (localStorage, keyed by draft + seat) with an "Add to Deck Builder" button replacing Float.
+- **Deck builder:** Per-seat deck building panel with drag-and-drop, maindeck/sideboard zones, save status indicator, and shareable deck snapshots via `/api/deck`. Live drafts persist WIP decks server-side (seat token auth); sheet drafts persist locally in the browser (localStorage, keyed by draft + seat) with an "Add to Deck Builder" button replacing Float. The maindeck splits into a creature row and a non-creature row over the same mana-value columns, with a single full-height lands column beside them; the row is stored in the column key (`nc-` prefix), so a card the user moves stays where they put it. The sideboard is not split.
 - **Shared decks:** Immutable deck snapshots stored in the `decks` table (kind = 'snapshot'), accessible via short URLs.
 - **Seat selection:** View picks and deck data for individual seats within a draft.
 - **Decklist win rate:** Dev-only data (disabled in production via `NODE_ENV !== "production"`) showing actual win rates in the card stats modal.
@@ -234,6 +234,7 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/specs/2026-04-13-head-to-head-match-matrix-design.md` - Head-to-head match matrix with inline editing and OMW%/OGW% tiebreakers
 - `docs/superpowers/specs/2026-05-28-queue-panel-ux-design.md` - Queue panel UX: how-to section + buttons-only grouping
 - `docs/superpowers/specs/2026-07-19-sheet-draft-deck-builder-design.md` - Sheet-draft deck builder (local mode) design
+- `docs/superpowers/specs/2026-08-07-maindeck-creature-split-design.md` - Maindeck creature / non-creature split design
 
 ### Superpowers Plans
 
@@ -274,3 +275,4 @@ The UI displays "Pick Score" which is the weighted geometric mean of pick positi
 - `docs/superpowers/plans/2026-06-11-deep-clean-fixes.md` - Deep clean fixes (2026-06-11 audit, this plan)
 - `docs/superpowers/plans/2026-07-19-sheet-draft-deck-builder.md` - Sheet-draft deck builder implementation
 - `docs/superpowers/plans/2026-07-20-sheet-draft-pick-reconciliation.md` - Sheet-draft pick reconciliation (float upgrade/removal on synced picks)
+- `docs/superpowers/plans/2026-08-07-maindeck-creature-split.md` - Maindeck creature / non-creature split implementation

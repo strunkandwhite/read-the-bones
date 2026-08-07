@@ -22,6 +22,10 @@ interface DeckColumnProps {
   queuedIndices: Set<string>;
   onRemoveFloat?: (cardName: string) => void;
   onToggleQueue?: (cardName: string) => void;
+  /** Let the card box grow to whatever height the layout gives the column,
+   *  instead of hugging its contents. Used by the maindeck lands column, which
+   *  stands beside two rows of mana-value columns. */
+  fillHeight?: boolean;
 }
 
 export function DeckColumn({
@@ -36,6 +40,7 @@ export function DeckColumn({
   queuedIndices,
   onRemoveFloat,
   onToggleQueue,
+  fillHeight = false,
 }: DeckColumnProps) {
   const droppableId = `${zone}:${columnKey}`;
   const { setNodeRef, isOver } = useDroppable({ id: droppableId });
@@ -45,7 +50,7 @@ export function DeckColumn({
   );
 
   return (
-    <div className="flex flex-col">
+    <div className={`flex flex-col ${fillHeight ? "flex-1" : ""}`}>
       <div className="mb-1.5 flex items-baseline justify-center gap-1 text-[11px]">
         <span className="font-semibold text-zinc-400">
           {label}
@@ -57,6 +62,8 @@ export function DeckColumn({
       <div
         ref={setNodeRef}
         className={`flex min-h-[48px] flex-col rounded-md p-1 transition-colors ${
+          fillHeight ? "flex-1" : ""
+        } ${
           isOver
             ? "bg-blue-500/15 ring-1 ring-blue-400/40"
             : "bg-zinc-800/40 ring-1 ring-zinc-800/60"

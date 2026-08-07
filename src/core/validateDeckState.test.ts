@@ -165,4 +165,77 @@ describe("validateDeckState", () => {
     const result = validateDeckState(deck);
     expect(result).toEqual({ valid: false, reason: "basicLands must be an object" });
   });
+
+  it("accepts nc-* columns in the deck zone", () => {
+    const deck = validDeck();
+    deck.zones.deck = {
+      "nc-mv-0-1": ["Lightning Bolt"],
+      "nc-mv-2": [],
+      "nc-mv-3": [],
+      "nc-mv-4": [],
+      "nc-mv-5": [],
+      "nc-mv-6+": [],
+      lands: ["Island"],
+    };
+    expect(validateDeckState(deck)).toEqual({ valid: true });
+  });
+
+  it("rejects nc-lands in the deck zone, which has one shared lands column", () => {
+    const deck = validDeck();
+    (deck.zones.deck as Record<string, unknown>)["nc-lands"] = ["Island"];
+    expect(validateDeckState(deck)).toEqual({
+      valid: false,
+      reason: "zones.deck.nc-lands is not a recognized column",
+    });
+  });
+
+  it("rejects nc-* columns in the sideboard zone", () => {
+    const deck = validDeck();
+    (deck.zones.sideboard as Record<string, unknown>)["nc-mv-2"] = ["Counterspell"];
+    const result = validateDeckState(deck);
+    expect(result).toEqual({
+      valid: false,
+      reason: "zones.sideboard.nc-mv-2 is not a recognized column",
+    });
+  });
+
+  it("accepts a valid version field", () => {
+    const deck = { ...validDeck(), version: 1 };
+    expect(validateDeckState(deck)).toEqual({ valid: true });
+  });
+
+  it("accepts a state with no version field", () => {
+    const deck = validDeck();
+    expect((deck as Record<string, unknown>).version).toBeUndefined();
+    expect(validateDeckState(deck)).toEqual({ valid: true });
+  });
+
+  it("rejects a non-integer version", () => {
+    const deck = { ...validDeck(), version: 1.5 };
+    const result = validateDeckState(deck);
+    expect(result).toEqual({ valid: false, reason: "version must be a non-negative integer" });
+  });
+
+  it("rejects a non-number version", () => {
+    const deck = { ...validDeck(), version: "1" };
+    const result = validateDeckState(deck);
+    expect(result).toEqual({ valid: false, reason: "version must be a non-negative integer" });
+  });
+
+  it("rejects a negative version", () => {
+    const deck = { ...validDeck(), version: -1 };
+    const result = validateDeckState(deck);
+    expect(result).toEqual({ valid: false, reason: "version must be a non-negative integer" });
+  });
+
+  it("still enforces the 100-card cap across both rows", () => {
+    const deck = validDeck();
+    deck.zones.deck = {
+      "mv-0-1": Array.from({ length: 60 }, (_, i) => `Creature ${i}`),
+      "nc-mv-0-1": Array.from({ length: 41 }, (_, i) => `Spell ${i}`),
+    };
+    deck.zones.sideboard = { "mv-0-1": [] };
+    const result = validateDeckState(deck);
+    expect(result).toEqual({ valid: false, reason: "total cards 101 exceeds limit of 100" });
+  });
 });

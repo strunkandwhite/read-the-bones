@@ -2,7 +2,14 @@
 
 import { useMemo } from "react";
 import { DeckColumn } from "./DeckColumn";
-import { COLUMN_KEYS } from "@/core/deckBuilder";
+import {
+  BASE_COLUMN_KEYS,
+  MANA_VALUE_COLUMN_KEYS,
+  NONCREATURE_COLUMN_KEYS,
+  columnKeysForZone,
+  toBaseColumnKey,
+} from "@/core/deckBuilder";
+import type { DeckColumnKey } from "@/core/deckBuilder";
 import type { ColumnMap, ScryCard, CardStats } from "@/core/types";
 import type { WorthCard } from "@/core/worthModel";
 
@@ -41,10 +48,17 @@ export function DeckZone({
   onRemoveFloat,
   onToggleQueue,
 }: DeckZoneProps) {
-  const totalCards = Object.values(columns).reduce(
-    (sum, cards) => sum + cards.length,
-    0
-  );
+  // Only the maindeck is split into rows, and only over the mana-value columns;
+  // its lands column stands beside them, and the sideboard is one plain grid.
+  const rows: Array<{ label: string; keys: readonly DeckColumnKey[] }> = [
+    { label: "Creatures", keys: MANA_VALUE_COLUMN_KEYS },
+    { label: "Non-Creatures", keys: NONCREATURE_COLUMN_KEYS },
+  ];
+
+  const countIn = (keys: readonly DeckColumnKey[]) =>
+    keys.reduce((sum, key) => sum + (columns[key]?.length ?? 0), 0);
+
+  const totalCards = countIn(columnKeysForZone(zone));
 
   const { creatureCount, spellCount, landCount } = useMemo(() => {
     let creatures = 0, spells = 0, lands = 0;
@@ -73,7 +87,7 @@ export function DeckZone({
 
     // Collect all card instances across columns in order
     const allInstances: Array<{ key: string; idx: number; name: string }> = [];
-    for (const key of COLUMN_KEYS) {
+    for (const key of columnKeysForZone(zone)) {
       for (let idx = 0; idx < (columns[key]?.length ?? 0); idx++) {
         allInstances.push({ key, idx, name: columns[key][idx] });
       }
@@ -96,7 +110,7 @@ export function DeckZone({
     }
 
     return { floatedIndices: indices, floatedCount: indices.size };
-  }, [columns, floatedCards, queuedSet]);
+  }, [columns, zone, floatedCards, queuedSet]);
 
   // Compute queued card indices using the same pattern as floated
   const queuedIndices = useMemo(() => {
@@ -106,7 +120,7 @@ export function DeckZone({
     }
 
     const allInstances: Array<{ key: string; idx: number; name: string }> = [];
-    for (const key of COLUMN_KEYS) {
+    for (const key of columnKeysForZone(zone)) {
       for (let idx = 0; idx < (columns[key]?.length ?? 0); idx++) {
         allInstances.push({ key, idx, name: columns[key][idx] });
       }
@@ -126,9 +140,27 @@ export function DeckZone({
     }
 
     return indices;
-  }, [columns, queuedCardNames]);
+  }, [columns, zone, queuedCardNames]);
 
   const pickedCount = totalCards - floatedCount - queuedIndices.size;
+
+  const renderColumn = (key: DeckColumnKey, fillHeight = false) => (
+    <DeckColumn
+      key={`${zone}:${key}`}
+      columnKey={key}
+      label={COLUMN_LABELS[toBaseColumnKey(key) ?? key]}
+      cardNames={columns[key] ?? []}
+      zone={zone}
+      scryfallData={scryfallData}
+      cardStats={cardStats}
+      worthCards={worthCards}
+      floatedIndices={floatedIndices}
+      queuedIndices={queuedIndices}
+      onRemoveFloat={onRemoveFloat}
+      onToggleQueue={onToggleQueue}
+      fillHeight={fillHeight}
+    />
+  );
 
   return (
     <div>
@@ -154,24 +186,44 @@ export function DeckZone({
           </span>
         )}
       </div>
-      <div className="grid grid-cols-7 gap-2">
-        {COLUMN_KEYS.map((key) => (
-          <DeckColumn
-            key={`${zone}:${key}`}
-            columnKey={key}
-            label={COLUMN_LABELS[key]}
-            cardNames={columns[key] ?? []}
-            zone={zone}
-            scryfallData={scryfallData}
-            cardStats={cardStats}
-            worthCards={worthCards}
-            floatedIndices={floatedIndices}
-            queuedIndices={queuedIndices}
-            onRemoveFloat={onRemoveFloat}
-            onToggleQueue={onToggleQueue}
-          />
-        ))}
-      </div>
+      {zone === "deck" ? (
+        // Six of seven columns also spans the five gaps between them, so an
+        // inner six-column grid at the same gap gives columns of exactly the
+        // width of the lands column beside them.
+        <div className="grid grid-cols-7 gap-2">
+          <div className="col-span-6 space-y-4">
+            {rows.map((row, rowIndex) => (
+              <div
+                key={row.label}
+                className={rowIndex > 0 ? "border-t border-zinc-800/60 pt-4" : undefined}
+              >
+                <div className="mb-2 flex items-baseline gap-1 px-1 text-[11px]">
+                  <span className="font-semibold text-zinc-500">{row.label}</span>
+                  <span className="font-mono text-zinc-500/80">
+                    ({countIn(row.keys)})
+                  </span>
+                </div>
+                <div className="grid grid-cols-6 gap-2">
+                  {row.keys.map((key) => renderColumn(key))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-col">
+            {/* Stands in for the row label the rows have and the lands column
+                does not, so the column's own header lines up with the
+                mana-value headers rather than with the row labels. */}
+            <div aria-hidden className="invisible mb-2 px-1 text-[11px]">
+              &nbsp;
+            </div>
+            {renderColumn("lands", true)}
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-7 gap-2">
+          {BASE_COLUMN_KEYS.map((key) => renderColumn(key))}
+        </div>
+      )}
     </div>
   );
 }

@@ -18,11 +18,12 @@
  *       1. activeDraft       → reset/init all per-draft live state (token, queue, float, deck)
  *       2. nextSeat          → recomputePicking() (auto-pick trigger)
  *       3. seatCardList      → debouncedSyncDeckWithPicks()
- *       4. deckBuilderActive → debouncedSyncDeckWithPicks() on activation
- *       5. floatedCards      → debouncedSyncDeckWithPicks()
- *       6. queue             → debouncedSyncDeckWithPicks()
- *       7. mySeat            → debouncedSyncDeckWithPicks() (identity fix)
- *       8. activeDraft/board.isSheetDraft/selectedSeat → syncLocalDeck() (local deck mode load)
+ *       4. scryfallDataMap   → debouncedSyncDeckWithPicks() (row migration needs card data)
+ *       5. deckBuilderActive → debouncedSyncDeckWithPicks() on activation
+ *       6. floatedCards      → debouncedSyncDeckWithPicks()
+ *       7. queue             → debouncedSyncDeckWithPicks()
+ *       8. mySeat            → debouncedSyncDeckWithPicks() (identity fix)
+ *       9. activeDraft/board.isSheetDraft/selectedSeat → syncLocalDeck() (local deck mode load)
  *
  *   - liveStore.ts registrations:
  *       registerSeatTokenProvider — lets draftStore attach X-Seat-Token to /live polls

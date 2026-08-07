@@ -394,6 +394,14 @@ useCardStore.subscribe(
   },
 );
 
+// Sync deck when card data arrives. A deck opened before Scryfall data lands
+// cannot be classified into creature/non-creature rows yet, so the row
+// migration has to wait for the map.
+useCardStore.subscribe(
+  (state) => state.scryfallDataMap,
+  () => debouncedSyncDeckWithPicks(),
+);
+
 // Rebuild deck when deck builder is activated
 useLiveStore.subscribe(
   (state) => state.deckBuilderActive,

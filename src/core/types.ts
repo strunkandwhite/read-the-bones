@@ -156,6 +156,9 @@ export type BasicLandCounts = {
 export type DeckState = {
   draftId: string;
   seat: number;
+  /** Shape marker (see DECK_STATE_VERSION). Absent on states written before
+   *  the maindeck was split into creature and non-creature rows. */
+  version?: number;
   zones: {
     deck: ColumnMap;
     sideboard: ColumnMap;

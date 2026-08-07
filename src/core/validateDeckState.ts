@@ -1,6 +1,8 @@
-import { COLUMN_KEYS } from "./deckBuilder";
+import { columnKeysForZone } from "./deckBuilder";
 
 type ValidationResult = { valid: true } | { valid: false; reason: string };
+
+const ZONE_NAMES = ["deck", "sideboard"] as const;
 
 /**
  * Validate a deck state object for structural correctness.
@@ -28,15 +30,18 @@ export function validateDeckState(input: unknown): ValidationResult {
     return { valid: false, reason: "missing zones" };
   }
   const zones = deck.zones as Record<string, unknown>;
-  for (const zoneName of ["deck", "sideboard"]) {
+  for (const zoneName of ZONE_NAMES) {
     if (!zones[zoneName] || typeof zones[zoneName] !== "object") {
       return { valid: false, reason: `missing zones.${zoneName}` };
     }
     const zone = zones[zoneName] as Record<string, unknown>;
+    const allowedKeys = columnKeysForZone(zoneName) as readonly string[];
     for (const [key, value] of Object.entries(zone)) {
       // The deck reducer only knows the canonical columns; anything else
-      // would be stored verbatim and crash clients on load.
-      if (!(COLUMN_KEYS as readonly string[]).includes(key)) {
+      // would be stored verbatim and crash clients on load. The list is
+      // per-zone because only the deck zone renders the non-creature row —
+      // an `nc-` column in the sideboard would be a stack nothing draws.
+      if (!allowedKeys.includes(key)) {
         return {
           valid: false,
           reason: `zones.${zoneName}.${key} is not a recognized column`,
@@ -52,7 +57,7 @@ export function validateDeckState(input: unknown): ValidationResult {
   }
 
   let totalCards = 0;
-  for (const zoneName of ["deck", "sideboard"]) {
+  for (const zoneName of ZONE_NAMES) {
     const zone = (deck.zones as Record<string, Record<string, string[]>>)[
       zoneName
     ];
@@ -65,6 +70,17 @@ export function validateDeckState(input: unknown): ValidationResult {
       valid: false,
       reason: `total cards ${totalCards} exceeds limit of 100`,
     };
+  }
+
+  // Absent on states written by clients that predate the row split.
+  if (deck.version !== undefined) {
+    if (
+      typeof deck.version !== "number" ||
+      deck.version < 0 ||
+      !Number.isInteger(deck.version)
+    ) {
+      return { valid: false, reason: "version must be a non-negative integer" };
+    }
   }
 
   if (deck.basicLands !== undefined) {
