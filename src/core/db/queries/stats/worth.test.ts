@@ -384,4 +384,39 @@ describe("getWorthTable", () => {
       expect(geomean).toBeCloseTo(17.8, 1);
     });
   });
+
+  describe("cache invalidation on draft_date change", () => {
+    it("recomputes session ordinals when a draft's date changes with no other data touched", async () => {
+      // d1 and d2 start in different sessions, so d1's pick (5) counts at
+      // weight 0.5^(1/4) against d2's full-weight pick (15):
+      // exp((0.8409·ln5 + ln15) / 1.8409) ≈ 9.081 → 9.1.
+      await insertCubeSnapshot(db, 1);
+      await insertCard(db, 1, "Alpha");
+      await insertCubeCard(db, 1, 1);
+      await insertDraft(db, "d1", { date: "2026-01-01", cubeSnapshotId: 1 });
+      await insertDraft(db, "d2", { date: "2026-02-01", cubeSnapshotId: 1 });
+      await insertPickEvent(db, "d1", 5, 1, 1);
+      await insertPickEvent(db, "d2", 15, 1, 1);
+
+      const first = await getWorthTable();
+      const firstGeomean = first.cards.find((c) => c.card_name === "Alpha")!.geomean!;
+      expect(firstGeomean).toBeCloseTo(9.1, 5);
+
+      // Correct d1's date onto d2's, merging them into one session — no
+      // pick/pool/match hash changes, only draft_date. computeIngestionHash
+      // alone can't see this, so the cache key must fold draft_date in too,
+      // or this second call would wrongly serve the stale first result.
+      await db.execute({
+        sql: `UPDATE drafts SET draft_date = '2026-02-01' WHERE draft_id = 'd1'`,
+        args: [],
+      });
+
+      const second = await getWorthTable();
+      const secondGeomean = second.cards.find((c) => c.card_name === "Alpha")!.geomean!;
+      // Both picks now sit in the same session (weight 1 each):
+      // exp((ln5 + ln15) / 2) = sqrt(75) ≈ 8.660 → 8.7.
+      expect(secondGeomean).toBeCloseTo(8.7, 5);
+      expect(secondGeomean).not.toBe(firstGeomean);
+    });
+  });
 });

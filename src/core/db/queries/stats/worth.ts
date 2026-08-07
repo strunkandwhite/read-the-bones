@@ -100,13 +100,22 @@ export async function getWorthTable(opts?: {
   const latestFingerprint = latestRow
     ? `${latestRow.draft_id}:${latestRow.cube_snapshot_id}:${latestRow.num_seats}`
     : "none";
+  // Session ordinals (sessionsAgo) are derived from draft_date, but
+  // computeIngestionHash only covers the pool/picks/matches domain hashes —
+  // correcting a draft's date with no other data change would otherwise
+  // serve a stale cache with wrong ordinals. draftsResult.rows is already
+  // ORDER BY draft_id, so this join is a deterministic, cheap stand-in for a
+  // real hash.
+  const datesFingerprint = draftsResult.rows
+    .map((row) => `${row.draft_id}:${row.draft_date}`)
+    .join(",");
   const cacheKey = `${computeIngestionHash(
     draftsResult.rows as unknown as Array<{
       pool_hash: unknown;
       picks_hash: unknown;
       matches_hash: unknown;
     }>,
-  )}|${latestFingerprint}`;
+  )}|${latestFingerprint}|${datesFingerprint}`;
   if (!bypassCache && worthCache?.key === cacheKey) {
     return worthCache.result;
   }
