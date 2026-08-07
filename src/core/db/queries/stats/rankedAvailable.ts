@@ -8,7 +8,8 @@ import { fetchOptOuts, getSeatsMatchingColors, placeholders } from "../helpers";
 import { getAvailableCards } from "../picks";
 import { getDraftMeta } from "../drafts";
 import { getWorthTable } from "./worth";
-import { calculatePickWeight, round3, weightedGeometricMean } from "../../../utils";
+import { round3 } from "../../../utils";
+import { pickScore, type DraftObservation } from "../../../pickScore";
 import { wilsonInterval } from "../../../wilsonInterval";
 import { DEFAULT_POOL_SIZE } from "../../../types";
 import { MIN_SAMPLE_SIZE } from "../../../constants";
@@ -410,35 +411,23 @@ export async function rankAvailableCards(
     const cardId = nameToId.get(cardName);
     if (cardId === undefined) continue;
 
-    // Pick stats: compute weighted geometric mean
+    // Pick stats: weighted score over every draft the card was in the pool for
     const drafts = cardDrafts.get(cardId) ?? new Map();
     const picks = cardPicks.get(cardId) ?? new Map();
-    const weightedItems: { value: number; weight: number }[] = [];
+    const observations: DraftObservation[] = [];
     let timesPicked = 0;
 
     for (const [draftId, cubeSnapshotId] of drafts) {
-      const draftPicks = picks.get(draftId);
-      const poolSize = cubeSizes.get(cubeSnapshotId) || DEFAULT_POOL_SIZE;
-
-      if (draftPicks && draftPicks.length > 0) {
-        for (let i = 0; i < draftPicks.length; i++) {
-          weightedItems.push({
-            value: draftPicks[i],
-            weight: calculatePickWeight({ copyNumber: i + 1, wasPicked: true }),
-          });
-          timesPicked++;
-        }
-      } else {
-        weightedItems.push({
-          value: poolSize,
-          weight: calculatePickWeight({ copyNumber: 1, wasPicked: false }),
-        });
-      }
+      const draftPicks = picks.get(draftId) ?? [];
+      timesPicked += draftPicks.length;
+      observations.push({
+        pickPositions: draftPicks,
+        poolSize: cubeSizes.get(cubeSnapshotId) || DEFAULT_POOL_SIZE,
+      });
     }
 
-    const geomean = weightedItems.length > 0
-      ? Math.round(weightedGeometricMean(weightedItems) * 10) / 10
-      : 0;
+    const geomean =
+      observations.length > 0 ? Math.round(pickScore(observations) * 10) / 10 : 0;
 
     // Play stats — use filtered when available, fall back to overall
     const play = cardPlayStats.get(cardId);
