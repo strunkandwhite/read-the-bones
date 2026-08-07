@@ -303,8 +303,9 @@ describe("calculateCardStats", () => {
       expect(stats[0].weightedGeomean).toBeCloseTo(14.27, 1);
     });
 
-    it("should handle combined copy and unpicked weights", () => {
-      // Second copy that went unpicked: weight = 0.5 * 0.5 = 0.25
+    it("ignores an untaken copy when another copy was taken in that draft", () => {
+      // A qty-2 card taken once says demand was one deep, not that the card
+      // went unwanted — so only the taken copy is scored.
       const picks: CardPick[] = [
         createPick({
           cardName: "Test",
@@ -324,18 +325,13 @@ describe("calculateCardStats", () => {
 
       const stats = calculateCardStats(picks);
 
-      // weight1 = 1, weight2 = 0.5 * 0.5 = 0.25
-      // geomean = exp((1*ln(10) + 0.25*ln(400)) / 1.25)
-      //         = exp((2.303 + 1.498) / 1.25)
-      //         = exp(3.041)
-      //         ≈ 20.9
-      expect(stats[0].weightedGeomean).toBeCloseTo(20.9, 1);
+      expect(stats[0].weightedGeomean).toBeCloseTo(10, 10);
+      // The untaken copy still proves the card was in that draft's pool.
+      expect(stats[0].timesAvailable).toBe(1);
     });
 
     it("handles unpicked third copy: weight factors combine but single-value geomean is the pick position", () => {
-      // Third copy, unpicked: combined weight = copyFactor(3) * unpickedFactor = 0.25 * 0.5 = 0.125
-      // With only one observation the weighted geomean collapses to that value regardless of weight.
-      // A two-pick assertion (below) verifies the weight actually affects multi-pick outcomes.
+      // A draft that took no copy contributes one observation; with nothing to average against, the score is that value.
       const picks: CardPick[] = [
         createPick({
           cardName: "Test",
@@ -351,21 +347,16 @@ describe("calculateCardStats", () => {
       expect(stats[0].weightedGeomean).toBeCloseTo(10, 10);
     });
 
-    it("unpicked third copy has lower influence than picked first copy in weighted geomean", () => {
-      // first copy (picked) weight = 1; third copy (unpicked) weight = 0.25 * 0.5 = 0.125
-      // geomean = exp( (1*ln(10) + 0.125*ln(80)) / (1 + 0.125) )
-      //         = exp( (2.3026 + 0.5478) / 1.125 )
-      //         = exp(2.8504 / 1.125)
-      //         = exp(2.5337)
-      //         ≈ 12.60
+    it("scores a draft that took no copy at pool size, at half weight", () => {
+      // exp((1*ln(10) + 0.5*ln(80)) / 1.5) = 20.00
       const picks: CardPick[] = [
         createPick({ cardName: "Test", pickPosition: 10, copyNumber: 1, wasPicked: true, draftId: "d1" }),
-        createPick({ cardName: "Test", pickPosition: 80, copyNumber: 3, wasPicked: false, draftId: "d1" }),
+        createPick({ cardName: "Test", pickPosition: 80, copyNumber: 1, wasPicked: false, draftId: "d2" }),
       ];
 
       const stats = calculateCardStats(picks);
 
-      expect(stats[0].weightedGeomean).toBeCloseTo(12.60, 1);
+      expect(stats[0].weightedGeomean).toBeCloseTo(20.0, 1);
     });
 
     it("should handle pick position of 1 correctly", () => {
