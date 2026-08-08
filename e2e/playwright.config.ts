@@ -18,7 +18,18 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
+      testIgnore: "**/mobile.spec.ts",
       use: { ...devices["Desktop Chrome"] },
+    },
+    {
+      name: "mobile-chromium",
+      testMatch: "**/mobile.spec.ts",
+      use: {
+        ...devices["Desktop Chrome"],
+        viewport: { width: 375, height: 667 },
+        hasTouch: true,
+        isMobile: true,
+      },
     },
   ],
   webServer: {
