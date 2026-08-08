@@ -7,13 +7,20 @@ import { colorIdentityGradient } from "@/core/manaColors";
 interface DraftBoardCellProps {
   cardName: string | null;
   colorIdentity: string[];
-  isActive: boolean;
-  isMyColumn: boolean;
+  isActive?: boolean;
+  isMyColumn?: boolean;
   isEditable?: boolean;
   draftId?: string | null;
   nextPickN?: number | null;
   onPick?: (cardName: string) => void;
   pickError?: string | null;
+  /** True when this cell's seat opted out of data collection. */
+  isRedacted?: boolean;
+  /** Pick number this cell represents, used with latestPickN to decide whether
+   * a redacted seat's future (not-yet-drafted) picks should stay blank. */
+  pickN?: number;
+  /** Most recent pick number recorded for the draft. */
+  latestPickN?: number;
 }
 
 function CellContent({ cardName, colorIdentity }: { cardName: string | null; colorIdentity: string[] }) {
@@ -68,13 +75,16 @@ function CellContent({ cardName, colorIdentity }: { cardName: string | null; col
 export function DraftBoardCell({
   cardName,
   colorIdentity,
-  isActive,
-  isMyColumn,
+  isActive = false,
+  isMyColumn = false,
   isEditable = false,
   draftId = null,
   nextPickN = null,
   onPick,
   pickError = null,
+  isRedacted = false,
+  pickN,
+  latestPickN,
 }: DraftBoardCellProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [optimisticCardName, setOptimisticCardName] = useState<string | null>(null);
@@ -108,8 +118,14 @@ export function DraftBoardCell({
 
   /* eslint-enable react-hooks/set-state-in-effect */
 
+  // A redacted seat's pick position that has already happened (pickN <= latestPickN)
+  // shows the literal marker instead of a blank cell — no pick_events row is ever
+  // stored for an opted-out seat, so there is nothing else to derive it from. A
+  // redacted position not yet reached stays blank like any other future pick.
+  const showRedacted = isRedacted && pickN !== undefined && latestPickN !== undefined && pickN <= latestPickN;
+
   function handleCellClick() {
-    if (isEditable && !isEditing && cardName === null && optimisticCardName === null) {
+    if (isEditable && !showRedacted && !isEditing && cardName === null && optimisticCardName === null) {
       setIsEditing(true);
     }
   }
@@ -124,7 +140,7 @@ export function DraftBoardCell({
     setIsEditing(false);
   }
 
-  const displayName = optimisticCardName ?? cardName;
+  const displayName = showRedacted ? "[REDACTED]" : (optimisticCardName ?? cardName);
 
   // Tint confirmed picks by color identity (layered over the my-column blue so
   // both show). Skipped while a pick is only optimistic — colors aren't known yet.
@@ -142,7 +158,7 @@ export function DraftBoardCell({
         backgroundImage: colorTint ?? undefined,
         border: isActive ? "2px dashed #3b82f6" : "1px solid #333",
         animation: isActive ? "pulse-border 1.5s ease-in-out infinite" : undefined,
-        cursor: isEditable && !isEditing && cardName === null && optimisticCardName === null ? "pointer" : undefined,
+        cursor: isEditable && !showRedacted && !isEditing && cardName === null && optimisticCardName === null ? "pointer" : undefined,
       }}
     >
       {isEditing && draftId && nextPickN !== null ? (

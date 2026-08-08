@@ -386,6 +386,7 @@ describe("cardStore — fetchCardData", () => {
       seatNames: {},
       bannedCards: [],
       isSheetDraft: false,
+      redactedSeats: [],
     };
     useDraftStore.setState({ board: boardWithPick, pickVersion: 1 });
 

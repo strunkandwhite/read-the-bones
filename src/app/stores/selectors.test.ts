@@ -223,7 +223,7 @@ describe("getCardStatus — local deck mode", () => {
       selectedSeat: 3,
       board: {
         picks: [], numSeats: 10, picksPerPlayer: 45, doublePickAfterRound: null, phase: "complete",
-        seatNames: {}, bannedCards: [], isSheetDraft: true,
+        seatNames: {}, bannedCards: [], isSheetDraft: true, redactedSeats: [],
       },
     });
     useLiveStore.setState({
@@ -240,7 +240,7 @@ describe("getCardStatus — local deck mode", () => {
       selectedSeat: 3,
       board: {
         picks: [], numSeats: 10, picksPerPlayer: 45, doublePickAfterRound: null, phase: "drafting",
-        seatNames: {}, bannedCards: [], isSheetDraft: false,
+        seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [],
       },
     });
     useLiveStore.setState({

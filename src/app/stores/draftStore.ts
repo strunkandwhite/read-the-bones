@@ -52,6 +52,12 @@ export interface BoardData {
   bannedCards: string[];
   /** True when this draft syncs from a Google Sheet (no seat tokens exist). */
   isSheetDraft: boolean;
+  /**
+   * 1-indexed seats opted out of data collection, sorted ascending. Always
+   * present (empty array when nothing is redacted) — components should not
+   * have to distinguish absent from empty.
+   */
+  redactedSeats: number[];
 }
 
 export type ActiveDraftInfo = { id: string; numSeats: number };
@@ -362,6 +368,10 @@ function applyPollResults(
       seatNames: liveData.seatNames as Record<string, string>,
       bannedCards: liveData.bannedCards as string[],
       isSheetDraft: liveData.isSheetDraft === true,
+      // Defensive fallback: an old cached response predating this field
+      // should not leave downstream consumers with `undefined` where the
+      // type promises an array.
+      redactedSeats: (liveData.redactedSeats as number[] | undefined) ?? [],
     };
 
     // Detect pick changes. prevPickN === -1 means "first poll, no previous data" —
@@ -410,7 +420,8 @@ function applyPollResults(
       JSON.stringify(board.picks) === JSON.stringify(prev.board.picks) &&
       JSON.stringify(board.seatNames) === JSON.stringify(prev.board.seatNames) &&
       JSON.stringify(board.bannedCards) === JSON.stringify(prev.board.bannedCards) &&
-      board.isSheetDraft === prev.board.isSheetDraft
+      board.isSheetDraft === prev.board.isSheetDraft &&
+      JSON.stringify(board.redactedSeats) === JSON.stringify(prev.board.redactedSeats)
       ? prev.board
       : board;
 

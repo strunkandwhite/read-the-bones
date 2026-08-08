@@ -303,6 +303,47 @@ describe("GET /api/drafts/[id]/live", () => {
     expect(mockGetPicksWithCardDetails).toHaveBeenCalledWith(expect.anything(), "test", optedOut);
   });
 
+  it("returns redactedSeats for a draft with opt-outs", async () => {
+    mockGetLiveStateSig.mockResolvedValueOnce({ latestPickN: 0, sig: "drafting|0|" });
+    mockDraftMeta();
+    mockGetOptedOutSeats.mockResolvedValue(new Set([5]));
+    mockGetRecentPicks.mockResolvedValueOnce([]);
+    mockGetSeatDisplayNames.mockResolvedValueOnce({});
+    mockGetMatchCount.mockResolvedValueOnce(0);
+    mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
+
+    const res = await GET(makeRequest("http://localhost:3000/api/drafts/d1/live"), { params: Promise.resolve({ id: "d1" }) });
+    expect((await res.json()).redactedSeats).toEqual([5]);
+  });
+
+  it("returns an empty array when nothing is redacted", async () => {
+    mockGetLiveStateSig.mockResolvedValueOnce({ latestPickN: 0, sig: "drafting|0|" });
+    mockDraftMeta();
+    mockGetOptedOutSeats.mockResolvedValue(new Set());
+    mockGetRecentPicks.mockResolvedValueOnce([]);
+    mockGetSeatDisplayNames.mockResolvedValueOnce({});
+    mockGetMatchCount.mockResolvedValueOnce(0);
+    mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
+
+    const res = await GET(makeRequest("http://localhost:3000/api/drafts/d1/live"), { params: Promise.resolve({ id: "d1" }) });
+    expect((await res.json()).redactedSeats).toEqual([]);
+  });
+
+  it("sorts redactedSeats ascending regardless of Set insertion order", async () => {
+    mockGetLiveStateSig.mockResolvedValueOnce({ latestPickN: 0, sig: "drafting|0|" });
+    mockDraftMeta();
+    // Insertion order deliberately descending — catches an implementation that
+    // returns [...optedOutSeats] without sorting.
+    mockGetOptedOutSeats.mockResolvedValue(new Set([7, 3, 5]));
+    mockGetRecentPicks.mockResolvedValueOnce([]);
+    mockGetSeatDisplayNames.mockResolvedValueOnce({});
+    mockGetMatchCount.mockResolvedValueOnce(0);
+    mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
+
+    const res = await GET(makeRequest("http://localhost:3000/api/drafts/d1/live"), { params: Promise.resolve({ id: "d1" }) });
+    expect((await res.json()).redactedSeats).toEqual([3, 5, 7]);
+  });
+
   // -------------------------------------------------------------------------
   // Change short-circuit tests
   // -------------------------------------------------------------------------

@@ -235,6 +235,7 @@ describe("draftStore — patchSeatName", () => {
         seatNames: { "1": "Alice", "2": "Bob" },
         bannedCards: [],
         isSheetDraft: false,
+        redactedSeats: [],
       },
     });
 

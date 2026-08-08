@@ -117,6 +117,12 @@ export const GET = withApiErrors(
       totalMatches,
       picks,
       bannedCards,
+      // Seat-level flag for the pod sheet: cells for opted-out seats render
+      // "[REDACTED]" structurally (from draft metadata) rather than from a pick
+      // row, since no pick row exists for these seats. Always present, [] when
+      // nothing is redacted. Deliberately excluded from getLiveStateSig — see
+      // comment at that call site.
+      redactedSeats: [...optedOutSeats].sort((a, b) => a - b),
       // Client echoes latestPickN + sig back on subsequent polls for the change short-circuit.
       // Including sig in the response avoids the client having to recompute the server's
       // SQL-derived seat-names string. For authenticated callers the sig includes the

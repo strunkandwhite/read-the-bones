@@ -153,6 +153,7 @@ export function DraftBoardModal({
                   board={board}
                   mySeat={mySeat}
                   nextPickN={nextPick?.pickNumber ?? null}
+                  latestPickN={liveDraftStatus?.latestPickN ?? null}
                   onUpdateDisplayName={handleUpdateDisplayName}
                   handlePick={isAuthed ? submitPick : undefined}
                   isMyTurn={isAuthed && isMyTurn}

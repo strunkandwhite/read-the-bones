@@ -20,6 +20,7 @@ function makeBoard(overrides: Partial<BoardData> = {}): BoardData {
     seatNames: {},
     bannedCards: [],
     isSheetDraft: true,
+    redactedSeats: [],
     ...overrides,
   };
 }

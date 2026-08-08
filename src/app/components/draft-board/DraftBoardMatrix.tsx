@@ -15,6 +15,14 @@ interface DraftBoardMatrixProps {
   board: BoardData;
   mySeat: number | null;
   nextPickN: number | null;
+  /**
+   * Furthest global pick position reached so far (from liveDraftStatus, not
+   * derived from board.picks — an opted-out seat's picks never get a stored
+   * row, so board.picks.length under-counts). Used to tell a redacted seat's
+   * already-drafted cell (show "[REDACTED]") from a not-yet-reached one
+   * (stay blank).
+   */
+  latestPickN: number | null;
   onUpdateDisplayName?: (name: string) => Promise<void>;
   handlePick?: (cardName: string) => Promise<void>;
   isMyTurn?: boolean;
@@ -26,12 +34,15 @@ export function DraftBoardMatrix({
   board,
   mySeat,
   nextPickN,
+  latestPickN,
   onUpdateDisplayName,
   handlePick,
   isMyTurn = false,
   draftId,
   pickError = null,
 }: DraftBoardMatrixProps) {
+  // Defensive: an older cached /live poll response may predate this field.
+  const redactedSeats = board.redactedSeats ?? [];
   const matrix = useMemo(
     () => buildPickMatrix(board.numSeats, board.picksPerPlayer, board.doublePickAfterRound),
     [board.numSeats, board.picksPerPlayer, board.doublePickAfterRound],
@@ -192,6 +203,9 @@ export function DraftBoardMatrix({
                           nextPickN={nextPickN}
                           onPick={handlePick}
                           pickError={isActive ? pickError : null}
+                          isRedacted={redactedSeats.includes(seat)}
+                          pickN={pick?.pickN}
+                          latestPickN={latestPickN ?? undefined}
                         />
                       );
                     })}
