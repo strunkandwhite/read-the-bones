@@ -28,7 +28,8 @@
     "draft:start": "tsx scripts/draft-start.ts",
     "draft:admin": "tsx scripts/draft-admin.ts",
     "scryfall:backfill": "tsx scripts/backfill-scryfall.ts",
-    "worth:validate": "tsx scripts/worth-validate.ts"
+    "worth:validate": "tsx scripts/worth-validate.ts",
+    "redact:opted-out": "tsx scripts/redact-opted-out.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
