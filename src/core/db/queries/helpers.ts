@@ -63,16 +63,16 @@ export async function fetchOptOuts(client: Client, draftIds: string[]): Promise<
 
 /**
  * Get opted-out seats for a single draft.
- * Returns a Set of seat numbers that should be redacted.
+ *
+ * Consumed by the ingest filter and by the /live route's display flag. Query
+ * modules do not call this — redaction happens at ingest.
  */
 export async function getOptedOutSeats(client: Client, draftId: string): Promise<Set<number>> {
-  const multiResult = await fetchOptOuts(client, [draftId]);
-  const seats = new Set<number>();
-  for (const key of multiResult) {
-    const [d, s] = key.split(":");
-    if (d === draftId) seats.add(Number(s));
-  }
-  return seats;
+  const result = await client.execute({
+    sql: `SELECT seat FROM privacy_opt_outs WHERE draft_id = ?`,
+    args: [draftId],
+  });
+  return new Set(result.rows.map((row) => row.seat as number));
 }
 
 /**
