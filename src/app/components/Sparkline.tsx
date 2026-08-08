@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import type { DraftScore } from "@/core/types";
 
 /**
@@ -16,6 +17,18 @@ function formatPickLabel(entry: DraftScore): string {
 }
 
 /**
+ * Horizontal shift for a tooltip anchored at `x` on a chart `width` wide.
+ * The tooltip is wider than a point's slot, so it is left-aligned, centered, or
+ * right-aligned depending on which third of the chart the point falls in —
+ * centering everything would spill past both ends.
+ */
+function tooltipShift(x: number, width: number): string {
+  if (x < width / 3) return "0";
+  if (x > (width * 2) / 3) return "-100%";
+  return "-50%";
+}
+
+/**
  * Sparkline component for visualizing score history over drafts.
  * Shows pick positions as connected dots with color indicating picked vs unpicked.
  * When draftTimeline is provided, dots are positioned by draft index for equal spacing.
@@ -28,6 +41,8 @@ export function Sparkline({
   /** Sorted array of all unique dates across all drafts (for shared x-axis positioning) */
   draftTimeline?: string[];
 }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+
   if (!history || history.length === 0) {
     return <span className="text-xs text-zinc-400">-</span>;
   }
@@ -75,7 +90,7 @@ export function Sparkline({
   const linePath = normalizedPoints.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
 
   return (
-    <div className="group relative">
+    <div className="relative">
       <svg width={width} height={height} className="overflow-visible">
         {/* Line connecting points */}
         <path
@@ -92,21 +107,38 @@ export function Sparkline({
             key={i}
             cx={p.x}
             cy={p.y}
-            r={dotRadius}
+            r={hoveredIndex === i ? dotRadius + 1.5 : dotRadius}
             fill={p.wasPicked ? "#3b82f6" : "#ef4444"}
             stroke="white"
             strokeWidth={1}
           />
         ))}
-      </svg>
-      {/* Tooltip on hover — positioned above with bottom-full to avoid modal scroll */}
-      <div className="pointer-events-none absolute bottom-full left-0 z-50 mb-1 hidden max-h-32 overflow-y-auto rounded bg-zinc-800 px-2 py-1 text-xs whitespace-nowrap text-white group-hover:block">
-        {history.map((h, i) => (
-          <div key={i}>
-            {h.date}: {formatPickLabel(h)}
-          </div>
+        {/* Transparent hover targets — the visible dots are too small to hit reliably */}
+        {normalizedPoints.map((p, i) => (
+          <circle
+            key={`hit-${i}`}
+            data-testid={`sparkline-hit-${i}`}
+            cx={p.x}
+            cy={p.y}
+            r={9}
+            fill="transparent"
+            onMouseEnter={() => setHoveredIndex(i)}
+            onMouseLeave={() => setHoveredIndex(null)}
+          />
         ))}
-      </div>
+      </svg>
+      {hoveredIndex !== null && (
+        <div
+          data-testid="sparkline-tooltip"
+          className="pointer-events-none absolute bottom-full z-50 mb-1 rounded bg-zinc-800 px-2 py-1 text-xs whitespace-nowrap text-white"
+          style={{
+            left: normalizedPoints[hoveredIndex].x,
+            transform: `translateX(${tooltipShift(normalizedPoints[hoveredIndex].x, width)})`,
+          }}
+        >
+          {history[hoveredIndex].date}: {formatPickLabel(history[hoveredIndex])}
+        </div>
+      )}
     </div>
   );
 }
