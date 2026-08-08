@@ -141,7 +141,7 @@ function extractZoneCards(cards: SealedDeckCard[]): string[] {
 }
 
 /** Match decklists to seats by card overlap */
-function matchDecksToSeats(
+export function matchDecksToSeats(
   decklists: DecklistEntry[],
   seatPicks: Map<number, Set<string>>,
 ): Map<number, DecklistEntry> {
@@ -163,8 +163,9 @@ function matchDecksToSeats(
 
     if (bestScore < SEAT_MATCH_SCORE_THRESHOLD) {
       console.warn(
-        `  WARNING: Low match score for ${decklist.sealeddeckId}: ${(bestScore * 100).toFixed(1)}% (best seat: ${bestSeat})`,
+        `  WARNING: Skipping ${decklist.sealeddeckId} — best match ${(bestScore * 100).toFixed(1)}% (seat ${bestSeat}) is below the ${SEAT_MATCH_SCORE_THRESHOLD * 100}% threshold. An opted-out player's decklist is expected here; anything else means the pool did not match any seat.`,
       );
+      continue;
     }
 
     // Later decklists overwrite earlier ones for the same seat
