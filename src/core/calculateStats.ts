@@ -1,10 +1,11 @@
 /**
  * Stats calculation module for card rankings.
- * Computes weighted geometric means to rank cards based on pick positions.
+ * Aggregates per-card pick data; the score itself comes from pickScore.ts.
  */
 
 import type { CardPick, CardStats } from "./types";
-import { groupBy, calculatePickWeight, weightedGeometricMean } from "./utils";
+import { groupBy } from "./utils";
+import { pickScore, type DraftObservation } from "./pickScore";
 import { cardNameKey } from "./cardNames";
 
 /**
@@ -15,28 +16,34 @@ export const DISTRIBUTION_BUCKET_COUNT = 15;
 export const DISTRIBUTION_BUCKET_SIZE = 30;
 
 /**
- * Helper to calculate weight for a CardPick using the shared utility.
- */
-function calculateWeight(pick: CardPick): number {
-  return calculatePickWeight({
-    copyNumber: pick.copyNumber,
-    wasPicked: pick.wasPicked,
-  });
-}
-
-/**
  * Calculate stats for a single card from its picks.
  */
 function calculateSingleCardStats(
   cardName: string,
   cardPicks: CardPick[],
+  sessionsAgoByDraftId: Map<string, number>,
 ): CardStats {
-  // Calculate weighted geomean
-  const items = cardPicks.map((pick) => ({
-    weight: calculateWeight(pick),
-    value: pick.pickPosition,
-  }));
-  const weightedGeomean = weightedGeometricMean(items);
+  // Group by draft: the score treats each draft as one observation, and a
+  // draft that took at least one copy contributes only the copies it took.
+  const picksByDraft = groupBy(cardPicks, (pick) => pick.draftId);
+  const observations: DraftObservation[] = [];
+  for (const [draftId, draftPicks] of picksByDraft) {
+    const taken = draftPicks
+      .filter((pick) => pick.wasPicked)
+      .sort((a, b) => a.copyNumber - b.copyNumber);
+    const untaken = draftPicks.find((pick) => !pick.wasPicked);
+    observations.push({
+      // getCards.ts builds this map from the same selectedDraftIds that
+      // produce cardPicks, so every draftId reaching this loop has an entry.
+      sessionsAgo: sessionsAgoByDraftId.get(draftId)!,
+      pickPositions: taken.map((pick) => pick.pickPosition),
+      // An unpicked entry carries the pool size as its pickPosition. A draft
+      // with no untaken entry never reaches pickScore's pool-size branch, so
+      // the 0 fallback is unreachable rather than a silent default.
+      poolSize: untaken?.pickPosition ?? 0,
+    });
+  }
+  const weightedGeomean = pickScore(observations);
 
   // Count unique drafts (times available)
   const uniqueDrafts = new Set(cardPicks.map((p) => p.draftId));
@@ -77,10 +84,12 @@ function calculateSingleCardStats(
  * Calculate stats for all cards from a collection of picks.
  *
  * @param picks - All card picks across all drafts
+ * @param sessionsAgoByDraftId - How many drafting sessions back each draft is
  * @returns Array of CardStats sorted by weightedGeomean (lower = better)
  */
 export function calculateCardStats(
   picks: CardPick[],
+  sessionsAgoByDraftId: Map<string, number>,
 ): CardStats[] {
   if (picks.length === 0) return [];
 
@@ -91,7 +100,7 @@ export function calculateCardStats(
   for (const [, cardPicks] of picksByCard) {
     // Use the first occurrence's cardName for display (preserves original casing)
     const displayName = cardPicks[0].cardName;
-    stats.push(calculateSingleCardStats(displayName, cardPicks));
+    stats.push(calculateSingleCardStats(displayName, cardPicks, sessionsAgoByDraftId));
   }
 
   // Sort by weightedGeomean ascending (lower = picked earlier = better)

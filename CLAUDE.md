@@ -195,9 +195,22 @@ Search is debounced (500ms) and runs locally against cached card data. Server-si
 - **Pick position**: Absolute number (1-450). The order a card was selected in a draft.
 - **Round**: Which pass through the drafters. Round = `ceil(pickPosition / numDrafters)`.
   - With 10 drafters: Round 1 = picks 1-10, Round 2 = picks 11-20, etc.
-- **Unpicked penalty**: Cards not selected get pickPosition = poolSize (540), which converts to `ceil(540 / numDrafters)` rounds (e.g., round 54 with 10 drafters).
+- **Unpicked penalty**: A draft in which *no* copy was taken contributes one
+  half-weight observation at pickPosition = poolSize (540). A draft that took at
+  least one copy contributes only the copies it took — a leftover copy of a
+  qty-2 card means demand was not two deep, not that the card went unwanted.
 
-The UI displays "Pick Score" which is the weighted geometric mean of pick positions across drafts.
+The UI displays "Pick Score" (P#): the weighted geometric mean of pick positions
+across drafts, computed by `src/core/pickScore.ts`. Three factors set an
+observation's weight — copy number (`0.5^(copy-1)`), whether anyone took it
+(`0.5` if not), and how many drafting sessions ago the draft ran
+(`0.5^(sessionsAgo/4)`).
+
+Drafts sharing a `draft_date` are one **session** — parallel pods are a single
+drafting occasion. Recency decays over sessions rather than days because what
+moves card evaluations is drafting and playing, not the calendar. Because the
+geometric mean normalizes by total weight, P# is unchanged by time passing; it
+moves only when a new session lands.
 
 **Privacy:** Players are identified by seat number (1-N) within each draft only. No cross-draft player identity is tracked. Players can opt out of API query responses (see README).
 

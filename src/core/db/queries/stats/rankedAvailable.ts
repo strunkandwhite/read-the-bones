@@ -7,8 +7,11 @@ import { getClient } from "../../client";
 import { fetchOptOuts, getSeatsMatchingColors, placeholders } from "../helpers";
 import { getAvailableCards } from "../picks";
 import { getDraftMeta } from "../drafts";
+import { statsPhaseFilter } from "../../../draftPhases";
 import { getWorthTable } from "./worth";
-import { calculatePickWeight, round3, weightedGeometricMean } from "../../../utils";
+import { round3 } from "../../../utils";
+import { pickScore, type DraftObservation } from "../../../pickScore";
+import { sessionsAgoByDraft } from "../../../draftSessions";
 import { wilsonInterval } from "../../../wilsonInterval";
 import { DEFAULT_POOL_SIZE } from "../../../types";
 import { MIN_SAMPLE_SIZE } from "../../../constants";
@@ -253,20 +256,33 @@ export async function rankAvailableCards(
 
   const idPlaceholderStr = placeholders(cardIds.length);
 
-  // Step 3: Batch pick stats — get all drafts where these cards appear
+  // Step 3: Batch pick stats — get all drafts where these cards appear.
+  // Both queries are restricted to stats-complete drafts (complete/playing):
+  // an in-progress draft otherwise contributes an "unpicked at pool size"
+  // observation for every card that simply hasn't come up yet, including
+  // the very draft being ranked. statsPhaseFilter is pure, so sharing one
+  // call's result between both queries would be equally correct — each gets
+  // its own call here only so that each query's args stay in the order that
+  // query's own placeholders expect, not because the filter itself is
+  // stateful.
+  const draftPhase = statsPhaseFilter("d.phase");
+  const pickPhase = statsPhaseFilter("d.phase");
+
   const [draftsResult, picksResult, cubeSizesResult] = await Promise.all([
     client.execute({
-      sql: `SELECT DISTINCT d.draft_id, d.cube_snapshot_id, csc.card_id
+      sql: `SELECT DISTINCT d.draft_id, d.cube_snapshot_id, d.draft_date, csc.card_id
             FROM drafts d
             JOIN cube_snapshot_cards csc ON d.cube_snapshot_id = csc.cube_snapshot_id
-            WHERE csc.card_id IN (${idPlaceholderStr})`,
-      args: cardIds,
+            WHERE csc.card_id IN (${idPlaceholderStr}) AND ${draftPhase.fragment}`,
+      args: [...cardIds, ...draftPhase.args],
     }),
     client.execute({
-      sql: `SELECT pe.card_id, pe.draft_id, pe.pick_n
+      sql: `SELECT pe.card_id, pe.draft_id, pe.pick_n, pe.seat
             FROM pick_events pe
-            WHERE pe.card_id IN (${idPlaceholderStr})`,
-      args: cardIds,
+            JOIN drafts d ON d.draft_id = pe.draft_id
+            WHERE pe.card_id IN (${idPlaceholderStr}) AND ${pickPhase.fragment}
+            ORDER BY pe.draft_id, pe.pick_n`,
+      args: [...cardIds, ...pickPhase.args],
     }),
     client.execute({
       sql: `SELECT cube_snapshot_id, SUM(qty) as total_cards
@@ -280,34 +296,6 @@ export async function rankAvailableCards(
       args: cardIds,
     }),
   ]);
-
-  // Build lookup structures for pick stats
-  const cubeSizes = new Map<number, number>();
-  for (const row of cubeSizesResult.rows) {
-    cubeSizes.set(row.cube_snapshot_id as number, row.total_cards as number);
-  }
-
-  // Map: cardId -> Set of draftIds where card was in pool
-  const cardDrafts = new Map<number, Map<string, number>>(); // cardId -> (draftId -> cubeSnapshotId)
-  for (const row of draftsResult.rows) {
-    const cardId = row.card_id as number;
-    const draftId = row.draft_id as string;
-    const cubeSnapshotId = row.cube_snapshot_id as number;
-    if (!cardDrafts.has(cardId)) cardDrafts.set(cardId, new Map());
-    cardDrafts.get(cardId)!.set(draftId, cubeSnapshotId);
-  }
-
-  // Map: cardId -> draftId -> pick positions
-  const cardPicks = new Map<number, Map<string, number[]>>();
-  for (const row of picksResult.rows) {
-    const cardId = row.card_id as number;
-    const draftId = row.draft_id as string;
-    const pickN = row.pick_n as number;
-    if (!cardPicks.has(cardId)) cardPicks.set(cardId, new Map());
-    const byDraft = cardPicks.get(cardId)!;
-    if (!byDraft.has(draftId)) byDraft.set(draftId, []);
-    byDraft.get(draftId)!.push(pickN);
-  }
 
   // Step 4: Batch play/win stats
   const [playResult, winResult] = await Promise.all([
@@ -334,18 +322,65 @@ export async function rankAvailableCards(
     }),
   ]);
 
-  // Collect all draft IDs for opt-out and color filtering
+  // Collect all draft IDs for opt-out and color filtering. Picks contribute
+  // their own draft ids here too (not just play/win rows) so fetchOptOuts
+  // below can resolve pick-side opt-outs — its lookup key is
+  // "draftId:seat", so a draft missing from this set means the pick-side
+  // .has() check below never matches.
   const allDraftIds = new Set<string>();
+  for (const row of picksResult.rows) allDraftIds.add(row.draft_id as string);
   for (const row of playResult.rows) allDraftIds.add(row.draft_id as string);
   for (const row of winResult.rows) allDraftIds.add(row.draft_id as string);
 
-  // Get opt-outs for all relevant drafts
+  // Get opt-outs for all relevant drafts once, shared by pick, play, and
+  // win stats below.
   const optedOut = await fetchOptOuts(client, [...allDraftIds]);
 
   // If deck_colors is set, get matching seats across all relevant drafts
   let matchingSeats: Set<string> | null = null;
   if (params.deck_colors) {
     matchingSeats = await getSeatsMatchingColors(client, [...allDraftIds], params.deck_colors);
+  }
+
+  // Build lookup structures for pick stats
+  const cubeSizes = new Map<number, number>();
+  for (const row of cubeSizesResult.rows) {
+    cubeSizes.set(row.cube_snapshot_id as number, row.total_cards as number);
+  }
+
+  // Map: cardId -> draftId -> { cubeSnapshotId, draftDate }, where card was in pool
+  const cardDrafts = new Map<number, Map<string, { cubeSnapshotId: number; draftDate: string }>>();
+  const draftDates = new Map<string, string>();
+  for (const row of draftsResult.rows) {
+    const cardId = row.card_id as number;
+    const draftId = row.draft_id as string;
+    const draftDate = row.draft_date as string;
+    draftDates.set(draftId, draftDate);
+    if (!cardDrafts.has(cardId)) cardDrafts.set(cardId, new Map());
+    cardDrafts.get(cardId)!.set(draftId, {
+      cubeSnapshotId: row.cube_snapshot_id as number,
+      draftDate,
+    });
+  }
+
+  // Ordinals span every draft in play, not just the ones a given card was in.
+  // A card that sat out a session must keep the real gap on either side of it.
+  const sessionsAgo = sessionsAgoByDraft(
+    [...draftDates].map(([draftId, draftDate]) => ({ draftId, draftDate })),
+  );
+
+  // Map: cardId -> draftId -> pick positions, skipping opted-out seats
+  const cardPicks = new Map<number, Map<string, number[]>>();
+  for (const row of picksResult.rows) {
+    const cardId = row.card_id as number;
+    const draftId = row.draft_id as string;
+    const pickN = row.pick_n as number;
+    const seat = row.seat as number;
+    if (optedOut.has(`${draftId}:${seat}`)) continue;
+    if (!cardPicks.has(cardId)) cardPicks.set(cardId, new Map());
+    const byDraft = cardPicks.get(cardId)!;
+    if (!byDraft.has(draftId)) byDraft.set(draftId, []);
+    byDraft.get(draftId)!.push(pickN);
   }
 
   // Aggregate play stats per card, skipping opted-out and non-matching seats
@@ -410,35 +445,24 @@ export async function rankAvailableCards(
     const cardId = nameToId.get(cardName);
     if (cardId === undefined) continue;
 
-    // Pick stats: compute weighted geometric mean
+    // Pick stats: weighted score over every draft the card was in the pool for
     const drafts = cardDrafts.get(cardId) ?? new Map();
     const picks = cardPicks.get(cardId) ?? new Map();
-    const weightedItems: { value: number; weight: number }[] = [];
+    const observations: DraftObservation[] = [];
     let timesPicked = 0;
 
-    for (const [draftId, cubeSnapshotId] of drafts) {
-      const draftPicks = picks.get(draftId);
-      const poolSize = cubeSizes.get(cubeSnapshotId) || DEFAULT_POOL_SIZE;
-
-      if (draftPicks && draftPicks.length > 0) {
-        for (let i = 0; i < draftPicks.length; i++) {
-          weightedItems.push({
-            value: draftPicks[i],
-            weight: calculatePickWeight({ copyNumber: i + 1, wasPicked: true }),
-          });
-          timesPicked++;
-        }
-      } else {
-        weightedItems.push({
-          value: poolSize,
-          weight: calculatePickWeight({ copyNumber: 1, wasPicked: false }),
-        });
-      }
+    for (const [draftId, { cubeSnapshotId }] of drafts) {
+      const draftPicks = picks.get(draftId) ?? [];
+      timesPicked += draftPicks.length;
+      observations.push({
+        sessionsAgo: sessionsAgo.get(draftId)!,
+        pickPositions: draftPicks,
+        poolSize: cubeSizes.get(cubeSnapshotId) || DEFAULT_POOL_SIZE,
+      });
     }
 
-    const geomean = weightedItems.length > 0
-      ? Math.round(weightedGeometricMean(weightedItems) * 10) / 10
-      : 0;
+    const geomean =
+      observations.length > 0 ? Math.round(pickScore(observations) * 10) / 10 : 0;
 
     // Play stats — use filtered when available, fall back to overall
     const play = cardPlayStats.get(cardId);

@@ -5,9 +5,11 @@
 import type { Client } from "@libsql/client";
 import { resolveCard } from "../cards";
 import { fetchOptOuts, parseBannedCards, placeholders } from "../helpers";
-import { calculatePickWeight, round3, weightedGeometricMean } from "../../../utils";
+import { round3 } from "../../../utils";
+import { pickScore, type DraftObservation } from "../../../pickScore";
 import { DEFAULT_POOL_SIZE } from "../../../types";
 import { statsPhaseFilter } from "../../../draftPhases";
+import { sessionsAgoByDraft } from "../../../draftSessions";
 
 export interface GetCardPickStatsParams {
   card_name: string;
@@ -33,7 +35,7 @@ export interface CardPickStatsResult {
 
 /**
  * Get aggregate pick statistics for a card across drafts.
- * Uses the weighted geometric mean formula from calculateStats.ts.
+ * The weighted score comes from the canonical formula in pickScore.ts.
  */
 export async function getCardPickStats(
   client: Client,
@@ -82,7 +84,7 @@ export async function getCardPickStats(
   // Include both 'complete' and 'playing' phases — picks are finalised in both.
   const { fragment: phaseFragment, args: phaseArgs } = statsPhaseFilter("d.phase");
   const draftsWithCardResult = await client.execute({
-    sql: `SELECT DISTINCT d.draft_id, d.cube_snapshot_id
+    sql: `SELECT DISTINCT d.draft_id, d.cube_snapshot_id, d.draft_date
           FROM drafts d
           JOIN cube_snapshot_cards csc ON d.cube_snapshot_id = csc.cube_snapshot_id
           WHERE csc.card_id = ? AND ${phaseFragment} ${draftWhere}`,
@@ -103,10 +105,11 @@ export async function getCardPickStats(
   const allDraftIds = draftsWithCardResult.rows.map((r) => r.draft_id as string);
 
   // Exclude drafts where this card is banned. Cube sizes depend only on
-  // draftsWithCardResult, so run that query in parallel with the ban lookup.
+  // draftsWithCardResult, so run that query in parallel with the ban lookup
+  // and with the session-ordinal draft set below.
   const cubeSnapshotIds = draftsWithCardResult.rows.map((r) => r.cube_snapshot_id as number);
 
-  const [bannedResult, cubeSizesResult] = await Promise.all([
+  const [bannedResult, cubeSizesResult, allStatsDraftsResult] = await Promise.all([
     client.execute({
       sql: `SELECT draft_id, banned_cards FROM drafts
             WHERE draft_id IN (${placeholders(allDraftIds.length)})
@@ -120,6 +123,19 @@ export async function getCardPickStats(
             GROUP BY cube_snapshot_id`,
       args: [...cubeSnapshotIds],
     }),
+    // Session ordinals must span every stats-phase draft matching this
+    // query's filters, not just the ones this card's cube included — a
+    // card that sat out an interior session (cube-absent, not banned) must
+    // keep the real gap on either side of it (same principle documented in
+    // rankedAvailable.ts, next to its own ordinal map). No ban filter here:
+    // a draft where THIS card was banned still happened and still occupies
+    // a session slot for numbering purposes. The ban only removes it from
+    // draftIds, the set that produces observations, below.
+    client.execute({
+      sql: `SELECT draft_id, draft_date FROM drafts d
+            WHERE ${phaseFragment} ${draftWhere}`,
+      args: [...phaseArgs, ...draftArgs],
+    }),
   ]);
 
   const bannedInDrafts = new Set<string>();
@@ -131,6 +147,17 @@ export async function getCardPickStats(
   }
 
   const draftIds = allDraftIds.filter((id) => !bannedInDrafts.has(id));
+
+  // draftIds is always a subset of allStatsDraftsResult's rows (that query
+  // has no cube join or ban filter, so it is a strict superset of every
+  // narrower draft set derived above), so sessionsAgo.get(draftId)! below
+  // is always defined.
+  const sessionsAgo = sessionsAgoByDraft(
+    allStatsDraftsResult.rows.map((row) => ({
+      draftId: row.draft_id as string,
+      draftDate: row.draft_date as string,
+    })),
+  );
 
   if (draftIds.length === 0) {
     return {
@@ -191,46 +218,24 @@ export async function getCardPickStats(
     });
   }
 
-  // Collect all pick positions for stats
+  // Taken positions feed avg/median; observations feed the weighted score.
   const pickPositions: number[] = [];
-  const weightedItems: { value: number; weight: number }[] = [];
+  const observations: DraftObservation[] = [];
 
   for (const draftId of draftIds) {
     const picks = picksByDraft.get(draftId) || [];
-    // Get actual cube size from cube_snapshot_cards
     const cubeSnapshotId = draftCubeSnapshots.get(draftId);
-    const poolSize = cubeSnapshotId ? (cubeSizes.get(cubeSnapshotId) || DEFAULT_POOL_SIZE) : DEFAULT_POOL_SIZE;
+    const poolSize = cubeSnapshotId
+      ? cubeSizes.get(cubeSnapshotId) || DEFAULT_POOL_SIZE
+      : DEFAULT_POOL_SIZE;
 
-    if (picks.length > 0) {
-      // Card was picked in this draft
-      for (let i = 0; i < picks.length; i++) {
-        const pick = picks[i];
-        const copyNumber = i + 1; // 1st copy, 2nd copy, etc.
-
-        // Use shared utility for weight calculation
-        const weight = calculatePickWeight({
-          copyNumber,
-          wasPicked: true,
-        });
-
-        pickPositions.push(pick.pick_n);
-        weightedItems.push({
-          value: pick.pick_n,
-          weight,
-        });
-      }
-    } else {
-      // Card was available but not picked - assign pool size as pick position
-      // Use shared utility for weight calculation
-      const weight = calculatePickWeight({
-        copyNumber: 1,
-        wasPicked: false,
-      });
-      weightedItems.push({
-        value: poolSize,
-        weight,
-      });
-    }
+    const positions = picks.map((pick) => pick.pick_n);
+    pickPositions.push(...positions);
+    observations.push({
+      sessionsAgo: sessionsAgo.get(draftId)!,
+      pickPositions: positions,
+      poolSize,
+    });
   }
 
   // Calculate stats
@@ -252,7 +257,7 @@ export async function getCardPickStats(
         : sorted[mid];
   }
 
-  const weighted_geomean = weightedGeometricMean(weightedItems);
+  const weighted_geomean = pickScore(observations);
 
   const result: CardPickStatsResult = {
     card_name: card_name,

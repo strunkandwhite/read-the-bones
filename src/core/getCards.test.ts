@@ -278,6 +278,41 @@ describe("getCards", () => {
     expect(cancel!.weightedGeomean).toBeGreaterThan(counterspell!.weightedGeomean);
   });
 
+  it("weights a card's pick score by each draft's date, not just relative order", async () => {
+    // Regression test for the session-ordinal wiring in getCards.ts (feeds
+    // sessionsAgoByDraft off draftMetadataMap's dates): a wrong date lookup
+    // would still pass the "cancel worse than counterspell" comparison test
+    // above since that test uses two same-dated drafts (sessionsAgo 0 for
+    // both), so it can't tell dated ordinals apart from no ordinals at all.
+    const drafts = [
+      draftRow("d1", { cubeSnapshotId: 1, date: "2026-01-01" }),
+      draftRow("d2", { cubeSnapshotId: 1, date: "2026-02-01" }),
+    ];
+
+    const picks = [
+      pickRow("d1", "Lightning Bolt", 50, 1),
+      pickRow("d2", "Lightning Bolt", 10, 2),
+    ];
+
+    const cubeCards = [cubeCardRow(1, 1, "Lightning Bolt")];
+
+    setupMockExecute({
+      draftRows: drafts,
+      pickRows: picks,
+      cubeCardRows: cubeCards,
+      cubeSizeRows: [cubeSizeRow(1, 540)],
+    });
+
+    const result = await getCards({});
+
+    const bolt = result.cards.find((c) => c.cardName === "Lightning Bolt");
+    expect(bolt).toBeDefined();
+    // d2 (2026-02-01) is the newest session, sessionsAgo 0, full weight.
+    // d1 (2026-01-01) is one session back, weight 0.5^(1/4) = 0.840896:
+    // exp((1*ln(10) + 0.840896*ln(50)) / 1.840896) = 20.8584
+    expect(bolt!.weightedGeomean).toBeCloseTo(20.8584, 3);
+  });
+
   it("includes takenCards when activeDraft is provided", async () => {
     setupMockExecute({
       draftRows: [draftRow("d1")],

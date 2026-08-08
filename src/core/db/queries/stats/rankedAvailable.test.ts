@@ -16,6 +16,8 @@ import {
   insertCubeSnapshot,
   insertCubeCard,
   insertDraft,
+  insertPickEvent,
+  insertPrivacyOptOut,
 } from "../../__tests__/testDb";
 import { danger, pickCdf, type WorthCard } from "../../../worthModel";
 
@@ -336,5 +338,89 @@ describe("rankAvailableCards worth-model extensions", () => {
       // No positive-worth B or G cards exist at all.
       expect(result.pair_supply!.BG).toBe(0);
     });
+  });
+});
+
+describe("rankAvailableCards — pick-score inputs", () => {
+  it("excludes in-progress drafts from geomean_pick", async () => {
+    // A card untaken in a 'drafting' draft must not be scored as unwanted:
+    // it may simply not have come up yet.
+    await insertCubeSnapshot(db, 1);
+    await insertCard(db, 1, "Alpha");
+    await insertCubeCard(db, 1, 1);
+    await insertDraft(db, "done", { phase: "complete", cubeSnapshotId: 1 });
+    await insertDraft(db, "live", { phase: "drafting", cubeSnapshotId: 1 });
+    await insertPickEvent(db, "done", 10, 1, 1);
+
+    const result = await rankAvailableCards({
+      draft_id: "live",
+      before_pick_n: 5,
+    });
+
+    const card = result.cards.find((c) => c.card_name === "Alpha")!;
+    // Only the completed draft counts, so the score is that single pick.
+    expect(card.geomean_pick).toBeCloseTo(10, 1);
+    expect(card.drafts_in_pool).toBe(1);
+  });
+
+  it("excludes opted-out seats from geomean_pick", async () => {
+    await insertCubeSnapshot(db, 1);
+    await insertCard(db, 1, "Alpha");
+    await insertCubeCard(db, 1, 1);
+    // The opted-out pick lives in a separate historical draft, not the one
+    // being ranked: a pick inside "current" itself would remove the card
+    // from availability entirely (Step 1's getAvailableCards is correctly
+    // opt-out-blind — it reports real remaining supply), so it would never
+    // reach result.cards to be scored at all.
+    await insertDraft(db, "current", { phase: "complete", cubeSnapshotId: 1 });
+    await insertDraft(db, "hist", { phase: "complete", cubeSnapshotId: 1 });
+    await insertPickEvent(db, "hist", 10, 3, 1);
+    await insertPrivacyOptOut(db, "hist", 3);
+
+    const result = await rankAvailableCards({
+      draft_id: "current",
+      before_pick_n: 500,
+    });
+
+    const card = result.cards.find((c) => c.card_name === "Alpha")!;
+    // The only pick was by an opted-out seat, so the card reads as untaken
+    // in both drafts and takes the half-weight pool-size penalty in each.
+    // The cube here holds a single card, so SUM(qty) makes the pool size 1
+    // — not the 540-card production default.
+    expect(card.geomean_pick).toBeCloseTo(1, 1);
+    expect(card.times_picked).toBe(0);
+  });
+
+  it("keeps the real session gap for a card that sat out a session", async () => {
+    // Four sessions; Beta is in the cube for sessions 1 and 3 only. Numbering
+    // per card would compress that two-session gap to one and overweight the
+    // older pick (18.84 instead of 17.76).
+    await insertCubeSnapshot(db, 1); // sessions 0 and 2 — no Beta
+    await insertCubeSnapshot(db, 2); // sessions 1 and 3 — Beta present
+    await insertCard(db, 1, "Alpha");
+    await insertCard(db, 2, "Beta");
+    await insertCubeCard(db, 1, 1);
+    await insertCubeCard(db, 2, 1);
+    await insertCubeCard(db, 2, 2);
+    await insertDraft(db, "s0", { date: "2026-07-17", cubeSnapshotId: 1 });
+    await insertDraft(db, "s1", { date: "2026-05-23", cubeSnapshotId: 2 });
+    await insertDraft(db, "s2", { date: "2026-03-30", cubeSnapshotId: 1 });
+    await insertDraft(db, "s3", { date: "2026-03-08", cubeSnapshotId: 2 });
+    await insertPickEvent(db, "s1", 10, 1, 2);
+    await insertPickEvent(db, "s3", 40, 1, 2);
+
+    // Rank against s1 rather than s0 (Beta isn't in s0's cube snapshot at
+    // all — see the fixture comment above). before_pick_n must land before
+    // s1's own pick_n 10, or Beta's remaining qty in s1 goes to zero and it
+    // drops out of availability entirely; the historical geomean below draws
+    // on all completed drafts regardless of this value.
+    const result = await rankAvailableCards({
+      draft_id: "s1",
+      before_pick_n: 1,
+    });
+
+    // exp((0.5^(1/4)*ln(10) + 0.5^(3/4)*ln(40)) / (0.8409 + 0.5946)) = 17.76
+    const beta = result.cards.find((c) => c.card_name === "Beta")!;
+    expect(beta.geomean_pick).toBeCloseTo(17.8, 1);
   });
 });

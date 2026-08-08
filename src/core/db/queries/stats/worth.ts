@@ -17,7 +17,8 @@ import {
   parseScryfallJson,
   placeholders,
 } from "../helpers";
-import { calculatePickWeight, weightedGeometricMean } from "../../../utils";
+import { pickScore, type DraftObservation } from "../../../pickScore";
+import { sessionsAgoByDraft } from "../../../draftSessions";
 import { DEFAULT_POOL_SIZE } from "../../../types";
 import { computeIngestionHash } from "../../sync/domains";
 import { normalizeColorIdentity } from "../../../manaColors";
@@ -51,6 +52,8 @@ export interface WorthTableResult {
 interface StatsDraftRef {
   draftId: string;
   cubeSnapshotId: number;
+  draftDate: string;
+  sessionsAgo: number;
 }
 
 // Module-level memo keyed by the ingestion hash of the stats-phase drafts'
@@ -79,7 +82,7 @@ export async function getWorthTable(opts?: {
 
   const phaseFilter = statsPhaseFilter("phase");
   const draftsResult = await client.execute({
-    sql: `SELECT draft_id, cube_snapshot_id, pool_hash, picks_hash, matches_hash
+    sql: `SELECT draft_id, cube_snapshot_id, draft_date, pool_hash, picks_hash, matches_hash
           FROM drafts WHERE ${phaseFilter.fragment} ORDER BY draft_id`,
     args: phaseFilter.args,
   });
@@ -97,13 +100,22 @@ export async function getWorthTable(opts?: {
   const latestFingerprint = latestRow
     ? `${latestRow.draft_id}:${latestRow.cube_snapshot_id}:${latestRow.num_seats}`
     : "none";
+  // Session ordinals (sessionsAgo) are derived from draft_date, but
+  // computeIngestionHash only covers the pool/picks/matches domain hashes —
+  // correcting a draft's date with no other data change would otherwise
+  // serve a stale cache with wrong ordinals. draftsResult.rows is already
+  // ORDER BY draft_id, so this join is a deterministic, cheap stand-in for a
+  // real hash.
+  const datesFingerprint = draftsResult.rows
+    .map((row) => `${row.draft_id}:${row.draft_date}`)
+    .join(",");
   const cacheKey = `${computeIngestionHash(
     draftsResult.rows as unknown as Array<{
       pool_hash: unknown;
       picks_hash: unknown;
       matches_hash: unknown;
     }>,
-  )}|${latestFingerprint}`;
+  )}|${latestFingerprint}|${datesFingerprint}`;
   if (!bypassCache && worthCache?.key === cacheKey) {
     return worthCache.result;
   }
@@ -111,11 +123,18 @@ export async function getWorthTable(opts?: {
     return worthPending.promise;
   }
 
-  const statsDrafts: StatsDraftRef[] = draftsResult.rows
-    .map((row) => ({
-      draftId: row.draft_id as string,
-      cubeSnapshotId: row.cube_snapshot_id as number,
-    }))
+  const allStatsDrafts = draftsResult.rows.map((row) => ({
+    draftId: row.draft_id as string,
+    cubeSnapshotId: row.cube_snapshot_id as number,
+    draftDate: row.draft_date as string,
+  }));
+
+  // Ordinals come from the full set so a leave-one-out fold that removes the
+  // only pod of a session does not renumber every older session.
+  const sessionsAgo = sessionsAgoByDraft(allStatsDrafts);
+
+  const statsDrafts: StatsDraftRef[] = allStatsDrafts
+    .map((draft) => ({ ...draft, sessionsAgo: sessionsAgo.get(draft.draftId)! }))
     .filter((draft) => draft.draftId !== opts?.excludeDraftId);
 
   const assembly = assembleWorthTable(client, statsDrafts);
@@ -370,9 +389,8 @@ async function assembleWorthTable(
     pairEdges[pair] = shrinkFactor * (delta - grandMean) + grandMean - 0.5;
   }
 
-  // Per-card pick aggregates. Geomean uses the unpicked-penalty convention:
-  // in a draft where the card sat in the pool unpicked, it contributes one
-  // half-weight observation at the pool size (mirrors rankedAvailable.ts).
+  // Per-card pick aggregates. A draft in which the card sat in the pool
+  // untaken contributes one half-weight observation at the pool size.
   const tableNames = new Set<string>(currentCubeNames);
   for (const draft of statsDrafts) {
     for (const name of snapshotCardNames.get(draft.cubeSnapshotId) ?? []) {
@@ -383,34 +401,16 @@ async function assembleWorthTable(
   const geomeanByName = new Map<string, number | null>();
   for (const name of tableNames) {
     const byDraft = picksByName.get(name);
-    const weightedItems: { value: number; weight: number }[] = [];
+    const observations: DraftObservation[] = [];
     for (const draft of statsDrafts) {
-      const inPool = snapshotCardNames
-        .get(draft.cubeSnapshotId)
-        ?.has(name);
-      if (!inPool) continue;
-      const draftPicks = byDraft?.get(draft.draftId);
-      if (draftPicks && draftPicks.length > 0) {
-        for (let copyIndex = 0; copyIndex < draftPicks.length; copyIndex++) {
-          weightedItems.push({
-            value: draftPicks[copyIndex],
-            weight: calculatePickWeight({
-              copyNumber: copyIndex + 1,
-              wasPicked: true,
-            }),
-          });
-        }
-      } else {
-        weightedItems.push({
-          value: poolSizeBySnapshot.get(draft.cubeSnapshotId) || DEFAULT_POOL_SIZE,
-          weight: calculatePickWeight({ copyNumber: 1, wasPicked: false }),
-        });
-      }
+      if (!snapshotCardNames.get(draft.cubeSnapshotId)?.has(name)) continue;
+      observations.push({
+        sessionsAgo: draft.sessionsAgo,
+        pickPositions: byDraft?.get(draft.draftId) ?? [],
+        poolSize: poolSizeBySnapshot.get(draft.cubeSnapshotId) || DEFAULT_POOL_SIZE,
+      });
     }
-    geomeanByName.set(
-      name,
-      weightedItems.length > 0 ? weightedGeometricMean(weightedItems) : null,
-    );
+    geomeanByName.set(name, observations.length > 0 ? pickScore(observations) : null);
   }
 
   // Pooled σ: sd of ln(pickPosition) − ln(geomean of that card's picked
