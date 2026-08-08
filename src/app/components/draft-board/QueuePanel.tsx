@@ -155,7 +155,14 @@ function DragHandle({
       {...attributes}
       {...listeners}
       aria-label={label}
-      className="flex h-11 w-11 shrink-0 cursor-grab touch-none items-center justify-center border-none bg-transparent p-0 leading-none text-zinc-600 select-none active:cursor-grabbing sm:h-5 sm:w-5"
+      // self-stretch + -my-2.5 extends the button into the row's own
+      // py-2.5 vertical padding (10px top and bottom) rather than adding
+      // to the row's height: 10 + 24 + 10 = 44px of tap target while the
+      // row itself stays at its unpadded content height. Do not "clean
+      // this up" to h-11 — that was the earlier version and it grew every
+      // row by 14px, roughly halving how many queue entries fit on a
+      // short mobile viewport.
+      className="flex w-11 shrink-0 self-stretch -my-2.5 cursor-grab touch-none items-center justify-center border-none bg-transparent p-0 leading-none text-zinc-600 select-none active:cursor-grabbing sm:-my-0 sm:h-5 sm:w-5"
     >
       ⠿
     </button>

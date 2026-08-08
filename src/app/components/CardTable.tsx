@@ -390,8 +390,14 @@ export function CardTable({
 
     const updateHeight = () => {
       const rect = el.getBoundingClientRect();
-      // Fill viewport minus bottom space for footer and page margin
-      setScrollHeight(Math.max(400, window.innerHeight - rect.top - 56));
+      // Fill viewport minus bottom space for footer and page margin. The
+      // shell is `overflow: hidden` (globals.css), so any height beyond
+      // what's actually available is unreachable rather than merely
+      // off-screen — never let the container exceed it, even in portrait
+      // on a short phone where rect.top plus the old 400px floor could
+      // overshoot window.innerHeight.
+      const available = window.innerHeight - rect.top - 56;
+      setScrollHeight(Math.max(0, available));
     };
 
     updateHeight();
