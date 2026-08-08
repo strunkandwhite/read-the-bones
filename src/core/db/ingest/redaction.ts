@@ -38,6 +38,10 @@ export function filterRedactedPicks(
  * rather than keeping the rows forever (the incremental path only ever
  * inserts). This is also what makes the one-time migration nothing more than
  * the first run of the new pipeline.
+ *
+ * `getOptedOutSeats` already returns 1-indexed seats, matching the 1-indexed
+ * `pick_events.seat` / `deck_cards.seat` columns directly — no conversion
+ * needed here (contrast `filterRedactedPicks`, which does convert).
  */
 export async function reconcileRedactedRows(
   client: Client,

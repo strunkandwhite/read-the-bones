@@ -47,10 +47,39 @@ describe("reconcileRedactedRows", () => {
 
     expect(result).toEqual({ picksDeleted: 45, deckCardsDeleted: 44 });
     expect(mockClient.execute).toHaveBeenCalledWith(
-      expect.objectContaining({ sql: expect.stringContaining("DELETE FROM pick_events") }),
+      expect.objectContaining({
+        sql: expect.stringContaining("DELETE FROM pick_events"),
+        args: ["d1", 5],
+      }),
     );
     expect(mockClient.execute).toHaveBeenCalledWith(
-      expect.objectContaining({ sql: expect.stringContaining("DELETE FROM deck_cards") }),
+      expect.objectContaining({
+        sql: expect.stringContaining("DELETE FROM deck_cards"),
+        args: ["d1", 5],
+      }),
+    );
+  });
+
+  it("deletes for every opted-out seat when there are multiple", async () => {
+    mockClient.execute
+      .mockResolvedValueOnce({ rows: [{ seat: 3 }, { seat: 7 }] })    // getOptedOutSeats
+      .mockResolvedValueOnce({ rowsAffected: 12 })                    // pick_events delete
+      .mockResolvedValueOnce({ rowsAffected: 9 });                    // deck_cards delete
+
+    const result = await reconcileRedactedRows(mockClient as never, "d1");
+
+    expect(result).toEqual({ picksDeleted: 12, deckCardsDeleted: 9 });
+    expect(mockClient.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining("DELETE FROM pick_events"),
+        args: ["d1", 3, 7],
+      }),
+    );
+    expect(mockClient.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining("DELETE FROM deck_cards"),
+        args: ["d1", 3, 7],
+      }),
     );
   });
 
