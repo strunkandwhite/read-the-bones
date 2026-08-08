@@ -46,15 +46,18 @@ describe("reconcileRedactedRows", () => {
     const result = await reconcileRedactedRows(mockClient as never, "d1");
 
     expect(result).toEqual({ picksDeleted: 45, deckCardsDeleted: 44 });
+    // placeholders(1) === "?" — a hardcoded single-placeholder implementation
+    // would still match this SQL, so the args assertion is what pins the bug;
+    // the SQL assertion pins the placeholder count for the two-seat case below.
     expect(mockClient.execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        sql: expect.stringContaining("DELETE FROM pick_events"),
+        sql: expect.stringContaining("DELETE FROM pick_events WHERE draft_id = ? AND seat IN (?)"),
         args: ["d1", 5],
       }),
     );
     expect(mockClient.execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        sql: expect.stringContaining("DELETE FROM deck_cards"),
+        sql: expect.stringContaining("DELETE FROM deck_cards WHERE draft_id = ? AND seat IN (?)"),
         args: ["d1", 5],
       }),
     );
@@ -69,15 +72,18 @@ describe("reconcileRedactedRows", () => {
     const result = await reconcileRedactedRows(mockClient as never, "d1");
 
     expect(result).toEqual({ picksDeleted: 12, deckCardsDeleted: 9 });
+    // placeholders(2) === "?, ?" — pins that the IN clause actually expands
+    // with seats.length rather than being hardcoded to a single "?", which
+    // the args-only assertion above cannot distinguish on its own.
     expect(mockClient.execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        sql: expect.stringContaining("DELETE FROM pick_events"),
+        sql: expect.stringContaining("DELETE FROM pick_events WHERE draft_id = ? AND seat IN (?, ?)"),
         args: ["d1", 3, 7],
       }),
     );
     expect(mockClient.execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        sql: expect.stringContaining("DELETE FROM deck_cards"),
+        sql: expect.stringContaining("DELETE FROM deck_cards WHERE draft_id = ? AND seat IN (?, ?)"),
         args: ["d1", 3, 7],
       }),
     );
