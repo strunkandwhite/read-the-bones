@@ -77,7 +77,12 @@ export function DraftBoardModal({
 
   const nextPick =
     board
-      ? getNextPick(board.picks.length, board.numSeats, board.picksPerPlayer, board.doublePickAfterRound)
+      ? getNextPick(
+          liveDraftStatus?.latestPickN ?? board.picks.length,
+          board.numSeats,
+          board.picksPerPlayer,
+          board.doublePickAfterRound,
+        )
       : null;
 
   return (

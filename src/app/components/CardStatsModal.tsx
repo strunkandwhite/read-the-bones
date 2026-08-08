@@ -56,15 +56,24 @@ export function CardStatsModal() {
   // Draft store
   const activeDraft = useDraftStore((s) => s.activeDraft);
   const board = useDraftStore((s) => s.board);
+  const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
   const boardPhase = board?.phase;
 
   // Desire is evaluated at the live draft's current pick while drafting,
   // at pick 1 (draft-start view) otherwise — mirrors the CardTable column,
   // including the dev-only settings override.
+  //
+  // board.picks.length undercounts once ingest-time redaction is live
+  // (opted-out seats' picks are never stored, leaving gaps in pick_n).
+  // latestPickN (MAX(pick_n), robust to gaps) is the correct source;
+  // board.picks.length is only a fallback for the moment board is
+  // populated before liveDraftStatus (both come from the same /live
+  // response, so in practice they never diverge).
   const desirePickOverride = useCardStore((s) => s.desirePickOverride);
   const isDrafting = boardPhase === "drafting" && Array.isArray(board?.picks);
   const currentPick =
-    desirePickOverride ?? (isDrafting ? board!.picks.length + 1 : 1);
+    desirePickOverride ??
+    (isDrafting ? (liveDraftStatus?.latestPickN ?? board!.picks.length) + 1 : 1);
   const totalPicks = board
     ? board.numSeats * board.picksPerPlayer
     : DEFAULT_TOTAL_PICKS;

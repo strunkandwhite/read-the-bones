@@ -352,6 +352,66 @@ describe("CardTable desire column (dev-only)", () => {
     expect(screen.getByText(/Desire \(1\)/)).toBeTruthy();
     expect(rowText("Late Bloomer")).toContain("—");
   });
+
+  it("evaluates desire at latestPickN + 1, not board.picks.length + 1, when redacted picks leave gaps", () => {
+    // 16 stored pick rows, but MAX(pick_n) — liveDraftStatus.latestPickN — is
+    // 20: 4 picks were made by opted-out seats and were never stored under
+    // ingest-time redaction. A `board.picks.length`-based implementation
+    // would evaluate desire at pick 17 instead of pick 21.
+    //
+    // Mid Curve (geomean 30) sits in the transitional zone of the desire
+    // curve where pick 17 and pick 21 produce visibly different indices
+    // (+49 vs +52) — Early Bird/Late Bloomer are already saturated or dashed
+    // across that narrow a pick range and can't distinguish the two.
+    const midCurve = { worth: 0.04, geomean: 30, sigma: SIGMA };
+    useCardStore.setState({
+      worthCards: new Map([
+        ["Early Bird", worthCardFixture("Early Bird", earlyBird.worth, earlyBird.geomean)],
+        ["Late Bloomer", worthCardFixture("Late Bloomer", lateBloomer.worth, lateBloomer.geomean)],
+        ["Mid Curve", worthCardFixture("Mid Curve", midCurve.worth, midCurve.geomean)],
+      ]),
+    });
+    useDraftStore.setState({
+      board: {
+        picks: Array.from({ length: 16 }, (_, i) => ({
+          pickN: i + 1,
+          seat: 1,
+          cardName: `Card ${i + 1}`,
+          oracleId: `oracle-${i + 1}`,
+          colorIdentity: [],
+          manaCost: "",
+        })),
+        numSeats: 10,
+        picksPerPlayer: 45,
+        doublePickAfterRound: 25,
+        phase: "drafting",
+        seatNames: {},
+        bannedCards: [],
+        isSheetDraft: false,
+        redactedSeats: [],
+      },
+      liveDraftStatus: {
+        latestPickN: 20,
+        nextSeat: null,
+        recentPicks: [],
+        matchCount: 0,
+        totalMatches: 0,
+      },
+    });
+
+    render(<CardTable cards={[...cards, tableCardFixture("Mid Curve", midCurve.geomean)]} />);
+
+    const brokenIndex = expectedIndex(17, midCurve);
+    const fixedIndex = expectedIndex(21, midCurve);
+    // Guard against a coincidental match between pick 17 and pick 21 values,
+    // which would let a `.length`-based implementation slip through unnoticed.
+    expect(fixedIndex).not.toBe(brokenIndex);
+
+    expect(screen.getByText(/Desire \(21\)/)).toBeTruthy();
+    expect(screen.queryByText(/Desire \(17\)/)).toBeNull();
+    expect(rowText("Mid Curve")).toContain(fixedIndex);
+    expect(rowText("Mid Curve")).not.toContain(brokenIndex);
+  });
 });
 
 // ---------------------------------------------------------------------------

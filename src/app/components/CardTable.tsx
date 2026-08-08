@@ -94,14 +94,24 @@ export function CardTable({
   const worthCards = useCardStore((s) => s.worthCards);
   const worthModel = useCardStore((s) => s.worthModel);
   const board = useDraftStore((s) => s.board);
+  const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
 
   // Desire is state-dependent: evaluated at the live draft's current pick
   // while drafting, at pick 1 (a draft-start priority board) otherwise.
   // The dev-only settings override wins over both when set.
+  //
+  // board.picks.length is not a reliable pick count once ingest-time
+  // redaction is live: opted-out seats' picks are never stored, so the
+  // array undercounts by the number of redacted picks while pick_n keeps
+  // its structural gaps. latestPickN (MAX(pick_n), robust to gaps) is the
+  // correct source; board.picks.length is only a fallback for the moment
+  // board is populated before liveDraftStatus (both are set together from
+  // the same /live response, so in practice they never diverge).
   const desirePickOverride = useCardStore((s) => s.desirePickOverride);
   const isDrafting = board?.phase === "drafting" && Array.isArray(board.picks);
   const currentPick =
-    desirePickOverride ?? (isDrafting ? board!.picks.length + 1 : 1);
+    desirePickOverride ??
+    (isDrafting ? (liveDraftStatus?.latestPickN ?? board!.picks.length) + 1 : 1);
 
   // Desire-index denominator: the cube's largest |worth| (see desireCurve.ts).
   const worthScale = useMemo(() => maxAbsWorth(worthCards.values()), [worthCards]);

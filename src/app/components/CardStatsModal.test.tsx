@@ -453,6 +453,63 @@ describe("CardStatsModal", () => {
       expect(screen.getByText(/the sample behind Worth and PVI/)).toBeTruthy();
     });
 
+    it("evaluates desire at latestPickN + 1, not board.picks.length + 1, when redacted picks leave gaps", async () => {
+      await setLocalClient(true);
+
+      // 16 stored pick rows, but MAX(pick_n) — liveDraftStatus.latestPickN —
+      // is 20: 4 picks were made by opted-out seats and were never stored
+      // under ingest-time redaction. A `board.picks.length`-based
+      // implementation would evaluate (and annotate) desire at pick 17
+      // instead of pick 21 — the "(at pick N)" annotation directly exposes
+      // whichever value currentPick actually resolved to.
+      (useCardStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (selector: (state: Record<string, unknown>) => unknown) =>
+          selector({
+            selectedCard: "Lightning Bolt",
+            clearSelectedCard: vi.fn(),
+            cardStatsDetail: mockCardStatsData,
+            cardStatsLoading: false,
+            selectCard: vi.fn(),
+            worthCards: new Map([[mockWorthCard.card_name, mockWorthCard]]),
+            worthModel: mockWorthModel,
+            desirePickOverride: null,
+          }),
+      );
+      (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (selector: (state: Record<string, unknown>) => unknown) =>
+          selector({
+            activeDraft: "test-draft",
+            board: {
+              phase: "drafting",
+              picks: Array.from({ length: 16 }, (_, i) => ({ pickN: i + 1 })),
+              numSeats: 10,
+              picksPerPlayer: 45,
+            },
+            liveDraftStatus: {
+              latestPickN: 20,
+              nextSeat: null,
+              recentPicks: [],
+              matchCount: 0,
+              totalMatches: 0,
+            },
+            selectedSeat: 1,
+          }),
+      );
+      (useLiveStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
+        (selector: (state: Record<string, unknown>) => unknown) =>
+          selector({
+            mySeat: 1, isMyTurn: false, queue: [], autoPick: false,
+            handlePick: vi.fn(), addToQueue: vi.fn(), removeFromQueue: vi.fn(),
+            addFloat: vi.fn(), removeFloat: vi.fn(),
+          }),
+      );
+
+      render(<CardStatsModal />);
+
+      expect(screen.getByText("(at pick 21)")).toBeTruthy();
+      expect(screen.queryByText("(at pick 17)")).toBeNull();
+    });
+
     it("shows em-dashes for null worth/pvi", async () => {
       await setLocalClient(true);
       setupStoreMocks({
