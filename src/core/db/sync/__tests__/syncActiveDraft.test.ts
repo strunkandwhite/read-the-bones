@@ -44,9 +44,13 @@ function sheet(opts: {
 function phaseClient(opts: {
   phase: string;
   dbPicks?: Array<{ pick_n: number; seat: number; card_id: number; name: string }>;
+  optedOutSeats?: number[];
 }) {
   return {
     execute: vi.fn().mockImplementation(({ sql }: { sql: string }) => {
+      if (sql.includes("privacy_opt_outs")) {
+        return Promise.resolve({ rows: (opts.optedOutSeats ?? []).map((seat) => ({ seat })) });
+      }
       if (sql.includes("pool_hash")) {
         return Promise.resolve({
           rows: [
@@ -136,5 +140,39 @@ describe("syncActiveDraft phase decisions", () => {
     expect(phaseWrites(client)).toEqual([]);
     expect(result.picksInserted).toBe(2);
     expect(result.matchesReplaced).toBe(1);
+  });
+
+  it("deletes redacted rows before ingesting and never inserts a redacted pick", async () => {
+    mockFetch.mockResolvedValue(sheet({}));
+    const client = phaseClient({ phase: "drafting", optedOutSeats: [2] });
+
+    await syncActiveDraft(client as any, draft, "api-key");
+
+    const sqls = client.execute.mock.calls.map(([p]: any[]) => p.sql as string);
+    const deleteIdx = sqls.findIndex((s) => s.includes("DELETE FROM pick_events"));
+    const dbPicksIdx = sqls.findIndex((s) => s.includes("JOIN cards"));
+    expect(deleteIdx).toBeGreaterThanOrEqual(0);
+    // Deleting after the ingest read would let detectRemovedPicks see the
+    // redacted positions as sheet deletions and flag the draft diverged.
+    expect(deleteIdx).toBeLessThan(dbPicksIdx);
+
+    const insertedSeats = client.batch.mock.calls
+      .flatMap(([stmts]: any[]) => stmts ?? [])
+      .filter((s: any) => s.sql.includes("INSERT OR IGNORE INTO pick_events"))
+      .map((s: any) => s.args[2] as number);
+    expect(insertedSeats).not.toContain(2);
+    expect(insertedSeats).toContain(1);
+  });
+
+  it("still advances the phase when a redacted seat's picks are filtered out", async () => {
+    // isComplete is computed from the full sheet, so filtering the picks must
+    // not strand the draft in `drafting` forever.
+    mockFetch.mockResolvedValue(sheet({}));
+    const client = phaseClient({ phase: "drafting", optedOutSeats: [2] });
+
+    const result = await syncActiveDraft(client as any, draft, "api-key");
+
+    expect(result.phaseSet).toBe("playing");
+    expect(result.diverged).toBe(false);
   });
 });
