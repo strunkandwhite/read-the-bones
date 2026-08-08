@@ -3,6 +3,19 @@
 import type { DraftScore } from "@/core/types";
 
 /**
+ * Tooltip label for one point: "Pick 12", "Pick 12 (4/5)" for aggregated dates,
+ * or the unpicked equivalents.
+ */
+function formatPickLabel(entry: DraftScore): string {
+  if (entry.pickedCount !== undefined && entry.totalCount !== undefined) {
+    return entry.pickedCount === 0
+      ? `unpicked (0/${entry.totalCount})`
+      : `Pick ${entry.pickPosition} (${entry.pickedCount}/${entry.totalCount})`;
+  }
+  return entry.wasPicked ? `Pick ${entry.pickPosition}` : "unpicked";
+}
+
+/**
  * Sparkline component for visualizing score history over drafts.
  * Shows pick positions as connected dots with color indicating picked vs unpicked.
  * When draftTimeline is provided, dots are positioned by draft index for equal spacing.
@@ -88,24 +101,11 @@ export function Sparkline({
       </svg>
       {/* Tooltip on hover — positioned above with bottom-full to avoid modal scroll */}
       <div className="pointer-events-none absolute bottom-full left-0 z-50 mb-1 hidden max-h-32 overflow-y-auto rounded bg-zinc-800 px-2 py-1 text-xs whitespace-nowrap text-white group-hover:block">
-        {history.map((h, i) => {
-          // Format: "Pick X", "Pick X (4/5)" for aggregated, or "unpicked"
-          let pickLabel: string;
-          if (h.pickedCount !== undefined && h.totalCount !== undefined) {
-            // Aggregated date - show (picked/total) suffix
-            pickLabel = h.pickedCount === 0
-              ? `unpicked (0/${h.totalCount})`
-              : `Pick ${h.pickPosition} (${h.pickedCount}/${h.totalCount})`;
-          } else {
-            // Single draft
-            pickLabel = h.wasPicked ? `Pick ${h.pickPosition}` : "unpicked";
-          }
-          return (
-            <div key={i}>
-              {h.date}: {pickLabel}
-            </div>
-          );
-        })}
+        {history.map((h, i) => (
+          <div key={i}>
+            {h.date}: {formatPickLabel(h)}
+          </div>
+        ))}
       </div>
     </div>
   );
