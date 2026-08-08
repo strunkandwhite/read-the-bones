@@ -34,6 +34,22 @@ export function isArrow(value: string): boolean {
   return ["→", "↪", "↩", "✪"].includes(value.trim());
 }
 
+/** Leading/trailing runs of non-alphanumeric characters, e.g. the "◈  " in "◈  Aspi  ◈". */
+const DECORATION_EDGE = /^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu;
+
+/**
+ * Strip decoration from a drafter's name cell.
+ *
+ * The draft sheet wraps the name of whoever is on the clock in marker
+ * characters, so a drafter's name is spelled differently depending on when the
+ * sheet is read. Names are matched by string elsewhere — against the opt-out
+ * list and against the Matches tab — so the decoration has to come off first.
+ */
+export function normalizeDrafterName(raw: string): string {
+  const stripped = raw.replace(DECORATION_EDGE, "").replace(/\s+/g, " ").trim();
+  return stripped || raw.trim();
+}
+
 /**
  * Parse pool rows to get all card names.
  *
@@ -97,7 +113,7 @@ export function parsePickRows(
   for (let i = 2; i < drafterRow.length; i++) {
     const cell = drafterRow[i]?.trim();
     if (cell && !isArrow(cell)) {
-      drafterNames.push(cell);
+      drafterNames.push(normalizeDrafterName(cell));
       drafterEndIndex = i + 1;
     } else if (isArrow(cell)) {
       break;
@@ -116,7 +132,7 @@ export function parsePickRows(
     for (let i = 2; i < arrowIndexInDrafterRow; i++) {
       const name = drafterRow[i]?.trim();
       if (name) {
-        drafterNames.push(name);
+        drafterNames.push(normalizeDrafterName(name));
       }
     }
     drafterEndIndex = arrowIndexInDrafterRow;
@@ -313,7 +329,7 @@ export function parseMatchRows(
   // Build name→seat map from drafterNames array
   const playerNameToSeat = new Map<string, number>();
   for (let i = 0; i < drafterNames.length; i++) {
-    playerNameToSeat.set(drafterNames[i], i);
+    playerNameToSeat.set(normalizeDrafterName(drafterNames[i]), i);
   }
 
   const matches: MatchResult[] = [];
@@ -342,8 +358,8 @@ export function parseMatchRows(
     if (isNaN(seat1GamesWon) || isNaN(seat2GamesWon)) continue;
 
     // Look up seat numbers
-    const seat1 = playerNameToSeat.get(player1Name);
-    const seat2 = playerNameToSeat.get(player2Name);
+    const seat1 = playerNameToSeat.get(normalizeDrafterName(player1Name));
+    const seat2 = playerNameToSeat.get(normalizeDrafterName(player2Name));
 
     if (seat1 === undefined || seat2 === undefined) continue;
 

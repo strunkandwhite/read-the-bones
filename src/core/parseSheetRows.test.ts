@@ -3,6 +3,7 @@ import {
   normalizeCardName,
   cardNameKey,
   isArrow,
+  normalizeDrafterName,
   parsePoolRows,
   parsePickRows,
   parseMatchRows,
@@ -84,6 +85,26 @@ describe("isArrow", () => {
     expect(isArrow("Alice")).toBe(false);
     expect(isArrow("->")).toBe(false);
     expect(isArrow("VS")).toBe(false);
+  });
+});
+
+describe("normalizeDrafterName", () => {
+  it("should strip the on-the-clock decoration around a name", () => {
+    expect(normalizeDrafterName("◈  Aspi  ◈")).toBe("Aspi");
+  });
+
+  it("should leave an undecorated name untouched", () => {
+    expect(normalizeDrafterName("Aspi")).toBe("Aspi");
+    expect(normalizeDrafterName("Mr.FancyPants")).toBe("Mr.FancyPants");
+    expect(normalizeDrafterName("Jack L")).toBe("Jack L");
+  });
+
+  it("should collapse whitespace left behind by the decoration", () => {
+    expect(normalizeDrafterName("◈  Ray  Bees  ◈")).toBe("Ray Bees");
+  });
+
+  it("should keep the original value when stripping would empty it", () => {
+    expect(normalizeDrafterName("◈")).toBe("◈");
   });
 });
 
@@ -178,6 +199,18 @@ describe("parsePickRows", () => {
     const pick6 = picks.find((p) => p.pickPosition === 6);
     expect(pick1?.cardName).toBe("Phelia");
     expect(pick6?.cardName).toBe("Mother of Runes");
+  });
+
+  it("should strip the on-the-clock decoration from drafter names", () => {
+    const rowsWithActivePicker = [
+      ["", "", "Rotisserie Draft", "", "", "", ""],
+      ["", "", "", "", "", ""],
+      ["", "", "Alice", "◈  Bob  ◈", "Carol", "↩", "", "Color1", "Color2", "Color3"],
+      ["1", "→", "Phelia", "Swords", "Reanimate", "↩", "", "W", "W", "B"],
+    ];
+
+    const { drafterNames } = parsePickRows(rowsWithActivePicker, "test-draft");
+    expect(drafterNames).toEqual(["Alice", "Bob", "Carol"]);
   });
 
   it("should normalize card names", () => {
@@ -772,6 +805,19 @@ describe("parseMatchRows", () => {
       seat2: 3,
       seat1GamesWon: 2,
       seat2GamesWon: 1,
+    });
+  });
+
+  it("should match a plain match-tab name against a decorated drafter name", () => {
+    const decoratedDrafters = ["Alice", "◈  Bob  ◈", "Carol", "Dave"];
+    const matches = parseMatchRows(minimalRows, decoratedDrafters);
+
+    expect(matches).toHaveLength(2);
+    expect(matches[0]).toEqual({
+      seat1: 0,
+      seat2: 1,
+      seat1GamesWon: 1,
+      seat2GamesWon: 2,
     });
   });
 
