@@ -50,6 +50,8 @@ import {
   logIndent,
 } from "../ingest/utils";
 import { ensureCubeSnapshot, insertOptOuts } from "../ingest/db-helpers";
+import { filterRedactedPicks, reconcileRedactedRows } from "../ingest/redaction";
+import { getOptedOutSeats } from "../queries/helpers";
 import {
   loadScryfallCache,
   backfillScryfallData,
@@ -179,8 +181,11 @@ export async function syncDraft(
     if (result.picksAction === "replace") {
       await deleteDomainData(client, draftId, "picks");
 
+      const optedOutSeats = await getOptedOutSeats(client, draftId);
+      const visiblePicks = filterRedactedPicks(pickedCards, optedOutSeats);
+
       const pickInserts: PickInsert[] = [];
-      for (const pick of pickedCards) {
+      for (const pick of visiblePicks) {
         const cardId = cardCache.get(pick.cardName);
         if (cardId !== undefined) {
           pickInserts.push({
@@ -252,6 +257,11 @@ export async function syncDraft(
     if (parsedPicks.drafterNames.length > 0) {
       await insertOptOuts(client, draftId, parsedPicks.drafterNames, optOutNames);
     }
+
+    // insertOptOuts may have just learned about a seat whose picks were
+    // inserted above (first sync of a draft, or a name newly added to
+    // .opt-outs.json). Reconcile now so a single run leaves no redacted rows.
+    await reconcileRedactedRows(client, draftId);
 
     // Record the sheet's declared double-pick boundary. Written outside the
     // picks-hash gate so a re-sync backfills drafts whose picks are unchanged.

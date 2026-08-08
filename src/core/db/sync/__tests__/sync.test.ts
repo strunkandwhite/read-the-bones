@@ -3,6 +3,38 @@ import { describe, it, expect, vi } from "vitest";
 import { syncDraft } from "../index";
 import { CardCache } from "../card-cache";
 import type { DraftSheetRawData } from "../../../sheets";
+import { batchInsertPicks } from "../batch";
+import { insertOptOuts } from "../../ingest/db-helpers";
+import { getOptedOutSeats } from "../../queries/helpers";
+import { reconcileRedactedRows } from "../../ingest/redaction";
+
+// Wrap (not replace) the specific exports under test: each mock defaults to
+// calling straight through to the real implementation, so every pre-existing
+// test in this file keeps exercising real filtering/insert/reconcile
+// behavior against the mock client. Only the new "redaction wiring" test
+// below overrides a return value, and it does so with a one-shot
+// mockResolvedValueOnce so the override can't leak into later tests.
+vi.mock("../batch", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../batch")>();
+  return { ...actual, batchInsertPicks: vi.fn(actual.batchInsertPicks) };
+});
+vi.mock("../../ingest/db-helpers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../ingest/db-helpers")>();
+  return { ...actual, insertOptOuts: vi.fn(actual.insertOptOuts) };
+});
+vi.mock("../../queries/helpers", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../queries/helpers")>();
+  return { ...actual, getOptedOutSeats: vi.fn(actual.getOptedOutSeats) };
+});
+vi.mock("../../ingest/redaction", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../ingest/redaction")>();
+  return { ...actual, reconcileRedactedRows: vi.fn(actual.reconcileRedactedRows) };
+});
+
+const mockBatchInsertPicks = vi.mocked(batchInsertPicks);
+const mockInsertOptOuts = vi.mocked(insertOptOuts);
+const mockGetOptedOutSeats = vi.mocked(getOptedOutSeats);
+const mockReconcileRedactedRows = vi.mocked(reconcileRedactedRows);
 
 // ---------------------------------------------------------------------------
 // Mock client factory
@@ -700,6 +732,82 @@ describe("syncDraft", () => {
         (c: any[]) => (c[0].sql as string).includes("privacy_opt_outs"),
       );
       expect(optOutCall).toBeDefined();
+    });
+  });
+
+  describe("redaction wiring (CLI sync)", () => {
+    it("filters opted-out picks before insert and reconciles after opt-outs are written", async () => {
+      // mockResolvedValueOnce (not a persistent mockResolvedValue) so this
+      // override applies only to the explicit pre-insert call in index.ts —
+      // reconcileRedactedRows's own internal call falls through to the real
+      // implementation and reads the (empty, in this mock client) opt-outs
+      // table, avoiding cross-test leakage of the overridden seat set.
+      mockGetOptedOutSeats.mockResolvedValueOnce(new Set([2]));
+
+      const rawSheetData: DraftSheetRawData = {
+        pool: null,
+        picks: buildPickRows(["Alice", "Bob"], [
+          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
+        ]),
+        matches: null,
+      };
+      const cardCache = populatedCache([
+        ["Lightning Bolt", 1],
+        ["Counterspell", 2],
+      ]);
+
+      // The picks hash must be computed from the unfiltered pick set (see
+      // task notes) — precompute it to compare against what gets persisted.
+      const { hashPicks } = await import("../domains");
+      const { parsePickRows } = await import("../../../parseSheetRows");
+      const parsedForHash = parsePickRows(rawSheetData.picks!, "d1");
+      const unfilteredPicksHash = hashPicks(
+        parsedForHash.picks.filter((p) => p.wasPicked),
+      );
+
+      const client = mockClient((params) => {
+        if (params.sql.includes("pool_hash")) {
+          return { rows: [{ pool_hash: null, picks_hash: null, matches_hash: null }] };
+        }
+        return { rows: [] };
+      });
+
+      await syncDraft(
+        client as any,
+        "d1",
+        rawSheetData,
+        cardCache,
+        emptyScryfallCache,
+        new Set(["bob"]),
+        {},
+      );
+
+      // Picks are filtered against the opt-out table as it stood before insert.
+      const inserted = mockBatchInsertPicks.mock.calls.at(-1)![1] as Array<{
+        seat: number;
+      }>;
+      expect(inserted.every((p) => p.seat !== 2)).toBe(true);
+      expect(inserted).toHaveLength(1);
+
+      // insertOptOuts runs after the insert, so a first-ever sync needs the
+      // reconcile pass afterwards to catch a newly-recorded opt-out.
+      const insertOptOutsOrder = mockInsertOptOuts.mock.invocationCallOrder.at(-1);
+      const reconcileOrder = mockReconcileRedactedRows.mock.invocationCallOrder.at(-1);
+      expect(insertOptOutsOrder).toBeDefined();
+      expect(reconcileOrder).toBeDefined();
+      expect(insertOptOutsOrder as number).toBeLessThan(reconcileOrder as number);
+
+      // The stored picks hash tracks the sheet's unfiltered state, not the
+      // redacted set — filtering it would hide an edit to a redacted cell
+      // from the change detector.
+      const executeCalls = client.execute.mock.calls;
+      const hashUpdateCall = executeCalls.find(
+        (c: any[]) =>
+          (c[0].sql as string).includes("SET") &&
+          (c[0].sql as string).includes("picks_hash"),
+      );
+      expect(hashUpdateCall).toBeDefined();
+      expect(hashUpdateCall![0].args).toContain(unfilteredPicksHash);
     });
   });
 
