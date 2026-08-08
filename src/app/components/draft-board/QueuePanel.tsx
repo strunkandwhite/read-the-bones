@@ -15,6 +15,8 @@ import {
   type DragEndEvent,
   type DragOverEvent,
   type DragStartEvent,
+  type DraggableAttributes,
+  type DraggableSyntheticListeners,
 } from "@dnd-kit/core";
 import type { QueueGroupEntry } from "../../stores/liveStore";
 
@@ -91,7 +93,6 @@ function MoveButtons({
     <div className="flex flex-col">
       <button
         onClick={onUp}
-        onPointerDown={(e) => e.stopPropagation()}
         disabled={disableUp}
         aria-label="Move up"
         className={`border-none bg-transparent px-1.5 py-0.5 sm:px-1 sm:py-0 text-base sm:text-xs leading-none transition-colors ${
@@ -102,7 +103,6 @@ function MoveButtons({
       </button>
       <button
         onClick={onDown}
-        onPointerDown={(e) => e.stopPropagation()}
         disabled={disableDown}
         aria-label="Move down"
         className={`border-none bg-transparent px-1.5 py-0.5 sm:px-1 sm:py-0 text-base sm:text-xs leading-none transition-colors ${
@@ -120,7 +120,6 @@ function GroupButton({ onGroup, disabled }: { onGroup: () => void; disabled: boo
   return (
     <button
       onClick={onGroup}
-      onPointerDown={(e) => e.stopPropagation()}
       disabled={disabled}
       aria-label="Group with card above"
       title="Group with the card above — auto-pick takes any one of a group"
@@ -129,6 +128,36 @@ function GroupButton({ onGroup, disabled }: { onGroup: () => void; disabled: boo
       }`}
     >
       ⧉
+    </button>
+  );
+}
+
+// The grip is the sole drag activator, which keeps the buttons beside it
+// clickable — they are no longer inside the draggable subtree, so no press on
+// them can reach a drag sensor. A dedicated handle also removes the
+// drag-versus-scroll ambiguity that the old 500ms touch delay existed to
+// resolve. 44px is the minimum comfortable touch target; desktop shrinks it.
+function DragHandle({
+  setActivatorNodeRef,
+  attributes,
+  listeners,
+  label,
+}: {
+  setActivatorNodeRef: (element: HTMLElement | null) => void;
+  attributes: DraggableAttributes;
+  listeners: DraggableSyntheticListeners;
+  label: string;
+}) {
+  return (
+    <button
+      type="button"
+      ref={setActivatorNodeRef}
+      {...attributes}
+      {...listeners}
+      aria-label={label}
+      className="flex h-11 w-11 shrink-0 cursor-grab touch-none items-center justify-center border-none bg-transparent p-0 leading-none text-zinc-600 select-none active:cursor-grabbing sm:h-5 sm:w-5"
+    >
+      ⠿
     </button>
   );
 }
@@ -156,7 +185,8 @@ function DraggableEntry({
   onEject,
   takenCards,
 }: DraggableEntryProps) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: makeDragEntryId(entryIndex) });
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } =
+    useDraggable({ id: makeDragEntryId(entryIndex) });
 
   const isGroup = entry.cards.length > 1;
   const allTaken = entry.cards.every((c) => takenCards.has(c.cardName));
@@ -165,7 +195,6 @@ function DraggableEntry({
   const modeToggle = (
     <button
       onClick={() => onSetEntryMode(entryIndex, isPause ? "flow-through" : "pause")}
-      onPointerDown={(e) => e.stopPropagation()}
       aria-label={`Mode: ${entry.mode}`}
       title={isPause ? "Currently set to Pause — stops if top card taken" : "Currently set to Flow-through — skips taken cards"}
       className={`rounded px-2.5 py-1.5 sm:px-1.5 sm:py-0.5 text-sm sm:text-[10px] font-semibold leading-none transition-colors cursor-pointer border-none ${
@@ -184,10 +213,15 @@ function DraggableEntry({
 
   if (isGroup) {
     return (
-      <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} {...attributes} {...listeners} className="select-none">
-        <div className={`cursor-grab rounded px-2 py-2.5 sm:py-1.5 text-sm sm:text-xs border border-zinc-700/60 bg-zinc-800/50 ${allTaken ? "opacity-40" : ""}`}>
+      <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} className="select-none">
+        <div className={`rounded px-2 py-2.5 sm:py-1.5 text-sm sm:text-xs border border-zinc-700/60 bg-zinc-800/50 ${allTaken ? "opacity-40" : ""}`}>
           <div className="flex items-center gap-1.5">
-            <span className="text-zinc-600 select-none">⠿</span>
+            <DragHandle
+              setActivatorNodeRef={setActivatorNodeRef}
+              attributes={attributes}
+              listeners={listeners}
+              label={`Reorder group of ${entry.cards.length} cards`}
+            />
             <span className="flex-1 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
               Group ({entry.cards.length})
             </span>
@@ -219,9 +253,14 @@ function DraggableEntry({
   const isTaken = takenCards.has(card.cardName);
 
   return (
-    <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} {...attributes} {...listeners} className="select-none">
-      <div className="flex items-center gap-1.5 cursor-grab rounded px-2 py-2.5 sm:py-1 text-sm sm:text-xs border border-transparent bg-zinc-800/30">
-        <span className="text-zinc-600 select-none">⠿</span>
+    <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} className="select-none">
+      <div className="flex items-center gap-1.5 rounded px-2 py-2.5 sm:py-1 text-sm sm:text-xs border border-transparent bg-zinc-800/30">
+        <DragHandle
+          setActivatorNodeRef={setActivatorNodeRef}
+          attributes={attributes}
+          listeners={listeners}
+          label={`Reorder ${card.cardName}`}
+        />
         <span className={`flex-1 ${isTaken ? "text-zinc-600 line-through" : "text-zinc-300"}`}>
           {card.cardName}
         </span>
@@ -229,7 +268,6 @@ function DraggableEntry({
         {modeToggle}
         <button
           onClick={() => onRemove(card.cardName)}
-          onPointerDown={(e) => e.stopPropagation()}
           aria-label={`Remove ${card.cardName}`}
           className="cursor-pointer border-none bg-transparent px-2.5 py-1.5 sm:px-1 sm:py-0.5 text-lg sm:text-sm leading-none text-zinc-500 hover:text-zinc-300"
         >
@@ -276,7 +314,6 @@ function GroupCard({
       />
       <button
         onClick={() => onEject(entryIndex, cardIndex)}
-        onPointerDown={(e) => e.stopPropagation()}
         aria-label={`Ungroup ${cardName}`}
         title="Remove from group (keep in queue on its own)"
         className="cursor-pointer border-none bg-transparent px-2 py-1.5 sm:px-1 sm:py-0.5 text-base sm:text-xs leading-none text-zinc-600 hover:text-zinc-300"
@@ -285,7 +322,6 @@ function GroupCard({
       </button>
       <button
         onClick={() => onRemove(cardName)}
-        onPointerDown={(e) => e.stopPropagation()}
         aria-label={`Remove ${cardName}`}
         className="cursor-pointer border-none bg-transparent px-2.5 py-1.5 sm:px-1 sm:py-0.5 text-lg sm:text-sm leading-none text-zinc-600 hover:text-zinc-300"
       >
@@ -311,7 +347,7 @@ export function QueuePanel({
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 500, tolerance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { distance: 8 } }),
     useSensor(KeyboardSensor),
   );
 

@@ -225,6 +225,26 @@ describe("QueuePanel", () => {
       { mode: "pause", cards: [{ cardId: 20, cardName: "Mana Drain" }] },
     ]);
   });
+
+  it("puts the drag activator on the grip handle rather than the row", () => {
+    render(<QueuePanel {...defaultProps} />);
+    const handle = screen.getByRole("button", { name: "Reorder Lightning Bolt" });
+    expect(handle.getAttribute("aria-roledescription")).toBe("draggable");
+  });
+
+  it("exposes one draggable activator per entry, each a real button", () => {
+    const { container } = render(<QueuePanel {...defaultProps} />);
+    const activators = container.querySelectorAll('[aria-roledescription="draggable"]');
+    expect(activators.length).toBe(singleEntryQueue.length);
+    activators.forEach((el) => expect(el.tagName).toBe("BUTTON"));
+  });
+
+  it("labels the group handle with the group size", () => {
+    render(<QueuePanel {...defaultProps} queue={groupEntryQueue} />);
+    expect(
+      screen.getByRole("button", { name: "Reorder group of 3 cards" }),
+    ).toBeTruthy();
+  });
 });
 
 describe("reorderEntryToSlot", () => {
