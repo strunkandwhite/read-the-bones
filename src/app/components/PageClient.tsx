@@ -161,7 +161,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
   }, [deckFilterActive, isAuthed, searchFilteredCards, myDeckCardNames]);
 
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
+    <div className="min-h-dvh bg-zinc-50 dark:bg-zinc-950">
       {/* Localhost shows the extra worth-model columns (Worth, PVI, Desire),
           which need more width than the production column set. */}
       <div
@@ -388,7 +388,7 @@ export function PageClient({ initialCardData, initialDraftStats, initialDraftId 
             if (e.target === e.currentTarget) setDeckBuilderModalOpen(false);
           }}
         >
-          <div className="flex max-h-[95vh] w-full max-w-7xl flex-col rounded-t-xl shadow-[0_0_60px_-12px_rgba(0,0,0,0.8)] sm:mx-3 sm:rounded-xl">
+          <div className="flex max-h-[95dvh] w-full max-w-7xl flex-col rounded-t-xl shadow-[0_0_60px_-12px_rgba(0,0,0,0.8)] sm:mx-3 sm:rounded-xl">
             <DeckBuilderPanel
               draftName={cardData.draftMetadata[activeDraft]?.name ?? activeDraft}
               onClose={() => setDeckBuilderModalOpen(false)}

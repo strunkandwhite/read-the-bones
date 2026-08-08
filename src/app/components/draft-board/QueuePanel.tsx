@@ -420,7 +420,7 @@ export function QueuePanel({
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
         >
-          <div className="flex max-h-[30vh] flex-col overflow-y-auto pb-2">
+          <div className="flex max-h-[30dvh] flex-col overflow-y-auto pb-2">
             {queue.map((entry, entryIndex) => (
               <div key={`entry-${entryIndex}`}>
                 <DropSlot id={makeSlotId(entryIndex)} isActive={activeSlotId === makeSlotId(entryIndex)} />

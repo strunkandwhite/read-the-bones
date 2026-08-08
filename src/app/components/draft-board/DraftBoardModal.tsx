@@ -93,7 +93,7 @@ export function DraftBoardModal({
       }}
     >
       <div
-        className="flex flex-col max-h-[95vh] w-full max-w-[95vw] mx-3 rounded-xl border border-zinc-700/40 bg-zinc-950 shadow-2xl overflow-hidden"
+        className="flex flex-col max-h-[95dvh] w-full max-w-[95vw] mx-3 rounded-xl border border-zinc-700/40 bg-zinc-950 shadow-2xl overflow-hidden"
       >
         {/* Header */}
         <div

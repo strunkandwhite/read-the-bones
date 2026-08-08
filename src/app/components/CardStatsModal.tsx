@@ -190,7 +190,7 @@ export function CardStatsModal() {
       onClick={clearSelectedCard}
     >
       <div
-        className="mx-4 max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl border border-zinc-800 shadow-2xl"
+        className="mx-4 max-h-[90dvh] w-full max-w-2xl overflow-y-auto rounded-xl border border-zinc-800 shadow-2xl"
         style={{ background: "#1a1917" }}
         onClick={(e) => e.stopPropagation()}
       >

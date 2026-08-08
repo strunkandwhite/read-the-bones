@@ -70,7 +70,7 @@ export function StatsModal() {
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/50 py-8">
           <div
             ref={modalRef}
-            className="mx-4 flex max-h-[80vh] w-full max-w-[960px] flex-col rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-800"
+            className="mx-4 flex max-h-[80dvh] w-full max-w-[960px] flex-col rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-700 dark:bg-zinc-800"
           >
             <div className="flex flex-shrink-0 items-center justify-between border-b border-zinc-200 px-6 py-4 dark:border-zinc-700">
               <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">Draft Statistics</h2>
