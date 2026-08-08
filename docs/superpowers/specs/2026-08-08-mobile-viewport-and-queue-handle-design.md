@@ -91,10 +91,6 @@ fast you tap. On desktop `MouseSensor`'s `{ distance: 5 }` masks this entirely.
   139 `color-mix()` calls, giving a hard floor of Safari 16.4. This is accepted;
   the reporting device is assumed to be an SE 2nd gen or later, which can run
   iOS 16.4+.
-- **`CardTable` sizing.** `CardTable.tsx:394` sizes its scroll container in JS
-  from `window.innerHeight`, which already reports the true visible height on
-  iOS. It is correct and is not touched.
-
 ## Design
 
 ### 1. `vh` → `dvh`
@@ -179,6 +175,44 @@ Accepted trade-off: `touch-action: none` on the grip means a scroll gesture that
 happens to begin on the grip will not scroll the queue list. The grip is small and
 the list has ample non-grip area, so this is acceptable.
 
+With `delay: 500` this meant a scroll gesture starting on the grip simply did
+nothing for half a second before the drag armed. Replacing it with
+`{ distance: 8 }` changes that: 8px of finger movement now starts a reorder
+immediately, so an accidental short drag is no longer a no-op by way of doing
+nothing — it is a no-op by way of `reorderEntryToSlot` rejecting it. `DropSlot`s
+are ~6px tall between rows, `closestCenter` resolves a short drag to whichever
+slot is already adjacent to the dragged entry, and `reorderEntryToSlot` returns
+`null` for exactly the two slots immediately above and below the entry's current
+position (`slot === from || slot === from + 1`). A short accidental drag off the
+grip lands on one of those slots and produces no reorder.
+
+### 4. `CardTable`'s scroll-container floor
+
+`CardTable.tsx:394` sizes its scroll container from `window.innerHeight`, which
+already reports the true visible height on iOS — that part was correct. But the
+container height was `Math.max(400, window.innerHeight - rect.top - 56)`, and
+the `400` floor breaks the guarantee: whenever `rect.top > innerHeight - 456`
+the container is forced to 400px even though less than 400px is actually
+available below it. On a 555px visible viewport that is `rect.top > 99px`,
+which is plausible in portrait once `PageClient`'s `pt-4`, toolbar row and
+filter row are accounted for. Because the shell is `overflow: hidden`, the
+overshoot is unreachable — the bottom of the card table, the user's primary
+in-scope flow, is permanently clipped.
+
+The fix drops the floor to `0`:
+
+```ts
+const available = window.innerHeight - rect.top - 56;
+setScrollHeight(Math.max(0, available));
+```
+
+`Math.max(0, …)` only guards against a negative height (e.g. `rect.top` far
+below the viewport during an intermediate layout state); it can never push the
+container past what is actually visible. At 375×667 in headless Chrome
+`available` is roughly 511px, well clear of the old 400px floor, so this does
+not change behavior on the size Playwright exercises — it only stops the
+container from overshooting on shorter or more chrome-heavy viewports.
+
 ## Testing
 
 - **Unit** (`@testing-library/react`, alongside the existing `DeckCard.test.tsx` /
@@ -187,7 +221,20 @@ the list has ample non-grip area, so this is acceptable.
 - **Unit:** assert the grip renders as a `button` with an accessible name, and
   that the row wrapper no longer carries drag listeners.
 - **E2E** (Playwright, `e2e/playwright.config.ts`): a mobile-viewport project
-  exercising scroll card table → open card → pick, and queue button taps.
+  exercising scroll card table → open card → pick.
+
+**Queue button taps were dropped from the E2E plan during implementation,
+without comment in the original spec — recorded here.** The actual regression
+protection for defect 2 is the three structural unit tests added to
+`QueuePanel.test.tsx`: they assert the drag activator lives on the grip button
+rather than the row, that every activator is a real `<button>`, and that the
+group handle is labelled — i.e. that the seven row buttons sit outside the
+draggable subtree, which is the invariant that makes them clickable. That is a
+stronger guarantee than an E2E tap, which only samples one button on one
+device profile. Separately, the mobile E2E spec (`e2e/flows/mobile.spec.ts`)
+stops at a trial click on the hold-to-pick button and does not carry a pick
+through to completion at 375×667 — full pick completion is covered only by
+the desktop suite.
 
 **What automated tests cannot cover.** Headless Chrome has no browser chrome, so
 `vh === dvh` there and defect 1 is invisible to it — reproducing it required

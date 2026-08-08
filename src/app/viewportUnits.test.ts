@@ -22,6 +22,12 @@ function collectComponentFiles(dir: string, out: string[] = []): string[] {
 // `vh`-sized box overflows the visible area with nothing able to scroll to it.
 // `h-screen` and `min-h-screen` are Tailwind aliases for `100vh` and carry the
 // same defect. The lookbehind lets `dvh`, `svh` and `lvh` through.
+//
+// Scope: this only scans `className` string literals in `.tsx` files. A
+// JS-computed height (e.g. `style={{ maxHeight: "90vh" }}`) or a `vh` value
+// inside `globals.css` or an `@apply` rule is invisible to it. This is not
+// hypothetical — `CardTable.tsx:428` sets its scroll container's height via
+// an inline `style` object today, outside this guard's reach.
 const VH_HEIGHT_UTILITY = /\b(?:max-h|min-h|h)-(?:\[[^\]]*(?<![a-z])vh[^\]]*\]|screen\b)/;
 
 describe("viewport height units", () => {
