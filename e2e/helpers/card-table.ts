@@ -15,15 +15,23 @@ export async function scrollCardTable(page: Page, scrollTop: number): Promise<vo
   await page.waitForTimeout(150);
 }
 
+/**
+ * Reads the card names currently rendered by the virtualizer.
+ *
+ * The row set is captured in a single snapshot rather than by indexing into
+ * the live locator. Rows are measured dynamically (`measureElement`) against a
+ * 48px `estimateSize`, so once real heights land the virtualizer re-renders a
+ * smaller window — on a 375px viewport the rendered count drops from 20 to 18.
+ * Reading `count()` first and then awaiting each `nth(i)` separately can ask
+ * for a row that has since been unmounted, which never resolves.
+ */
 export async function getVisibleCardNames(page: Page): Promise<string[]> {
   const rows = page.locator("tbody tr");
-  const count = await rows.count();
-  const names: string[] = [];
-  for (let i = 0; i < count; i++) {
-    const text = await rows.nth(i).locator("td").first().textContent();
-    if (text) names.push(text.trim());
-  }
-  return names;
+  await rows.first().waitFor();
+  const names = await rows.evaluateAll((elements) =>
+    elements.map((row) => row.querySelector("td")?.textContent ?? ""),
+  );
+  return names.map((name) => name.trim()).filter((name) => name.length > 0);
 }
 
 export async function expectCardVisible(page: Page, cardName: string) {
