@@ -17,15 +17,16 @@ function formatPickLabel(entry: DraftScore): string {
 }
 
 /**
- * Horizontal shift for a tooltip anchored at `x` on a chart `width` wide.
- * The tooltip is wider than a point's slot, so it is left-aligned, centered, or
- * right-aligned depending on which third of the chart the point falls in —
- * centering everything would spill past both ends.
+ * Transform for a tooltip anchored at `x` on a chart `width` wide. Percentages
+ * in translateX resolve against the tooltip's own width, so this centers the
+ * tooltip on its point when it fits and pins it to whichever edge it would
+ * otherwise overflow — without measuring it. A tooltip wider than the whole
+ * chart hits the lower bound (CSS clamp yields MIN when MIN > MAX), keeping its
+ * left edge on the chart and letting the overflow fall to the right, where the
+ * modal has room.
  */
-function tooltipShift(x: number, width: number): string {
-  if (x < width / 3) return "0";
-  if (x > (width * 2) / 3) return "-100%";
-  return "-50%";
+function tooltipTransform(x: number, width: number): string {
+  return `translateX(clamp(${-x}px, -50%, calc(${width - x}px - 100%)))`;
 }
 
 /**
@@ -81,13 +82,22 @@ export function Sparkline({
       x: computeX(h.date, i),
       y: padding + normalizedY * (height - padding * 2 - dotRadius * 2) + dotRadius,
       wasPicked: h.wasPicked,
-      draftName: h.draftName,
-      position: h.pickPosition,
+      date: h.date,
+      label: formatPickLabel(h),
     };
   });
 
   // Create path for the line
   const linePath = normalizedPoints.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+
+  // Hit targets must never overlap, or a point steals its neighbour's hover
+  // area as drafts accumulate and the spacing tightens.
+  const minGap = normalizedPoints
+    .slice(1)
+    .reduce((min, p, i) => Math.min(min, p.x - normalizedPoints[i].x), Infinity);
+  const hitRadius = Math.min(9, minGap / 2);
+
+  const hoveredPoint = hoveredIndex === null ? null : normalizedPoints[hoveredIndex];
 
   return (
     <div className="relative">
@@ -113,30 +123,35 @@ export function Sparkline({
             strokeWidth={1}
           />
         ))}
-        {/* Transparent hover targets — the visible dots are too small to hit reliably */}
+        {/*
+          Transparent hover targets — the visible dots are too small to hit reliably.
+          Must stay painted after the visible dots: reordering would let a visible dot
+          win hit-testing in a real browser, silently breaking hover, while jsdom tests
+          would stay green because fireEvent.mouseOver dispatches straight at this circle.
+        */}
         {normalizedPoints.map((p, i) => (
           <circle
             key={`hit-${i}`}
             data-testid={`sparkline-hit-${i}`}
             cx={p.x}
             cy={p.y}
-            r={9}
+            r={hitRadius}
             fill="transparent"
             onMouseEnter={() => setHoveredIndex(i)}
             onMouseLeave={() => setHoveredIndex(null)}
           />
         ))}
       </svg>
-      {hoveredIndex !== null && (
+      {hoveredPoint && (
         <div
           data-testid="sparkline-tooltip"
           className="pointer-events-none absolute bottom-full z-50 mb-1 rounded bg-zinc-800 px-2 py-1 text-xs whitespace-nowrap text-white"
           style={{
-            left: normalizedPoints[hoveredIndex].x,
-            transform: `translateX(${tooltipShift(normalizedPoints[hoveredIndex].x, width)})`,
+            left: hoveredPoint.x,
+            transform: tooltipTransform(hoveredPoint.x, width),
           }}
         >
-          {history[hoveredIndex].date}: {formatPickLabel(history[hoveredIndex])}
+          {hoveredPoint.date}: {hoveredPoint.label}
         </div>
       )}
     </div>

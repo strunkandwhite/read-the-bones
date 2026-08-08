@@ -109,4 +109,39 @@ describe("Sparkline", () => {
     expect(screen.getByText("-")).toBeDefined();
     expect(screen.queryByTestId(/^sparkline-hit-/)).toBeNull();
   });
+
+  it("positions the tooltip via a clamped translateX for a first, middle, and last dot", () => {
+    render(<Sparkline history={THREE_DRAFTS} />);
+
+    hover(0);
+    expect(screen.getByTestId("sparkline-tooltip").style.transform).toBe(
+      "translateX(clamp(-4px, -50%, calc(156px - 100%)))",
+    );
+
+    hover(1);
+    expect(screen.getByTestId("sparkline-tooltip").style.transform).toBe(
+      "translateX(clamp(-80px, -50%, calc(80px - 100%)))",
+    );
+
+    hover(2);
+    expect(screen.getByTestId("sparkline-tooltip").style.transform).toBe(
+      "translateX(clamp(-156px, -50%, calc(4px - 100%)))",
+    );
+  });
+
+  it("keeps the hit radius at 9 for a single-point history", () => {
+    render(
+      <Sparkline history={[makeEntry({ date: "2026-04-01", pickPosition: 12 })]} />,
+    );
+    expect(screen.getByTestId("sparkline-hit-0").getAttribute("r")).toBe("9");
+  });
+
+  it("shrinks the hit radius so hit targets never overlap as points crowd together", () => {
+    const denseHistory: DraftScore[] = Array.from({ length: 20 }, (_, i) =>
+      makeEntry({ date: `2026-01-${String(i + 1).padStart(2, "0")}`, pickPosition: 12 }),
+    );
+    render(<Sparkline history={denseHistory} />);
+    // usableWidth (152) / 19 gaps = 8 apart; half of that gap is the capped radius.
+    expect(screen.getByTestId("sparkline-hit-0").getAttribute("r")).toBe("4");
+  });
 });
