@@ -98,11 +98,12 @@ export interface SyncRunResult {
  * Sync a single draft from parsed Sheets data.
  *
  * 1. Parse raw Sheets data into picks, pool, matches
- * 2. Compute per-domain hashes
- * 3. Read stored hashes from DB
- * 4. For each domain: compare -> skip or (delete + batch insert)
- * 5. Update stored hashes
- * 6. Handle opt-outs
+ * 2. Handle opt-outs (writes privacy_opt_outs before anything is read for
+ *    insertion or hashed, so redacted picks are never stored even transiently)
+ * 3. Compute per-domain hashes (picks hash is over the opt-out-filtered set)
+ * 4. Read stored hashes from DB
+ * 5. For each domain: compare -> skip or (delete + batch insert)
+ * 6. Update stored hashes
  * 7. Detect completion
  */
 export async function syncDraft(
@@ -135,10 +136,27 @@ export async function syncDraft(
       parsedPicks.drafterNames,
     );
 
+    // Handle opt-outs before computing the picks hash or reading any picks
+    // for insertion. This must run first for two reasons:
+    //   1. So a name newly added to .opt-outs.json (or a draft's first-ever
+    //      sync) is reflected in privacy_opt_outs before we filter picks —
+    //      otherwise those picks get inserted, then deleted by the reconcile
+    //      below, exposing them in the database in between.
+    //   2. So the picks hash we compute and persist is over the same
+    //      (filtered) set the cron path hashes — otherwise the two paths
+    //      hash different data for the same sheet and ping-pong forever.
+    // Skipped in dry-run mode, which must not write.
+    if (!options.dryRun && parsedPicks.drafterNames.length > 0) {
+      await insertOptOuts(client, draftId, parsedPicks.drafterNames, optOutNames);
+    }
+
     // Compute hashes for current data
     const newPoolHash = poolNames.length > 0 ? hashPool(poolNames) : null;
+    const optedOutSeats = await getOptedOutSeats(client, draftId);
     const pickedCards = parsedPicks.picks.filter((p) => p.wasPicked);
-    const newPicksHash = pickedCards.length > 0 ? hashPicks(pickedCards) : null;
+    const visiblePickedCards = filterRedactedPicks(pickedCards, optedOutSeats);
+    const newPicksHash =
+      visiblePickedCards.length > 0 ? hashPicks(visiblePickedCards) : null;
     const newMatchesHash = matches.length > 0 ? hashMatches(matches) : null;
 
     // Get stored hashes and current phase
@@ -160,7 +178,7 @@ export async function syncDraft(
       : "skip";
 
     if (options.dryRun) {
-      result.picksCount = pickedCards.length;
+      result.picksCount = visiblePickedCards.length;
       result.matchesCount = matches.length;
       result.markedComplete =
         computeSyncTargetPhase(
@@ -181,11 +199,8 @@ export async function syncDraft(
     if (result.picksAction === "replace") {
       await deleteDomainData(client, draftId, "picks");
 
-      const optedOutSeats = await getOptedOutSeats(client, draftId);
-      const visiblePicks = filterRedactedPicks(pickedCards, optedOutSeats);
-
       const pickInserts: PickInsert[] = [];
-      for (const pick of visiblePicks) {
+      for (const pick of visiblePickedCards) {
         const cardId = cardCache.get(pick.cardName);
         if (cardId !== undefined) {
           pickInserts.push({
@@ -253,14 +268,10 @@ export async function syncDraft(
       await updateDomainHashes(client, draftId, hashUpdates);
     }
 
-    // Handle opt-outs
-    if (parsedPicks.drafterNames.length > 0) {
-      await insertOptOuts(client, draftId, parsedPicks.drafterNames, optOutNames);
-    }
-
-    // insertOptOuts may have just learned about a seat whose picks were
-    // inserted above (first sync of a draft, or a name newly added to
-    // .opt-outs.json). Reconcile now so a single run leaves no redacted rows.
+    // Catch-all for rows this run didn't insert itself: a draft whose
+    // first-ever sync was a cron run (which never calls insertOptOuts) may
+    // already hold redacted rows from before privacy_opt_outs knew about the
+    // seat. Idempotent and cheap when there is nothing to clean up.
     await reconcileRedactedRows(client, draftId);
 
     // Record the sheet's declared double-pick boundary. Written outside the

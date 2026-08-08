@@ -30,6 +30,13 @@ vi.mock("../../ingest/redaction", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../ingest/redaction")>();
   return { ...actual, reconcileRedactedRows: vi.fn(actual.reconcileRedactedRows) };
 });
+// fetchDraftTabsRaw is only stubbed for the cross-path hash-consistency test,
+// which drives syncActiveDraft directly and needs to supply sheet data
+// without a real Sheets API call.
+vi.mock("../../../sheets", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../../sheets")>();
+  return { ...actual, fetchDraftTabsRaw: vi.fn() };
+});
 
 const mockBatchInsertPicks = vi.mocked(batchInsertPicks);
 const mockInsertOptOuts = vi.mocked(insertOptOuts);
@@ -738,10 +745,11 @@ describe("syncDraft", () => {
   describe("redaction wiring (CLI sync)", () => {
     it("filters opted-out picks before insert and reconciles after opt-outs are written", async () => {
       // mockResolvedValueOnce (not a persistent mockResolvedValue) so this
-      // override applies only to the explicit pre-insert call in index.ts —
-      // reconcileRedactedRows's own internal call falls through to the real
-      // implementation and reads the (empty, in this mock client) opt-outs
-      // table, avoiding cross-test leakage of the overridden seat set.
+      // override applies only to the hoisted pre-hash/pre-insert call in
+      // index.ts — reconcileRedactedRows's own internal call falls through
+      // to the real implementation and reads the (empty, in this mock
+      // client) opt-outs table, avoiding cross-test leakage of the
+      // overridden seat set.
       mockGetOptedOutSeats.mockResolvedValueOnce(new Set([2]));
 
       const rawSheetData: DraftSheetRawData = {
@@ -756,13 +764,14 @@ describe("syncDraft", () => {
         ["Counterspell", 2],
       ]);
 
-      // The picks hash must be computed from the unfiltered pick set (see
-      // task notes) — precompute it to compare against what gets persisted.
+      // The picks hash must be computed from the FILTERED (opt-out-redacted)
+      // pick set, so it matches what the cron path hashes for the same
+      // sheet. Hashing the unfiltered set here would fail this assertion.
       const { hashPicks } = await import("../domains");
       const { parsePickRows } = await import("../../../parseSheetRows");
       const parsedForHash = parsePickRows(rawSheetData.picks!, "d1");
-      const unfilteredPicksHash = hashPicks(
-        parsedForHash.picks.filter((p) => p.wasPicked),
+      const filteredPicksHash = hashPicks(
+        parsedForHash.picks.filter((p) => p.wasPicked && p.seat + 1 !== 2),
       );
 
       const client = mockClient((params) => {
@@ -789,17 +798,19 @@ describe("syncDraft", () => {
       expect(inserted.every((p) => p.seat !== 2)).toBe(true);
       expect(inserted).toHaveLength(1);
 
-      // insertOptOuts runs after the insert, so a first-ever sync needs the
-      // reconcile pass afterwards to catch a newly-recorded opt-out.
+      // insertOptOuts still runs before reconcile — reconcile is the
+      // catch-all for rows a *prior* cron-only run may have inserted before
+      // privacy_opt_outs knew about the seat.
       const insertOptOutsOrder = mockInsertOptOuts.mock.invocationCallOrder.at(-1);
       const reconcileOrder = mockReconcileRedactedRows.mock.invocationCallOrder.at(-1);
       expect(insertOptOutsOrder).toBeDefined();
       expect(reconcileOrder).toBeDefined();
       expect(insertOptOutsOrder as number).toBeLessThan(reconcileOrder as number);
 
-      // The stored picks hash tracks the sheet's unfiltered state, not the
-      // redacted set — filtering it would hide an edit to a redacted cell
-      // from the change detector.
+      // The stored picks hash tracks the redacted (filtered) set — opted-out
+      // picks are never stored, so there is nothing for an edit to a
+      // redacted cell to update, and hashing the filtered set is what keeps
+      // this path's hash consistent with the cron path's.
       const executeCalls = client.execute.mock.calls;
       const hashUpdateCall = executeCalls.find(
         (c: any[]) =>
@@ -807,7 +818,149 @@ describe("syncDraft", () => {
           (c[0].sql as string).includes("picks_hash"),
       );
       expect(hashUpdateCall).toBeDefined();
-      expect(hashUpdateCall![0].args).toContain(unfilteredPicksHash);
+      expect(hashUpdateCall![0].args).toContain(filteredPicksHash);
+    });
+
+    it("runs insertOptOuts before the pick batch insert — never stores a redacted row transiently", async () => {
+      // Regression test for Important 2: insertOptOuts must run before
+      // batchInsertPicks so a seat's opt-out is recorded in
+      // privacy_opt_outs (and therefore filters that seat's picks) before
+      // any picks are inserted. If insertOptOuts ran afterward (the
+      // original bug), every opted-out pick would land in the production
+      // database first and only be cleaned up by the later reconcile pass —
+      // this test would fail against that ordering.
+      const rawSheetData: DraftSheetRawData = {
+        pool: null,
+        picks: buildPickRows(["Alice", "Bob"], [
+          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
+        ]),
+        matches: null,
+      };
+      const cardCache = populatedCache([
+        ["Lightning Bolt", 1],
+        ["Counterspell", 2],
+      ]);
+
+      const client = mockClient((params) => {
+        if (params.sql.includes("pool_hash")) {
+          return { rows: [{ pool_hash: null, picks_hash: null, matches_hash: null }] };
+        }
+        return { rows: [] };
+      });
+
+      await syncDraft(
+        client as any,
+        "d2",
+        rawSheetData,
+        cardCache,
+        emptyScryfallCache,
+        new Set(["bob"]),
+        {},
+      );
+
+      const insertOptOutsOrder = mockInsertOptOuts.mock.invocationCallOrder.at(-1);
+      const batchInsertPicksOrder = mockBatchInsertPicks.mock.invocationCallOrder.at(-1);
+      expect(insertOptOutsOrder).toBeDefined();
+      expect(batchInsertPicksOrder).toBeDefined();
+      expect(insertOptOutsOrder as number).toBeLessThan(batchInsertPicksOrder as number);
+    });
+  });
+
+  describe("cross-path hash consistency (Important 1)", () => {
+    it("CLI sync (syncDraft) and cron sync (syncActiveDraft) hash the same filtered pick set for a draft with an opted-out seat", async () => {
+      // The invariant under test: both sync paths must persist the SAME
+      // drafts.picks_hash for the same sheet + opt-out state. If the CLI
+      // path hashes the unfiltered pick set (the original bug) while the
+      // cron path hashes the filtered set, the two hashes differ and the
+      // paths ping-pong forever — this test fails against that mismatch.
+      const { syncActiveDraft } = await import("../syncActiveDraft");
+      const { fetchDraftTabsRaw } = await import("../../../sheets");
+      const sharedSheetData: DraftSheetRawData = {
+        pool: null,
+        picks: buildPickRows(["Alice", "Bob"], [
+          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
+        ]),
+        matches: null,
+      };
+      vi.mocked(fetchDraftTabsRaw).mockResolvedValueOnce(sharedSheetData);
+
+      // --- CLI path: opt-out not yet recorded; syncDraft writes it via
+      // insertOptOuts before hashing/inserting (a stateful mock models the
+      // real INSERT then SELECT round trip). ---
+      const cliOptedOutSeats = new Set<number>();
+      const cliClient = mockClient((params) => {
+        if (params.sql.includes("INSERT OR IGNORE INTO privacy_opt_outs")) {
+          cliOptedOutSeats.add(params.args[1] as number);
+          return { rows: [] };
+        }
+        if (params.sql.includes("SELECT seat FROM privacy_opt_outs")) {
+          return { rows: [...cliOptedOutSeats].map((seat) => ({ seat })) };
+        }
+        if (params.sql.includes("pool_hash")) {
+          return { rows: [{ pool_hash: null, picks_hash: null, matches_hash: null }] };
+        }
+        return { rows: [] };
+      });
+      const cardCache = populatedCache([
+        ["Lightning Bolt", 1],
+        ["Counterspell", 2],
+      ]);
+
+      await syncDraft(
+        cliClient as any,
+        "cross-path-draft",
+        sharedSheetData,
+        cardCache,
+        emptyScryfallCache,
+        new Set(["bob"]),
+        {},
+      );
+
+      const cliHashCall = cliClient.execute.mock.calls.find(
+        (c: any[]) =>
+          (c[0].sql as string).includes("SET") && (c[0].sql as string).includes("picks_hash"),
+      );
+      expect(cliHashCall).toBeDefined();
+      const cliPicksHash = cliHashCall![0].args[0] as string;
+
+      // --- Cron path: opt-out already recorded (as it would be after the
+      // CLI run above, or any prior CLI sync) — syncActiveDraft never writes
+      // privacy_opt_outs itself, only reads it. ---
+      const cronClient = mockClient((params) => {
+        if (params.sql.includes("SELECT seat FROM privacy_opt_outs")) {
+          return { rows: [{ seat: 2 }] };
+        }
+        if (params.sql.includes("pool_hash")) {
+          return { rows: [{ pool_hash: null, picks_hash: null, matches_hash: null, phase: "drafting" }] };
+        }
+        if (params.sql.includes("JOIN cards")) {
+          return { rows: [] }; // no picks stored yet in the DB
+        }
+        if (params.sql.includes("IN (")) {
+          return {
+            rows: [
+              { card_id: 1, name: "Lightning Bolt" },
+              { card_id: 2, name: "Counterspell" },
+            ],
+          };
+        }
+        return { rows: [] };
+      });
+
+      await syncActiveDraft(
+        cronClient as any,
+        { draftId: "cross-path-draft", sheetId: "sheet-1" },
+        "api-key",
+      );
+
+      const cronHashCall = cronClient.execute.mock.calls.find(
+        (c: any[]) =>
+          (c[0].sql as string).includes("SET") && (c[0].sql as string).includes("picks_hash"),
+      );
+      expect(cronHashCall).toBeDefined();
+      const cronPicksHash = cronHashCall![0].args[0] as string;
+
+      expect(cliPicksHash).toBe(cronPicksHash);
     });
   });
 
@@ -883,9 +1036,13 @@ describe("syncDraft", () => {
       expect(result.picksAction).toBe("replace");
       expect(result.matchesAction).toBe("replace");
 
-      // But no writes should have happened
-      // Only the initial getDomainHashes SELECT should have been called
-      expect(client.execute).toHaveBeenCalledTimes(1);
+      // But no writes should have happened. Dry-run now also reads
+      // privacy_opt_outs (via getOptedOutSeats) up front so the reported
+      // picks hash/count reflect the redacted set — that's an additional
+      // read, not a write, so assert on statement kind rather than a fixed
+      // call count (which would make this test brittle to legitimate reads).
+      const executedSql = client.execute.mock.calls.map((c: any[]) => c[0].sql as string);
+      expect(executedSql.some((sql) => /^\s*(INSERT|UPDATE|DELETE)/i.test(sql))).toBe(false);
       expect(client.batch).not.toHaveBeenCalled();
     });
   });
