@@ -6,7 +6,7 @@ adopted, and two of its conclusions turned out to be pessimistic.
 
 - **What was built:** `docs/superpowers/specs/2026-08-09-decklist-recovery-design.md`
 - **How:** `docs/superpowers/plans/2026-08-09-decklist-recovery.md`
-- **Current data state:** `docs/decklist-status.md`
+- **Current data state:** `data/decklist-status.md`
 
 ## What changed from this document
 

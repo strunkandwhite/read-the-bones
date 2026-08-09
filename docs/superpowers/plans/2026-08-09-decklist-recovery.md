@@ -59,7 +59,7 @@ Tasks 1-6 are code only and touch no data. Task 7 is an investigation with a go/
 - `scripts/decklists-integrity.ts` — CLI: scores every stored deck, lists every absent deck, optionally writes the status report.
 - `scripts/import-recovered-decks.ts` — CLI: imports hand-parsed JSON decklists, resolving card ids from the seat's own picks.
 - `scripts/import-recovered-decks.test.ts` — tests for the importer's resolution and failure behaviour.
-- `docs/decklist-status.md` — the remediation queue (Task 12).
+- `data/decklist-status.md` — the remediation queue (Task 12).
 
 **Modify:**
 - `scripts/decklists.ts` — `extractPool` → `extractStoredCards` (drops `hidden`), `matchDecksToSeats` scoring, writer provenance + `recovered:` guard, `--dry-run`, `--force`.
@@ -1107,7 +1107,7 @@ The check that would have caught the original defect within a day of it landing.
 **Reason classification.** The tool derives what the database knows and no more:
 `opted-out` (row in `privacy_opt_outs`), `draft-never-collected` (no seat in that draft
 has a deck), `missing` (other seats in the draft do). Narrative reasons — awaiting image,
-awaiting URL, corrupt-and-deleted — are human annotations added to `docs/decklist-status.md`
+awaiting URL, corrupt-and-deleted — are human annotations added to `data/decklist-status.md`
 in Task 12. Deriving them would mean inventing state the database does not have.
 
 - [ ] **Step 1: Write the script**
@@ -1126,7 +1126,7 @@ Create `scripts/decklists-integrity.ts`:
  *
  * Usage:
  *   pnpm decklists:integrity
- *   pnpm decklists:integrity --write-report   # refresh docs/decklist-status.md
+ *   pnpm decklists:integrity --write-report   # refresh data/decklist-status.md
  */
 
 import { createClient } from "@libsql/client";
@@ -1282,7 +1282,7 @@ async function main() {
     process.exit(1);
   }
   if (needsAttention.length > 0) {
-    log(`${needsAttention.length} seat(s) await manual remediation — see docs/decklist-status.md`);
+    log(`${needsAttention.length} seat(s) await manual remediation — see data/decklist-status.md`);
   }
 }
 
@@ -1512,7 +1512,7 @@ Create `scripts/import-recovered-decks.ts`:
 
 ```ts
 /**
- * Import hand-recovered decklists from docs/decklist-recovery-parsed/*.json.
+ * Import hand-recovered decklists from data/decklist-recovery/parsed/*.json.
  *
  * These decks were transcribed from screenshots of the deck-building UI for
  * seats whose sealeddeck submission is missing or unrecoverable. Card ids are
@@ -1627,7 +1627,7 @@ async function main() {
   });
 
   const parsed = readParsedDecks();
-  log(`Found ${parsed.length} parsed decklist(s) in docs/decklist-recovery-parsed`);
+  log(`Found ${parsed.length} parsed decklist(s) in data/decklist-recovery/parsed`);
   if (dryRun) log("DRY RUN — resolving only, nothing will be written");
 
   // Resolve everything before writing anything. A transcription error in one
@@ -2091,7 +2091,7 @@ Expected: the `baleful-strix` seats marked `recovered:` report `skipped — hand
 Six screenshots need parsing; two more serve as cross-checks. This is the parallelisable part — dispatch one subagent per screenshot.
 
 **Files:**
-- Create: `docs/decklist-recovery-parsed/<draft>-seat-<n>.json` per screenshot
+- Create: `data/decklist-recovery/parsed/<draft>-seat-<n>.json` per screenshot
 
 **Interfaces:**
 - Consumes: Task 6's importer schema — each file must have `draftId`, `seat`, `maindeckNonBasics[]`, `sideboard[]`.
@@ -2134,7 +2134,7 @@ Each agent's brief:
 5. Reconcile: maindeck non-basics + sideboard = total picks, minus any legitimately unplaced cards. Sealeddeck's `hidden` zone holds unplaced pool cards, so `maindeck + sideboard < picks` is valid. A card *not in the picks at all* is not.
 6. **Do not trust a reconciliation that rests on a single leftover pair.** When exactly one image card and exactly one pick remain unmatched, the diff pairs them whether or not the pairing is right. Corroborate independently — mana-value column placement is usually decisive, since columns are sorted by mana value and the set of that seat's picks at that mana value is knowable.
 7. Ignore cropping. Every cropping issue observed so far affected only basic land counts, and basics are never stored.
-8. Write `docs/decklist-recovery-parsed/<draft>-seat-<n>.json`:
+8. Write `data/decklist-recovery/parsed/<draft>-seat-<n>.json`:
    ```json
    {
      "draftId": "<draft>",
@@ -2181,7 +2181,7 @@ Expected: 0 suspect. The seats parsed in this task move out of `missing`.
 - [ ] **Step 6: Commit the parsed decks**
 
 ```bash
-git -C /Users/arpanet/code/read-the-bones add docs/decklist-recovery-parsed/
+git -C /Users/arpanet/code/read-the-bones add data/decklist-recovery/parsed/
 git -C /Users/arpanet/code/read-the-bones commit -m "$(cat <<'EOF'
 Add decklists recovered from the remaining screenshots
 
@@ -2200,7 +2200,7 @@ EOF
 
 **Files:**
 - Modify: `data/decklists.txt` (prune), `CLAUDE.md`, `docs/decklist-recovery-handoff.md` (retire)
-- Create: `docs/decklist-status.md`
+- Create: `data/decklist-status.md`
 
 **Interfaces:**
 - Consumes: `deck_hashes.sealeddeck_id` from Task 8; `pnpm decklists:integrity --write-report` from Task 5.
@@ -2258,7 +2258,7 @@ Remove the opted-out and superseded entries too; they will never be ingested and
 pnpm decklists:integrity --write-report
 ```
 
-Then edit `docs/decklist-status.md` by hand to fill the `Note` column for every `missing` seat. The database knows a deck is absent; only a person knows why. Use the capture files from Task 9 Step 1 for the deleted seats. Expected annotations:
+Then edit `data/decklist-status.md` by hand to fill the `Note` column for every `missing` seat. The database knows a deck is absent; only a person knows why. Use the capture files from Task 9 Step 1 for the deleted seats. Expected annotations:
 
 - `baleful-strix:1` — held another seat's deck, deleted in this effort; true submission URL never identified.
 - `terminate:3` — same.
@@ -2273,16 +2273,16 @@ In the `# Decklists` block, add:
 
 ```
 pnpm decklists:integrity        # Audit stored decks against picks; list seats with no deck
-pnpm decklists:import           # Import hand-recovered decks from docs/decklist-recovery-parsed
+pnpm decklists:import           # Import hand-recovered decks from data/decklist-recovery/parsed
 ```
 
 Replace the `**Decklists:**` paragraph with one that states the inbox semantics:
 
-> **Decklists:** `data/decklists.txt` is an **inbox, not an archive** — it holds sealeddeck.tech URLs that have not been ingested yet. `pnpm decklists` fetches each one, matches it to a seat by card overlap with pick data, and writes deck cards to Turso; once a URL is stored, remove it from the file. Provenance lives in `deck_hashes.sealeddeck_id`, so `SELECT sealeddeck_id FROM deck_hashes` answers "which submission produced this deck". Matching uses `deck + sideboard` only — never sealeddeck's `hidden` zone, which some submitters fill with the entire cube. A seat whose `sealeddeck_id` starts with `recovered:` was hand-transcribed from a screenshot and will not be overwritten without `--force`. Run `pnpm decklists:integrity` after any change; `docs/decklist-status.md` is the remediation queue.
+> **Decklists:** `data/decklists.txt` is an **inbox, not an archive** — it holds sealeddeck.tech URLs that have not been ingested yet. `pnpm decklists` fetches each one, matches it to a seat by card overlap with pick data, and writes deck cards to Turso; once a URL is stored, remove it from the file. Provenance lives in `deck_hashes.sealeddeck_id`, so `SELECT sealeddeck_id FROM deck_hashes` answers "which submission produced this deck". Matching uses `deck + sideboard` only — never sealeddeck's `hidden` zone, which some submitters fill with the entire cube. A seat whose `sealeddeck_id` starts with `recovered:` was hand-transcribed from a screenshot and will not be overwritten without `--force`. Run `pnpm decklists:integrity` after any change; `data/decklist-status.md` is the remediation queue.
 
 Then, immediately after the existing **Opt-out operational hazard** paragraph, add:
 
-> **Recovered-decklist hazard:** `pnpm draft:reset` deletes `deck_cards` and `deck_hashes` for the draft (`db-helpers.ts`, `resetDraft`), taking hand-recovered decklists with them — and their sealeddeck URLs have been pruned from `data/decklists.txt`, so a re-run of `pnpm decklists` will not restore them. Recovery is `pnpm decklists:import`, which works only because the parsed JSONs are committed at `docs/decklist-recovery-parsed/`. Never delete that directory.
+> **Recovered-decklist hazard:** `pnpm draft:reset` deletes `deck_cards` and `deck_hashes` for the draft (`db-helpers.ts`, `resetDraft`), taking hand-recovered decklists with them — and their sealeddeck URLs have been pruned from `data/decklists.txt`, so a re-run of `pnpm decklists` will not restore them. Recovery is `pnpm decklists:import`, which works only because the parsed JSONs are committed at `data/decklist-recovery/parsed/`. Never delete that directory.
 
 Finally, add to the Superpowers Specs and Plans indexes:
 
@@ -2305,7 +2305,7 @@ recovered nine decklists from screenshots. Its findings were correct; its propos
 fix was not adopted.
 
 - **What was built:** `docs/superpowers/specs/2026-08-09-decklist-recovery-design.md`
-- **Current data state:** `docs/decklist-status.md`
+- **Current data state:** `data/decklist-status.md`
 
 The one recommendation that changed: this document proposed scoring against
 `max(picks.size, pool.size)` while keeping sealeddeck's `hidden` zone in the pool.
@@ -2354,7 +2354,7 @@ vercel --prod
 
 - [ ] **Step 10: Clean up the screenshots**
 
-Once every screenshot has been parsed and imported, `data/decklists-tmp-delete-when-done/` has served its purpose. Confirm `docs/decklist-recovery-parsed/` holds a JSON for each one first — the JSONs are committed, the images are not.
+Once every screenshot has been parsed and imported, `data/decklists-tmp-delete-when-done/` has served its purpose. Confirm `data/decklist-recovery/parsed/` holds a JSON for each one first — the JSONs are committed, the images are not.
 
 ---
 

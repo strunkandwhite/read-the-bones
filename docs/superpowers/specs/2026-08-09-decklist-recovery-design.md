@@ -155,7 +155,7 @@ and why, unless `--force` is passed.
 `deleteDomainData(..., "decklists")` (`batch.ts:90-104`) does the same. A `pnpm draft:reset`
 therefore discards recovered decks along with everything else. This is survivable — and
 only survivable — because the parsed JSONs are committed to git at
-`docs/decklist-recovery-parsed/`, so recovery is re-running `pnpm decklists:import`. This
+`data/decklist-recovery/parsed/`, so recovery is re-running `pnpm decklists:import`. This
 is the same class of trap CLAUDE.md already documents for `privacy_opt_outs`; it gets an
 entry beside it.
 
@@ -179,7 +179,7 @@ simultaneously recorded in the remediation queue (D6) with its reason.
    each with a reason: opted out / never collected / corrupt-and-deleted / awaiting image /
    awaiting URL.
 
-Its output is committed as `docs/decklist-status.md`. `data/` is gitignored, and a queue
+Its output is committed as `data/decklist-status.md`. `data/` is gitignored, and a queue
 that vanishes with the working directory is not a queue.
 
 This is the check that would have caught the original defect within a day. It is promoted
@@ -227,7 +227,7 @@ missing decks.
 
 ### `scripts/import-recovered-decks.ts` (new) — `pnpm decklists:import [--dry-run]`
 
-Reads `docs/decklist-recovery-parsed/*.json`
+Reads `data/decklist-recovery/parsed/*.json`
 (`{draftId, seat, maindeckNonBasics[], sideboard[], ...}`), writes `deck_cards` and
 `deck_hashes` with `sealeddeck_id = 'recovered:<filename>'`, reusing `batchInsertDeckCards`.
 
@@ -253,12 +253,12 @@ The `sealeddeck_id` column, in production and test schemas.
 ```
 data/decklists.txt ──fetch──> storedCards ──match(recall, precision)──┐
                                                                       ├─> deck_cards
-docs/decklist-recovery-parsed/*.json ──import(resolve via picks)──────┘   + deck_hashes
+data/decklist-recovery/parsed/*.json ──import(resolve via picks)──────┘   + deck_hashes
                                                                               (sealeddeck_id)
                                                                                   │
                      prune decklists.txt <──── SELECT sealeddeck_id ──────────────┤
                                                                                   │
-                     docs/decklist-status.md <──── decklists:integrity ───────────┘
+                     data/decklist-status.md <──── decklists:integrity ───────────┘
 ```
 
 ---

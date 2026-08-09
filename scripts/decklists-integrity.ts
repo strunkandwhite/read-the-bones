@@ -9,7 +9,7 @@
  *
  * Usage:
  *   pnpm decklists:integrity
- *   pnpm decklists:integrity --write-report   # refresh docs/decklist-status.md
+ *   pnpm decklists:integrity --write-report   # refresh data/decklist-status.md
  */
 
 import { createClient } from "@libsql/client";
@@ -26,7 +26,9 @@ import {
 } from "./lib/deckMatching";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const REPORT_FILE = join(__dirname, "..", "docs", "decklist-status.md");
+// Gitignored: the report names seats and their decklist coverage, which is private
+// stats data the public app does not expose.
+const REPORT_FILE = join(__dirname, "..", "data", "decklist-status.md");
 
 // The same key the matcher scores by (`scripts/decklists.ts`) and the write
 // path resolves by. Folding a double-faced card to its front face matters here
@@ -240,7 +242,7 @@ async function main() {
     process.exit(1);
   }
   if (needsAttention.length > 0) {
-    log(`${needsAttention.length} seat(s) await manual remediation — see docs/decklist-status.md`);
+    log(`${needsAttention.length} seat(s) await manual remediation — see data/decklist-status.md`);
   }
 }
 

@@ -1,5 +1,5 @@
 /**
- * Import hand-recovered decklists from docs/decklist-recovery-parsed/*.json.
+ * Import hand-recovered decklists from data/decklist-recovery/parsed/*.json.
  *
  * These decks were transcribed from screenshots of the deck-building UI for
  * seats whose sealeddeck submission is missing or unrecoverable. Card ids are
@@ -24,7 +24,10 @@ import { cardNameKey } from "../src/core/parseSheetRows";
 import { assertRecognizedFlags } from "./lib/cliFlags";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const PARSED_DIR = join(__dirname, "..", "docs", "decklist-recovery-parsed");
+// Lives under gitignored data/, not docs/: these transcriptions are decklists, and
+// decklists feed private stats that the public app never exposes. Consequence worth
+// knowing — they are no longer backed up by git, so this directory is the only copy.
+const PARSED_DIR = join(__dirname, "..", "data", "decklist-recovery", "parsed");
 
 export interface ParsedDeck {
   draftId: string;
@@ -354,7 +357,7 @@ async function main() {
   });
 
   const parsed = readParsedDecks();
-  log(`Found ${parsed.length} parsed decklist(s) in docs/decklist-recovery-parsed`);
+  log(`Found ${parsed.length} parsed decklist(s) in data/decklist-recovery/parsed`);
   if (dryRun) log("DRY RUN — resolving only, nothing will be written");
 
   // Resolve everything before writing anything. A transcription error in one

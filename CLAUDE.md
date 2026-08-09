@@ -77,7 +77,7 @@ pnpm decklists --force         # Also overwrite hand-recovered decks (see deckli
 pnpm scryfall:backfill         # Fetch missing Scryfall data for cards in Turso, update local cache
 ```
 
-**Decklists:** `data/decklists.txt` is an **inbox, not an archive** — it holds sealeddeck.tech URLs that have not been ingested yet, grouped by draft name (a bare draft name on its own line, then its URLs; there is no comment syntax, so every non-URL line is read as a draft heading). Run `pnpm decklists --dry-run`, read the report, then `pnpm decklists`. **Once a submission is stored, remove its URL from the file.** It is currently empty; `docs/decklist-status.md` records where all 230 of its former entries went.
+**Decklists:** `data/decklists.txt` is an **inbox, not an archive** — it holds sealeddeck.tech URLs that have not been ingested yet, grouped by draft name (a bare draft name on its own line, then its URLs; there is no comment syntax, so every non-URL line is read as a draft heading). Run `pnpm decklists --dry-run`, read the report, then `pnpm decklists`. **Once a submission is stored, remove its URL from the file.** It is currently empty; `data/decklist-status.md` records where all 230 of its former entries went.
 
 Provenance lives in `deck_hashes.sealeddeck_id`, so "which submission produced this seat's deck?" is a query, not a grep:
 
@@ -87,7 +87,7 @@ SELECT draft_id, seat, sealeddeck_id FROM deck_hashes WHERE sealeddeck_id IS NOT
 
 Matching uses **`deck + sideboard` only** — never sealeddeck's `hidden` zone, which some submitters fill with the entire remaining cube. A seat is assigned only if it clears both gates: recall ≥ 0.5 (it holds at least half that seat's picks — the rest may be unplaced) and precision ≥ 0.9 (nearly every card in the list is one that seat drafted). Rotisserie gives each card exactly one owner, so precision is the load-bearing check; both thresholds live in `scripts/lib/deckMatching.ts` and are shared with `pnpm decklists:integrity`.
 
-A seat whose `sealeddeck_id` starts with `recovered:` was hand-transcribed from a screenshot and will not be overwritten without `--force`. Run `pnpm decklists:integrity` after any change — `docs/decklist-status.md` is the remediation queue.
+A seat whose `sealeddeck_id` starts with `recovered:` was hand-transcribed from a screenshot and will not be overwritten without `--force`. Run `pnpm decklists:integrity` after any change — `data/decklist-status.md` is the remediation queue.
 
 **Sync:** `pnpm sync` fetches data from Google Sheets and writes it to Turso. Per-domain hashing (pool, picks, matches) means only changed data is replaced. Use `pnpm draft:reset <name>` followed by `pnpm sync <name>` to force a full reimport. The cron path only reconciles picks and matches; pool/cube changes always need the CLI sync.
 
@@ -235,7 +235,9 @@ moves only when a new session lands.
 
 **Opt-out operational hazard:** `privacy_opt_outs` is the only thing the ingest filter consults, and `pnpm draft:reset` clears it (`db-helpers.ts`, `resetDraft`). Since `.opt-outs.json` is gitignored and never deployed, a `draft:reset` followed by `pnpm sync` **from a machine without that file** re-ingests the opted-out player's picks unredacted — and no read-time mask exists to catch it any more. Always confirm `.opt-outs.json` is present before re-syncing a draft that had opt-outs, and check `select * from privacy_opt_outs` afterwards.
 
-**Recovered-decklist reset hazard:** `pnpm draft:reset` and `pnpm draft:delete` wipe both `deck_cards` and `deck_hashes` for the draft (`db-helpers.ts`, `resetDraft`; `scripts/lib/deleteDraft.ts`) with no guard, no dry run and no prompt — and hand-recovered decklists go with them. Re-running `pnpm decklists` will not bring them back: the sealeddeck URLs for recovered seats are pruned from `data/decklists.txt` once their decks are stored, so nothing remains to re-fetch. Recovery is `pnpm decklists:import`, and that only works because the transcriptions are committed at `docs/decklist-recovery-parsed/`. **Never delete that directory** — it is the only copy of those decklists, and `data/` is gitignored.
+**Recovered-decklist reset hazard:** `pnpm draft:reset` and `pnpm draft:delete` wipe both `deck_cards` and `deck_hashes` for the draft (`db-helpers.ts`, `resetDraft`; `scripts/lib/deleteDraft.ts`) with no guard, no dry run and no prompt — and hand-recovered decklists go with them. Re-running `pnpm decklists` will not bring them back: the sealeddeck URLs for recovered seats are pruned from `data/decklists.txt` once their decks are stored, so nothing remains to re-fetch. Recovery is `pnpm decklists:import`, reading `data/decklist-recovery/parsed/`.
+
+**That directory is gitignored and has no backup.** Decklists feed private stats, so they are deliberately kept out of this public repo — which means the transcriptions exist on one disk only, and a `draft:reset` plus a lost `data/` directory destroys those decklists permanently. There is no second copy anywhere. Back `data/decklist-recovery/parsed/` up somewhere outside the repo, and never `git clean -fdx` without checking it.
 
 ## Design Documents
 
