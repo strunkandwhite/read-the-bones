@@ -112,15 +112,23 @@ These routes support in-app rotisserie drafting. Most require a seat token via `
 
 Players are identified only by seat number within each draft. There is no cross-draft player identity.
 
-### Opting Out of Queries
+### Opting Out
 
-Players can opt out of having their picks and match results included in API query responses. Create a `.opt-outs.json` file in the project root:
+A player can opt out of having their card choices recorded. Create a `.opt-outs.json` file in the project root:
 
 ```json
 ["Player Name", "Another Player"]
 ```
 
-Names are matched case-insensitively against seat display names. When you run `pnpm sync`, opted-out players are recorded in the database. Their data is then redacted from query responses (seat numbers show as `[REDACTED]`), though their picks still affect game state calculations (e.g., available cards).
+Names are matched case-insensitively against the drafter names on the sheet. When you run `pnpm sync`, matching seats are recorded in `privacy_opt_outs`, and from then on **their picks and deck lists are never written to the database at all** — not hidden at read time, but absent. Every sync also deletes any such rows that predate the opt-out, so adding a name is retroactive.
+
+Precisely what this does and does not cover:
+
+- **Not stored.** Every card they picked, and their decklist. Their choices are absent from the card table, from pick-score and win-rate statistics, and from every API response — there is nothing left to withhold.
+- **Still stored.** Their match results, wins and losses. A W/L record names no cards, and every other player's OMW%/OGW% tiebreakers are computed from it, so dropping it would silently change other people's standings. Their seat therefore still appears in `/api/drafts/<id>/standings` with its record.
+- **Still visible.** That the seat exists, and which picks it has taken. The pod sheet renders their column with `[REDACTED]` in each taken cell, reconstructed from the draft's shape rather than from stored picks.
+
+One consequence worth knowing: because the picks are not recorded, the cards they took are indistinguishable from cards nobody took. Availability queries (`/api/drafts/<id>/available` and its ranked variant) will list those cards as still in the pool.
 
 ## Tech Stack
 

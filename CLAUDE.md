@@ -219,7 +219,9 @@ moves card evaluations is drafting and playing, not the calendar. Because the
 geometric mean normalizes by total weight, P# is unchanged by time passing; it
 moves only when a new session lands.
 
-**Privacy:** Players are identified by seat number (1-N) within each draft only. No cross-draft player identity is tracked. Players can opt out of API query responses (see README).
+**Privacy:** Players are identified by seat number (1-N) within each draft only. No cross-draft player identity is tracked. Players can opt out (see README); redaction happens at **ingest** — an opted-out seat's picks and deck cards are never written to the database, and every sync deletes any that predate the opt-out. Match results are deliberately kept, because other seats' OMW%/OGW% are computed from them.
+
+**Opt-out operational hazard:** `privacy_opt_outs` is the only thing the ingest filter consults, and `pnpm draft:reset` clears it (`db-helpers.ts`, `resetDraft`). Since `.opt-outs.json` is gitignored and never deployed, a `draft:reset` followed by `pnpm sync` **from a machine without that file** re-ingests the opted-out player's picks unredacted — and no read-time mask exists to catch it any more. Always confirm `.opt-outs.json` is present before re-syncing a draft that had opt-outs, and check `select * from privacy_opt_outs` afterwards.
 
 ## Design Documents
 
