@@ -19,7 +19,7 @@ import { readFileSync, readdirSync, realpathSync } from "fs";
 import { join, dirname, basename } from "path";
 import { fileURLToPath } from "url";
 import { loadEnv, log, logIndent } from "../src/core/db/ingest/utils";
-import { batchInsertDeckCards, type DeckCardInsert } from "../src/core/db/sync/batch";
+import { deckCardInsertStatements, type DeckCardInsert } from "../src/core/db/sync/batch";
 import { normalizeCardName } from "../src/core/parseSheetRows";
 import { assertRecognizedFlags } from "./lib/cliFlags";
 
@@ -429,15 +429,21 @@ async function main() {
       .digest("hex")
       .slice(0, 16);
 
-    await client.execute({
-      sql: "DELETE FROM deck_cards WHERE draft_id = ? AND seat = ?",
-      args: [deck.draftId, deck.seat],
-    });
-    await batchInsertDeckCards(client, rows);
-    await client.execute({
-      sql: "INSERT OR REPLACE INTO deck_hashes (draft_id, seat, hash, sealeddeck_id) VALUES (?, ?, ?, ?)",
-      args: [deck.draftId, deck.seat, hash, source],
-    });
+    // One batch: the delete, the inserts and the provenance upsert either all
+    // land or none do. As three round trips, a failure between them leaves the
+    // seat with no deck at all — and this script's whole purpose is seats whose
+    // deck exists nowhere else.
+    await client.batch([
+      {
+        sql: "DELETE FROM deck_cards WHERE draft_id = ? AND seat = ?",
+        args: [deck.draftId, deck.seat],
+      },
+      ...deckCardInsertStatements(rows),
+      {
+        sql: "INSERT OR REPLACE INTO deck_hashes (draft_id, seat, hash, sealeddeck_id) VALUES (?, ?, ?, ?)",
+        args: [deck.draftId, deck.seat, hash, source],
+      },
+    ]);
 
     logIndent(`${deck.draftId} seat ${deck.seat}: ${rows.length} rows written (${source})`);
   }

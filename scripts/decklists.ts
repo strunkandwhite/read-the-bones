@@ -14,7 +14,7 @@ import { readFileSync, existsSync, realpathSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { loadEnv, log, logIndent } from "../src/core/db/ingest/utils";
-import { batchInsertDeckCards, type DeckCardInsert } from "../src/core/db/sync/batch";
+import { deckCardInsertStatements, type DeckCardInsert } from "../src/core/db/sync/batch";
 import { CardCache } from "../src/core/db/sync/card-cache";
 import { normalizeCardName } from "../src/core/parseSheetRows";
 import { resolveCardNameToId } from "../src/core/db/sync/incremental";
@@ -649,21 +649,21 @@ async function main() {
         continue;
       }
 
-      // Replace this seat's deck only once a valid one is ready to take its place.
-      // Deleting earlier meant a malformed resubmission destroyed a good deck and
-      // then declined to write anything.
-      await client.execute({
-        sql: "DELETE FROM deck_cards WHERE draft_id = ? AND seat = ?",
-        args: [draftId, seat],
-      });
-
-      await batchInsertDeckCards(client, deckCards);
-
-      // Store/update deck hash
-      await client.execute({
-        sql: "INSERT OR REPLACE INTO deck_hashes (draft_id, seat, hash, sealeddeck_id) VALUES (?, ?, ?, ?)",
-        args: [draftId, seat, hash, entry.sealeddeckId],
-      });
+      // Replace this seat's deck only once a valid one is ready to take its place,
+      // and in one batch so the replacement cannot half-apply. Deleting earlier
+      // meant a malformed resubmission destroyed a good deck and then declined to
+      // write anything.
+      await client.batch([
+        {
+          sql: "DELETE FROM deck_cards WHERE draft_id = ? AND seat = ?",
+          args: [draftId, seat],
+        },
+        ...deckCardInsertStatements(deckCards),
+        {
+          sql: "INSERT OR REPLACE INTO deck_hashes (draft_id, seat, hash, sealeddeck_id) VALUES (?, ?, ?, ?)",
+          args: [draftId, seat, hash, entry.sealeddeckId],
+        },
+      ]);
 
       const status = existing ? "updated" : "new";
       logIndent(
