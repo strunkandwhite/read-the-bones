@@ -340,9 +340,18 @@ async function resolveDraftId(
   return null;
 }
 
-/** Fetch all decklists from sealeddeck.tech for a set of URLs */
-async function fetchAllDecklists(urls: string[]): Promise<DecklistEntry[]> {
+/**
+ * Fetch all decklists from sealeddeck.tech for a set of URLs.
+ *
+ * Failures are counted, not just logged. A run makes ~230 requests against a
+ * small site, and every lost fetch is one fewer seat assigned — indistinguishable
+ * in the summary from a seat nobody submitted unless the count is carried out.
+ */
+async function fetchAllDecklists(
+  urls: string[],
+): Promise<{ decklists: DecklistEntry[]; errors: number }> {
   const decklists: DecklistEntry[] = [];
+  let errors = 0;
 
   for (const url of urls) {
     const match = url.match(/sealeddeck\.tech\/(.+)$/);
@@ -364,11 +373,12 @@ async function fetchAllDecklists(urls: string[]): Promise<DecklistEntry[]> {
       // Rate limit: sealeddeck.tech is a small site
       await new Promise((r) => setTimeout(r, SEALEDDECK_RATE_LIMIT_MS));
     } catch (error) {
+      errors++;
       console.error(`  ERROR fetching ${id}: ${error}`);
     }
   }
 
-  return decklists;
+  return { decklists, errors };
 }
 
 /**
@@ -505,16 +515,18 @@ async function main() {
   await cardCache.loadAll(client);
   log(`Card cache loaded: ${cardCache.size} cards`);
 
-  // Outcome tally across every draft, printed as a dry-run summary before the
-  // closing hint — a human has to read this before authorizing a run against
-  // the one production database.
+  // Outcome tally across every draft, printed at the end of every run — not
+  // only dry runs. The procedure is "dry run, review, apply", and diffing the
+  // apply summary against the reviewed dry-run summary is the only end-to-end
+  // check that the apply did what was authorized.
   const summary = {
-    wouldCreate: 0,
-    wouldUpdate: 0,
+    created: 0,
+    updated: 0,
     unchanged: 0,
     skippedBelowThreshold: 0,
     skippedMalformed: 0,
     skippedRecovered: 0,
+    fetchErrors: 0,
   };
 
   for (const [label, urls] of drafts) {
@@ -529,7 +541,8 @@ async function main() {
     log(`${label} (${draftId}) — ${urls.length} links`);
 
     // Fetch decklists from sealeddeck.tech
-    const decklists = await fetchAllDecklists(urls);
+    const { decklists, errors: fetchErrors } = await fetchAllDecklists(urls);
+    summary.fetchErrors += fetchErrors;
     if (decklists.length === 0) {
       logIndent("No decklists fetched, skipping");
       continue;
@@ -644,9 +657,9 @@ async function main() {
           status = "would create";
         }
         if (existing) {
-          summary.wouldUpdate++;
+          summary.updated++;
         } else {
-          summary.wouldCreate++;
+          summary.created++;
         }
 
         logIndent(
@@ -672,6 +685,12 @@ async function main() {
         },
       ]);
 
+      if (existing) {
+        summary.updated++;
+      } else {
+        summary.created++;
+      }
+
       const status = existing ? "updated" : "new";
       logIndent(
         `Seat ${seat}: ${deckCards.length} cards written (${status})${warnings > 0 ? ` [${warnings} warnings]` : ""}`,
@@ -679,13 +698,13 @@ async function main() {
     }
   }
 
-  if (dryRun) {
-    log(
-      `Summary — would create: ${summary.wouldCreate}, would update: ${summary.wouldUpdate}, ` +
-        `unchanged: ${summary.unchanged}, skipped (below threshold): ${summary.skippedBelowThreshold}, ` +
-        `skipped (malformed): ${summary.skippedMalformed}, skipped (recovered): ${summary.skippedRecovered}`,
-    );
-  }
+  log(
+    `Summary — ${dryRun ? "would create" : "created"}: ${summary.created}, ` +
+      `${dryRun ? "would update" : "updated"}: ${summary.updated}, ` +
+      `unchanged: ${summary.unchanged}, skipped (below threshold): ${summary.skippedBelowThreshold}, ` +
+      `skipped (malformed): ${summary.skippedMalformed}, skipped (recovered): ${summary.skippedRecovered}, ` +
+      `fetch errors: ${summary.fetchErrors}`,
+  );
 
   log(dryRun ? "Dry run complete — re-run without --dry-run to apply." : "Done!");
 }
