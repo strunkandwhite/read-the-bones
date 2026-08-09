@@ -31,10 +31,13 @@
 
 Tasks 1-6 are code only and touch no data. Task 7 is an investigation with a go/no-go. Tasks 8-12 write production and are strictly sequential.
 
+**Task 2B was added after Task 2's review**, which found two defects in the files Task 2 touched — neither caused by it. It runs before Task 3 because both edit `scripts/decklists.ts`.
+
 | Task | Deliverable | Touches |
 |---|---|---|
 | 1 | Shared scoring module | code |
 | 2 | Matcher fix + regression tests | code |
+| 2B | Guard module-scope `main()`; make the regression test fail behaviorally | code |
 | 3 | Provenance column + writer changes | code (schema) |
 | 4 | `--dry-run` for `pnpm decklists` | code |
 | 5 | Integrity command | code |
@@ -585,6 +588,168 @@ EOF
 
 ---
 
+### Task 2B: Stop the module from running itself, and make the regression test show the bug
+
+Added after Task 2's review. Two findings, both in the files Task 2 touched, neither caused by it.
+
+**Files:**
+- Modify: `scripts/decklists.ts` (the `main()` invocation at the end of the file)
+- Modify: `scripts/decklists.test.ts` (the full-cube regression test)
+
+**Interfaces:**
+- Consumes: Task 2's `extractStoredCards`, `matchDecksToSeats`, `DecklistEntry.storedCards`.
+- Produces: no new exports.
+
+**Finding 1 — `main()` runs on import.** `scripts/decklists.ts` ends with a bare `main().catch(...)`, so importing the module executes it. `scripts/decklists.test.ts` imports the module, and `loadEnv()` reads `.env.local`, so live Turso credentials are present during a test run. Test stdout confirms the chain starts — it logs `Found 22 drafts in decklists.txt`, which is emitted after `loadEnv`, the file read, and the parse. The chain continues into sealeddeck fetches and ends in `DELETE FROM deck_cards`, `batchInsertDeckCards`, and `INSERT OR REPLACE INTO deck_hashes`. Only the vitest worker exiting first prevents a production write, and a full suite run gives it far more wall-clock than a single-file run. A plan whose purpose is that decklist data stops being silently overwritten cannot ship a test suite that can silently overwrite decklist data.
+
+**Finding 2 — the regression test doesn't construct the bug.** The full-cube test asserts the right outcome (assignment to the true owner) but its fixture has no `hidden` zone, so it is the passing test above it plus one assertion. Its RED against the old code was `TypeError: decklist.pool is not iterable` — a fixture-shape mismatch, not a behavioral failure. Nothing in the suite feeds a full-cube response through `extractStoredCards` into `matchDecksToSeats`.
+
+- [ ] **Step 1: Rewrite the regression test so it fails behaviorally**
+
+In `scripts/decklists.test.ts`, replace the `assigns a full-cube submission to its true owner` test with:
+
+```ts
+  it("assigns a full-cube submission to its true owner", () => {
+    // Regression for the corruption bug. This submitter pasted the entire
+    // remaining cube into sealeddeck's `hidden` zone. Building the entry through
+    // extractStoredCards is the point: under the old code `hidden` leaked into
+    // the matching set, the list overlapped seat 1 completely as well, and seat 1
+    // was assigned a deck belonging to seat 2.
+    const storedCards = extractStoredCards({
+      poolId: "x",
+      deck: [
+        { name: "Counterspell", count: 1 },
+        { name: "Ponder", count: 1 },
+        { name: "Preordain", count: 1 },
+        { name: "Opt", count: 1 },
+      ],
+      sideboard: [],
+      hidden: [
+        // the whole cube — every card both seats drafted
+        { name: "Bolt", count: 1 },
+        { name: "Swords", count: 1 },
+        { name: "Ragavan", count: 1 },
+        { name: "Brainstorm", count: 1 },
+        { name: "Counterspell", count: 1 },
+        { name: "Ponder", count: 1 },
+        { name: "Preordain", count: 1 },
+        { name: "Opt", count: 1 },
+      ],
+    });
+
+    const result = matchDecksToSeats(
+      [{ ...entry("LZYpr4rjmH", []), storedCards }],
+      seatPicks,
+    );
+
+    // The deck must land on its true owner, not merely fail to corrupt seat 1.
+    // Asserting only the absence of corruption would also pass under a fix that
+    // discards the submission entirely, which would leave seat 2 with no deck.
+    expect(result.get(2)?.sealeddeckId).toBe("LZYpr4rjmH");
+    expect(result.has(1)).toBe(false);
+  });
+```
+
+The seat picks in this file are lowercase short names (`bolt`, `swords`, `ragavan`, `brainstorm`, `counterspell`, `ponder`, `preordain`, `opt`), and `extractStoredCards` lowercases via `normalizeForMatch`, so the capitalized fixture names normalize onto them.
+
+- [ ] **Step 2: Verify the test fails for the right reason**
+
+Temporarily re-add `hidden` to `extractStoredCards` (`...(response.hidden || [])` in the spread) and run:
+
+```bash
+npx vitest run scripts/decklists.test.ts -t "full-cube"
+```
+
+Expected: FAIL — and read the failure. It must be a *behavioral* failure showing the list matched seat 1 as well as seat 2 (with the new gates, two eligible seats, so nothing is assigned and `result.get(2)` is `undefined`). It must NOT be a TypeError. Then revert the temporary change.
+
+This step is the whole point of the task — if the failure is a type error again, the fixture is still wrong.
+
+- [ ] **Step 3: Verify it passes with `hidden` excluded**
+
+```bash
+npx vitest run scripts/decklists.test.ts
+```
+
+Expected: PASS — 8 tests.
+
+- [ ] **Step 4: Guard the module-scope `main()`**
+
+At the end of `scripts/decklists.ts`, replace:
+
+```ts
+main().catch((e) => {
+  console.error(e.message);
+  process.exit(1);
+});
+```
+
+with:
+
+```ts
+// Only run when invoked as a script. Importing this module — which the tests do,
+// for the pure matching functions — must never start a fetch-and-write against
+// production. `loadEnv` picks up real Turso credentials, so the guard is what
+// stands between `pnpm test` and a write to deck_cards.
+const invokedDirectly =
+  process.argv[1] !== undefined &&
+  realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (invokedDirectly) {
+  main().catch((e) => {
+    console.error(e.message);
+    process.exit(1);
+  });
+}
+```
+
+`fileURLToPath` is already imported. Add `realpathSync` to the existing `fs` import alongside `readFileSync, existsSync`.
+
+`realpathSync` matters because `tsx` may resolve the script through a symlink; comparing raw paths would silently disable the CLI.
+
+- [ ] **Step 5: Verify the guard works in both directions**
+
+The module must stay silent on import, and still run as a CLI:
+
+```bash
+npx vitest run scripts/decklists.test.ts 2>&1 | grep -c "drafts in decklists.txt"
+```
+
+Expected: `0` — no ingest logging during tests. Before this change it printed the line.
+
+```bash
+pnpm decklists --dry-run 2>&1 | head -5
+```
+
+Expected: it still starts up and reports `Found 22 drafts in decklists.txt`. (This requires Task 4's `--dry-run`; if Task 4 has not landed yet, run `pnpm decklists nonexistent-draft-label` instead, which is read-only — it will report `Draft not found in Turso` and write nothing.)
+
+- [ ] **Step 6: Full verification**
+
+```bash
+npx tsc --noEmit && pnpm lint && pnpm knip && npx vitest run
+```
+
+Expected: PASS.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git -C /Users/arpanet/code/read-the-bones add scripts/decklists.ts scripts/decklists.test.ts
+git -C /Users/arpanet/code/read-the-bones commit -m "$(cat <<'EOF'
+Keep importing the decklist script from running it
+
+The test file imports this module for its matching functions, and a bare
+main() call meant importing it could fetch and write production decks —
+the exact silent overwrite this branch exists to stop. The regression
+test now builds its fixture through extractStoredCards, so it fails on
+the old code's behavior rather than on a fixture shape mismatch.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
 ### Task 3: Provenance column and the recovered-deck guard
 
 `deck_hashes` is already the per-seat provenance table keyed `(draft_id, seat)`; it just never recorded *where* the deck came from. Recording it is what lets `data/decklists.txt` become an inbox (Task 12) without destroying the only record of which submission produced which deck.
@@ -733,9 +898,35 @@ and immediately after `log(\`Found ${drafts.size} drafts in decklists.txt\`)`:
   }
 ```
 
-- [ ] **Step 2: Short-circuit every write**
+- [ ] **Step 2: Move the destructive delete below the guard that rejects bad decks**
 
-In the writer loop, immediately after the closing brace of the `if (maindeckQty < 20) { ... }` guard and before `await batchInsertDeckCards(client, deckCards);`, insert:
+The writer loop currently runs `DELETE FROM deck_cards` *before* resolving cards and *before* the `maindeckQty < 20` guard. A resubmission with fewer than 20 maindeck cards therefore wipes that seat's previously-good deck and then declines to write a replacement — silent decklist destruction, which is the exact failure this branch exists to stop. The precision gate from Task 2 lets more submissions reach this path, so the exposure grew.
+
+Reorder the loop body so nothing is destroyed until a good deck is ready to replace it. **Delete** the existing block:
+
+```ts
+      // Delete old deck cards for this seat before reinserting
+      await client.execute({
+        sql: "DELETE FROM deck_cards WHERE draft_id = ? AND seat = ?",
+        args: [draftId, seat],
+      });
+```
+
+from its current position above `const qtyMap = ...`, and re-insert it lower down, immediately before `await batchInsertDeckCards(client, deckCards);`:
+
+```ts
+      // Replace this seat's deck only once a valid one is ready to take its place.
+      // Deleting earlier meant a malformed resubmission destroyed a good deck and
+      // then declined to write anything.
+      await client.execute({
+        sql: "DELETE FROM deck_cards WHERE draft_id = ? AND seat = ?",
+        args: [draftId, seat],
+      });
+```
+
+- [ ] **Step 3: Short-circuit every write**
+
+With the delete moved, one `continue` short-circuits the whole write section. Immediately after the closing brace of the `if (maindeckQty < 20) { ... }` guard and before the relocated `DELETE`, insert:
 
 ```ts
       if (dryRun) {
@@ -748,19 +939,7 @@ In the writer loop, immediately after the closing brace of the `if (maindeckQty 
       }
 ```
 
-The `DELETE FROM deck_cards` at lines 402-406 runs *before* this point, so it must also be guarded. Wrap it:
-
-```ts
-      // Delete old deck cards for this seat before reinserting
-      if (!dryRun) {
-        await client.execute({
-          sql: "DELETE FROM deck_cards WHERE draft_id = ? AND seat = ?",
-          args: [draftId, seat],
-        });
-      }
-```
-
-Likewise guard the `DELETE FROM deck_hashes` inside the `maindeckQty < 20` branch (lines 432-435):
+The only write now above that line is the `DELETE FROM deck_hashes` inside the `maindeckQty < 20` branch, which still needs its own guard:
 
 ```ts
         if (!dryRun) {
@@ -771,7 +950,9 @@ Likewise guard the `DELETE FROM deck_hashes` inside the `maindeckQty < 20` branc
         }
 ```
 
-- [ ] **Step 3: Print the closing hint**
+Clearing the hash while leaving `deck_cards` intact is deliberate: the seat keeps its good deck, and the cleared hash makes the next run re-evaluate the submission rather than short-circuit on a stale match. Re-running is idempotent — it resolves, hits the guard again, and skips again.
+
+- [ ] **Step 4: Print the closing hint**
 
 Replace `log("Done!")` at line 454:
 
@@ -779,7 +960,7 @@ Replace `log("Done!")` at line 454:
   log(dryRun ? "Dry run complete — re-run without --dry-run to apply." : "Done!");
 ```
 
-- [ ] **Step 4: Verify no write path is reachable under `--dry-run`**
+- [ ] **Step 5: Verify no write path is reachable under `--dry-run`**
 
 ```bash
 grep -n "client.execute\|batchInsert" scripts/decklists.ts
@@ -789,7 +970,7 @@ Expected: every `INSERT`, `DELETE` or `batchInsertDeckCards` call inside the wri
 
 `resolveZoneCards` calls `resolveCardNameToId` (`src/core/db/sync/incremental.ts:185-215`), which runs four `SELECT`s and nothing else — verified during planning. It is safe to leave outside the guard, and leaving it there is what makes the dry run report unresolved card names.
 
-- [ ] **Step 5: Verify types and tests**
+- [ ] **Step 6: Verify types and tests**
 
 ```bash
 npx tsc --noEmit && npx vitest run && pnpm lint
@@ -797,7 +978,7 @@ npx tsc --noEmit && npx vitest run && pnpm lint
 
 Expected: PASS.
 
-- [ ] **Step 6: Document the flags in CLAUDE.md**
+- [ ] **Step 7: Document the flags in CLAUDE.md**
 
 In the `# Decklists` block of `CLAUDE.md`, replace the two existing lines with:
 
@@ -808,7 +989,7 @@ pnpm decklists --dry-run       # Report what would be written, change nothing
 pnpm decklists --force         # Also overwrite hand-recovered decks (see decklists:import)
 ```
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
 git -C /Users/arpanet/code/read-the-bones add scripts/decklists.ts CLAUDE.md
@@ -2088,7 +2269,9 @@ Once every screenshot has been parsed and imported, `data/decklists-tmp-delete-w
 
 | Spec section | Task |
 |---|---|
-| D1 — stored-card matching, precision gate | 1, 2 |
+| D1 — stored-card matching, precision gate | 1, 2, 2B |
+| Importing the script must not run it | 2B |
+| Destructive delete must not precede the guard that rejects bad decks | 4 |
 | D2 — provenance in `deck_hashes`, hash short-circuit | 3 |
 | D3 — `decklists.txt` as inbox | 12 |
 | D4 — recovered-deck guard, `draft:reset` hazard | 3 (guard), 10 Step 4 (proof), 12 Step 5 (docs) |
