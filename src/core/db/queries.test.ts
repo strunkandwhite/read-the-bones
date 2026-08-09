@@ -1771,6 +1771,41 @@ describe("getDraftPool", () => {
     expect(result).toBeNull();
   });
 
+  it("include_draft_results gates drafted_by_seat/drafted_pick_n independently of the `drafted` flag", async () => {
+    // Same drafted row queried twice, once per include_draft_results setting —
+    // `drafted` is computed from the raw row (drafted_by_seat !== null) and must
+    // stay true in both cases, even while the seat/pick fields it's paired with
+    // toggle between hidden and real values.
+    const draftedRow = {
+      draft_id: "draft1",
+      draft_name: "Vintage Cube",
+      draft_date: "2025-01-15",
+      card_name: "Lightning Bolt",
+      quantity: 1,
+      scryfall_json: null,
+      drafted_by_seat: 1,
+      drafted_pick_n: 5,
+    };
+
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([draftedRow]));
+    const hidden = await getDraftPool(mockClient as never, {
+      draft_id: "draft1",
+      include_draft_results: false,
+    });
+    expect(hidden!.cards![0].drafted).toBe(true);
+    expect(hidden!.cards![0].drafted_by_seat).toBeNull();
+    expect(hidden!.cards![0].drafted_pick_n).toBeNull();
+
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([draftedRow]));
+    const shown = await getDraftPool(mockClient as never, {
+      draft_id: "draft1",
+      include_draft_results: true,
+    });
+    expect(shown!.cards![0].drafted).toBe(true);
+    expect(shown!.cards![0].drafted_by_seat).toBe(1);
+    expect(shown!.cards![0].drafted_pick_n).toBe(5);
+  });
+
 });
 
 // ============================================================================
