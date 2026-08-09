@@ -45,23 +45,6 @@ export function parseBannedCardNames(json: string | null): string[] {
 }
 
 /**
- * Fetch privacy opt-outs for a set of drafts, returned as "draftId:seat" pairs.
- * Handles both single-draft and multi-draft use cases.
- */
-export async function fetchOptOuts(client: Client, draftIds: string[]): Promise<Set<string>> {
-  if (draftIds.length === 0) return new Set();
-  const result = await client.execute({
-    sql: `SELECT draft_id, seat FROM privacy_opt_outs WHERE draft_id IN (${placeholders(draftIds.length)})`,
-    args: draftIds,
-  });
-  const optedOut = new Set<string>();
-  for (const row of result.rows) {
-    optedOut.add(`${row.draft_id}:${row.seat}`);
-  }
-  return optedOut;
-}
-
-/**
  * Get opted-out seats for a single draft.
  *
  * Consumed by the ingest filter and by the /live route's display flag. Query

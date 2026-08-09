@@ -3,7 +3,7 @@
  */
 
 import type { Client } from "@libsql/client";
-import { fetchOptOuts, getSeatsMatchingColors } from "./helpers";
+import { getSeatsMatchingColors } from "./helpers";
 import { resolveCard } from "./cards";
 import { round3 } from "../../utils";
 
@@ -14,8 +14,6 @@ export interface GetCardPlayStatsParams {
   draft_id?: string;
   exclude_draft_id?: string;
   deck_colors?: string;
-  /** Pre-fetched opt-outs as "draftId:seat" pairs. When provided, skips the internal opt-outs query. */
-  optedOutByDraft?: Set<string>;
 }
 
 export interface CardPlayStatsResult {
@@ -71,9 +69,7 @@ export async function getCardPlayStats(
     };
   }
 
-  // Load opt-outs for relevant drafts (skip if caller already fetched them)
   const draftIds = [...new Set(result.rows.map((r) => r.draft_id as string))];
-  const optedOut = params.optedOutByDraft ?? await fetchOptOuts(client, draftIds);
 
   // If deck_colors filter is set, determine which seats match
   let matchingSeats: Set<string> | null = null;
@@ -89,8 +85,6 @@ export async function getCardPlayStats(
     const draftId = row.draft_id as string;
     const seat = row.seat as number;
 
-    // Skip opted-out seats
-    if (optedOut.has(`${draftId}:${seat}`)) continue;
     // Skip seats that don't match the color filter
     if (matchingSeats && !matchingSeats.has(`${draftId}:${seat}`)) continue;
 

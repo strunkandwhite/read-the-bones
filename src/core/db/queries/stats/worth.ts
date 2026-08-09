@@ -12,7 +12,6 @@ import type { Client } from "@libsql/client";
 import { getClient } from "../../client";
 import { statsPhaseFilter } from "../../../draftPhases";
 import {
-  fetchOptOuts,
   inferSeatColors,
   parseScryfallJson,
   placeholders,
@@ -222,7 +221,7 @@ async function assembleWorthTable(
 
   const hasStatsDrafts = statsDraftIds.length > 0;
   const draftIdPlaceholders = placeholders(statsDraftIds.length);
-  const [picksResult, winsResult, matchesResult, optedOut, seatColors] =
+  const [picksResult, winsResult, matchesResult, seatColors] =
     await Promise.all([
       hasStatsDrafts
         ? client.execute({
@@ -256,9 +255,6 @@ async function assembleWorthTable(
             args: statsDraftIds,
           })
         : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
-      hasStatsDrafts
-        ? fetchOptOuts(client, statsDraftIds)
-        : Promise.resolve(new Set<string>()),
       hasStatsDrafts
         ? inferSeatColors(client, statsDraftIds)
         : Promise.resolve(new Map<string, string>()),
@@ -316,12 +312,11 @@ async function assembleWorthTable(
     byDraft.get(draftId)!.push(row.pick_n as number);
   }
 
-  // Win totals per name, honoring privacy opt-outs.
+  // Win totals per name.
   const winsByName = new Map<string, { wins: number; losses: number }>();
   for (const row of winsResult.rows) {
     const name = cardIdToName.get(row.card_id as number);
     if (name === undefined) continue;
-    if (optedOut.has(`${row.draft_id}:${row.seat}`)) continue;
     if (!winsByName.has(name)) winsByName.set(name, { wins: 0, losses: 0 });
     const totals = winsByName.get(name)!;
     totals.wins += Number(row.game_wins);
@@ -329,9 +324,7 @@ async function assembleWorthTable(
   }
 
   // Color baselines and pair records from inferred seat colors. A seat's
-  // games count toward every color in its inferred identity. Opt-outs are
-  // not applied here, matching the getDraftStats color-WR precedent:
-  // these are pod-level aggregates that identify no individual seat.
+  // games count toward every color in its inferred identity.
   const colorTallies = new Map<string, { wins: number; losses: number }>();
   const pairTallies = new Map<string, { wins: number; losses: number }>();
   const tallySeat = (

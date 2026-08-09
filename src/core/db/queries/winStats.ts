@@ -3,7 +3,7 @@
  */
 
 import type { Client } from "@libsql/client";
-import { fetchOptOuts, getSeatsMatchingColors } from "./helpers";
+import { getSeatsMatchingColors } from "./helpers";
 import { resolveCard } from "./cards";
 import { round3 } from "../../utils";
 import { wilsonInterval } from "../../wilsonInterval";
@@ -16,8 +16,6 @@ export interface GetCardWinStatsParams {
   draft_id?: string;
   exclude_draft_id?: string;
   deck_colors?: string;
-  /** Pre-fetched opt-outs as "draftId:seat" pairs. When provided, skips the internal opt-outs query. */
-  optedOutByDraft?: Set<string>;
 }
 
 export interface CardWinStatsResult {
@@ -83,9 +81,8 @@ export async function getCardWinStats(
     };
   }
 
-  // Get opt-outs and optional color filter for all relevant drafts (skip if caller already fetched them)
+  // Get optional color filter for all relevant drafts
   const draftIds = [...new Set(result.rows.map((r) => r.draft_id as string))];
-  const optedOut = params.optedOutByDraft ?? await fetchOptOuts(client, draftIds);
 
   // If deck_colors filter is set, determine which seats match
   let matchingSeats: Set<string> | null = null;
@@ -93,7 +90,7 @@ export async function getCardWinStats(
     matchingSeats = await getSeatsMatchingColors(client, draftIds, params.deck_colors);
   }
 
-  // Aggregate, skipping opted-out and non-matching seats
+  // Aggregate, skipping non-matching seats
   let gameWins = 0;
   let gameLosses = 0;
   let timesMaindecked = 0;
@@ -103,7 +100,6 @@ export async function getCardWinStats(
     const draftId = row.draft_id as string;
     const seat = row.seat as number;
 
-    if (optedOut.has(`${draftId}:${seat}`)) continue;
     if (matchingSeats && !matchingSeats.has(`${draftId}:${seat}`)) continue;
 
     gameWins += row.game_wins as number;
@@ -133,7 +129,7 @@ export type BulkWinStatsEntry = {
 
 /**
  * Get win stats for all cards at once. Same logic as getCardWinStats but
- * aggregated across all cards in a single query, with opt-out filtering.
+ * aggregated across all cards in a single query.
  */
 export async function getAllCardWinStats(
   client: Client,
@@ -161,19 +157,10 @@ export async function getAllCardWinStats(
 
   if (result.rows.length === 0) return new Map();
 
-  // Get opt-outs for all drafts in the result set
-  const draftIds = [...new Set(result.rows.map((r) => r.draft_id as string))];
-  const optedOut = await fetchOptOuts(db, draftIds);
-
-  // Aggregate per card, skipping opted-out seats
+  // Aggregate per card
   const cardAgg = new Map<string, { wins: number; losses: number; seats: number }>();
 
   for (const row of result.rows) {
-    const draftId = row.draft_id as string;
-    const seat = row.seat as number;
-
-    if (optedOut.has(`${draftId}:${seat}`)) continue;
-
     const cardName = row.card_name as string;
     const key = cardNameKey(cardName);
 

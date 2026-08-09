@@ -59,8 +59,6 @@ describe("getCardPlayStats", () => {
         { draft_id: "legacy", seat: 2, zone: "sideboard" },
       ],
     });
-    // Mock opt-outs (none)
-    mockExecute.mockResolvedValueOnce({ rows: [] });
 
     const result = await getCardPlayStats(mockClient, { card_name: "Lightning Bolt" });
 
@@ -84,32 +82,6 @@ describe("getCardPlayStats", () => {
     expect(result).toBeNull();
   });
 
-  it("should exclude opted-out seats from play rate", async () => {
-    // Mock resolveCard
-    mockExecute.mockResolvedValueOnce({
-      rows: [{ card_id: 42, oracle_id: "gen:bolt", name: "Lightning Bolt", scryfall_json: null }],
-    });
-    // Mock play stats query: seat 1 maindecked, seat 2 (opted out) maindecked
-    mockExecute.mockResolvedValueOnce({
-      rows: [
-        { draft_id: "tarkir", seat: 1, zone: "deck" },
-        { draft_id: "tarkir", seat: 2, zone: "deck" },
-        { draft_id: "tarkir", seat: 3, zone: "sideboard" },
-      ],
-    });
-    // Mock opt-outs: seat 2 in tarkir opted out
-    mockExecute.mockResolvedValueOnce({
-      rows: [{ draft_id: "tarkir", seat: 2 }],
-    });
-
-    const result = await getCardPlayStats(mockClient, { card_name: "Lightning Bolt" });
-
-    // Seat 2 excluded: only seat 1 (deck) and seat 3 (sideboard) count
-    expect(result!.times_drafted).toBe(2);
-    expect(result!.times_maindecked).toBe(1);
-    expect(result!.play_rate).toBe(0.5);
-  });
-
   it("should return zero play rate when never maindecked", async () => {
     mockExecute.mockResolvedValueOnce({
       rows: [{ card_id: 42, oracle_id: "gen:bolt", name: "Lightning Bolt", scryfall_json: null }],
@@ -119,8 +91,6 @@ describe("getCardPlayStats", () => {
         { draft_id: "tarkir", seat: 1, zone: "sideboard" },
       ],
     });
-    // Mock opt-outs (none)
-    mockExecute.mockResolvedValueOnce({ rows: [] });
 
     const result = await getCardPlayStats(mockClient, { card_name: "Lightning Bolt" });
 
@@ -155,8 +125,6 @@ describe("getCardWinStats", () => {
         { draft_id: "innistrad", seat: 2, game_wins: 6, game_losses: 1 },
       ],
     });
-    // Mock opt-outs (none)
-    mockExecute.mockResolvedValueOnce({ rows: [] });
 
     const result = await getCardWinStats(mockClient, { card_name: "Lightning Bolt" });
 
@@ -168,30 +136,6 @@ describe("getCardWinStats", () => {
       win_rate: expect.closeTo(0.667, 2),
       drafts_with_data: 2,
     });
-  });
-
-  it("should exclude opted-out seats", async () => {
-    // Mock resolveCard
-    mockExecute.mockResolvedValueOnce({
-      rows: [{ card_id: 42, oracle_id: "gen:bolt", name: "Lightning Bolt", scryfall_json: null }],
-    });
-    // Mock main query
-    mockExecute.mockResolvedValueOnce({
-      rows: [
-        { draft_id: "tarkir", seat: 1, game_wins: 5, game_losses: 2 },
-        { draft_id: "tarkir", seat: 3, game_wins: 3, game_losses: 4 },
-      ],
-    });
-    // Mock opt-outs: seat 1 in tarkir opted out
-    mockExecute.mockResolvedValueOnce({
-      rows: [{ draft_id: "tarkir", seat: 1 }],
-    });
-
-    const result = await getCardWinStats(mockClient, { card_name: "Lightning Bolt" });
-
-    expect(result!.times_maindecked).toBe(1);
-    expect(result!.game_wins).toBe(3);
-    expect(result!.game_losses).toBe(4);
   });
 
   it("should return zero stats when no match data exists", async () => {

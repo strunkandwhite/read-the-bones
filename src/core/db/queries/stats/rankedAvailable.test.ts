@@ -17,7 +17,6 @@ import {
   insertCubeCard,
   insertDraft,
   insertPickEvent,
-  insertPrivacyOptOut,
 } from "../../__tests__/testDb";
 import { danger, pickCdf, type WorthCard } from "../../../worthModel";
 
@@ -361,34 +360,6 @@ describe("rankAvailableCards — pick-score inputs", () => {
     // Only the completed draft counts, so the score is that single pick.
     expect(card.geomean_pick).toBeCloseTo(10, 1);
     expect(card.drafts_in_pool).toBe(1);
-  });
-
-  it("excludes opted-out seats from geomean_pick", async () => {
-    await insertCubeSnapshot(db, 1);
-    await insertCard(db, 1, "Alpha");
-    await insertCubeCard(db, 1, 1);
-    // The opted-out pick lives in a separate historical draft, not the one
-    // being ranked: a pick inside "current" itself would remove the card
-    // from availability entirely (Step 1's getAvailableCards is correctly
-    // opt-out-blind — it reports real remaining supply), so it would never
-    // reach result.cards to be scored at all.
-    await insertDraft(db, "current", { phase: "complete", cubeSnapshotId: 1 });
-    await insertDraft(db, "hist", { phase: "complete", cubeSnapshotId: 1 });
-    await insertPickEvent(db, "hist", 10, 3, 1);
-    await insertPrivacyOptOut(db, "hist", 3);
-
-    const result = await rankAvailableCards({
-      draft_id: "current",
-      before_pick_n: 500,
-    });
-
-    const card = result.cards.find((c) => c.card_name === "Alpha")!;
-    // The only pick was by an opted-out seat, so the card reads as untaken
-    // in both drafts and takes the half-weight pool-size penalty in each.
-    // The cube here holds a single card, so SUM(qty) makes the pool size 1
-    // — not the 540-card production default.
-    expect(card.geomean_pick).toBeCloseTo(1, 1);
-    expect(card.times_picked).toBe(0);
   });
 
   it("keeps the real session gap for a card that sat out a session", async () => {

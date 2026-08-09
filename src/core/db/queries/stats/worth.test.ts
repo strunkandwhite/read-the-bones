@@ -2,8 +2,8 @@
  * Integration tests for the worth-table assembly against in-memory libsql.
  *
  * Exercises the data-hygiene rules (stats-phase filtering, land exclusion,
- * prior-only/no-data states, privacy opt-outs), the module-level cache, and
- * the excludeDraftId LODO escape hatch.
+ * prior-only/no-data states), the module-level cache, and the
+ * excludeDraftId LODO escape hatch.
  */
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -17,7 +17,6 @@ import {
   insertPickEvent,
   insertMatch,
   insertDeckCard,
-  insertPrivacyOptOut,
 } from "../../__tests__/testDb";
 
 // getWorthTable calls getClient() internally — redirect to the memdb.
@@ -251,27 +250,6 @@ describe("getWorthTable", () => {
     expect(land.worth).not.toBeNull();
     // 6 cards have ≥100 games and a geomean, but the land is excluded.
     expect(result.cardsFit).toBe(5);
-  });
-
-  it("excludes opted-out seats from win aggregates", async () => {
-    await insertCard(db, 1, "Solo Card", {
-      scryfallJson: { type_line: "Creature — Bear", color_identity: ["G"] },
-    });
-    await insertCubeSnapshot(db, 1);
-    await insertCubeCard(db, 1, 1);
-    await insertDraft(db, "dx", { phase: "complete", cubeSnapshotId: 1 });
-    await insertPickEvent(db, "dx", 1, 1, 1);
-    await insertDeckCard(db, "dx", 1, 1);
-    await insertDeckCard(db, "dx", 2, 1);
-    await insertMatch(db, "dx", 1, 2, 7, 3);
-    await insertPrivacyOptOut(db, "dx", 1);
-
-    const result = await getWorthTable();
-    const card = findCard(result, "Solo Card");
-    // Only seat 2's games remain (3 wins, 7 losses).
-    expect(card.games).toBe(10);
-    expect(card.wins).toBe(3);
-    expect(card.losses).toBe(7);
   });
 
   describe("caching", () => {

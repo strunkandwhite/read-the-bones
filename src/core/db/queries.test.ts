@@ -1368,8 +1368,6 @@ describe("getCardPickStats", () => {
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([{ draft_id: "draft1", pick_n: 5, seat: 1 }])
     );
-    // Opt-outs (none)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Deck cards (no decklist data)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
@@ -1418,8 +1416,6 @@ describe("getCardPickStats", () => {
         { draft_id: "draft3", pick_n: 10, seat: 3 },
       ])
     );
-    // Opt-outs (none)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Deck cards (no decklist data)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
@@ -1461,8 +1457,6 @@ describe("getCardPickStats", () => {
         { draft_id: "draft2", pick_n: 10, seat: 2 },
       ])
     );
-    // Opt-outs (none)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Deck cards: maindecked in draft1, sideboarded in draft2
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
@@ -1476,57 +1470,6 @@ describe("getCardPickStats", () => {
     expect(result?.times_in_pool_with_decklist).toBe(2);
     expect(result?.times_maindecked).toBe(1);
     expect(result?.play_rate).toBe(0.5);
-  });
-
-  it("should exclude opted-out seats from pick stats and play rate", async () => {
-    // Card lookup
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ card_id: 1, oracle_id: "abc", name: "Test Card", scryfall_json: null }])
-    );
-    // Drafts with card
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([
-        { draft_id: "draft1", cube_snapshot_id: 1 },
-      ])
-    );
-    // Banned cards check (none)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
-    // Cube sizes
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ cube_snapshot_id: 1, total_cards: 540 }])
-    );
-    // Global stats-phase draft set (session ordinals)
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ draft_id: "draft1", draft_date: "2026-01-01" }])
-    );
-    // Picks: seat 1 picked at 5, seat 2 (opted out) picked at 50
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([
-        { draft_id: "draft1", pick_n: 5, seat: 1 },
-        { draft_id: "draft1", pick_n: 50, seat: 2 },
-      ])
-    );
-    // Opt-outs: seat 2 in draft1 is opted out
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ draft_id: "draft1", seat: 2 }])
-    );
-    // Deck cards: seat 1 maindecked, seat 2 (opted out) maindecked
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([
-        { draft_id: "draft1", seat: 1, zone: "deck" },
-        { draft_id: "draft1", seat: 2, zone: "deck" },
-      ])
-    );
-
-    const result = await getCardPickStats(mockClient as never, { card_name:"Test Card" });
-
-    // Only seat 1's pick should count
-    expect(result?.times_picked).toBe(1);
-    expect(result?.avg_pick_n).toBe(5);
-    // Only seat 1's decklist should count
-    expect(result?.times_in_pool_with_decklist).toBe(1);
-    expect(result?.times_maindecked).toBe(1);
-    expect(result?.play_rate).toBe(1);
   });
 
   it("should apply date filters", async () => {
@@ -1604,8 +1547,6 @@ describe("getCardPickStats", () => {
         { draft_id: "older", pick_n: 100, seat: 1 },
       ])
     );
-    // Opt-outs (none)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Deck cards (no decklist data)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
@@ -1646,7 +1587,6 @@ describe("getCardPickStats", () => {
         { draft_id: "older", pick_n: 100, seat: 1 },
       ])
     );
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
     const result = await getCardPickStats(mockClient as never, { card_name: "Test Card" });
@@ -1690,8 +1630,6 @@ describe("getCardPickStats", () => {
         { draft_id: "sessionC", pick_n: 100, seat: 1 },
       ])
     );
-    // Opt-outs (none)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Deck cards (no decklist data)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
@@ -1860,7 +1798,6 @@ describe("rankAvailableCards", () => {
     cubeSizes?: { cube_snapshot_id: number; total_cards: number }[];
     playStats?: { card_id: number; draft_id: string; seat: number; zone: string }[];
     winStats?: { card_id: number; draft_id: string; seat: number; game_wins: number; game_losses: number }[];
-    optOuts?: { draft_id: string; seat: number }[];
   }) {
     // 4. Batch card ID resolution
     mockClient.execute.mockResolvedValueOnce(
@@ -1885,10 +1822,6 @@ describe("rankAvailableCards", () => {
     // 9. Win stats (parallel query 5)
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult(opts.winStats ?? [])
-    );
-    // 10. Opt-outs query
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult(opts.optOuts ?? [])
     );
   }
 

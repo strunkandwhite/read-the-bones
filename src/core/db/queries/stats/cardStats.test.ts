@@ -9,7 +9,7 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Client } from "@libsql/client";
-import { createMemDb, insertCard, insertCubeSnapshot, insertCubeCard, insertDraft, insertPickEvent, insertMatch, insertDeckCard, insertPrivacyOptOut } from "../../__tests__/testDb";
+import { createMemDb, insertCard, insertCubeSnapshot, insertCubeCard, insertDraft, insertPickEvent, insertMatch, insertDeckCard } from "../../__tests__/testDb";
 import { MIN_SAMPLE_SIZE } from "../../../constants";
 
 // getCardStats calls getClient() internally — redirect to the in-memory instance.
@@ -199,31 +199,5 @@ describe("getCardStats", () => {
     expect(result!.wins).not.toBeNull();
     expect(result!.wins!.seats_maindecked).toBe(MIN_SAMPLE_SIZE);
     expect(result!.wins!.low_sample).toBe(false);
-  });
-
-  it("excludes opted-out seats from win stats", async () => {
-    await seedBasicCard(1, "Lightning Bolt");
-    await insertCubeSnapshot(db, 1);
-    await insertCubeCard(db, 1, 1, 540);
-    await insertDraft(db, "d1", { cubeSnapshotId: 1 });
-    await insertPickEvent(db, "d1", 5, 1, 1);
-    await insertPickEvent(db, "d1", 6, 2, 1); // seat 2 also picked it (same card_id, different pick)
-    // Give seat 2 its own pick slot
-    await db.execute({
-      sql: `UPDATE pick_events SET seat = 2 WHERE draft_id = 'd1' AND pick_n = 6`,
-      args: [],
-    });
-    await insertDeckCard(db, "d1", 1, 1, "deck");
-    await insertDeckCard(db, "d1", 2, 1, "deck");
-    // Seat 2 opted out
-    await insertPrivacyOptOut(db, "d1", 2);
-    await insertMatch(db, "d1", 1, 2, 2, 1);
-
-    const result = await getCardStats({ card_name: "Lightning Bolt" });
-
-    // Seat 2's win data should be excluded
-    expect(result!.wins).not.toBeNull();
-    // Only seat 1's match contribution counts
-    expect(result!.wins!.seats_maindecked).toBe(1);
   });
 });

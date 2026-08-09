@@ -2,9 +2,9 @@
  * Integration tests for getWinningDecksByColor against a real in-memory libsql database.
  *
  * The function is entirely module-mocked in route tests, meaning its
- * opt-out exclusion, two-key ranking, top-4 cut, and overlap computation
- * never execute in any existing test. This file exercises all of those
- * paths against a real SQL engine via in-memory libsql.
+ * two-key ranking, top-4 cut, and overlap computation never execute in any
+ * existing test. This file exercises all of those paths against a real SQL
+ * engine via in-memory libsql.
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
@@ -15,7 +15,6 @@ import {
   insertDraft,
   insertDeckCard,
   insertMatch,
-  insertPrivacyOptOut,
 } from "../__tests__/testDb";
 import { getWinningDecksByColor } from "./winningDecks";
 
@@ -83,29 +82,6 @@ describe("getWinningDecksByColor", () => {
     expect(result.decks[0].draft_id).toBe("d1");
     expect(result.decks[0].record.match_wins).toBe(1);
     expect(result.decks[0].record.game_wins).toBe(2);
-  });
-
-  it("excludes opted-out seats", async () => {
-    // Two UB seats; seat 2 opts out
-    for (let i = 1; i <= 5; i++) {
-      await insertColorCard(i, ["U"], `Island${i}`);
-      await insertColorCard(i + 10, ["B"], `Swamp${i}`);
-    }
-    await insertDraft(db, "d1");
-    for (let i = 1; i <= 5; i++) {
-      await insertDeckCard(db, "d1", 1, i, "deck");
-      await insertDeckCard(db, "d1", 2, i, "deck");
-      await insertDeckCard(db, "d1", 1, i + 10, "deck");
-      await insertDeckCard(db, "d1", 2, i + 10, "deck");
-    }
-    await insertMatch(db, "d1", 1, 2, 2, 1);
-    await insertPrivacyOptOut(db, "d1", 2);
-
-    const result = await getWinningDecksByColor(db, { color_pair: "UB" });
-    // Seat 2 opted out; only seat 1 should appear
-    const seatNums = result.decks.map((d) => d.seat);
-    expect(seatNums).not.toContain(2);
-    expect(seatNums).toContain(1);
   });
 
   it("ranks by match wins descending then game win rate descending", async () => {

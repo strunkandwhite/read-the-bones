@@ -4,7 +4,7 @@
 
 import type { Client } from "@libsql/client";
 import { getClient } from "../../client";
-import { fetchOptOuts, getSeatsMatchingColors, placeholders } from "../helpers";
+import { getSeatsMatchingColors, placeholders } from "../helpers";
 import { getAvailableCards } from "../picks";
 import { getDraftMeta } from "../drafts";
 import { statsPhaseFilter } from "../../../draftPhases";
@@ -322,19 +322,11 @@ export async function rankAvailableCards(
     }),
   ]);
 
-  // Collect all draft IDs for opt-out and color filtering. Picks contribute
-  // their own draft ids here too (not just play/win rows) so fetchOptOuts
-  // below can resolve pick-side opt-outs — its lookup key is
-  // "draftId:seat", so a draft missing from this set means the pick-side
-  // .has() check below never matches.
+  // Collect all draft IDs for color filtering.
   const allDraftIds = new Set<string>();
   for (const row of picksResult.rows) allDraftIds.add(row.draft_id as string);
   for (const row of playResult.rows) allDraftIds.add(row.draft_id as string);
   for (const row of winResult.rows) allDraftIds.add(row.draft_id as string);
-
-  // Get opt-outs for all relevant drafts once, shared by pick, play, and
-  // win stats below.
-  const optedOut = await fetchOptOuts(client, [...allDraftIds]);
 
   // If deck_colors is set, get matching seats across all relevant drafts
   let matchingSeats: Set<string> | null = null;
@@ -369,21 +361,19 @@ export async function rankAvailableCards(
     [...draftDates].map(([draftId, draftDate]) => ({ draftId, draftDate })),
   );
 
-  // Map: cardId -> draftId -> pick positions, skipping opted-out seats
+  // Map: cardId -> draftId -> pick positions
   const cardPicks = new Map<number, Map<string, number[]>>();
   for (const row of picksResult.rows) {
     const cardId = row.card_id as number;
     const draftId = row.draft_id as string;
     const pickN = row.pick_n as number;
-    const seat = row.seat as number;
-    if (optedOut.has(`${draftId}:${seat}`)) continue;
     if (!cardPicks.has(cardId)) cardPicks.set(cardId, new Map());
     const byDraft = cardPicks.get(cardId)!;
     if (!byDraft.has(draftId)) byDraft.set(draftId, []);
     byDraft.get(draftId)!.push(pickN);
   }
 
-  // Aggregate play stats per card, skipping opted-out and non-matching seats
+  // Aggregate play stats per card, skipping non-matching seats
   // When deck_colors is set, also compute overall stats as fallback for sparse archetypes
   const cardPlayStats = new Map<number, { maindecked: number; total: number }>();
   const cardPlayStatsOverall = new Map<number, { maindecked: number; total: number }>();
@@ -392,7 +382,6 @@ export async function rankAvailableCards(
     const draftId = row.draft_id as string;
     const seat = row.seat as number;
     const seatKey = `${draftId}:${seat}`;
-    if (optedOut.has(seatKey)) continue;
 
     // Overall stats (always computed when filtering)
     if (matchingSeats) {
@@ -410,7 +399,7 @@ export async function rankAvailableCards(
     if ((row.zone as string) === "deck") stats.maindecked++;
   }
 
-  // Aggregate win stats per card, skipping opted-out and non-matching seats
+  // Aggregate win stats per card, skipping non-matching seats
   const cardWinStats = new Map<number, { wins: number; losses: number; seats: number }>();
   const cardWinStatsOverall = new Map<number, { wins: number; losses: number; seats: number }>();
   for (const row of winResult.rows) {
@@ -418,7 +407,6 @@ export async function rankAvailableCards(
     const draftId = row.draft_id as string;
     const seat = row.seat as number;
     const seatKey = `${draftId}:${seat}`;
-    if (optedOut.has(seatKey)) continue;
 
     // Overall stats (always computed when filtering)
     if (matchingSeats) {

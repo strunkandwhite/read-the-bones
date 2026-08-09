@@ -4,7 +4,7 @@
 
 import type { Client } from "@libsql/client";
 import { resolveCard } from "../cards";
-import { fetchOptOuts, parseBannedCards, placeholders } from "../helpers";
+import { parseBannedCards, placeholders } from "../helpers";
 import { round3 } from "../../../utils";
 import { pickScore, type DraftObservation } from "../../../pickScore";
 import { DEFAULT_POOL_SIZE } from "../../../types";
@@ -181,9 +181,9 @@ export async function getCardPickStats(
     draftCubeSnapshots.set(row.draft_id as string, row.cube_snapshot_id as number);
   }
 
-  // picks, opt-outs, and deck_cards all depend on draftIds — run in parallel
+  // picks and deck_cards both depend on draftIds — run in parallel
   const ph = placeholders(draftIds.length);
-  const [picksResult, optedOut, deckCardsResult] = await Promise.all([
+  const [picksResult, deckCardsResult] = await Promise.all([
     client.execute({
       sql: `SELECT pe.draft_id, pe.pick_n, pe.seat
             FROM pick_events pe
@@ -191,7 +191,6 @@ export async function getCardPickStats(
             ORDER BY pe.draft_id, pe.pick_n`,
       args: [card_id, ...draftIds],
     }),
-    fetchOptOuts(client, draftIds),
     client.execute({
       sql: `SELECT dc.draft_id, dc.seat, dc.zone
             FROM deck_cards dc
@@ -205,9 +204,6 @@ export async function getCardPickStats(
   for (const row of picksResult.rows) {
     const draftId = row.draft_id as string;
     const seat = row.seat as number;
-
-    // Skip picks from opted-out seats
-    if (optedOut.has(`${draftId}:${seat}`)) continue;
 
     if (!picksByDraft.has(draftId)) {
       picksByDraft.set(draftId, []);
@@ -268,14 +264,9 @@ export async function getCardPickStats(
     weighted_geomean: Math.round(weighted_geomean * 10) / 10,
   };
 
-  // Filter deck_cards results to exclude opted-out seats
-  const filteredDeckCards = deckCardsResult.rows.filter(
-    (r) => !optedOut.has(`${r.draft_id}:${r.seat}`)
-  );
-
-  if (filteredDeckCards.length > 0) {
-    const timesInPool = filteredDeckCards.length;
-    const timesMaindecked = filteredDeckCards.filter(
+  if (deckCardsResult.rows.length > 0) {
+    const timesInPool = deckCardsResult.rows.length;
+    const timesMaindecked = deckCardsResult.rows.filter(
       (r) => (r.zone as string) === "deck"
     ).length;
     result.times_in_pool_with_decklist = timesInPool;
