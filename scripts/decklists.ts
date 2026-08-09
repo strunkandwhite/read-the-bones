@@ -10,7 +10,7 @@
 
 import { createClient, type Client } from "@libsql/client";
 import { createHash } from "crypto";
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, realpathSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { loadEnv, log, logIndent } from "../src/core/db/ingest/utils";
@@ -508,7 +508,17 @@ async function main() {
   log("Done!");
 }
 
-main().catch((e) => {
-  console.error(e.message);
-  process.exit(1);
-});
+// Only run when invoked as a script. Importing this module — which the tests do,
+// for the pure matching functions — must never start a fetch-and-write against
+// production. `loadEnv` picks up real Turso credentials, so the guard is what
+// stands between `pnpm test` and a write to deck_cards.
+const invokedDirectly =
+  process.argv[1] !== undefined &&
+  realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (invokedDirectly) {
+  main().catch((e) => {
+    console.error(e.message);
+    process.exit(1);
+  });
+}

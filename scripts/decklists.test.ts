@@ -70,14 +70,41 @@ describe("matchDecksToSeats", () => {
   });
 
   it("assigns a full-cube submission to its true owner", () => {
-    // Regression for the corruption bug. This submission carried the whole cube
-    // in `hidden`, but its deck+sideboard belong to seat 2 and nobody else.
-    // Asserting only "seat 1 is not corrupted" would pass under a fix that
-    // merely skips the list; the point is that seat 2 gets its deck.
+    // Regression for the corruption bug. This submitter pasted the entire
+    // remaining cube into sealeddeck's `hidden` zone. Building the entry through
+    // extractStoredCards is the point: under the old code `hidden` leaked into
+    // the matching set, the list overlapped seat 1 completely as well, and seat 1
+    // was assigned a deck belonging to seat 2.
+    const storedCards = extractStoredCards({
+      poolId: "x",
+      deck: [
+        { name: "Counterspell", count: 1 },
+        { name: "Ponder", count: 1 },
+        { name: "Preordain", count: 1 },
+        { name: "Opt", count: 1 },
+      ],
+      sideboard: [],
+      hidden: [
+        // the whole cube — every card both seats drafted
+        { name: "Bolt", count: 1 },
+        { name: "Swords", count: 1 },
+        { name: "Ragavan", count: 1 },
+        { name: "Brainstorm", count: 1 },
+        { name: "Counterspell", count: 1 },
+        { name: "Ponder", count: 1 },
+        { name: "Preordain", count: 1 },
+        { name: "Opt", count: 1 },
+      ],
+    });
+
     const result = matchDecksToSeats(
-      [entry("LZYpr4rjmH", ["counterspell", "ponder", "preordain", "opt"])],
+      [{ ...entry("LZYpr4rjmH", []), storedCards }],
       seatPicks,
     );
+
+    // The deck must land on its true owner, not merely fail to corrupt seat 1.
+    // Asserting only the absence of corruption would also pass under a fix that
+    // discards the submission entirely, which would leave seat 2 with no deck.
     expect(result.get(2)?.sealeddeckId).toBe("LZYpr4rjmH");
     expect(result.has(1)).toBe(false);
   });
