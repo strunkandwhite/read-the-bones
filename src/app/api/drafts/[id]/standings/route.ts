@@ -12,9 +12,7 @@ export const GET = withApiErrors(
     const client = await getClient();
     const draft = await queries.getDraft(client, id);
     const numSeats = draft?.num_seats;
-    // No redaction — the match matrix makes it trivially deducible
-    const noRedaction = new Set<number>();
-    const result = await queries.getStandings(client, id, numSeats, noRedaction);
+    const result = await queries.getStandings(client, id, numSeats);
     // no-cache (like /live): standings mutate during a live pod, and a CDN-cached
     // body served right after a match report makes the reported result vanish
     // from the client until the cache entry expires.

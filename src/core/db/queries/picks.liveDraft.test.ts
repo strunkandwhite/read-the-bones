@@ -64,8 +64,7 @@ describe("getRecentPicks", () => {
       ],
     });
 
-    // Pass an empty opt-out set so no extra DB query is made
-    const result = await getRecentPicks(client, "draft-1", 10, new Set());
+    const result = await getRecentPicks(client, "draft-1", 10);
 
     expect(result).toEqual([
       { pickN: 3, seat: 3, cardName: "Dark Ritual" },
@@ -83,44 +82,9 @@ describe("getRecentPicks", () => {
   it("returns empty array when no picks", async () => {
     client.execute.mockResolvedValueOnce({ rows: [] });
 
-    const result = await getRecentPicks(client, "draft-1", 5, new Set());
+    const result = await getRecentPicks(client, "draft-1", 5);
 
     expect(result).toEqual([]);
-  });
-
-  it("redacts card names for opted-out seats", async () => {
-    client.execute.mockResolvedValueOnce({
-      rows: [
-        { pick_n: 3, seat: 2, card_name: "Dark Ritual" },
-        { pick_n: 2, seat: 1, card_name: "Counterspell" },
-        { pick_n: 1, seat: 1, card_name: "Lightning Bolt" },
-      ],
-    });
-
-    const result = await getRecentPicks(client, "draft-1", 10, new Set([1]));
-
-    expect(result).toEqual([
-      { pickN: 3, seat: 2, cardName: "Dark Ritual" },
-      { pickN: 2, seat: 1, cardName: "[REDACTED]" },
-      { pickN: 1, seat: 1, cardName: "[REDACTED]" },
-    ]);
-  });
-
-  it("fetches opt-outs from DB when not provided", async () => {
-    // First call: opt-out query; second call: picks query
-    client.execute
-      .mockResolvedValueOnce({ rows: [{ draft_id: "draft-1", seat: 2 }] })
-      .mockResolvedValueOnce({
-        rows: [
-          { pick_n: 1, seat: 1, card_name: "Lightning Bolt" },
-          { pick_n: 2, seat: 2, card_name: "Dark Ritual" },
-        ],
-      });
-
-    const result = await getRecentPicks(client, "draft-1", 10);
-
-    expect(result[0].cardName).toBe("Lightning Bolt");
-    expect(result[1].cardName).toBe("[REDACTED]");
   });
 });
 
@@ -143,7 +107,7 @@ describe("getPicksWithCardDetails", () => {
       }],
     });
 
-    const result = await getPicksWithCardDetails(client, "draft-1", new Set());
+    const result = await getPicksWithCardDetails(client, "draft-1");
 
     expect(result).toEqual([{
       pickN: 1,
@@ -174,7 +138,7 @@ describe("getPicksWithCardDetails", () => {
       }],
     });
 
-    const result = await getPicksWithCardDetails(client, "draft-1", new Set());
+    const result = await getPicksWithCardDetails(client, "draft-1");
 
     expect(result[0].colorIdentity).toEqual([]);
     expect(result[0].manaCost).toBe("");
@@ -192,94 +156,10 @@ describe("getPicksWithCardDetails", () => {
       }],
     });
 
-    const result = await getPicksWithCardDetails(client, "draft-1", new Set());
+    const result = await getPicksWithCardDetails(client, "draft-1");
 
     expect(result[0].colorIdentity).toEqual([]);
     expect(result[0].manaCost).toBe("");
-  });
-
-  it("redacts card names and clears card details for opted-out seats", async () => {
-    client.execute.mockResolvedValueOnce({
-      rows: [
-        {
-          pick_n: 1,
-          seat: 1,
-          name: "Lightning Bolt",
-          oracle_id: "abc-123",
-          color_identity_json: JSON.stringify(["R"]),
-          mana_cost: "{R}",
-        },
-        {
-          pick_n: 2,
-          seat: 2,
-          name: "Dark Ritual",
-          oracle_id: "def-456",
-          color_identity_json: JSON.stringify(["B"]),
-          mana_cost: "{B}",
-        },
-        {
-          pick_n: 3,
-          seat: 1,
-          name: "Brainstorm",
-          oracle_id: "ghi-789",
-          color_identity_json: JSON.stringify(["U"]),
-          mana_cost: "{U}",
-        },
-      ],
-    });
-
-    // Seat 2 is opted out
-    const result = await getPicksWithCardDetails(client, "draft-1", new Set([2]));
-
-    // Seat 1 picks are unaffected
-    expect(result[0]).toEqual({
-      pickN: 1,
-      seat: 1,
-      cardName: "Lightning Bolt",
-      oracleId: "abc-123",
-      colorIdentity: ["R"],
-      manaCost: "{R}",
-    });
-    // Seat 2 pick is redacted
-    expect(result[1]).toEqual({
-      pickN: 2,
-      seat: 2,
-      cardName: "[REDACTED]",
-      oracleId: "",
-      colorIdentity: [],
-      manaCost: "",
-    });
-    // Seat 1 second pick is unaffected
-    expect(result[2]).toEqual({
-      pickN: 3,
-      seat: 1,
-      cardName: "Brainstorm",
-      oracleId: "ghi-789",
-      colorIdentity: ["U"],
-      manaCost: "{U}",
-    });
-  });
-
-  it("fetches opt-outs from DB when not provided", async () => {
-    // First call: opt-out query; second call: picks query
-    client.execute
-      .mockResolvedValueOnce({ rows: [{ draft_id: "draft-1", seat: 1 }] })
-      .mockResolvedValueOnce({
-        rows: [{
-          pick_n: 1,
-          seat: 1,
-          name: "Lightning Bolt",
-          oracle_id: "abc-123",
-          color_identity_json: JSON.stringify(["R"]),
-          mana_cost: "{R}",
-        }],
-      });
-
-    const result = await getPicksWithCardDetails(client, "draft-1");
-
-    expect(result[0].cardName).toBe("[REDACTED]");
-    expect(result[0].oracleId).toBe("");
-    expect(result[0].colorIdentity).toEqual([]);
   });
 });
 

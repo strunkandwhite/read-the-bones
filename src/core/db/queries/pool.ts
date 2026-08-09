@@ -4,7 +4,7 @@
 
 import type { Client } from "@libsql/client";
 import type { ScryfallCardData } from "../schema";
-import { getOptedOutSeats, parseScryfallJson, matchesColorFilter } from "./helpers";
+import { parseScryfallJson, matchesColorFilter } from "./helpers";
 import { normalizeColorIdentity } from "@/core/manaColors";
 
 export interface GetDraftPoolParams {
@@ -15,14 +15,13 @@ export interface GetDraftPoolParams {
   color?: string;
   type_contains?: string;
   name_contains?: string;
-  optedOutSeats?: Set<number>;
 }
 
 export interface PoolCard {
   card_name: string;
   quantity: number;
   drafted: boolean;
-  drafted_by_seat: number | "[REDACTED]" | null;
+  drafted_by_seat: number | null;
   drafted_pick_n: number | null;
   mana_cost?: string | null;
   type_line?: string | null;
@@ -35,7 +34,6 @@ export interface DraftPoolResult {
   draft_name: string;
   draft_date: string;
   total_cards: number;
-  redacted_seats?: number[];
   cards: PoolCard[] | null;
   grouped: Record<string, PoolCard[]> | null;
 }
@@ -120,7 +118,6 @@ export function groupPoolByType(
  * Get the complete card pool for a specific draft.
  * Returns all cards that were available in the cube for that draft,
  * with optional filtering, grouping, and draft result annotation.
- * Redacts seat information for players who have opted out.
  */
 export async function getDraftPool(
   client: Client,
@@ -129,7 +126,6 @@ export async function getDraftPool(
   const includeDraftResults = params.include_draft_results ?? false;
   const includeCardDetails = params.include_card_details ?? false;
   const groupBy = params.group_by ?? "none";
-  const optedOutSeats = params.optedOutSeats ?? await getOptedOutSeats(client, params.draft_id);
 
   // Get draft metadata and pool cards with optional pick data
   const result = await client.execute({
@@ -168,7 +164,6 @@ export async function getDraftPool(
 
   // Process cards
   const cards: PoolCard[] = [];
-  const redactedSeatsInResult = new Set<number>();
 
   // Store parsed Scryfall data for reuse during grouping
   const scryfallCache = new Map<string, ReturnType<typeof parseScryfallJson>>();
@@ -204,20 +199,11 @@ export async function getDraftPool(
       }
     }
 
-    // Check if seat is opted out
-    const isRedacted = draftedBySeat !== null && optedOutSeats.has(draftedBySeat);
-    if (isRedacted) {
-      redactedSeatsInResult.add(draftedBySeat);
-    }
-
-    // Build card object with redaction
     const card: PoolCard = {
       card_name: cardName,
       quantity,
       drafted: draftedBySeat !== null,
-      drafted_by_seat: includeDraftResults
-        ? (isRedacted ? "[REDACTED]" : draftedBySeat)
-        : null,
+      drafted_by_seat: includeDraftResults ? draftedBySeat : null,
       drafted_pick_n: includeDraftResults ? draftedPickN : null,
     };
 
@@ -241,9 +227,6 @@ export async function getDraftPool(
       draft_name: draftName,
       draft_date: draftDate,
       total_cards: cards.length,
-      ...(redactedSeatsInResult.size > 0 && {
-        redacted_seats: Array.from(redactedSeatsInResult).sort((a, b) => a - b),
-      }),
       cards,
       grouped: null,
     };
@@ -259,9 +242,6 @@ export async function getDraftPool(
     draft_name: draftName,
     draft_date: draftDate,
     total_cards: cards.length,
-    ...(redactedSeatsInResult.size > 0 && {
-      redacted_seats: Array.from(redactedSeatsInResult).sort((a, b) => a - b),
-    }),
     cards: null,
     grouped,
   };

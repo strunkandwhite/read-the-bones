@@ -212,70 +212,7 @@ describe("GET /api/drafts/[id]/live", () => {
     expect(body.nextSeat).toBeNull();
   });
 
-  it("redacts card names for opted-out seats in picks and recentPicks", async () => {
-    mockGetLiveStateSig.mockResolvedValueOnce({ latestPickN: 3, sig: "drafting|0|Alice:Bob" });
-    mockExecute.mockResolvedValueOnce({
-      rows: [{
-        phase: "drafting",
-        num_seats: 4,
-        picks_per_player: 5,
-        banned_cards: null,
-      }],
-    });
-    // Seat 2 is opted out
-    mockGetOptedOutSeats.mockResolvedValueOnce(new Set([2]));
-    mockGetRecentPicks.mockResolvedValueOnce([
-      { pickN: 3, seat: 2, cardName: "[REDACTED]" },
-      { pickN: 2, seat: 1, cardName: "Lightning Bolt" },
-    ]);
-    mockGetSeatDisplayNames.mockResolvedValueOnce({ "1": "Alice", "2": "Bob" });
-    mockGetMatchCount.mockResolvedValueOnce(0);
-    mockGetPicksWithCardDetails.mockResolvedValueOnce([
-      {
-        pickN: 1,
-        seat: 1,
-        cardName: "Lightning Bolt",
-        oracleId: "abc-123",
-        colorIdentity: ["R"],
-        manaCost: "{R}",
-      },
-      {
-        pickN: 2,
-        seat: 2,
-        cardName: "[REDACTED]",
-        oracleId: "",
-        colorIdentity: [],
-        manaCost: "",
-      },
-    ]);
-
-    const res = await GET(
-      makeRequest("http://localhost:3000/api/drafts/test/live"),
-      { params: Promise.resolve({ id: "test" }) },
-    );
-    const body = await res.json();
-
-    expect(res.status).toBe(200);
-    // The opted-out set is passed to pick functions
-    expect(mockGetOptedOutSeats).toHaveBeenCalledWith(expect.anything(), "test");
-    expect(mockGetRecentPicks).toHaveBeenCalledWith(
-      expect.anything(), "test", 10, new Set([2])
-    );
-    expect(mockGetPicksWithCardDetails).toHaveBeenCalledWith(
-      expect.anything(), "test", new Set([2])
-    );
-    // Opted-out seat's card is redacted
-    expect(body.recentPicks[0].cardName).toBe("[REDACTED]");
-    expect(body.recentPicks[0].seat).toBe(2);
-    // Non-opted-out seat is unaffected
-    expect(body.recentPicks[1].cardName).toBe("Lightning Bolt");
-    // Board picks: opted-out seat has redacted card name
-    expect(body.picks[1].cardName).toBe("[REDACTED]");
-    expect(body.picks[1].oracleId).toBe("");
-    expect(body.picks[0].cardName).toBe("Lightning Bolt");
-  });
-
-  it("passes the same opted-out set to both pick functions", async () => {
+  it("getOptedOutSeats is called once to populate redactedSeats, independent of pick queries", async () => {
     mockGetLiveStateSig.mockResolvedValueOnce({ latestPickN: 0, sig: "drafting|0|" });
     mockExecute.mockResolvedValueOnce({
       rows: [{
@@ -285,8 +222,7 @@ describe("GET /api/drafts/[id]/live", () => {
         banned_cards: null,
       }],
     });
-    const optedOut = new Set([3]);
-    mockGetOptedOutSeats.mockResolvedValueOnce(optedOut);
+    mockGetOptedOutSeats.mockResolvedValueOnce(new Set([3]));
     mockGetRecentPicks.mockResolvedValueOnce([]);
     mockGetSeatDisplayNames.mockResolvedValueOnce({});
     mockGetMatchCount.mockResolvedValueOnce(0);
@@ -297,10 +233,10 @@ describe("GET /api/drafts/[id]/live", () => {
       { params: Promise.resolve({ id: "test" }) },
     );
 
-    // getOptedOutSeats called exactly once (shared result)
     expect(mockGetOptedOutSeats).toHaveBeenCalledTimes(1);
-    expect(mockGetRecentPicks).toHaveBeenCalledWith(expect.anything(), "test", 10, optedOut);
-    expect(mockGetPicksWithCardDetails).toHaveBeenCalledWith(expect.anything(), "test", optedOut);
+    // Pick queries no longer take an opted-out-seats argument
+    expect(mockGetRecentPicks).toHaveBeenCalledWith(expect.anything(), "test", 10);
+    expect(mockGetPicksWithCardDetails).toHaveBeenCalledWith(expect.anything(), "test");
   });
 
   it("returns redactedSeats for a draft with opt-outs", async () => {

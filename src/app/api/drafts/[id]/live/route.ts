@@ -74,15 +74,16 @@ export const GET = withApiErrors(
     // Use display names (original casing) for the API response
     const bannedCards = meta.bannedCardsDisplay;
 
-    // Fetch opt-outs once and share across both pick queries to avoid duplicate DB hits.
+    // Opt-outs no longer gate the pick queries (redaction now happens at ingest
+    // time), but the seat list still drives the pod sheet's [REDACTED] cells.
     const optedOutSeats = await getOptedOutSeats(client, draftId);
 
     // When authenticated, fetch per-seat data in parallel with board queries.
     const [recentPicks, seatNames, matchCount, picks, seatQueue, seatFloats] = await Promise.all([
-      getRecentPicks(client, draftId, 10, optedOutSeats),
+      getRecentPicks(client, draftId, 10),
       getSeatDisplayNames(client, draftId),
       getMatchCount(client, draftId),
-      getPicksWithCardDetails(client, draftId, optedOutSeats),
+      getPicksWithCardDetails(client, draftId),
       authenticatedSeat !== null ? getQueue(client, draftId, authenticatedSeat) : Promise.resolve(null),
       authenticatedSeat !== null ? getFloatedCards(client, draftId, authenticatedSeat) : Promise.resolve(null),
     ]);

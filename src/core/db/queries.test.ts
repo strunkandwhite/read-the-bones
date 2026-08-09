@@ -684,8 +684,6 @@ describe("getPicks", () => {
   });
 
   it("should return picks for a draft", async () => {
-    // Mock opt-outs query (no opt-outs)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Mock picks query
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
@@ -707,8 +705,6 @@ describe("getPicks", () => {
   });
 
   it("should filter by seat", async () => {
-    // Mock opt-outs query (no opt-outs)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Mock picks query
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
@@ -721,8 +717,6 @@ describe("getPicks", () => {
   });
 
   it("should filter by pick range", async () => {
-    // Mock opt-outs query (no opt-outs)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Mock picks query
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
@@ -735,8 +729,6 @@ describe("getPicks", () => {
   });
 
   it("should filter by card_name (partial match)", async () => {
-    // Mock opt-outs query (no opt-outs)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Mock picks query
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
@@ -749,8 +741,6 @@ describe("getPicks", () => {
   });
 
   it("should return empty picks when none found", async () => {
-    // Mock opt-outs query (no opt-outs)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Mock picks query
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
@@ -760,34 +750,6 @@ describe("getPicks", () => {
     expect(result.total).toBe(0);
   });
 
-  it("should redact seats for opted-out players", async () => {
-    // Mock opt-outs query (seat 2 opted out)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ draft_id: "draft1", seat: 2 }]));
-    // Mock picks query
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([
-        { pick_n: 1, seat: 1, card_name: "Lightning Bolt" },
-        { pick_n: 2, seat: 2, card_name: "Counterspell" },
-      ])
-    );
-
-    const result = await getPicks(mockClient as never, { draft_id: "draft1" });
-
-    expect(result.redacted_seats).toEqual([2]);
-    expect(result.picks[0].seat).toBe(1);
-    expect(result.picks[1].seat).toBe("[REDACTED]");
-  });
-
-  it("should return empty when querying opted-out seat directly", async () => {
-    // Mock opt-outs query (seat 2 opted out)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ draft_id: "draft1", seat: 2 }]));
-
-    const result = await getPicks(mockClient as never, { draft_id: "draft1", seat: 2 });
-
-    expect(result.total).toBe(0);
-    expect(result.redacted_seats).toEqual([2]);
-    expect(result.picks).toEqual([]);
-  });
 });
 
 // ============================================================================
@@ -1149,8 +1111,6 @@ describe("getStandings", () => {
   });
 
   it("should compute standings from match results", async () => {
-    // Mock opt-outs query (no opt-outs)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Mock match events
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
@@ -1174,8 +1134,6 @@ describe("getStandings", () => {
   });
 
   it("should handle draws (equal game wins)", async () => {
-    // Mock opt-outs query (no opt-outs)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Mock match events
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
@@ -1201,8 +1159,6 @@ describe("getStandings", () => {
   });
 
   it("should return empty array when no matches", async () => {
-    // Mock opt-outs query (no opt-outs)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Mock match events (empty)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
@@ -1212,8 +1168,6 @@ describe("getStandings", () => {
   });
 
   it("should sort by match wins then OMW% then OGW%", async () => {
-    // Mock opt-outs query (no opt-outs)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Mock match events: 3 players round-robin
     // Seat 1 beats seat 2 (2-1), seat 3 beats seat 1 (2-0), seat 2 beats seat 3 (2-1)
     // Records: seat 1 = 1-1, seat 2 = 1-1, seat 3 = 1-1
@@ -1248,7 +1202,6 @@ describe("getStandings", () => {
     // identical record — but float summation order leaves ~1e-16 differences
     // between them. OGW% must decide the tie: seat 3 (≈49.0%) ranks above
     // seats 8 and 2 (≈48.5%).
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     const matches: Array<[number, number, number, number]> = [
       [1, 2, 1, 2], [1, 3, 2, 1], [1, 5, 2, 0], [1, 6, 2, 1], [1, 8, 1, 2],
       [1, 9, 0, 2], [2, 3, 1, 2], [2, 4, 2, 1], [2, 5, 2, 1], [2, 6, 2, 0],
@@ -1286,7 +1239,6 @@ describe("getStandings", () => {
   });
 
   it("leaves ties of three or more seats in sorted order (head-to-head can be cyclic)", async () => {
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Seats 1, 2, 3 beat each other in a cycle (1>2, 2>3, 3>1, all 2-0) and
     // all sweep seat 4, so they tie exactly on record, OMW%, and OGW%.
     // Head-to-head is cyclic, so the group keeps its sorted (insertion) order.
@@ -1306,28 +1258,7 @@ describe("getStandings", () => {
     expect(result.standings.map((s) => s.seat)).toEqual([1, 2, 3, 4]);
   });
 
-  it("should redact opted-out seats in standings", async () => {
-    // Mock opt-outs query (seat 2 opted out)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ draft_id: "draft1", seat: 2 }]));
-    // Mock match events
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([
-        { draft_id: "draft1", seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 1 },
-      ])
-    );
-
-    const result = await getStandings(mockClient as never, "draft1");
-
-    expect(result.redacted_seats).toEqual([2]);
-    expect(result.standings).toHaveLength(2);
-    // Seat 1 wins, so it's first
-    expect(result.standings[0].seat).toBe(1);
-    expect(result.standings[1].seat).toBe("[REDACTED]");
-  });
-
   it("pads with zero-record entries for seats with no matches when numSeats is provided", async () => {
-    // No opt-outs
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Only seat 1 vs seat 2 has played
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
@@ -1350,8 +1281,6 @@ describe("getStandings", () => {
   });
 
   it("applies the 1/3 floor to OMW% and OGW% tiebreakers", async () => {
-    // No opt-outs
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Seat 1 beats seat 2 (2-0); seat 2 has record 0-1 → raw OMW% for seat 1 = 0/1 = 0,
     // but floor raises it to 1/3
     mockClient.execute.mockResolvedValueOnce(
@@ -1794,8 +1723,6 @@ describe("getDraftPool", () => {
   });
 
   it("should return draft pool with cards", async () => {
-    // Mock opt-outs query (no opt-outs)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Mock pool query
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
@@ -1834,8 +1761,6 @@ describe("getDraftPool", () => {
   });
 
   it("should return null when draft not found", async () => {
-    // Mock opt-outs query (no opt-outs)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Mock pool query (empty)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
     // Mock draft existence check
@@ -1846,108 +1771,6 @@ describe("getDraftPool", () => {
     expect(result).toBeNull();
   });
 
-  it("should redact opted-out seats when include_draft_results is true", async () => {
-    // Mock opt-outs query (seat 2 opted out)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ draft_id: "draft1", seat: 2 }]));
-    // Mock pool query
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([
-        {
-          draft_id: "draft1",
-          draft_name: "Vintage Cube",
-          draft_date: "2025-01-15",
-          card_name: "Lightning Bolt",
-          quantity: 1,
-          scryfall_json: null,
-          drafted_by_seat: 1,
-          drafted_pick_n: 5,
-        },
-        {
-          draft_id: "draft1",
-          draft_name: "Vintage Cube",
-          draft_date: "2025-01-15",
-          card_name: "Counterspell",
-          quantity: 1,
-          scryfall_json: null,
-          drafted_by_seat: 2,
-          drafted_pick_n: 10,
-        },
-      ])
-    );
-
-    const result = await getDraftPool(mockClient as never, {
-      draft_id: "draft1",
-      include_draft_results: true,
-    });
-
-    expect(result).not.toBeNull();
-    expect(result!.redacted_seats).toEqual([2]);
-    expect(result!.cards![0].drafted_by_seat).toBe(1);
-    expect(result!.cards![1].drafted_by_seat).toBe("[REDACTED]");
-    // pick_n should still be visible
-    expect(result!.cards![1].drafted_pick_n).toBe(10);
-  });
-
-  it("should not include redacted_seats when no opt-outs", async () => {
-    // Mock opt-outs query (no opt-outs)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
-    // Mock pool query
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([
-        {
-          draft_id: "draft1",
-          draft_name: "Vintage Cube",
-          draft_date: "2025-01-15",
-          card_name: "Lightning Bolt",
-          quantity: 1,
-          scryfall_json: null,
-          drafted_by_seat: 1,
-          drafted_pick_n: 5,
-        },
-      ])
-    );
-
-    const result = await getDraftPool(mockClient as never, {
-      draft_id: "draft1",
-      include_draft_results: true,
-    });
-
-    expect(result).not.toBeNull();
-    expect(result!.redacted_seats).toBeUndefined();
-    expect(result!.cards![0].drafted_by_seat).toBe(1);
-  });
-
-  it("should not expose seat info when include_draft_results is false", async () => {
-    // Mock opt-outs query (seat 1 opted out)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ draft_id: "draft1", seat: 1 }]));
-    // Mock pool query
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([
-        {
-          draft_id: "draft1",
-          draft_name: "Vintage Cube",
-          draft_date: "2025-01-15",
-          card_name: "Lightning Bolt",
-          quantity: 1,
-          scryfall_json: null,
-          drafted_by_seat: 1,
-          drafted_pick_n: 5,
-        },
-      ])
-    );
-
-    const result = await getDraftPool(mockClient as never, {
-      draft_id: "draft1",
-      include_draft_results: false,
-    });
-
-    expect(result).not.toBeNull();
-    // When include_draft_results is false, seat info is null regardless of opt-out
-    expect(result!.cards![0].drafted_by_seat).toBeNull();
-    expect(result!.cards![0].drafted_pick_n).toBeNull();
-    // redacted_seats is still tracked to inform that opted-out players exist
-    expect(result!.redacted_seats).toEqual([1]);
-  });
 });
 
 // ============================================================================

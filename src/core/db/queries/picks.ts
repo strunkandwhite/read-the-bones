@@ -3,7 +3,7 @@
  */
 
 import type { Client } from "@libsql/client";
-import { getOptedOutSeats, parseScryfallJson, matchesColorFilter, parseBannedCards } from "./helpers";
+import { parseScryfallJson, matchesColorFilter, parseBannedCards } from "./helpers";
 import { aggregateMatchRecords, computeTiebreakers, getHeadToHeadWinner } from "./matches";
 import { getFrontFace } from "../../cardNames";
 
@@ -13,16 +13,14 @@ export interface GetPicksParams {
   pick_n_min?: number;
   pick_n_max?: number;
   card_name?: string;
-  optedOutSeats?: Set<number>;
 }
 
 export interface PicksResult {
   draft_id: string;
   total: number;
-  redacted_seats?: number[];
   picks: {
     pick_n: number;
-    seat: number | "[REDACTED]";
+    seat: number;
     card_name: string;
   }[];
 }
@@ -30,21 +28,8 @@ export interface PicksResult {
 /**
  * Get picks from a draft with optional filters.
  * Returns picks sorted by pick number ascending.
- * Redacts seat information for players who have opted out.
  */
 export async function getPicks(client: Client, params: GetPicksParams): Promise<PicksResult> {
-  const optedOutSeats = params.optedOutSeats ?? await getOptedOutSeats(client, params.draft_id);
-
-  // If requesting a specific opted-out seat, return empty with redaction notice
-  if (params.seat !== undefined && optedOutSeats.has(params.seat)) {
-    return {
-      draft_id: params.draft_id,
-      total: 0,
-      redacted_seats: [params.seat],
-      picks: [],
-    };
-  }
-
   const conditions: string[] = ["pe.draft_id = ?"];
   const args: (string | number)[] = [params.draft_id];
 
@@ -79,27 +64,15 @@ export async function getPicks(client: Client, params: GetPicksParams): Promise<
     args,
   });
 
-  // Build result with redacted seats
-  const redactedSeatsInResult = new Set<number>();
-  const picks = result.rows.map((row) => {
-    const seat = row.seat as number;
-    const isRedacted = optedOutSeats.has(seat);
-    if (isRedacted) {
-      redactedSeatsInResult.add(seat);
-    }
-    return {
-      pick_n: row.pick_n as number,
-      seat: isRedacted ? ("[REDACTED]" as const) : seat,
-      card_name: row.card_name as string,
-    };
-  });
+  const picks = result.rows.map((row) => ({
+    pick_n: row.pick_n as number,
+    seat: row.seat as number,
+    card_name: row.card_name as string,
+  }));
 
   return {
     draft_id: params.draft_id,
     total: result.rows.length,
-    ...(redactedSeatsInResult.size > 0 && {
-      redacted_seats: Array.from(redactedSeatsInResult).sort((a, b) => a - b),
-    }),
     picks,
   };
 }
@@ -245,7 +218,7 @@ export async function getAvailableCards(
 // ============================================================================
 
 export interface StandingsEntry {
-  seat: number | "[REDACTED]";
+  seat: number;
   matchWins: number;
   matchLosses: number;
   gameWins: number;
@@ -264,17 +237,13 @@ export interface MatchRecord {
 export interface StandingsResult {
   standings: StandingsEntry[];
   matches: MatchRecord[];
-  redacted_seats?: number[];
 }
 
 /**
  * Get match standings for a draft.
  * Computes wins/losses from match_events table.
- * Redacts seat numbers for players who have opted out.
  */
-export async function getStandings(client: Client, draftId: string, numSeats?: number, optedOutSeats?: Set<number>): Promise<StandingsResult> {
-  const resolvedOptedOutSeats = optedOutSeats ?? await getOptedOutSeats(client, draftId);
-
+export async function getStandings(client: Client, draftId: string, numSeats?: number): Promise<StandingsResult> {
   // Get all match events for this draft. The explicit ordering keeps
   // standings deterministic for seats that stay tied through every
   // tiebreaker — their relative order falls back to row order via the
@@ -305,9 +274,8 @@ export async function getStandings(client: Client, draftId: string, numSeats?: n
   // Compute tiebreakers (OMW%, OGW%)
   const tiebreakers = computeTiebreakers(stats, matches);
 
-  // Convert to array and sort. Seats stay numeric until redaction at the
-  // end — the head-to-head pass below needs real seat numbers.
-  const entries: Array<Omit<StandingsEntry, "seat"> & { seat: number }> = [];
+  // Convert to array and sort.
+  const entries: StandingsEntry[] = [];
   const seatsInStandings = new Set<number>();
 
   for (const [seat, s] of stats) {
@@ -385,22 +353,9 @@ export async function getStandings(client: Client, draftId: string, numSeats?: n
     }
   }
 
-  // Redact opted-out seats now that ordering is settled
-  const redactedSeatsInResult = new Set<number>();
-  const standings: StandingsEntry[] = entries.map((entry) => {
-    const isRedacted = resolvedOptedOutSeats.has(entry.seat);
-    if (isRedacted) {
-      redactedSeatsInResult.add(entry.seat);
-    }
-    return { ...entry, seat: isRedacted ? "[REDACTED]" : entry.seat };
-  });
-
   return {
-    standings,
+    standings: entries,
     matches,
-    ...(redactedSeatsInResult.size > 0 && {
-      redacted_seats: Array.from(redactedSeatsInResult).sort((a, b) => a - b),
-    }),
   };
 }
 
@@ -425,15 +380,12 @@ export async function getLatestPickNumber(
 
 /**
  * Get the N most recent picks for a draft, newest first.
- * Redacts card names for opted-out seats.
  */
 export async function getRecentPicks(
   client: Client,
   draftId: string,
   limit: number,
-  optedOutSeats?: Set<number>,
 ): Promise<Array<{ pickN: number; seat: number; cardName: string }>> {
-  const resolvedOptedOutSeats = optedOutSeats ?? await getOptedOutSeats(client, draftId);
   const result = await client.execute({
     sql: `SELECT pe.pick_n, pe.seat, c.name as card_name
           FROM pick_events pe
@@ -442,14 +394,11 @@ export async function getRecentPicks(
           ORDER BY pe.pick_n DESC LIMIT ?`,
     args: [draftId, limit],
   });
-  return result.rows.map((r) => {
-    const seat = r.seat as number;
-    return {
-      pickN: r.pick_n as number,
-      seat,
-      cardName: resolvedOptedOutSeats.has(seat) ? "[REDACTED]" : (r.card_name as string),
-    };
-  });
+  return result.rows.map((r) => ({
+    pickN: r.pick_n as number,
+    seat: r.seat as number,
+    cardName: r.card_name as string,
+  }));
 }
 
 export interface PickWithCardDetails {
@@ -464,7 +413,6 @@ export interface PickWithCardDetails {
 /**
  * Get all picks for a draft with Scryfall card details (color identity, mana cost).
  * Used by the draft board to render the pick matrix.
- * Redacts card names for opted-out seats.
  *
  * Uses json_extract to pull only the three fields needed by the pick matrix
  * instead of selecting the full scryfall_json blob (~1-3 MB per request).
@@ -474,9 +422,7 @@ export interface PickWithCardDetails {
 export async function getPicksWithCardDetails(
   client: Client,
   draftId: string,
-  optedOutSeats?: Set<number>,
 ): Promise<PickWithCardDetails[]> {
-  const resolvedOptedOutSeats = optedOutSeats ?? await getOptedOutSeats(client, draftId);
   const result = await client.execute({
     sql: `SELECT pe.pick_n, pe.seat, c.name,
                  c.oracle_id,
@@ -489,28 +435,23 @@ export async function getPicksWithCardDetails(
     args: [draftId],
   });
   return result.rows.map((r) => {
-    const seat = r.seat as number;
-    const isRedacted = resolvedOptedOutSeats.has(seat);
-
     let colorIdentity: string[] = [];
-    if (!isRedacted) {
-      const raw = r.color_identity_json as string | null;
-      if (raw) {
-        try {
-          colorIdentity = JSON.parse(raw) as string[];
-        } catch {
-          colorIdentity = [];
-        }
+    const raw = r.color_identity_json as string | null;
+    if (raw) {
+      try {
+        colorIdentity = JSON.parse(raw) as string[];
+      } catch {
+        colorIdentity = [];
       }
     }
 
     return {
       pickN: r.pick_n as number,
-      seat,
-      cardName: isRedacted ? "[REDACTED]" : (r.name as string),
-      oracleId: isRedacted ? "" : (r.oracle_id as string ?? ""),
+      seat: r.seat as number,
+      cardName: r.name as string,
+      oracleId: (r.oracle_id as string) ?? "",
       colorIdentity,
-      manaCost: isRedacted ? "" : ((r.mana_cost as string | null) ?? ""),
+      manaCost: (r.mana_cost as string | null) ?? "",
     };
   });
 }

@@ -24,8 +24,6 @@ beforeEach(() => {
 
 describe("getDeck", () => {
   it("should return deck and sideboard card names for a seat", async () => {
-    // Mock opt-outs (none)
-    mockExecute.mockResolvedValueOnce({ rows: [] });
     // Mock deck query
     mockExecute.mockResolvedValueOnce({
       rows: [
@@ -45,19 +43,6 @@ describe("getDeck", () => {
     });
   });
 
-  it("should return redacted for opted-out seat", async () => {
-    // Mock opt-outs (seat 1 opted out)
-    mockExecute.mockResolvedValueOnce({ rows: [{ draft_id: "tarkir", seat: 1 }] });
-
-    const result = await getDeck({ draft_id: "tarkir", seat: 1 });
-
-    expect(result).toEqual({
-      draft_id: "tarkir",
-      seat: "[REDACTED]",
-      deck: [],
-      sideboard: [],
-    });
-  });
 });
 
 describe("getCardPlayStats", () => {

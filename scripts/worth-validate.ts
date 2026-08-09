@@ -247,16 +247,10 @@ async function evaluateDraftLodo(
     });
   }
 
-  // Pass an empty opted-out set so seat numbers stay unredacted: this is a
-  // local measurement script whose output identifies seats only by number,
-  // and redaction would break the seat -> picks join. (Opt-outs are still
-  // honored inside getWorthTable for the fit itself.)
-  const standingsResult = await getStandings(client, draftId, undefined, new Set());
+  const standingsResult = await getStandings(client, draftId);
   const matchWinsBySeat = new Map<number, number>();
   for (const entry of standingsResult.standings) {
-    if (typeof entry.seat === "number") {
-      matchWinsBySeat.set(entry.seat, entry.matchWins);
-    }
+    matchWinsBySeat.set(entry.seat, entry.matchWins);
   }
 
   const scoreGroup: SeatScoreGroup = { draftId, scores: [], wins: [] };

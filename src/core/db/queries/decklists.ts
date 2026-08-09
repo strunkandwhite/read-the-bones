@@ -6,17 +6,15 @@
  */
 
 import { getClient } from "../client";
-import { getOptedOutSeats } from "./helpers";
 
 export interface GetDeckParams {
   draft_id: string;
   seat: number;
-  optedOutSeats?: Set<number>;
 }
 
 export interface DeckResult {
   draft_id: string;
-  seat: number | "[REDACTED]";
+  seat: number;
   deck: string[];
   sideboard: string[];
 }
@@ -24,20 +22,9 @@ export interface DeckResult {
 /**
  * Get the decklist for a specific seat in a draft.
  * Returns maindecked and sideboarded card names.
- * Redacts data for opted-out seats.
  */
 export async function getDeck(params: GetDeckParams): Promise<DeckResult> {
   const client = await getClient();
-  const optedOutSeats = params.optedOutSeats ?? await getOptedOutSeats(client, params.draft_id);
-
-  if (optedOutSeats.has(params.seat)) {
-    return {
-      draft_id: params.draft_id,
-      seat: "[REDACTED]",
-      deck: [],
-      sideboard: [],
-    };
-  }
 
   const result = await client.execute({
     sql: `SELECT c.name AS card_name, dc.zone
