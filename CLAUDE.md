@@ -255,6 +255,7 @@ moves only when a new session lands.
 - `docs/superpowers/specs/2026-05-28-queue-panel-ux-design.md` - Queue panel UX: how-to section + buttons-only grouping
 - `docs/superpowers/specs/2026-07-19-sheet-draft-deck-builder-design.md` - Sheet-draft deck builder (local mode) design
 - `docs/superpowers/specs/2026-08-07-maindeck-creature-split-design.md` - Maindeck creature / non-creature split design
+- `docs/superpowers/specs/2026-08-08-ingest-time-redaction-design.md` - Ingest-time privacy redaction (opted-out picks never stored)
 
 ### Superpowers Plans
 
@@ -296,3 +297,4 @@ moves only when a new session lands.
 - `docs/superpowers/plans/2026-07-19-sheet-draft-deck-builder.md` - Sheet-draft deck builder implementation
 - `docs/superpowers/plans/2026-07-20-sheet-draft-pick-reconciliation.md` - Sheet-draft pick reconciliation (float upgrade/removal on synced picks)
 - `docs/superpowers/plans/2026-08-07-maindeck-creature-split.md` - Maindeck creature / non-creature split implementation
+- `docs/superpowers/plans/2026-08-08-ingest-time-redaction.md` - Ingest-time privacy redaction implementation
