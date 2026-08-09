@@ -18,6 +18,10 @@ const eslintConfig = defineConfig([
     // Git worktrees have their own linting context
     ".worktrees/**",
     ".claude/worktrees/**",
+    // Gitignored working data: draft CSVs, decklist URLs, screenshots, and
+    // investigation scratch scripts. Not part of the codebase, and linting it
+    // fails the build over console statements in throwaway tooling.
+    "data/**",
   ]),
   {
     rules: {
