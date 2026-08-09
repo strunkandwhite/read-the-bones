@@ -750,6 +750,89 @@ EOF
 
 ---
 
+### Task 2C: Stop linting gitignored scratch files
+
+Added during Task 2B. `pnpm lint` fails, which blocks `pnpm precommit` **and the husky pre-push hook** — so no work on this branch can be pushed until it is fixed.
+
+**Files:**
+- Modify: `eslint.config.mjs`
+
+**Interfaces:** none.
+
+**The problem.** `pnpm lint` runs `eslint . --max-warnings 0` and reports 16 `no-console` warnings from `data/decklist-recovery/scripts/*.mjs`:
+
+```
+✖ 16 problems (0 errors, 16 warnings)
+ESLint found too many warnings (maximum: 0).
+```
+
+Those files are gitignored investigation scratch (`.gitignore:22` ignores `data/`), and they must stay — Task 11 runs `data/decklist-recovery/scripts/verify-decks.mjs`. Two config gaps combine to produce this: `globalIgnores` (`eslint.config.mjs:11-21`) never lists `data/**`, and the `no-console: off` override (`:35-40`) covers only `src/core/**/*.ts`, `src/build/**/*.ts` and `scripts/**/*.ts` — not `.mjs` files under `data/`.
+
+The fix is to stop linting gitignored content, which is correct on principle rather than a workaround: `data/` holds draft CSVs, decklist URLs, screenshots and scratch scripts, none of which are part of the codebase.
+
+- [ ] **Step 1: Confirm the failure and its source**
+
+```bash
+pnpm lint 2>&1 | tail -5
+```
+
+Expected: `✖ 16 problems (0 errors, 16 warnings)` and a non-zero exit, every file path under `data/decklist-recovery/scripts/`.
+
+- [ ] **Step 2: Ignore the data directory**
+
+In `eslint.config.mjs`, add to the `globalIgnores` array (after the `.claude/worktrees/**` entry):
+
+```js
+    // Gitignored working data: draft CSVs, decklist URLs, screenshots, and
+    // investigation scratch scripts. Not part of the codebase, and linting it
+    // fails the build over console statements in throwaway tooling.
+    "data/**",
+```
+
+- [ ] **Step 3: Verify lint passes and still covers real code**
+
+```bash
+pnpm lint && echo "LINT_OK"
+```
+
+Expected: `LINT_OK`.
+
+Then confirm the ignore did not silence real source. Introduce a deliberate error, check it is still caught, and revert it:
+
+```bash
+printf '\nconst unusedOnPurpose = 1;\n' >> scripts/decklists.ts
+pnpm lint 2>&1 | grep -c "unusedOnPurpose"
+git -C /Users/arpanet/code/read-the-bones checkout scripts/decklists.ts
+```
+
+Expected: a non-zero count on the middle command — `scripts/` is still linted — and a clean tree afterward. Verify with `git -C /Users/arpanet/code/read-the-bones status --short` that `scripts/decklists.ts` is not modified before you commit.
+
+- [ ] **Step 4: Verify the full gate**
+
+```bash
+npx tsc --noEmit && pnpm lint && pnpm knip && npx vitest run
+```
+
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git -C /Users/arpanet/code/read-the-bones add eslint.config.mjs
+git -C /Users/arpanet/code/read-the-bones commit -m "$(cat <<'EOF'
+Stop linting the gitignored data directory
+
+Investigation scratch scripts under data/ tripped no-console and, with
+--max-warnings 0, failed lint for the whole repo — blocking precommit
+and the pre-push hook over files that will never be committed.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+EOF
+)"
+```
+
+---
+
 ### Task 3: Provenance column and the recovered-deck guard
 
 `deck_hashes` is already the per-seat provenance table keyed `(draft_id, seat)`; it just never recorded *where* the deck came from. Recording it is what lets `data/decklists.txt` become an inbox (Task 12) without destroying the only record of which submission produced which deck.
