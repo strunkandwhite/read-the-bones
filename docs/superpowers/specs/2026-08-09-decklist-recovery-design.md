@@ -90,8 +90,8 @@ const recall    = picks.size > 0 ? overlap / picks.size : 0;          // >= 0.5
 const precision = storedCards.size > 0 ? overlap / storedCards.size : 0;  // >= 0.9
 ```
 
-A seat is **eligible** only at precision >= 0.9. Among eligible seats the highest recall
-wins. If no seat is eligible, or the best recall is below 0.5, the list is skipped.
+A seat is **eligible** when precision >= 0.9 **and** recall >= 0.5. Exactly one eligible
+seat assigns the list; zero eligible seats skips it.
 
 Precision is the rotisserie invariant made executable: every card in a list must belong to
 the seat it is assigned to. It is backed by measurement — 190 of 193 stored decks score
@@ -99,8 +99,9 @@ the seat it is assigned to. It is backed by measurement — 190 of 193 stored de
 placed; sealeddeck's `hidden` zone legitimately holds unplaced cards, so
 `stored < picks` is normal (`dark-confidant:9` has 3 unplaced picks).
 
-Two eligible seats cannot occur under rotisserie rules. That case logs loudly and skips
-rather than guessing.
+More than one eligible seat cannot occur under rotisserie rules — a card belongs to exactly
+one player. That case logs loudly and skips rather than picking the higher-scoring seat,
+because a tie here means an assumption has broken and guessing would bury the evidence.
 
 **Alternative rejected.** The handoff proposed `denom = max(picks.size, pool.size)`,
 keeping `hidden`. It prevents corruption but *skips* full-cube submissions rather than
