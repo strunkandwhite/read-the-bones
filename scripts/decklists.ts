@@ -19,13 +19,17 @@ import { CardCache } from "../src/core/db/sync/card-cache";
 import { normalizeCardName } from "../src/core/parseSheetRows";
 import { resolveCardNameToId } from "../src/core/db/sync/incremental";
 import { slugify } from "./lib/slugify";
+import {
+  scoreAgainstSeat,
+  isEligibleSeat,
+  formatPct,
+  SEAT_MATCH_RECALL_THRESHOLD,
+  SEAT_MATCH_PRECISION_THRESHOLD,
+  type SeatScore,
+} from "./lib/deckMatching";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DECKLISTS_FILE = join(__dirname, "..", "data", "decklists.txt");
-
-// A decklist must share at least this fraction of the seat's picks to be considered
-// a match. Below this threshold the assignment is likely wrong (e.g. unsorted pool).
-const SEAT_MATCH_SCORE_THRESHOLD = 0.5;
 
 // Delay between sealeddeck.tech fetches (ms). sealeddeck.tech is a small site;
 // be a considerate client.
@@ -61,7 +65,12 @@ interface DecklistEntry {
   url: string;
   deck: string[];
   sideboard: string[];
-  pool: Set<string>; // deck + sideboard + hidden, minus basics, normalized
+  /**
+   * Exactly the cards this submission will store: deck + sideboard, minus
+   * basics, normalized. Deliberately excludes sealeddeck's `hidden` zone —
+   * matching against cards we never store is what misfiled three decklists.
+   */
+  storedCards: Set<string>;
 }
 
 // ============================================================================
@@ -107,21 +116,22 @@ function normalizeForMatch(name: string): string {
   return normalizeCardName(name).toLowerCase();
 }
 
-/** Extract non-basic card names from a sealeddeck response */
-function extractPool(response: SealedDeckResponse): Set<string> {
-  const pool = new Set<string>();
-  const allCards = [
-    ...response.deck,
-    ...response.sideboard,
-    ...(response.hidden || []),
-  ];
-  for (const card of allCards) {
+/**
+ * The cards a submission will actually store: deck + sideboard, non-basics only.
+ *
+ * `hidden` is excluded on purpose. Some submitters pasted the entire remaining
+ * cube into that zone; because it was included in matching but never written,
+ * those lists overlapped every seat completely and evicted correct decks.
+ */
+export function extractStoredCards(response: SealedDeckResponse): Set<string> {
+  const stored = new Set<string>();
+  for (const card of [...response.deck, ...response.sideboard]) {
     const normalized = normalizeForMatch(card.name);
     if (!BASIC_LANDS.has(normalized)) {
-      pool.add(normalized);
+      stored.add(normalized);
     }
   }
-  return pool;
+  return stored;
 }
 
 /**
@@ -140,7 +150,38 @@ function extractZoneCards(cards: SealedDeckCard[]): string[] {
   return result.sort();
 }
 
-/** Match decklists to seats by card overlap */
+/** Report why a decklist matched no seat, at a severity that fits the cause. */
+function reportSkip(
+  decklist: DecklistEntry,
+  best: { seat: number; score: SeatScore } | null,
+): void {
+  if (!best || best.score.overlap === 0) {
+    // No overlap with any seat at all. This is an opted-out player's list:
+    // their picks were never ingested, so there is nothing to match against.
+    // Seven of these occur every run. Warning on expected behaviour trains
+    // everyone to ignore the log, which is how 27 overwrite lines went unread.
+    logIndent(
+      `Skipping ${decklist.sealeddeckId} — no overlap with any seat (expected for an opted-out player)`,
+    );
+    return;
+  }
+
+  console.warn(
+    `  WARNING: Skipping ${decklist.sealeddeckId} — best candidate seat ${best.seat} ` +
+      `scored recall ${formatPct(best.score.recall)} (need ${formatPct(SEAT_MATCH_RECALL_THRESHOLD)}), ` +
+      `precision ${formatPct(best.score.precision)} (need ${formatPct(SEAT_MATCH_PRECISION_THRESHOLD)}). ` +
+      `Low precision means the list holds cards that seat never drafted.`,
+  );
+}
+
+/**
+ * Match decklists to seats by overlap with each seat's picks.
+ *
+ * A seat is eligible only if it clears both thresholds. Exactly one eligible
+ * seat assigns the list. More than one cannot happen under rotisserie rules —
+ * a card belongs to one player — so that case skips rather than guessing:
+ * a tie means an assumption has broken, and picking a winner buries the evidence.
+ */
 export function matchDecksToSeats(
   decklists: DecklistEntry[],
   seatPicks: Map<number, Set<string>>,
@@ -148,35 +189,48 @@ export function matchDecksToSeats(
   const assignments = new Map<number, DecklistEntry>();
 
   for (const decklist of decklists) {
-    let bestSeat = -1;
-    let bestScore = 0;
+    const eligible: Array<{ seat: number; score: SeatScore }> = [];
+    let best: { seat: number; score: SeatScore } | null = null;
 
     for (const [seat, picks] of seatPicks) {
-      const overlap = [...decklist.pool].filter((c) => picks.has(c)).length;
-      const score = picks.size > 0 ? overlap / picks.size : 0;
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestSeat = seat;
+      const score = scoreAgainstSeat(decklist.storedCards, picks);
+      if (!best || score.overlap > best.score.overlap) {
+        best = { seat, score };
+      }
+      if (isEligibleSeat(score)) {
+        eligible.push({ seat, score });
       }
     }
 
-    if (bestScore < SEAT_MATCH_SCORE_THRESHOLD) {
+    if (eligible.length === 0) {
+      reportSkip(decklist, best);
+      continue;
+    }
+
+    if (eligible.length > 1) {
       console.warn(
-        `  WARNING: Skipping ${decklist.sealeddeckId} — best match ${(bestScore * 100).toFixed(1)}% (seat ${bestSeat}) is below the ${SEAT_MATCH_SCORE_THRESHOLD * 100}% threshold. An opted-out player's decklist is expected here; anything else means the pool did not match any seat.`,
+        `  WARNING: Skipping ${decklist.sealeddeckId} — ${eligible.length} seats are eligible ` +
+          `(${eligible.map((e) => `seat ${e.seat} at ${formatPct(e.score.precision)} precision`).join(", ")}). ` +
+          `Rotisserie gives every card one owner, so this means an assumption has broken.`,
       );
       continue;
     }
 
-    // Later decklists overwrite earlier ones for the same seat
-    if (assignments.has(bestSeat)) {
-      const prev = assignments.get(bestSeat)!;
-      console.log(
-        `  Seat ${bestSeat}: ${prev.sealeddeckId} replaced by ${decklist.sealeddeckId} (later submission)`,
+    const { seat, score } = eligible[0];
+
+    // A genuine resubmission for the same seat should win. This overwrite was
+    // never the defect — it was the symptom of matching on the wrong card set.
+    const previous = assignments.get(seat);
+    if (previous) {
+      logIndent(
+        `Seat ${seat}: ${previous.sealeddeckId} replaced by ${decklist.sealeddeckId} (later submission)`,
       );
     }
 
-    assignments.set(bestSeat, decklist);
+    logIndent(
+      `Seat ${seat}: ${decklist.sealeddeckId} — recall ${formatPct(score.recall)}, precision ${formatPct(score.precision)}`,
+    );
+    assignments.set(seat, decklist);
   }
 
   return assignments;
@@ -240,14 +294,14 @@ async function fetchAllDecklists(urls: string[]): Promise<DecklistEntry[]> {
     try {
       logIndent(`Fetching ${id}...`);
       const response = await fetchDeck(id);
-      const pool = extractPool(response);
+      const storedCards = extractStoredCards(response);
 
       decklists.push({
         sealeddeckId: id,
         url: `https://sealeddeck.tech/${id}`,
         deck: extractZoneCards(response.deck),
         sideboard: extractZoneCards(response.sideboard),
-        pool,
+        storedCards,
       });
 
       // Rate limit: sealeddeck.tech is a small site
