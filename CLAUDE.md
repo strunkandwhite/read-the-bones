@@ -125,14 +125,21 @@ The app exposes REST API routes under `/api/` for querying draft data. All route
 - `/api/cards` — Card data for client-side rendering
 - `/api/draft-stats` — Draft stats for client-side rendering
 - `/api/deck` — Shared deck snapshots (create/retrieve)
-- `/api/sync` — Vercel cron sync endpoint (GET only, authenticated via `CRON_SECRET`). Runs every 10 minutes via Vercel cron (`vercel.json`). No manual POST endpoint exists.
+- `/api/sync` — Vercel cron sync endpoint (GET only, authenticated via `CRON_SECRET`). Runs **every minute** via Vercel cron (`vercel.json`; minute-level granularity requires a Pro plan). No manual POST endpoint exists, but the same GET can be triggered on demand: `curl -H "Authorization: Bearer $CRON_SECRET" https://read-the-bones.vercel.app/api/sync`. A sync lock makes concurrent calls safe — an overlapping request returns `{"status":"in_progress"}` instead of running twice.
 - `/api/sync-status` — Returns current sync lock state
 
 ## Deploying
 
-Deploy to Vercel production with `vercel --prod`. The Vercel CLI must be installed globally (`npm i -g vercel`) and authenticated (`vercel login`). Web Analytics is enabled via `@vercel/analytics` in the root layout.
+**There are two ways production gets deployed, and both are live:**
 
-**Run `vercel --prod` any time you add or import a new draft.** The main page is statically prerendered at build time, so new Turso data is invisible on the deployed site until a redeploy.
+1. **Pushing `master` deploys to production automatically.** The Vercel project is connected to the GitHub repo, and `master` is the production branch — declared explicitly in `vercel.json` under `git.deploymentEnabled`. A push to any other branch produces a preview deployment, not production.
+2. **`vercel --prod` from the CLI** deploys the *local working tree*, regardless of branch or git state. Requires the CLI installed globally (`npm i -g vercel`) and authenticated (`vercel login`).
+
+Consequence worth remembering: production can end up running code that is not on `master`. If you `vercel --prod` from a feature branch, the next push to `master` overwrites it with master's code. **Merge before deploying** unless you specifically want a throwaway production build.
+
+**Run `vercel --prod` any time you add or import a new draft.** The main page is statically prerendered at build time, so new Turso data is invisible on the deployed site until a redeploy — and a data-only change involves no commit, so nothing triggers the git deploy.
+
+Web Analytics is enabled via `@vercel/analytics` in the root layout.
 
 ## Querying Turso
 
@@ -179,7 +186,7 @@ Search is debounced (500ms) and runs locally against cached card data. Server-si
 
 ## Key Features
 
-- **Active draft sync:** Drafts linked to a Google Sheet (`sheetId` in metadata) are synced by a Vercel cron job calling `GET /api/sync` every 10 minutes (authenticated via `CRON_SECRET`). The cron covers phases `setup`, `drafting`, and `playing`: it inserts missing picks, updates picks whose sheet cell was edited after the fact, and hash-syncs match results. When every pick cell is filled the draft moves `drafting → playing`; when the full round robin (n·(n−1)/2 matches) is recorded — or 60 days after the draft date — it moves `playing → complete` and leaves the sync window. `pnpm draft:admin set-phase` overrides at any time; there is no manual "Sync Now" button — use `pnpm sync <name>` from the CLI for on-demand full syncs.
+- **Active draft sync:** Drafts linked to a Google Sheet (`sheetId` in metadata) are synced by a Vercel cron job calling `GET /api/sync` every minute (authenticated via `CRON_SECRET`). Each run refetches the sheet for every active draft, but per-domain hashing means an unchanged sheet writes nothing. The cron covers phases `setup`, `drafting`, and `playing`: it inserts missing picks, updates picks whose sheet cell was edited after the fact, and hash-syncs match results. When every pick cell is filled the draft moves `drafting → playing`; when the full round robin (n·(n−1)/2 matches) is recorded — or 60 days after the draft date — it moves `playing → complete` and leaves the sync window. `pnpm draft:admin set-phase` overrides at any time; there is no manual "Sync Now" button — use `pnpm sync <name>` from the CLI for on-demand full syncs.
 - **Banned cards:** Drafts can specify banned cards in metadata. Banned cards are visually marked in the card table and excluded from available card queries.
 - **Deck builder:** Per-seat deck building panel with drag-and-drop, maindeck/sideboard zones, save status indicator, and shareable deck snapshots via `/api/deck`. Live drafts persist WIP decks server-side (seat token auth); sheet drafts persist locally in the browser (localStorage, keyed by draft + seat) with an "Add to Deck Builder" button replacing Float. The maindeck splits into a creature row and a non-creature row over the same mana-value columns, with a single full-height lands column beside them; the row is stored in the column key (`nc-` prefix), so a card the user moves stays where they put it. The sideboard is not split.
 - **Shared decks:** Immutable deck snapshots stored in the `decks` table (kind = 'snapshot'), accessible via short URLs.

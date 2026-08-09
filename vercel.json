@@ -1,3 +1,8 @@
 {
-  "crons": [{ "path": "/api/sync", "schedule": "*/10 * * * *" }]
+  "crons": [{ "path": "/api/sync", "schedule": "* * * * *" }],
+  "git": {
+    "deploymentEnabled": {
+      "master": true
+    }
+  }
 }
