@@ -19,7 +19,11 @@ import { fileURLToPath } from "url";
 import { loadEnv, log } from "../src/core/db/ingest/utils";
 import { cardNameKey } from "../src/core/parseSheetRows";
 import { isCompletedForStats } from "../src/core/draftPhases";
-import { SEAT_MATCH_PRECISION_THRESHOLD, formatPct } from "./lib/deckMatching";
+import {
+  SEAT_MATCH_PRECISION_THRESHOLD,
+  scoreAgainstSeat,
+  formatPct,
+} from "./lib/deckMatching";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPORT_FILE = join(__dirname, "..", "docs", "decklist-status.md");
@@ -31,11 +35,33 @@ const REPORT_FILE = join(__dirname, "..", "docs", "decklist-status.md");
 const norm = cardNameKey;
 const key = (draftId: string, seat: number) => `${draftId}:${seat}`;
 
-interface Suspect {
+/**
+ * Coverage below which a stored deck is worth a look.
+ *
+ * Precision on its own certifies a deck holding 8 of a seat's 45 picks as
+ * correct, because every card in it is legitimately that seat's. Coverage is
+ * the other direction, and it is only ever suspicious, never proof of an
+ * error — a submitter may genuinely have left most of their pool in
+ * sealeddeck's `hidden` zone — so it is listed and never fails the run.
+ *
+ * Set from the measured distribution rather than from principle: across the
+ * 190 decks that pass the precision gate, the median covers 100% of its seat's
+ * picks and the 10th percentile 97.7%, with the two lowest at 78%. The
+ * matcher's own recall floor (`SEAT_MATCH_RECALL_THRESHOLD`, 0.5) is the wrong
+ * line here — nothing in the corpus comes near it, so a check keyed to it
+ * would never fire. 0.8 means "a fifth of this seat's picks are unaccounted
+ * for", which against that distribution is a genuine outlier.
+ */
+const COVERAGE_FLAG_THRESHOLD = 0.8;
+
+interface StoredDeck {
   draftId: string;
   seat: number;
   precision: number;
+  /** Share of the seat's picks this deck holds — `scoreAgainstSeat`'s recall. */
+  coverage: number;
   stored: number;
+  picked: number;
   notPicked: number;
 }
 
@@ -106,30 +132,33 @@ async function main() {
 
   // ---- suspect stored decks ------------------------------------------------
 
-  const suspects: Suspect[] = [];
+  const scored: StoredDeck[] = [];
   for (const [k, cards] of deckBySeat) {
     const [draftId, seatStr] = k.split(":");
-    const seat = Number(seatStr);
-    const picks = picksBySeat.get(k);
+    const picks = picksBySeat.get(k) ?? new Set<string>();
+    const score = scoreAgainstSeat(cards, picks);
 
-    if (!picks) {
-      suspects.push({ draftId, seat, precision: 0, stored: cards.size, notPicked: cards.size });
-      continue;
-    }
-
-    const overlap = [...cards].filter((c) => picks.has(c)).length;
-    const precision = cards.size > 0 ? overlap / cards.size : 0;
-    if (precision < SEAT_MATCH_PRECISION_THRESHOLD) {
-      suspects.push({
-        draftId,
-        seat,
-        precision,
-        stored: cards.size,
-        notPicked: cards.size - overlap,
-      });
-    }
+    scored.push({
+      draftId,
+      seat: Number(seatStr),
+      precision: score.precision,
+      coverage: score.recall,
+      stored: cards.size,
+      picked: picks.size,
+      notPicked: cards.size - score.overlap,
+    });
   }
-  suspects.sort((a, b) => a.precision - b.precision || a.draftId.localeCompare(b.draftId));
+
+  const suspects = scored
+    .filter((s) => s.precision < SEAT_MATCH_PRECISION_THRESHOLD)
+    .sort((a, b) => a.precision - b.precision || a.draftId.localeCompare(b.draftId));
+
+  // Coverage is only reported for decks that pass the precision gate. A suspect
+  // deck covers nothing by construction, and listing it twice would bury the
+  // seats where low coverage is the *only* thing wrong.
+  const lowCoverage = scored
+    .filter((s) => s.precision >= SEAT_MATCH_PRECISION_THRESHOLD && s.coverage < COVERAGE_FLAG_THRESHOLD)
+    .sort((a, b) => a.coverage - b.coverage || a.draftId.localeCompare(b.draftId));
 
   // ---- absent decks --------------------------------------------------------
 
@@ -163,7 +192,19 @@ async function main() {
   for (const s of suspects) {
     console.log(
       `  ${`${s.draftId}:${s.seat}`.padEnd(34)} ${formatPct(s.precision).padStart(6)}  ` +
+        `coverage ${formatPct(s.coverage).padStart(6)}  ` +
         `${s.notPicked} of ${s.stored} cards not picked by this seat`,
+    );
+  }
+
+  log(
+    `low coverage (holds < ${formatPct(COVERAGE_FLAG_THRESHOLD)} of the seat's picks, ` +
+      `but every card is that seat's): ${lowCoverage.length}`,
+  );
+  for (const s of lowCoverage) {
+    console.log(
+      `  ${`${s.draftId}:${s.seat}`.padEnd(34)} ${formatPct(s.coverage).padStart(6)}  ` +
+        `${s.stored} of this seat's ${s.picked} picks stored`,
     );
   }
 
@@ -183,7 +224,10 @@ async function main() {
   );
 
   if (writeReport) {
-    writeFileSync(REPORT_FILE, renderReport(suspects, absent, deckBySeat.size, optOutCount));
+    writeFileSync(
+      REPORT_FILE,
+      renderReport(suspects, lowCoverage, absent, deckBySeat.size, optOutCount),
+    );
     log(`wrote ${REPORT_FILE}`);
   }
 
@@ -201,7 +245,8 @@ async function main() {
 }
 
 function renderReport(
-  suspects: Suspect[],
+  suspects: StoredDeck[],
+  lowCoverage: StoredDeck[],
   absent: Absent[],
   storedCount: number,
   optOutCount: number,
@@ -221,6 +266,7 @@ function renderReport(
   lines.push("");
   lines.push(`**Stored decklists:** ${storedCount}`);
   lines.push(`**Suspect:** ${suspects.length}`);
+  lines.push(`**Low coverage (not an error):** ${lowCoverage.length}`);
   lines.push(`**Actionable absences:** ${actionable.length}`);
   lines.push(`**In progress (not yet actionable):** ${inProgress.length}`);
   lines.push(`**Opted out (not evaluated):** ${optOutCount}`);
@@ -231,11 +277,35 @@ function renderReport(
   if (suspects.length === 0) {
     lines.push("None. Every stored decklist is made of cards its seat actually drafted.");
   } else {
-    lines.push("| Draft | Seat | Precision | Detail |");
-    lines.push("|---|---|---|---|");
+    lines.push("| Draft | Seat | Precision | Coverage | Detail |");
+    lines.push("|---|---|---|---|---|");
     for (const s of suspects) {
       lines.push(
-        `| ${s.draftId} | ${s.seat} | ${formatPct(s.precision)} | ${s.notPicked} of ${s.stored} cards not picked by this seat |`,
+        `| ${s.draftId} | ${s.seat} | ${formatPct(s.precision)} | ${formatPct(s.coverage)} | ` +
+          `${s.notPicked} of ${s.stored} cards not picked by this seat |`,
+      );
+    }
+  }
+  lines.push("");
+
+  lines.push("## Low-coverage stored decklists");
+  lines.push("");
+  lines.push(
+    "Every card in these decks belongs to the seat, so precision certifies them — but they " +
+      `hold under ${formatPct(COVERAGE_FLAG_THRESHOLD)} of what that seat drafted. That is ` +
+      "suspicious rather than wrong (a submitter may have left most of their pool in " +
+      "sealeddeck's `hidden` zone), so it is listed, not failed.",
+  );
+  lines.push("");
+  if (lowCoverage.length === 0) {
+    lines.push("None.");
+  } else {
+    lines.push("| Draft | Seat | Coverage | Detail |");
+    lines.push("|---|---|---|---|");
+    for (const s of lowCoverage) {
+      lines.push(
+        `| ${s.draftId} | ${s.seat} | ${formatPct(s.coverage)} | ` +
+          `${s.stored} of this seat's ${s.picked} picks stored |`,
       );
     }
   }
