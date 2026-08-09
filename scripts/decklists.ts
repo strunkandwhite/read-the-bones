@@ -174,6 +174,18 @@ function reportSkip(
   );
 }
 
+export interface MatchResult {
+  assignments: Map<number, DecklistEntry>;
+  /**
+   * Decklists that never landed on a seat because matching rejected them —
+   * either no seat cleared both thresholds, or more than one did (an
+   * ambiguity rotisserie rules forbid). A decklist later superseded by a
+   * newer submission for the same seat does NOT count here: it passed
+   * matching, it was just replaced.
+   */
+  skippedBelowThreshold: number;
+}
+
 /**
  * Match decklists to seats by overlap with each seat's picks.
  *
@@ -185,8 +197,9 @@ function reportSkip(
 export function matchDecksToSeats(
   decklists: DecklistEntry[],
   seatPicks: Map<number, Set<string>>,
-): Map<number, DecklistEntry> {
+): MatchResult {
   const assignments = new Map<number, DecklistEntry>();
+  let skippedBelowThreshold = 0;
 
   for (const decklist of decklists) {
     const eligible: Array<{ seat: number; score: SeatScore }> = [];
@@ -204,6 +217,7 @@ export function matchDecksToSeats(
 
     if (eligible.length === 0) {
       reportSkip(decklist, best);
+      skippedBelowThreshold++;
       continue;
     }
 
@@ -213,6 +227,7 @@ export function matchDecksToSeats(
           `(${eligible.map((e) => `seat ${e.seat} at ${formatPct(e.score.precision)} precision`).join(", ")}). ` +
           `Rotisserie gives every card one owner, so this means an assumption has broken.`,
       );
+      skippedBelowThreshold++;
       continue;
     }
 
@@ -233,7 +248,7 @@ export function matchDecksToSeats(
     assignments.set(seat, decklist);
   }
 
-  return assignments;
+  return { assignments, skippedBelowThreshold };
 }
 
 export type SeatAction = "skip-recovered" | "unchanged" | "write";
@@ -352,18 +367,23 @@ async function fetchAllDecklists(urls: string[]): Promise<DecklistEntry[]> {
  * Resolve a card name to a card_id.
  * Uses in-memory CardCache first, then falls back to resolveCardNameToId
  * which handles DFC names and aliases.
+ *
+ * @param persistAlias - forwarded to resolveCardNameToId. Under a dry run
+ *   this is `false`, so a Scryfall-resolved alternate name is still
+ *   resolved (and reported) but never written to card_aliases.
  */
 async function resolveCard(
   client: Client,
   cardCache: CardCache,
   cardName: string,
+  persistAlias: boolean,
 ): Promise<number | null> {
   const normalized = normalizeCardName(cardName);
   const cached = cardCache.get(normalized);
   if (cached !== undefined) return cached;
 
   // Fallback: DFC front-face match, alias lookup, Scryfall fetch
-  const cardId = await resolveCardNameToId(client, normalized);
+  const cardId = await resolveCardNameToId(client, normalized, persistAlias);
   if (cardId !== null) {
     // Warm the cache for future lookups
     cardCache.set(normalized, cardId);
@@ -390,10 +410,11 @@ async function resolveZoneCards(
   seat: number,
   qtyMap: Map<string, { cardId: number; zone: "deck" | "sideboard"; qty: number }>,
   warnOnMiss: boolean,
+  persistAlias: boolean,
 ): Promise<number> {
   let warnings = 0;
   for (const cardName of cardNames) {
-    const cardId = await resolveCard(client, cardCache, cardName);
+    const cardId = await resolveCard(client, cardCache, cardName, persistAlias);
     if (cardId !== null) {
       const key = `${cardId}:${zone}`;
       const existing = qtyMap.get(key);
@@ -416,12 +437,46 @@ async function resolveZoneCards(
 // Main
 // ============================================================================
 
+const RECOGNIZED_FLAGS = new Set(["--dry-run", "--force"]);
+
+/**
+ * Parse CLI args into the draft filter and flags. Pure so the "reject a
+ * typo'd flag" behavior — the difference between a dry run and a full
+ * destructive pass against the one production database — is covered by a
+ * unit test instead of only by manually invoking the script.
+ *
+ * Throws on any `--`-prefixed argument that isn't a recognized flag, rather
+ * than silently dropping it and falling through to a full run.
+ */
+export function parseDecklistArgs(
+  args: string[],
+): { filterDraft: string | undefined; force: boolean; dryRun: boolean } {
+  for (const arg of args) {
+    if (arg.startsWith("--") && !RECOGNIZED_FLAGS.has(arg)) {
+      throw new Error(`Unrecognized flag: ${arg}`);
+    }
+  }
+
+  return {
+    // Skip flags so `pnpm decklists --dry-run` still works without a draft label.
+    filterDraft: args.find((a) => !a.startsWith("--")),
+    force: args.includes("--force"),
+    dryRun: args.includes("--dry-run"),
+  };
+}
+
 async function main() {
   loadEnv();
-  // Skip flags so `pnpm decklists --dry-run` still works without a draft label.
-  const filterDraft = process.argv.slice(2).find((a) => !a.startsWith("--"));
-  const force = process.argv.includes("--force");
-  const dryRun = process.argv.includes("--dry-run");
+
+  let filterDraft: string | undefined;
+  let force: boolean;
+  let dryRun: boolean;
+  try {
+    ({ filterDraft, force, dryRun } = parseDecklistArgs(process.argv.slice(2)));
+  } catch (e) {
+    console.error((e as Error).message);
+    process.exit(1);
+  }
 
   const client = createClient({
     url: process.env.TURSO_DATABASE_URL!,
@@ -446,6 +501,18 @@ async function main() {
   await cardCache.loadAll(client);
   log(`Card cache loaded: ${cardCache.size} cards`);
 
+  // Outcome tally across every draft, printed as a dry-run summary before the
+  // closing hint — a human has to read this before authorizing a run against
+  // the one production database.
+  const summary = {
+    wouldCreate: 0,
+    wouldUpdate: 0,
+    unchanged: 0,
+    skippedBelowThreshold: 0,
+    skippedMalformed: 0,
+    skippedRecovered: 0,
+  };
+
   for (const [label, urls] of drafts) {
     if (filterDraft && label !== filterDraft) continue;
 
@@ -469,8 +536,9 @@ async function main() {
     logIndent(`${seatPicks.size} seats in database`);
 
     // Match decklists to seats
-    const assignments = matchDecksToSeats(decklists, seatPicks);
+    const { assignments, skippedBelowThreshold } = matchDecksToSeats(decklists, seatPicks);
     logIndent(`Matched ${assignments.size} decklists to seats`);
+    summary.skippedBelowThreshold += skippedBelowThreshold;
 
     // Write to Turso with per-seat hash diffing
     for (const [seat, entry] of [...assignments].sort(([a], [b]) => a - b)) {
@@ -506,19 +574,21 @@ async function main() {
         logIndent(
           `Seat ${seat}: skipped — hand-recovered deck (${existing?.sealeddeckId}). Pass --force to overwrite.`,
         );
+        summary.skippedRecovered++;
         continue;
       }
 
       if (action === "unchanged") {
         logIndent(`Seat ${seat}: unchanged`);
+        summary.unchanged++;
         continue;
       }
 
       // Resolve card names and build insert batch, aggregating duplicates
       const qtyMap = new Map<string, { cardId: number; zone: "deck" | "sideboard"; qty: number }>();
 
-      const warnings = await resolveZoneCards(client, cardCache, entry.deck, "deck", seat, qtyMap, true);
-      await resolveZoneCards(client, cardCache, entry.sideboard, "sideboard", seat, qtyMap, false);
+      const warnings = await resolveZoneCards(client, cardCache, entry.deck, "deck", seat, qtyMap, true, !dryRun);
+      await resolveZoneCards(client, cardCache, entry.sideboard, "sideboard", seat, qtyMap, false, !dryRun);
 
       const deckCards: DeckCardInsert[] = [...qtyMap.values()].map((e) => ({
         draftId,
@@ -532,15 +602,21 @@ async function main() {
       const maindeckQty = deckCards
         .filter((c) => c.zone === "deck")
         .reduce((sum, c) => sum + c.qty, 0);
+      const sideboardQty = deckCards
+        .filter((c) => c.zone === "sideboard")
+        .reduce((sum, c) => sum + c.qty, 0);
 
       if (maindeckQty < 20) {
         logIndent(
           `Seat ${seat}: skipped — only ${maindeckQty} maindeck cards (minimum 20)`,
         );
-        // Clean up any previously-stored data for this seat
+        summary.skippedMalformed++;
         if (!dryRun) {
+          // Clear the hash so a corrected resubmission is re-evaluated next run,
+          // but keep sealeddeck_id: it is the only record that this seat's deck was
+          // hand-recovered, and losing it disarms the overwrite guard permanently.
           await client.execute({
-            sql: "DELETE FROM deck_hashes WHERE draft_id = ? AND seat = ?",
+            sql: "UPDATE deck_hashes SET hash = '' WHERE draft_id = ? AND seat = ?",
             args: [draftId, seat],
           });
         }
@@ -548,9 +624,29 @@ async function main() {
       }
 
       if (dryRun) {
-        const status = existing ? "would update" : "would create";
+        // Name what's being replaced, and make an in-flight overwrite of a
+        // hand-recovered deck unmissable — this can only happen via --force,
+        // since decideSeatWrite would otherwise have returned "skip-recovered"
+        // above, and it is the highest-stakes event a reviewer can authorize.
+        const existingSource = existing?.sealeddeckId ?? null;
+        const isRecoveredOverwrite = existingSource?.startsWith("recovered:") ?? false;
+
+        let status: string;
+        if (isRecoveredOverwrite) {
+          status = `would OVERWRITE hand-recovered deck (${existingSource})`;
+        } else if (existing) {
+          status = `would update (replacing ${existingSource ?? "unknown source"})`;
+        } else {
+          status = "would create";
+        }
+        if (existing) {
+          summary.wouldUpdate++;
+        } else {
+          summary.wouldCreate++;
+        }
+
         logIndent(
-          `Seat ${seat}: ${status} — ${deckCards.length} cards from ${entry.sealeddeckId}` +
+          `Seat ${seat}: ${status} — ${maindeckQty} maindeck + ${sideboardQty} sideboard cards from ${entry.sealeddeckId}` +
             `${warnings > 0 ? ` [${warnings} unresolved names]` : ""}`,
         );
         continue;
@@ -577,6 +673,14 @@ async function main() {
         `Seat ${seat}: ${deckCards.length} cards written (${status})${warnings > 0 ? ` [${warnings} warnings]` : ""}`,
       );
     }
+  }
+
+  if (dryRun) {
+    log(
+      `Summary — would create: ${summary.wouldCreate}, would update: ${summary.wouldUpdate}, ` +
+        `unchanged: ${summary.unchanged}, skipped (below threshold): ${summary.skippedBelowThreshold}, ` +
+        `skipped (malformed): ${summary.skippedMalformed}, skipped (recovered): ${summary.skippedRecovered}`,
+    );
   }
 
   log(dryRun ? "Dry run complete — re-run without --dry-run to apply." : "Done!");

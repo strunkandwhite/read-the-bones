@@ -15,6 +15,7 @@ import {
   setDraftPhase,
   incrementalIngest,
 } from "../db/sync/incremental";
+import { fetchCard } from "../scryfallApi";
 import {
   acquireSyncLock,
   releaseSyncLock,
@@ -271,6 +272,47 @@ describe("resolveCardNameToId", () => {
     expect(await resolveCardNameToId(client as any, "Not A Card")).toBeNull();
     // 4 DB queries: exact, front-face DFC, back-face DFC, alias table
     expect(client.execute).toHaveBeenCalledTimes(4);
+  });
+
+  describe("Scryfall fallback alias persistence", () => {
+    beforeEach(() => {
+      vi.mocked(fetchCard).mockResolvedValue({ name: "Ragavan, Nimble Pilferer" } as any);
+    });
+
+    it("persists the resolved alias by default", async () => {
+      const client = {
+        execute: vi.fn()
+          .mockResolvedValueOnce({ rows: [] }) // exact match fails
+          .mockResolvedValueOnce({ rows: [] }) // front-face DFC fails
+          .mockResolvedValueOnce({ rows: [] }) // back-face DFC fails
+          .mockResolvedValueOnce({ rows: [] }) // alias table fails
+          .mockResolvedValueOnce({ rows: [{ card_id: 555 }] }) // Scryfall name found in cards
+          .mockResolvedValueOnce({ rows: [] }), // INSERT OR IGNORE INTO card_aliases
+      };
+      const cardId = await resolveCardNameToId(client as any, "ragavan nimble pilfrer");
+      expect(cardId).toBe(555);
+      expect(client.execute).toHaveBeenCalledTimes(6);
+      const aliasInsert = client.execute.mock.calls[5][0];
+      expect(aliasInsert.sql).toContain("INSERT OR IGNORE INTO card_aliases");
+    });
+
+    it("does not persist the alias when persistAlias is false, e.g. under --dry-run", async () => {
+      const client = {
+        execute: vi.fn()
+          .mockResolvedValueOnce({ rows: [] }) // exact match fails
+          .mockResolvedValueOnce({ rows: [] }) // front-face DFC fails
+          .mockResolvedValueOnce({ rows: [] }) // back-face DFC fails
+          .mockResolvedValueOnce({ rows: [] }) // alias table fails
+          .mockResolvedValueOnce({ rows: [{ card_id: 555 }] }), // Scryfall name found in cards
+      };
+      const cardId = await resolveCardNameToId(client as any, "ragavan nimble pilfrer", false);
+      // Resolution still succeeds — a dry run must still be able to report
+      // the card as resolved — but no INSERT is issued.
+      expect(cardId).toBe(555);
+      expect(client.execute).toHaveBeenCalledTimes(5);
+      const sqlCalls = client.execute.mock.calls.map((call) => call[0].sql);
+      expect(sqlCalls.some((sql: string) => sql.includes("INSERT"))).toBe(false);
+    });
   });
 });
 

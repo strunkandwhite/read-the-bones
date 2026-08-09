@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { matchDecksToSeats, extractStoredCards, decideSeatWrite } from "./decklists";
+import {
+  matchDecksToSeats,
+  extractStoredCards,
+  decideSeatWrite,
+  parseDecklistArgs,
+} from "./decklists";
 
 const entry = (id: string, cards: string[]) => ({
   sealeddeckId: id,
@@ -42,31 +47,35 @@ describe("matchDecksToSeats", () => {
   ]);
 
   it("assigns a decklist to the seat it overlaps", () => {
-    const result = matchDecksToSeats(
+    const { assignments } = matchDecksToSeats(
       [entry("aaa", ["bolt", "swords", "ragavan", "brainstorm"])],
       seatPicks,
     );
-    expect(result.get(1)?.sealeddeckId).toBe("aaa");
+    expect(assignments.get(1)?.sealeddeckId).toBe("aaa");
   });
 
   it("skips a decklist that matches no seat above the threshold", () => {
     // an opted-out player's list: their seat has no picks, so it is absent
     // from seatPicks and this overlaps nobody
-    const result = matchDecksToSeats([entry("zzz", ["llanowar elves", "giant growth"])], seatPicks);
-    expect(result.size).toBe(0);
+    const { assignments, skippedBelowThreshold } = matchDecksToSeats(
+      [entry("zzz", ["llanowar elves", "giant growth"])],
+      seatPicks,
+    );
+    expect(assignments.size).toBe(0);
+    expect(skippedBelowThreshold).toBe(1);
   });
 
   it("never overwrites a good assignment with a sub-threshold one", () => {
-    const result = matchDecksToSeats(
+    const { assignments } = matchDecksToSeats(
       [entry("aaa", ["bolt", "swords", "ragavan", "brainstorm"]), entry("zzz", ["bolt"])],
       seatPicks,
     );
-    expect(result.get(1)?.sealeddeckId).toBe("aaa");
+    expect(assignments.get(1)?.sealeddeckId).toBe("aaa");
   });
 
   it("never produces a seat -1 assignment", () => {
-    const result = matchDecksToSeats([entry("zzz", ["nothing at all"])], seatPicks);
-    expect(result.has(-1)).toBe(false);
+    const { assignments } = matchDecksToSeats([entry("zzz", ["nothing at all"])], seatPicks);
+    expect(assignments.has(-1)).toBe(false);
   });
 
   it("assigns a full-cube submission to its true owner", () => {
@@ -102,7 +111,7 @@ describe("matchDecksToSeats", () => {
       ],
     });
 
-    const result = matchDecksToSeats(
+    const { assignments } = matchDecksToSeats(
       [{ ...entry("LZYpr4rjmH", []), storedCards }],
       seatPicks,
     );
@@ -110,19 +119,20 @@ describe("matchDecksToSeats", () => {
     // The deck must land on its true owner, not merely fail to corrupt seat 1.
     // Asserting only the absence of corruption would also pass under a fix that
     // discards the submission entirely, which would leave seat 2 with no deck.
-    expect(result.get(2)?.sealeddeckId).toBe("LZYpr4rjmH");
-    expect(result.has(1)).toBe(false);
+    expect(assignments.get(2)?.sealeddeckId).toBe("LZYpr4rjmH");
+    expect(assignments.has(1)).toBe(false);
   });
 
   it("skips a list whose cards span two seats", () => {
     // Precision gate: a list half of whose cards were drafted by someone else
     // cannot belong to either seat. Recall against seat 1 is 0.5, which clears
     // the recall floor on its own — only precision rejects this.
-    const result = matchDecksToSeats(
+    const { assignments, skippedBelowThreshold } = matchDecksToSeats(
       [entry("mixed", ["bolt", "swords", "counterspell", "ponder"])],
       seatPicks,
     );
-    expect(result.size).toBe(0);
+    expect(assignments.size).toBe(0);
+    expect(skippedBelowThreshold).toBe(1);
   });
 });
 
@@ -177,5 +187,43 @@ describe("decideSeatWrite", () => {
       true,
     );
     expect(action).toBe("write");
+  });
+});
+
+describe("parseDecklistArgs", () => {
+  it("defaults to no filter and both flags off", () => {
+    expect(parseDecklistArgs([])).toEqual({
+      filterDraft: undefined,
+      force: false,
+      dryRun: false,
+    });
+  });
+
+  it("picks up a draft label alongside recognized flags", () => {
+    expect(parseDecklistArgs(["tarkir", "--dry-run", "--force"])).toEqual({
+      filterDraft: "tarkir",
+      force: true,
+      dryRun: true,
+    });
+  });
+
+  it("recognizes --dry-run and --force regardless of order", () => {
+    expect(parseDecklistArgs(["--force", "--dry-run"])).toEqual({
+      filterDraft: undefined,
+      force: true,
+      dryRun: true,
+    });
+  });
+
+  it("throws on an unrecognized flag instead of silently dropping it", () => {
+    // A typo like --dry-rn must not fall through to a full destructive run —
+    // there is one database and no undo.
+    expect(() => parseDecklistArgs(["--dry-rn"])).toThrow("Unrecognized flag: --dry-rn");
+  });
+
+  it("throws on an unrecognized flag even when a valid flag is also present", () => {
+    expect(() => parseDecklistArgs(["--dry-run", "--forc"])).toThrow(
+      "Unrecognized flag: --forc",
+    );
   });
 });
