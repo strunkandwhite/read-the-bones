@@ -70,6 +70,8 @@ pnpm draft:admin <subcommand>        # Admin tools (undo-pick, edit-pick, regen-
 # Decklists
 pnpm decklists                 # Fetch decklists from sealeddeck.tech and write to Turso
 pnpm decklists tarkir          # Fetch decklists for a specific draft
+pnpm decklists --dry-run       # Report what would be written, change nothing
+pnpm decklists --force         # Also overwrite hand-recovered decks (see decklists:import)
 
 # Scryfall data
 pnpm scryfall:backfill         # Fetch missing Scryfall data for cards in Turso, update local cache

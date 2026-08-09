@@ -421,6 +421,7 @@ async function main() {
   // Skip flags so `pnpm decklists --dry-run` still works without a draft label.
   const filterDraft = process.argv.slice(2).find((a) => !a.startsWith("--"));
   const force = process.argv.includes("--force");
+  const dryRun = process.argv.includes("--dry-run");
 
   const client = createClient({
     url: process.env.TURSO_DATABASE_URL!,
@@ -436,6 +437,10 @@ async function main() {
   const drafts = parseDecklistsFile(content);
 
   log(`Found ${drafts.size} drafts in decklists.txt`);
+
+  if (dryRun) {
+    log("DRY RUN — fetching and matching only, nothing will be written");
+  }
 
   const cardCache = new CardCache();
   await cardCache.loadAll(client);
@@ -509,12 +514,6 @@ async function main() {
         continue;
       }
 
-      // Delete old deck cards for this seat before reinserting
-      await client.execute({
-        sql: "DELETE FROM deck_cards WHERE draft_id = ? AND seat = ?",
-        args: [draftId, seat],
-      });
-
       // Resolve card names and build insert batch, aggregating duplicates
       const qtyMap = new Map<string, { cardId: number; zone: "deck" | "sideboard"; qty: number }>();
 
@@ -539,12 +538,31 @@ async function main() {
           `Seat ${seat}: skipped — only ${maindeckQty} maindeck cards (minimum 20)`,
         );
         // Clean up any previously-stored data for this seat
-        await client.execute({
-          sql: "DELETE FROM deck_hashes WHERE draft_id = ? AND seat = ?",
-          args: [draftId, seat],
-        });
+        if (!dryRun) {
+          await client.execute({
+            sql: "DELETE FROM deck_hashes WHERE draft_id = ? AND seat = ?",
+            args: [draftId, seat],
+          });
+        }
         continue;
       }
+
+      if (dryRun) {
+        const status = existing ? "would update" : "would create";
+        logIndent(
+          `Seat ${seat}: ${status} — ${deckCards.length} cards from ${entry.sealeddeckId}` +
+            `${warnings > 0 ? ` [${warnings} unresolved names]` : ""}`,
+        );
+        continue;
+      }
+
+      // Replace this seat's deck only once a valid one is ready to take its place.
+      // Deleting earlier meant a malformed resubmission destroyed a good deck and
+      // then declined to write anything.
+      await client.execute({
+        sql: "DELETE FROM deck_cards WHERE draft_id = ? AND seat = ?",
+        args: [draftId, seat],
+      });
 
       await batchInsertDeckCards(client, deckCards);
 
@@ -561,7 +579,7 @@ async function main() {
     }
   }
 
-  log("Done!");
+  log(dryRun ? "Dry run complete — re-run without --dry-run to apply." : "Done!");
 }
 
 // Only run when invoked as a script. Importing this module — which the tests do,
