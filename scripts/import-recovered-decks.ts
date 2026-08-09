@@ -20,7 +20,7 @@ import { join, dirname, basename } from "path";
 import { fileURLToPath } from "url";
 import { loadEnv, log, logIndent } from "../src/core/db/ingest/utils";
 import { deckCardInsertStatements, type DeckCardInsert } from "../src/core/db/sync/batch";
-import { normalizeCardName } from "../src/core/parseSheetRows";
+import { cardNameKey } from "../src/core/parseSheetRows";
 import { assertRecognizedFlags } from "./lib/cliFlags";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -33,7 +33,11 @@ export interface ParsedDeck {
   sideboard: string[];
 }
 
-const norm = (name: string) => normalizeCardName(name).toLowerCase();
+// A screenshot shows only a card's front face, so the transcription says
+// "Claim" where pick_events says "Claim // Fame". `cardNameKey` folds both to
+// the same key; without it a single double-faced card fails the whole file,
+// since an unresolvable name is a hard error by design.
+const norm = cardNameKey;
 
 /**
  * Resolve a parsed deck into deck_cards rows using only cards this seat drafted.

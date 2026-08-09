@@ -5,6 +5,7 @@ import {
   decideSeatWrite,
   parseDecklistArgs,
 } from "./decklists";
+import { cardNameKey } from "../src/core/parseSheetRows";
 
 const entry = (id: string, cards: string[]) => ({
   sealeddeckId: id,
@@ -25,6 +26,19 @@ describe("extractStoredCards", () => {
       hidden: [{ name: "Black Lotus", count: 1 }],
     });
     expect(stored).toEqual(new Set(["lightning bolt", "brainstorm"]));
+  });
+
+  it("folds a double-faced card to its front face", () => {
+    // pick_events stores "Claim // Fame"; sealeddeck returns whichever face the
+    // submitter typed. Both sides key through cardNameKey, so the card counts
+    // as the match it is instead of denting precision and recall on a list the
+    // write path would resolve without complaint.
+    const stored = extractStoredCards({
+      poolId: "x",
+      deck: [{ name: "Claim", count: 1 }],
+      sideboard: [{ name: "Commit // Memory", count: 1 }],
+    });
+    expect(stored).toEqual(new Set(["claim", "commit"]));
   });
 
   it("excludes basic lands and normalizes names", () => {
@@ -121,6 +135,34 @@ describe("matchDecksToSeats", () => {
     // discards the submission entirely, which would leave seat 2 with no deck.
     expect(assignments.get(2)?.sealeddeckId).toBe("LZYpr4rjmH");
     expect(assignments.has(1)).toBe(false);
+  });
+
+  it("matches a list that names only the front face of a split card", () => {
+    // seatPicks is keyed exactly as getSeatPicks keys it — cardNameKey over the
+    // name in `cards`. Production holds four split cards in pick_events; at 41
+    // cards a list, four names counted as misses would spend the entire 0.9
+    // precision budget on cards that write correctly.
+    const picks = new Map([
+      [
+        3,
+        new Set(
+          ["Claim // Fame", "Commit // Memory", "Life // Death", "Counterspell"].map(cardNameKey),
+        ),
+      ],
+    ]);
+    const storedCards = extractStoredCards({
+      poolId: "x",
+      deck: [
+        { name: "Claim", count: 1 },
+        { name: "Commit", count: 1 },
+        { name: "Life", count: 1 },
+        { name: "Counterspell", count: 1 },
+      ],
+      sideboard: [],
+    });
+
+    const { assignments } = matchDecksToSeats([{ ...entry("split", []), storedCards }], picks);
+    expect(assignments.get(3)?.sealeddeckId).toBe("split");
   });
 
   it("skips a list whose cards span two seats", () => {

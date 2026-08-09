@@ -81,6 +81,25 @@ describe("resolveDeckFromPicks", () => {
     client.close();
   });
 
+  it("resolves a transcription that names only a split card's front face", async () => {
+    // A screenshot shows one face. An unresolvable name is a hard failure for
+    // the whole file by design, so without front-face folding a single split
+    // card would sink an otherwise perfect transcription.
+    const client = await createMemDb();
+    await insertDraft(client, "terminate");
+    await insertCard(client, 20, "Claim // Fame");
+    await insertPickEvent(client, "terminate", 1, 2, 20);
+
+    const rows = await resolveDeckFromPicks(client, {
+      draftId: "terminate",
+      seat: 2,
+      maindeckNonBasics: ["Claim"],
+      sideboard: [],
+    });
+    expect(rows[0].cardId).toBe(20);
+    client.close();
+  });
+
   it("normalizes numeric suffixes the way pick data does", async () => {
     const client = await createMemDb();
     await insertDraft(client, "tarkir");

@@ -17,14 +17,18 @@ import { writeFileSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { loadEnv, log } from "../src/core/db/ingest/utils";
-import { normalizeCardName } from "../src/core/parseSheetRows";
+import { cardNameKey } from "../src/core/parseSheetRows";
 import { isCompletedForStats } from "../src/core/draftPhases";
 import { SEAT_MATCH_PRECISION_THRESHOLD, formatPct } from "./lib/deckMatching";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const REPORT_FILE = join(__dirname, "..", "docs", "decklist-status.md");
 
-const norm = (name: string) => normalizeCardName(name).toLowerCase();
+// The same key the matcher scores by (`scripts/decklists.ts`) and the write
+// path resolves by. Folding a double-faced card to its front face matters here
+// too: a checker that keys names differently from the matcher certifies data
+// the matcher would have rejected, and vice versa.
+const norm = cardNameKey;
 const key = (draftId: string, seat: number) => `${draftId}:${seat}`;
 
 interface Suspect {

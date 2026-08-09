@@ -16,7 +16,7 @@ import { fileURLToPath } from "url";
 import { loadEnv, log, logIndent } from "../src/core/db/ingest/utils";
 import { deckCardInsertStatements, type DeckCardInsert } from "../src/core/db/sync/batch";
 import { CardCache } from "../src/core/db/sync/card-cache";
-import { normalizeCardName } from "../src/core/parseSheetRows";
+import { normalizeCardName, cardNameKey } from "../src/core/parseSheetRows";
 import { resolveCardNameToId } from "../src/core/db/sync/incremental";
 import { slugify } from "./lib/slugify";
 import { assertRecognizedFlags } from "./lib/cliFlags";
@@ -112,22 +112,23 @@ async function fetchDeck(id: string): Promise<SealedDeckResponse> {
   return (await response.json()) as SealedDeckResponse;
 }
 
-/** Normalize a card name for matching (lowercase, strip numeric suffixes) */
-function normalizeForMatch(name: string): string {
-  return normalizeCardName(name).toLowerCase();
-}
-
 /**
  * The cards a submission will actually store: deck + sideboard, non-basics only.
  *
  * `hidden` is excluded on purpose. Some submitters pasted the entire remaining
  * cube into that zone; because it was included in matching but never written,
  * those lists overlapped every seat completely and evicted correct decks.
+ *
+ * Names are keyed with `cardNameKey`, the same normalization `getSeatPicks`
+ * uses, so both sides of the comparison fold a double-faced card to its front
+ * face. sealeddeck returns `"Claim"` where the database stores
+ * `"Claim // Fame"`; keyed any other way that card counts against both
+ * precision and recall despite resolving fine at write time.
  */
 export function extractStoredCards(response: SealedDeckResponse): Set<string> {
   const stored = new Set<string>();
   for (const card of [...response.deck, ...response.sideboard]) {
-    const normalized = normalizeForMatch(card.name);
+    const normalized = cardNameKey(card.name);
     if (!BASIC_LANDS.has(normalized)) {
       stored.add(normalized);
     }
@@ -142,7 +143,7 @@ export function extractStoredCards(response: SealedDeckResponse): Set<string> {
 function extractZoneCards(cards: SealedDeckCard[]): string[] {
   const result: string[] = [];
   for (const card of cards) {
-    const normalized = normalizeForMatch(card.name);
+    const normalized = cardNameKey(card.name);
     if (BASIC_LANDS.has(normalized)) continue;
     for (let i = 0; i < card.count; i++) {
       result.push(card.name);
@@ -290,7 +291,13 @@ export function decideSeatWrite(
 // Turso integration (new in this script)
 // ============================================================================
 
-/** Get pick data from Turso for seat matching */
+/**
+ * Get pick data from Turso for seat matching.
+ *
+ * Keyed with `cardNameKey` to match `extractStoredCards`. Matching must fold
+ * names exactly as the write path does (`CardCache` + `resolveCardNameToId`),
+ * or a split card scores as a mismatch on a list that would write correctly.
+ */
 async function getSeatPicks(
   client: Client,
   draftId: string,
@@ -305,7 +312,7 @@ async function getSeatPicks(
   for (const row of result.rows) {
     const seat = row.seat as number;
     if (!seatPicks.has(seat)) seatPicks.set(seat, new Set());
-    seatPicks.get(seat)!.add((row.name as string).toLowerCase());
+    seatPicks.get(seat)!.add(cardNameKey(row.name as string));
   }
   return seatPicks;
 }
