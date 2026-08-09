@@ -18,6 +18,7 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { loadEnv, log } from "../src/core/db/ingest/utils";
 import { normalizeCardName } from "../src/core/parseSheetRows";
+import { isCompletedForStats } from "../src/core/draftPhases";
 import { SEAT_MATCH_PRECISION_THRESHOLD, formatPct } from "./lib/deckMatching";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -34,7 +35,7 @@ interface Suspect {
   notPicked: number;
 }
 
-type AbsenceReason = "opted-out" | "draft-never-collected" | "missing";
+type AbsenceReason = "missing" | "draft-never-collected" | "in-progress";
 
 interface Absent {
   draftId: string;
@@ -76,15 +77,28 @@ async function main() {
     deckBySeat.get(k)!.add(norm(row.name as string));
   }
 
-  const optedOut = new Set<string>();
+  // Redaction happens at ingest: an opted-out seat's picks are never written,
+  // so this tool can never observe an opted-out seat via pick_events. Count
+  // opt-outs directly rather than trying (and failing) to classify absences
+  // as opted-out.
   const optOutResult = await client.execute(`SELECT draft_id, seat FROM privacy_opt_outs`);
-  for (const row of optOutResult.rows) {
-    optedOut.add(key(row.draft_id as string, row.seat as number));
+  const optOutCount = optOutResult.rows.length;
+
+  const draftPhaseById = new Map<string, string>();
+  const draftsResult = await client.execute(`SELECT draft_id, phase FROM drafts`);
+  for (const row of draftsResult.rows) {
+    draftPhaseById.set(row.draft_id as string, row.phase as string);
   }
+  const isDraftComplete = (draftId: string) => isCompletedForStats(draftPhaseById.get(draftId) ?? "");
 
   // Seats that demonstrably drafted: a seat with no picks never played.
   const seatsThatDrafted = [...picksBySeat.keys()];
-  const draftsWithAnyDeck = new Set([...deckBySeat.keys()].map((k) => k.split(":")[0]));
+  // Only a *completed* draft's decks count toward "some seats have decks,
+  // this one is missing" — an early submission in a still-drafting pod
+  // shouldn't make its other seats look like remediation targets.
+  const draftsWithAnyDeck = new Set(
+    [...deckBySeat.keys()].map((k) => k.split(":")[0]).filter(isDraftComplete),
+  );
 
   // ---- suspect stored decks ------------------------------------------------
 
@@ -121,8 +135,11 @@ async function main() {
     const [draftId, seatStr] = k.split(":");
     const seat = Number(seatStr);
 
-    const reason: AbsenceReason = optedOut.has(k)
-      ? "opted-out"
+    // A still-drafting pod hasn't finished, so nobody has built a deck yet —
+    // that's expected, not a gap. Only classify as missing/never-collected
+    // once the draft is done and decks should exist.
+    const reason: AbsenceReason = !isDraftComplete(draftId)
+      ? "in-progress"
       : draftsWithAnyDeck.has(draftId)
         ? "missing"
         : "draft-never-collected";
@@ -133,6 +150,8 @@ async function main() {
 
   // ---- report --------------------------------------------------------------
 
+  const inProgress = absent.filter((a) => a.reason === "in-progress");
+  const actionable = absent.filter((a) => a.reason !== "in-progress");
   const needsAttention = absent.filter((a) => a.reason === "missing");
 
   log(`stored decklists: ${deckBySeat.size}`);
@@ -144,15 +163,23 @@ async function main() {
     );
   }
 
-  log(`seats that drafted but have no decklist: ${absent.length}`);
-  for (const reason of ["missing", "draft-never-collected", "opted-out"] as const) {
+  log(
+    `seats that drafted but have no decklist: ${absent.length} ` +
+      `(${actionable.length} actionable, ${inProgress.length} in-progress — not yet actionable)`,
+  );
+  for (const reason of ["missing", "draft-never-collected", "in-progress"] as const) {
     const group = absent.filter((a) => a.reason === reason);
     if (group.length === 0) continue;
-    console.log(`  ${reason} (${group.length}): ${group.map((a) => `${a.draftId}:${a.seat}`).join(", ")}`);
+    const label = reason === "in-progress" ? "in-progress (draft not complete, not actionable)" : reason;
+    console.log(`  ${label} (${group.length}): ${group.map((a) => `${a.draftId}:${a.seat}`).join(", ")}`);
   }
 
+  log(
+    `opted out: ${optOutCount} seat(s) (not evaluated — redaction happens at ingest, so these seats have no picks)`,
+  );
+
   if (writeReport) {
-    writeFileSync(REPORT_FILE, renderReport(suspects, absent, deckBySeat.size));
+    writeFileSync(REPORT_FILE, renderReport(suspects, absent, deckBySeat.size, optOutCount));
     log(`wrote ${REPORT_FILE}`);
   }
 
@@ -169,7 +196,15 @@ async function main() {
   }
 }
 
-function renderReport(suspects: Suspect[], absent: Absent[], storedCount: number): string {
+function renderReport(
+  suspects: Suspect[],
+  absent: Absent[],
+  storedCount: number,
+  optOutCount: number,
+): string {
+  const inProgress = absent.filter((a) => a.reason === "in-progress");
+  const actionable = absent.filter((a) => a.reason !== "in-progress");
+
   const lines: string[] = [];
   lines.push("# Decklist Status");
   lines.push("");
@@ -182,6 +217,9 @@ function renderReport(suspects: Suspect[], absent: Absent[], storedCount: number
   lines.push("");
   lines.push(`**Stored decklists:** ${storedCount}`);
   lines.push(`**Suspect:** ${suspects.length}`);
+  lines.push(`**Actionable absences:** ${actionable.length}`);
+  lines.push(`**In progress (not yet actionable):** ${inProgress.length}`);
+  lines.push(`**Opted out (not evaluated):** ${optOutCount}`);
   lines.push("");
 
   lines.push("## Suspect stored decklists");
@@ -199,17 +237,49 @@ function renderReport(suspects: Suspect[], absent: Absent[], storedCount: number
   }
   lines.push("");
 
-  lines.push("## Seats with no decklist");
+  lines.push("## Seats with no decklist (actionable)");
   lines.push("");
-  lines.push("| Draft | Seat | Reason | Note |");
-  lines.push("|---|---|---|---|");
-  for (const a of absent) {
-    lines.push(`| ${a.draftId} | ${a.seat} | ${a.reason} | |`);
+  if (actionable.length === 0) {
+    lines.push("None.");
+  } else {
+    lines.push("| Draft | Seat | Reason | Note |");
+    lines.push("|---|---|---|---|");
+    for (const a of actionable) {
+      lines.push(`| ${a.draftId} | ${a.seat} | ${a.reason} | |`);
+    }
   }
   lines.push("");
-  lines.push("**Reasons:** `opted-out` — by design, will never have a deck. ");
-  lines.push("`draft-never-collected` — no seat in that draft has a decklist. ");
-  lines.push("`missing` — other seats in this draft have decks; this one needs remediation.");
+
+  lines.push("## Seats still drafting (not yet actionable)");
+  lines.push("");
+  lines.push(
+    "These drafts have not finished, so no deck is expected yet. Not part of the " +
+      "remediation queue — listed separately so they are not mistaken for work to do.",
+  );
+  lines.push("");
+  if (inProgress.length === 0) {
+    lines.push("None.");
+  } else {
+    lines.push("| Draft | Seat |");
+    lines.push("|---|---|");
+    for (const a of inProgress) {
+      lines.push(`| ${a.draftId} | ${a.seat} |`);
+    }
+  }
+  lines.push("");
+
+  lines.push(
+    "**Reasons:** `draft-never-collected` — the draft is complete but no seat in it has a decklist. ",
+  );
+  lines.push("`missing` — other seats in this (complete) draft have decks; this one needs remediation. ");
+  lines.push("`in-progress` — the draft has not finished; no deck is expected yet.");
+  lines.push("");
+  lines.push(
+    `**Opted-out seats (${optOutCount}) are not evaluated above.** Privacy redaction happens at ` +
+      "ingest — an opted-out seat's picks are never written — so this tool, which finds absent " +
+      "decks by looking for seats with picks and no deck, structurally cannot see them. Counted " +
+      "directly from `privacy_opt_outs` instead.",
+  );
   lines.push("");
 
   return lines.join("\n");
