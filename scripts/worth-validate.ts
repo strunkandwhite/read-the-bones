@@ -36,13 +36,20 @@ const PRNG_SEED = 42;
 const PERMUTATION_ITERATIONS = 2000;
 
 /**
- * Currently pinned gate: minPooledRho 0.0755 (measured pooled rho 0.1755,
- * p=0.0040, 27 stats-phase drafts, same set as the prior pin). Re-measured
- * 2026-08-07 after switching the worth model's geomean inputs to
- * recency-weighted pick data (half-life 4 sessions) — the re-fit pooled rho
- * came in at or above the prior measured pooled rho (0.1707), so recency
- * weighting did not damage the model's ability to predict wins. Re-measure
- * and re-pin whenever the worth model's fit changes.
+ * Currently pinned gate: minPooledRho 0.0616 (measured pooled rho 0.1616,
+ * p=0.0170, 257 seats over 27 stats-phase drafts). Re-measured 2026-08-09
+ * after privacy redaction moved to ingest time: an opted-out seat now has no
+ * stored picks, so it never becomes a key in picksBySeat and drops out of the
+ * sample entirely rather than scoring as a zero-worth seat with real wins.
+ * The sample fell from 266 seats to 257 and rho moved 0.1755 -> 0.1616.
+ *
+ * That drop is well inside the noise band — roughly 0.22 standard errors at
+ * n=257 (SE ~ 1/sqrt(n-1) ~ 0.0625) — so the honest reading is that removing
+ * those seats did NOT degrade the model, not that it hurt it. Do not read a
+ * trend into it. The 257-seat sample is the new permanent baseline: those
+ * seats can never be scored again, by design.
+ *
+ * Re-measure and re-pin whenever the worth model's fit changes.
  */
 
 /** Margin subtracted from the measured pooled rho for the pinned gate. */
