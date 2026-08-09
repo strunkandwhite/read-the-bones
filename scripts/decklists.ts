@@ -19,6 +19,7 @@ import { CardCache } from "../src/core/db/sync/card-cache";
 import { normalizeCardName } from "../src/core/parseSheetRows";
 import { resolveCardNameToId } from "../src/core/db/sync/incremental";
 import { slugify } from "./lib/slugify";
+import { assertRecognizedFlags } from "./lib/cliFlags";
 import {
   scoreAgainstSeat,
   isEligibleSeat,
@@ -451,11 +452,7 @@ const RECOGNIZED_FLAGS = new Set(["--dry-run", "--force"]);
 export function parseDecklistArgs(
   args: string[],
 ): { filterDraft: string | undefined; force: boolean; dryRun: boolean } {
-  for (const arg of args) {
-    if (arg.startsWith("--") && !RECOGNIZED_FLAGS.has(arg)) {
-      throw new Error(`Unrecognized flag: ${arg}`);
-    }
-  }
+  assertRecognizedFlags(args, RECOGNIZED_FLAGS);
 
   return {
     // Skip flags so `pnpm decklists --dry-run` still works without a draft label.

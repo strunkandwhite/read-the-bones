@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { createMemDb, insertCard, insertDraft, insertPickEvent } from "../src/core/db/__tests__/testDb";
-import { resolveDeckFromPicks } from "./import-recovered-decks";
+import {
+  resolveDeckFromPicks,
+  decideImportWrite,
+  diffDeckCards,
+  parseImportArgs,
+} from "./import-recovered-decks";
 
 async function seedSeat() {
   const client = await createMemDb();
@@ -90,5 +95,100 @@ describe("resolveDeckFromPicks", () => {
     });
     expect(rows[0].cardId).toBe(10);
     client.close();
+  });
+});
+
+describe("decideImportWrite", () => {
+  it("writes a seat that has no deck at all", () => {
+    expect(decideImportWrite({ hasDeck: false, source: null }, false)).toBe("write");
+  });
+
+  it("refuses a seat whose deck came from a sealeddeck URL", () => {
+    // The URL is the player's own submission; a screenshot transcription that
+    // disagrees with it is a transcription question, not a repair. Overwriting
+    // stamps the row `recovered:`, which then blocks `pnpm decklists` from
+    // restoring the URL-sourced deck — so the mistake is permanent.
+    expect(decideImportWrite({ hasDeck: true, source: "xYz123" }, false)).toBe("refuse-foreign");
+  });
+
+  it("refuses a seat holding a deck with no recorded source", () => {
+    // Every deck stored before provenance existed came from a URL, so an
+    // unstamped row means "we failed to record it", not "nothing to lose".
+    expect(decideImportWrite({ hasDeck: true, source: null }, false)).toBe("refuse-foreign");
+  });
+
+  it("overwrites a URL-sourced deck when --force is passed", () => {
+    expect(decideImportWrite({ hasDeck: true, source: "xYz123" }, true)).toBe("write");
+  });
+
+  it("re-imports a previously recovered seat without --force", () => {
+    const existing = { hasDeck: true, source: "recovered:baleful-strix-seat-3.json" };
+    expect(decideImportWrite(existing, false)).toBe("write");
+  });
+
+  it("writes a seat whose deck_hashes row is stamped but whose deck_cards are gone", () => {
+    // The `hash = ''` sentinel path leaves provenance behind with no cards.
+    // There is nothing to overwrite, so the guard must not block the import.
+    expect(decideImportWrite({ hasDeck: false, source: "xYz123" }, false)).toBe("write");
+  });
+});
+
+describe("diffDeckCards", () => {
+  const slot = (cardId: number, zone: string, qty = 1) => ({ cardId, zone, qty });
+
+  it("reports no differences for identical decks", () => {
+    const deck = [slot(1, "deck"), slot(2, "sideboard")];
+    expect(diffDeckCards(deck, [...deck])).toEqual({
+      onlyStored: 0,
+      onlyParsed: 0,
+      slots: [],
+    });
+  });
+
+  it("counts a card moved between zones on both sides", () => {
+    // The case the integrity checker cannot see: both readings are made of
+    // cards the seat drafted, so precision is 1.0 either way.
+    const diff = diffDeckCards([slot(1, "sideboard")], [slot(1, "deck")]);
+    expect(diff.onlyStored).toBe(1);
+    expect(diff.onlyParsed).toBe(1);
+    expect(diff.slots).toEqual([
+      { cardId: 1, zone: "deck", storedQty: 0, parsedQty: 1 },
+      { cardId: 1, zone: "sideboard", storedQty: 1, parsedQty: 0 },
+    ]);
+  });
+
+  it("counts a differing quantity of the same card as one copy", () => {
+    const diff = diffDeckCards([slot(1, "deck", 2)], [slot(1, "deck", 1)]);
+    expect(diff).toEqual({
+      onlyStored: 1,
+      onlyParsed: 0,
+      slots: [{ cardId: 1, zone: "deck", storedQty: 2, parsedQty: 1 }],
+    });
+  });
+
+  it("counts an entirely absent stored deck as all-parsed", () => {
+    const diff = diffDeckCards([], [slot(1, "deck"), slot(2, "deck", 2)]);
+    expect(diff.onlyStored).toBe(0);
+    expect(diff.onlyParsed).toBe(3);
+  });
+});
+
+describe("parseImportArgs", () => {
+  it("defaults both flags off", () => {
+    expect(parseImportArgs([])).toEqual({ dryRun: false, force: false });
+  });
+
+  it("recognizes --dry-run and --force regardless of order", () => {
+    expect(parseImportArgs(["--force", "--dry-run"])).toEqual({ dryRun: true, force: true });
+  });
+
+  it("throws on an unrecognized flag instead of silently dropping it", () => {
+    // `--dryrun` used to parse as "no flags", turning a rehearsal into a real
+    // import against the one production database.
+    expect(() => parseImportArgs(["--dryrun"])).toThrow("Unrecognized flag: --dryrun");
+  });
+
+  it("throws on an unrecognized flag even when a valid flag is also present", () => {
+    expect(() => parseImportArgs(["--dry-run", "--forc"])).toThrow("Unrecognized flag: --forc");
   });
 });
