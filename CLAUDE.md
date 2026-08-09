@@ -70,12 +70,24 @@ pnpm draft:admin <subcommand>        # Admin tools (undo-pick, edit-pick, regen-
 # Decklists
 pnpm decklists                 # Fetch decklists from sealeddeck.tech and write to Turso
 pnpm decklists tarkir          # Fetch decklists for a specific draft
+pnpm decklists --dry-run       # Report what would be written, change nothing
+pnpm decklists --force         # Also overwrite hand-recovered decks (see decklists:import)
 
 # Scryfall data
 pnpm scryfall:backfill         # Fetch missing Scryfall data for cards in Turso, update local cache
 ```
 
-**Decklists:** Add sealeddeck.tech URLs to `data/decklists.txt` (grouped by draft name), then run `pnpm decklists`. The script fetches each deck, matches it to a seat by card overlap with pick data from Turso, and writes deck cards directly to the database.
+**Decklists:** `data/decklists.txt` is an **inbox, not an archive** — it holds sealeddeck.tech URLs that have not been ingested yet, grouped by draft name (a bare draft name on its own line, then its URLs; there is no comment syntax, so every non-URL line is read as a draft heading). Run `pnpm decklists --dry-run`, read the report, then `pnpm decklists`. **Once a submission is stored, remove its URL from the file.** It is currently empty; `docs/decklist-status.md` records where all 230 of its former entries went.
+
+Provenance lives in `deck_hashes.sealeddeck_id`, so "which submission produced this seat's deck?" is a query, not a grep:
+
+```sql
+SELECT draft_id, seat, sealeddeck_id FROM deck_hashes WHERE sealeddeck_id IS NOT NULL;
+```
+
+Matching uses **`deck + sideboard` only** — never sealeddeck's `hidden` zone, which some submitters fill with the entire remaining cube. A seat is assigned only if it clears both gates: recall ≥ 0.5 (it holds at least half that seat's picks — the rest may be unplaced) and precision ≥ 0.9 (nearly every card in the list is one that seat drafted). Rotisserie gives each card exactly one owner, so precision is the load-bearing check; both thresholds live in `scripts/lib/deckMatching.ts` and are shared with `pnpm decklists:integrity`.
+
+A seat whose `sealeddeck_id` starts with `recovered:` was hand-transcribed from a screenshot and will not be overwritten without `--force`. Run `pnpm decklists:integrity` after any change — `docs/decklist-status.md` is the remediation queue.
 
 **Sync:** `pnpm sync` fetches data from Google Sheets and writes it to Turso. Per-domain hashing (pool, picks, matches) means only changed data is replaced. Use `pnpm draft:reset <name>` followed by `pnpm sync <name>` to force a full reimport. The cron path only reconciles picks and matches; pool/cube changes always need the CLI sync.
 
@@ -223,6 +235,8 @@ moves only when a new session lands.
 
 **Opt-out operational hazard:** `privacy_opt_outs` is the only thing the ingest filter consults, and `pnpm draft:reset` clears it (`db-helpers.ts`, `resetDraft`). Since `.opt-outs.json` is gitignored and never deployed, a `draft:reset` followed by `pnpm sync` **from a machine without that file** re-ingests the opted-out player's picks unredacted — and no read-time mask exists to catch it any more. Always confirm `.opt-outs.json` is present before re-syncing a draft that had opt-outs, and check `select * from privacy_opt_outs` afterwards.
 
+**Recovered-decklist reset hazard:** `pnpm draft:reset` and `pnpm draft:delete` wipe both `deck_cards` and `deck_hashes` for the draft (`db-helpers.ts`, `resetDraft`; `scripts/lib/deleteDraft.ts`) with no guard, no dry run and no prompt — and hand-recovered decklists go with them. Re-running `pnpm decklists` will not bring them back: the sealeddeck URLs for recovered seats are pruned from `data/decklists.txt` once their decks are stored, so nothing remains to re-fetch. Recovery is `pnpm decklists:import`, and that only works because the transcriptions are committed at `docs/decklist-recovery-parsed/`. **Never delete that directory** — it is the only copy of those decklists, and `data/` is gitignored.
+
 ## Design Documents
 
 - `docs/plans/2026-01-08-card-rankings-design.md` - Architecture and algorithm details
@@ -258,6 +272,7 @@ moves only when a new session lands.
 - `docs/superpowers/specs/2026-07-19-sheet-draft-deck-builder-design.md` - Sheet-draft deck builder (local mode) design
 - `docs/superpowers/specs/2026-08-07-maindeck-creature-split-design.md` - Maindeck creature / non-creature split design
 - `docs/superpowers/specs/2026-08-08-ingest-time-redaction-design.md` - Ingest-time privacy redaction (opted-out picks never stored)
+- `docs/superpowers/specs/2026-08-09-decklist-recovery-design.md` - Decklist recovery: precision-gated matching, provenance, recovered-deck import
 
 ### Superpowers Plans
 
@@ -300,3 +315,5 @@ moves only when a new session lands.
 - `docs/superpowers/plans/2026-07-20-sheet-draft-pick-reconciliation.md` - Sheet-draft pick reconciliation (float upgrade/removal on synced picks)
 - `docs/superpowers/plans/2026-08-07-maindeck-creature-split.md` - Maindeck creature / non-creature split implementation
 - `docs/superpowers/plans/2026-08-08-ingest-time-redaction.md` - Ingest-time privacy redaction implementation
+- `docs/superpowers/plans/2026-08-09-decklist-recovery.md` - Decklist recovery implementation
+- `docs/superpowers/plans/2026-08-09-sideboard-marker-finding.md` - Why two malformed submissions are unrecoverable at source (NO-GO finding)

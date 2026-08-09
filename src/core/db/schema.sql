@@ -205,3 +205,8 @@ ALTER TABLE seat_tokens ADD COLUMN queue_json TEXT;
 -- Last single-pick round for sheet drafts ("Double Picks After:" in the sheet).
 -- NULL for live drafts, which derive the double-pick region heuristically.
 ALTER TABLE drafts ADD COLUMN double_pick_after_round INTEGER;
+
+-- sealeddeck_id on deck_hashes: which submission produced this seat's deck.
+-- 'recovered:<filename>' marks a deck imported from a hand-parsed screenshot;
+-- the fetcher refuses to overwrite those without --force.
+ALTER TABLE deck_hashes ADD COLUMN sealeddeck_id TEXT;

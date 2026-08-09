@@ -23,6 +23,8 @@
     "draft:reset": "tsx scripts/draft-reset.ts",
     "draft:delete": "tsx scripts/draft-delete.ts",
     "decklists": "tsx scripts/decklists.ts",
+    "decklists:integrity": "tsx scripts/decklists-integrity.ts",
+    "decklists:import": "tsx scripts/import-recovered-decks.ts",
     "db:migrate": "tsx src/core/db/migrate.ts",
     "draft:create-live": "tsx scripts/draft-create-live.ts",
     "draft:start": "tsx scripts/draft-start.ts",

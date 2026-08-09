@@ -1,0 +1,68 @@
+{
+  "draftId": "tarmogoyf",
+  "seat": 6,
+  "layout": "split-view",
+  "basics": { "Plains": 12 },
+  "maindeckNonBasics": [
+    "Ancient Tomb",
+    "Flooded Strand",
+    "Mutavault",
+    "Descendant of Storms",
+    "Ephemerate",
+    "Mana Tithe",
+    "Novice Inspector",
+    "Path to Exile",
+    "Usher of the Fallen",
+    "Figure of Destiny",
+    "Cloud, Midgar Mercenary",
+    "Glimmer Lens",
+    "Phelia, Exuberant Shepherd",
+    "Reprieve",
+    "Stoneforge Mystic",
+    "Spider-Woman, Stunning Savior",
+    "Elite Spellbinder",
+    "Enduring Innocence",
+    "Flickerwisp",
+    "Sanguine Evangelist",
+    "Skyclave Apparition",
+    "Dismember",
+    "Restoration Angel",
+    "The Wandering Emperor",
+    "Witch Enchanter",
+    "Solitude",
+    "Dissection Tools",
+    "Overlord of the Mistmoors"
+  ],
+  "sideboard": [
+    "Kytheon, Hero of Akros",
+    "Portable Hole",
+    "Selfless Savior",
+    "Lion Sash",
+    "Assimilation Aegis",
+    "Lurrus of the Dream-Den",
+    "Kirol, Attentive First-Year",
+    "The Aetherspark",
+    "Batterskull",
+    "Serra Paragon",
+    "Toby, Beastie Befriender",
+    "Sevinne's Reclamation",
+    "Loran of the Third Path",
+    "Blade Splicer",
+    "Aven Interrupter"
+  ],
+  "totalPicks": 45,
+  "reconciles": true,
+  "corrections": [
+    {
+      "read": "Makdee and Itla, Skysnarers",
+      "actual": "Spider-Woman, Stunning Savior",
+      "reason": "Alternate/flavor-name printing shown in the deck builder UI. The card's oracle text (Flying; \"Artifacts and creatures your opponents control enter tapped\"), type line (Legendary Creature — Spider Human Hero), and mana value 2 exactly match Spider-Woman, Stunning Savior's Scryfall data; 'Makdee and Itla, Skysnarers' does not exist anywhere in the cards table."
+    }
+  ],
+  "uncertain": [
+    {
+      "item": "Kinscaer Sentry, Unidentified Hovership",
+      "reason": "In this seat's picks but not present in either the maindeck or sideboard grids — treated as unplaced pool cards (sealeddeck 'hidden' zone), consistent with maindeck(28) + sideboard(15) = 43 < totalPicks(45)."
+    }
+  ]
+}

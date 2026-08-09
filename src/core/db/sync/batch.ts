@@ -1,5 +1,5 @@
 // src/core/db/sync/batch.ts
-import type { Client } from "@libsql/client";
+import type { Client, InArgs } from "@libsql/client";
 import type { MatchResult } from "../../parseSheetRows";
 
 export interface PickInsert {
@@ -45,14 +45,22 @@ export async function batchInsertMatches(client: Client, matches: MatchInsert[])
   );
 }
 
-export async function batchInsertDeckCards(client: Client, cards: DeckCardInsert[]): Promise<void> {
-  if (cards.length === 0) return;
-  await client.batch(
-    cards.map((c) => ({
-      sql: "INSERT INTO deck_cards (draft_id, seat, card_id, zone, qty) VALUES (?, ?, ?, ?, ?)",
-      args: [c.draftId, c.seat, c.cardId, c.zone, c.qty],
-    })),
-  );
+/**
+ * The insert statements for a set of deck cards, without executing them.
+ *
+ * Replacing a seat's deck is a delete followed by these inserts followed by a
+ * provenance upsert. Exposing the statements lets a caller put all three in one
+ * `client.batch`, so a seat is never left with its old deck deleted and no new
+ * one written — for a seat whose stored deck is the only surviving copy, that
+ * gap is unrecoverable.
+ */
+export function deckCardInsertStatements(
+  cards: DeckCardInsert[],
+): Array<{ sql: string; args: InArgs }> {
+  return cards.map((c) => ({
+    sql: "INSERT INTO deck_cards (draft_id, seat, card_id, zone, qty) VALUES (?, ?, ?, ?, ?)",
+    args: [c.draftId, c.seat, c.cardId, c.zone, c.qty],
+  }));
 }
 
 export async function batchInsertCubeSnapshotCards(

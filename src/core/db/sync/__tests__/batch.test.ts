@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   batchInsertPicks,
   batchInsertMatches,
-  batchInsertDeckCards,
+  deckCardInsertStatements,
   batchInsertCubeSnapshotCards,
   buildMatchInserts,
   deleteDomainData,
@@ -58,22 +58,23 @@ describe("batchInsertMatches", () => {
   });
 });
 
-describe("batchInsertDeckCards", () => {
-  it("builds batch statements for deck cards", async () => {
-    const client = mockClient();
-    const cards = [
-      { draftId: "d1", seat: 1, cardId: 100, zone: "deck" as const, qty: 1 },
-    ];
-    await batchInsertDeckCards(client as any, cards);
-    expect(client.batch).toHaveBeenCalledTimes(1);
-    const stmts = client.batch.mock.calls[0][0];
+describe("deckCardInsertStatements", () => {
+  it("builds one insert statement per deck card", () => {
+    const stmts = deckCardInsertStatements([
+      { draftId: "d1", seat: 1, cardId: 100, zone: "deck", qty: 1 },
+      { draftId: "d1", seat: 1, cardId: 200, zone: "sideboard", qty: 2 },
+    ]);
+    expect(stmts).toHaveLength(2);
     expect(stmts[0].sql).toContain("INSERT INTO deck_cards");
+    expect(stmts[0].args).toEqual(["d1", 1, 100, "deck", 1]);
+    expect(stmts[1].args).toEqual(["d1", 1, 200, "sideboard", 2]);
   });
 
-  it("does nothing for empty cards array", async () => {
-    const client = mockClient();
-    await batchInsertDeckCards(client as any, []);
-    expect(client.batch).not.toHaveBeenCalled();
+  it("returns nothing for an empty card list", () => {
+    // Callers splice these into a larger batch alongside a delete and a hash
+    // upsert, so an empty deck must contribute no statements rather than
+    // suppressing the batch.
+    expect(deckCardInsertStatements([])).toEqual([]);
   });
 });
 

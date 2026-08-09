@@ -176,10 +176,17 @@ export async function applyChangedPicks(
  * core/db/sync/card-cache.ts instead.
  *
  * Returns null if the card is not found even via Scryfall (unrecognised name).
+ *
+ * @param persistAlias - When the Scryfall fallback (step 5) resolves a name,
+ *   it caches the mapping in `card_aliases` for future lookups. Pass `false`
+ *   to suppress that write — e.g. under a dry run, where resolution must
+ *   still work so unresolved names can be reported, but nothing may persist.
+ *   Defaults to `true` so every existing caller is unaffected.
  */
 export async function resolveCardNameToId(
   client: Client,
   cardName: string,
+  persistAlias: boolean = true,
 ): Promise<number | null> {
   const normalized = normalizeCardName(cardName);
 
@@ -212,7 +219,7 @@ export async function resolveCardNameToId(
   if (aliasResult.rows.length > 0) return aliasResult.rows[0].card_id as number;
 
   // 5. Scryfall API fallback — auto-discover and cache as alias
-  return resolveViaScryfall(client, normalized);
+  return resolveViaScryfall(client, normalized, persistAlias);
 }
 
 /** Rate limit delay between Scryfall API requests (ms) */
@@ -221,6 +228,7 @@ const SCRYFALL_RATE_LIMIT_MS = 75;
 async function resolveViaScryfall(
   client: Client,
   cardName: string,
+  persistAlias: boolean,
 ): Promise<number | null> {
   await sleep(SCRYFALL_RATE_LIMIT_MS);
   // Try exact match first, then fuzzy (handles Omen Paths digital names)
@@ -239,11 +247,14 @@ async function resolveViaScryfall(
     });
     if (match.rows.length > 0) {
       const cardId = match.rows[0].card_id as number;
-      // Cache the alias for future lookups
-      await client.execute({
-        sql: "INSERT OR IGNORE INTO card_aliases (alias, card_id) VALUES (LOWER(?), ?)",
-        args: [cardName, cardId],
-      });
+      // Cache the alias for future lookups, unless the caller asked us not
+      // to persist (e.g. a dry run that must not write anything).
+      if (persistAlias) {
+        await client.execute({
+          sql: "INSERT OR IGNORE INTO card_aliases (alias, card_id) VALUES (LOWER(?), ?)",
+          args: [cardName, cardId],
+        });
+      }
       console.log(`[alias] "${cardName}" → "${scryfallName}" (card_id: ${cardId})`);
       return cardId;
     }

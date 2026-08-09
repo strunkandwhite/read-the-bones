@@ -10,22 +10,27 @@
 
 import { createClient, type Client } from "@libsql/client";
 import { createHash } from "crypto";
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, realpathSync } from "fs";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { loadEnv, log, logIndent } from "../src/core/db/ingest/utils";
-import { batchInsertDeckCards, type DeckCardInsert } from "../src/core/db/sync/batch";
+import { deckCardInsertStatements, type DeckCardInsert } from "../src/core/db/sync/batch";
 import { CardCache } from "../src/core/db/sync/card-cache";
-import { normalizeCardName } from "../src/core/parseSheetRows";
+import { normalizeCardName, cardNameKey } from "../src/core/parseSheetRows";
 import { resolveCardNameToId } from "../src/core/db/sync/incremental";
 import { slugify } from "./lib/slugify";
+import { assertRecognizedFlags } from "./lib/cliFlags";
+import {
+  scoreAgainstSeat,
+  isEligibleSeat,
+  formatPct,
+  SEAT_MATCH_RECALL_THRESHOLD,
+  SEAT_MATCH_PRECISION_THRESHOLD,
+  type SeatScore,
+} from "./lib/deckMatching";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DECKLISTS_FILE = join(__dirname, "..", "data", "decklists.txt");
-
-// A decklist must share at least this fraction of the seat's picks to be considered
-// a match. Below this threshold the assignment is likely wrong (e.g. unsorted pool).
-const SEAT_MATCH_SCORE_THRESHOLD = 0.5;
 
 // Delay between sealeddeck.tech fetches (ms). sealeddeck.tech is a small site;
 // be a considerate client.
@@ -61,7 +66,12 @@ interface DecklistEntry {
   url: string;
   deck: string[];
   sideboard: string[];
-  pool: Set<string>; // deck + sideboard + hidden, minus basics, normalized
+  /**
+   * Exactly the cards this submission will store: deck + sideboard, minus
+   * basics, normalized. Deliberately excludes sealeddeck's `hidden` zone —
+   * matching against cards we never store is what misfiled three decklists.
+   */
+  storedCards: Set<string>;
 }
 
 // ============================================================================
@@ -102,26 +112,28 @@ async function fetchDeck(id: string): Promise<SealedDeckResponse> {
   return (await response.json()) as SealedDeckResponse;
 }
 
-/** Normalize a card name for matching (lowercase, strip numeric suffixes) */
-function normalizeForMatch(name: string): string {
-  return normalizeCardName(name).toLowerCase();
-}
-
-/** Extract non-basic card names from a sealeddeck response */
-function extractPool(response: SealedDeckResponse): Set<string> {
-  const pool = new Set<string>();
-  const allCards = [
-    ...response.deck,
-    ...response.sideboard,
-    ...(response.hidden || []),
-  ];
-  for (const card of allCards) {
-    const normalized = normalizeForMatch(card.name);
+/**
+ * The cards a submission will actually store: deck + sideboard, non-basics only.
+ *
+ * `hidden` is excluded on purpose. Some submitters pasted the entire remaining
+ * cube into that zone; because it was included in matching but never written,
+ * those lists overlapped every seat completely and evicted correct decks.
+ *
+ * Names are keyed with `cardNameKey`, the same normalization `getSeatPicks`
+ * uses, so both sides of the comparison fold a double-faced card to its front
+ * face. sealeddeck returns `"Claim"` where the database stores
+ * `"Claim // Fame"`; keyed any other way that card counts against both
+ * precision and recall despite resolving fine at write time.
+ */
+export function extractStoredCards(response: SealedDeckResponse): Set<string> {
+  const stored = new Set<string>();
+  for (const card of [...response.deck, ...response.sideboard]) {
+    const normalized = cardNameKey(card.name);
     if (!BASIC_LANDS.has(normalized)) {
-      pool.add(normalized);
+      stored.add(normalized);
     }
   }
-  return pool;
+  return stored;
 }
 
 /**
@@ -131,7 +143,7 @@ function extractPool(response: SealedDeckResponse): Set<string> {
 function extractZoneCards(cards: SealedDeckCard[]): string[] {
   const result: string[] = [];
   for (const card of cards) {
-    const normalized = normalizeForMatch(card.name);
+    const normalized = cardNameKey(card.name);
     if (BASIC_LANDS.has(normalized)) continue;
     for (let i = 0; i < card.count; i++) {
       result.push(card.name);
@@ -140,53 +152,152 @@ function extractZoneCards(cards: SealedDeckCard[]): string[] {
   return result.sort();
 }
 
-/** Match decklists to seats by card overlap */
+/** Report why a decklist matched no seat, at a severity that fits the cause. */
+function reportSkip(
+  decklist: DecklistEntry,
+  best: { seat: number; score: SeatScore } | null,
+): void {
+  if (!best || best.score.overlap === 0) {
+    // No overlap with any seat at all. This is an opted-out player's list:
+    // their picks were never ingested, so there is nothing to match against.
+    // Seven of these occur every run. Warning on expected behaviour trains
+    // everyone to ignore the log, which is how 27 overwrite lines went unread.
+    logIndent(
+      `Skipping ${decklist.sealeddeckId} — no overlap with any seat (expected for an opted-out player)`,
+    );
+    return;
+  }
+
+  console.warn(
+    `  WARNING: Skipping ${decklist.sealeddeckId} — best candidate seat ${best.seat} ` +
+      `scored recall ${formatPct(best.score.recall)} (need ${formatPct(SEAT_MATCH_RECALL_THRESHOLD)}), ` +
+      `precision ${formatPct(best.score.precision)} (need ${formatPct(SEAT_MATCH_PRECISION_THRESHOLD)}). ` +
+      `Low precision means the list holds cards that seat never drafted.`,
+  );
+}
+
+export interface MatchResult {
+  assignments: Map<number, DecklistEntry>;
+  /**
+   * Decklists that never landed on a seat because matching rejected them —
+   * either no seat cleared both thresholds, or more than one did (an
+   * ambiguity rotisserie rules forbid). A decklist later superseded by a
+   * newer submission for the same seat does NOT count here: it passed
+   * matching, it was just replaced.
+   */
+  skippedBelowThreshold: number;
+}
+
+/**
+ * Match decklists to seats by overlap with each seat's picks.
+ *
+ * A seat is eligible only if it clears both thresholds. Exactly one eligible
+ * seat assigns the list. More than one cannot happen under rotisserie rules —
+ * a card belongs to one player — so that case skips rather than guessing:
+ * a tie means an assumption has broken, and picking a winner buries the evidence.
+ */
 export function matchDecksToSeats(
   decklists: DecklistEntry[],
   seatPicks: Map<number, Set<string>>,
-): Map<number, DecklistEntry> {
+): MatchResult {
   const assignments = new Map<number, DecklistEntry>();
+  let skippedBelowThreshold = 0;
 
   for (const decklist of decklists) {
-    let bestSeat = -1;
-    let bestScore = 0;
+    const eligible: Array<{ seat: number; score: SeatScore }> = [];
+    let best: { seat: number; score: SeatScore } | null = null;
 
     for (const [seat, picks] of seatPicks) {
-      const overlap = [...decklist.pool].filter((c) => picks.has(c)).length;
-      const score = picks.size > 0 ? overlap / picks.size : 0;
-
-      if (score > bestScore) {
-        bestScore = score;
-        bestSeat = seat;
+      const score = scoreAgainstSeat(decklist.storedCards, picks);
+      if (!best || score.overlap > best.score.overlap) {
+        best = { seat, score };
+      }
+      if (isEligibleSeat(score)) {
+        eligible.push({ seat, score });
       }
     }
 
-    if (bestScore < SEAT_MATCH_SCORE_THRESHOLD) {
-      console.warn(
-        `  WARNING: Skipping ${decklist.sealeddeckId} — best match ${(bestScore * 100).toFixed(1)}% (seat ${bestSeat}) is below the ${SEAT_MATCH_SCORE_THRESHOLD * 100}% threshold. An opted-out player's decklist is expected here; anything else means the pool did not match any seat.`,
-      );
+    if (eligible.length === 0) {
+      reportSkip(decklist, best);
+      skippedBelowThreshold++;
       continue;
     }
 
-    // Later decklists overwrite earlier ones for the same seat
-    if (assignments.has(bestSeat)) {
-      const prev = assignments.get(bestSeat)!;
-      console.log(
-        `  Seat ${bestSeat}: ${prev.sealeddeckId} replaced by ${decklist.sealeddeckId} (later submission)`,
+    if (eligible.length > 1) {
+      console.warn(
+        `  WARNING: Skipping ${decklist.sealeddeckId} — ${eligible.length} seats are eligible ` +
+          `(${eligible.map((e) => `seat ${e.seat} at ${formatPct(e.score.precision)} precision`).join(", ")}). ` +
+          `Rotisserie gives every card one owner, so this means an assumption has broken.`,
+      );
+      skippedBelowThreshold++;
+      continue;
+    }
+
+    const { seat, score } = eligible[0];
+
+    // A genuine resubmission for the same seat should win. This overwrite was
+    // never the defect — it was the symptom of matching on the wrong card set.
+    const previous = assignments.get(seat);
+    if (previous) {
+      logIndent(
+        `Seat ${seat}: ${previous.sealeddeckId} replaced by ${decklist.sealeddeckId} (later submission)`,
       );
     }
 
-    assignments.set(bestSeat, decklist);
+    logIndent(
+      `Seat ${seat}: ${decklist.sealeddeckId} — recall ${formatPct(score.recall)}, precision ${formatPct(score.precision)}`,
+    );
+    assignments.set(seat, decklist);
   }
 
-  return assignments;
+  return { assignments, skippedBelowThreshold };
+}
+
+export type SeatAction = "skip-recovered" | "unchanged" | "write";
+
+/**
+ * Decide what to do with a seat's freshly fetched deck, given what's already
+ * stored for it. Pure so the two protective mechanisms it encodes — the
+ * recovered-deck guard and the hash+provenance short-circuit — stay covered
+ * by tests instead of living only inside `main()`'s `client.execute` calls.
+ *
+ * - A hand-recovered deck (`sealeddeckId` starting with `"recovered:"`)
+ *   refuses to be overwritten unless `force` is set, regardless of hash.
+ * - Otherwise, skip only when BOTH the hash and the recorded provenance
+ *   already match this submission. Checking hash alone would leave a seat
+ *   whose provenance is still `NULL` — the state every seat is in before
+ *   this column existed — skipped forever, since its hash already matches;
+ *   provenance would then never backfill and the later prune would have
+ *   nothing to query.
+ */
+export function decideSeatWrite(
+  existing: { hash: string; sealeddeckId: string | null } | undefined,
+  hash: string,
+  sealeddeckId: string,
+  force: boolean,
+): SeatAction {
+  if (existing?.sealeddeckId?.startsWith("recovered:") && !force) {
+    return "skip-recovered";
+  }
+
+  if (existing && existing.hash === hash && existing.sealeddeckId === sealeddeckId) {
+    return "unchanged";
+  }
+
+  return "write";
 }
 
 // ============================================================================
 // Turso integration (new in this script)
 // ============================================================================
 
-/** Get pick data from Turso for seat matching */
+/**
+ * Get pick data from Turso for seat matching.
+ *
+ * Keyed with `cardNameKey` to match `extractStoredCards`. Matching must fold
+ * names exactly as the write path does (`CardCache` + `resolveCardNameToId`),
+ * or a split card scores as a mismatch on a list that would write correctly.
+ */
 async function getSeatPicks(
   client: Client,
   draftId: string,
@@ -201,7 +312,7 @@ async function getSeatPicks(
   for (const row of result.rows) {
     const seat = row.seat as number;
     if (!seatPicks.has(seat)) seatPicks.set(seat, new Set());
-    seatPicks.get(seat)!.add((row.name as string).toLowerCase());
+    seatPicks.get(seat)!.add(cardNameKey(row.name as string));
   }
   return seatPicks;
 }
@@ -229,9 +340,18 @@ async function resolveDraftId(
   return null;
 }
 
-/** Fetch all decklists from sealeddeck.tech for a set of URLs */
-async function fetchAllDecklists(urls: string[]): Promise<DecklistEntry[]> {
+/**
+ * Fetch all decklists from sealeddeck.tech for a set of URLs.
+ *
+ * Failures are counted, not just logged. A run makes ~230 requests against a
+ * small site, and every lost fetch is one fewer seat assigned — indistinguishable
+ * in the summary from a seat nobody submitted unless the count is carried out.
+ */
+async function fetchAllDecklists(
+  urls: string[],
+): Promise<{ decklists: DecklistEntry[]; errors: number }> {
   const decklists: DecklistEntry[] = [];
+  let errors = 0;
 
   for (const url of urls) {
     const match = url.match(/sealeddeck\.tech\/(.+)$/);
@@ -240,42 +360,48 @@ async function fetchAllDecklists(urls: string[]): Promise<DecklistEntry[]> {
     try {
       logIndent(`Fetching ${id}...`);
       const response = await fetchDeck(id);
-      const pool = extractPool(response);
+      const storedCards = extractStoredCards(response);
 
       decklists.push({
         sealeddeckId: id,
         url: `https://sealeddeck.tech/${id}`,
         deck: extractZoneCards(response.deck),
         sideboard: extractZoneCards(response.sideboard),
-        pool,
+        storedCards,
       });
 
       // Rate limit: sealeddeck.tech is a small site
       await new Promise((r) => setTimeout(r, SEALEDDECK_RATE_LIMIT_MS));
     } catch (error) {
+      errors++;
       console.error(`  ERROR fetching ${id}: ${error}`);
     }
   }
 
-  return decklists;
+  return { decklists, errors };
 }
 
 /**
  * Resolve a card name to a card_id.
  * Uses in-memory CardCache first, then falls back to resolveCardNameToId
  * which handles DFC names and aliases.
+ *
+ * @param persistAlias - forwarded to resolveCardNameToId. Under a dry run
+ *   this is `false`, so a Scryfall-resolved alternate name is still
+ *   resolved (and reported) but never written to card_aliases.
  */
 async function resolveCard(
   client: Client,
   cardCache: CardCache,
   cardName: string,
+  persistAlias: boolean,
 ): Promise<number | null> {
   const normalized = normalizeCardName(cardName);
   const cached = cardCache.get(normalized);
   if (cached !== undefined) return cached;
 
   // Fallback: DFC front-face match, alias lookup, Scryfall fetch
-  const cardId = await resolveCardNameToId(client, normalized);
+  const cardId = await resolveCardNameToId(client, normalized, persistAlias);
   if (cardId !== null) {
     // Warm the cache for future lookups
     cardCache.set(normalized, cardId);
@@ -302,10 +428,11 @@ async function resolveZoneCards(
   seat: number,
   qtyMap: Map<string, { cardId: number; zone: "deck" | "sideboard"; qty: number }>,
   warnOnMiss: boolean,
+  persistAlias: boolean,
 ): Promise<number> {
   let warnings = 0;
   for (const cardName of cardNames) {
-    const cardId = await resolveCard(client, cardCache, cardName);
+    const cardId = await resolveCard(client, cardCache, cardName, persistAlias);
     if (cardId !== null) {
       const key = `${cardId}:${zone}`;
       const existing = qtyMap.get(key);
@@ -328,9 +455,42 @@ async function resolveZoneCards(
 // Main
 // ============================================================================
 
+const RECOGNIZED_FLAGS = new Set(["--dry-run", "--force"]);
+
+/**
+ * Parse CLI args into the draft filter and flags. Pure so the "reject a
+ * typo'd flag" behavior — the difference between a dry run and a full
+ * destructive pass against the one production database — is covered by a
+ * unit test instead of only by manually invoking the script.
+ *
+ * Throws on any `--`-prefixed argument that isn't a recognized flag, rather
+ * than silently dropping it and falling through to a full run.
+ */
+export function parseDecklistArgs(
+  args: string[],
+): { filterDraft: string | undefined; force: boolean; dryRun: boolean } {
+  assertRecognizedFlags(args, RECOGNIZED_FLAGS);
+
+  return {
+    // Skip flags so `pnpm decklists --dry-run` still works without a draft label.
+    filterDraft: args.find((a) => !a.startsWith("--")),
+    force: args.includes("--force"),
+    dryRun: args.includes("--dry-run"),
+  };
+}
+
 async function main() {
   loadEnv();
-  const filterDraft = process.argv[2]; // Optional: specific draft label
+
+  let filterDraft: string | undefined;
+  let force: boolean;
+  let dryRun: boolean;
+  try {
+    ({ filterDraft, force, dryRun } = parseDecklistArgs(process.argv.slice(2)));
+  } catch (e) {
+    console.error((e as Error).message);
+    process.exit(1);
+  }
 
   const client = createClient({
     url: process.env.TURSO_DATABASE_URL!,
@@ -347,9 +507,27 @@ async function main() {
 
   log(`Found ${drafts.size} drafts in decklists.txt`);
 
+  if (dryRun) {
+    log("DRY RUN — fetching and matching only, nothing will be written");
+  }
+
   const cardCache = new CardCache();
   await cardCache.loadAll(client);
   log(`Card cache loaded: ${cardCache.size} cards`);
+
+  // Outcome tally across every draft, printed at the end of every run — not
+  // only dry runs. The procedure is "dry run, review, apply", and diffing the
+  // apply summary against the reviewed dry-run summary is the only end-to-end
+  // check that the apply did what was authorized.
+  const summary = {
+    created: 0,
+    updated: 0,
+    unchanged: 0,
+    skippedBelowThreshold: 0,
+    skippedMalformed: 0,
+    skippedRecovered: 0,
+    fetchErrors: 0,
+  };
 
   for (const [label, urls] of drafts) {
     if (filterDraft && label !== filterDraft) continue;
@@ -363,7 +541,8 @@ async function main() {
     log(`${label} (${draftId}) — ${urls.length} links`);
 
     // Fetch decklists from sealeddeck.tech
-    const decklists = await fetchAllDecklists(urls);
+    const { decklists, errors: fetchErrors } = await fetchAllDecklists(urls);
+    summary.fetchErrors += fetchErrors;
     if (decklists.length === 0) {
       logIndent("No decklists fetched, skipping");
       continue;
@@ -374,8 +553,9 @@ async function main() {
     logIndent(`${seatPicks.size} seats in database`);
 
     // Match decklists to seats
-    const assignments = matchDecksToSeats(decklists, seatPicks);
+    const { assignments, skippedBelowThreshold } = matchDecksToSeats(decklists, seatPicks);
     logIndent(`Matched ${assignments.size} decklists to seats`);
+    summary.skippedBelowThreshold += skippedBelowThreshold;
 
     // Write to Turso with per-seat hash diffing
     for (const [seat, entry] of [...assignments].sort(([a], [b]) => a - b)) {
@@ -389,27 +569,43 @@ async function main() {
         .digest("hex")
         .slice(0, 16);
 
-      // Check stored hash — skip if unchanged
-      const storedHash = await client.execute({
-        sql: "SELECT hash FROM deck_hashes WHERE draft_id = ? AND seat = ?",
+      // Existing state for this seat, including where its deck came from.
+      const existingRow = await client.execute({
+        sql: "SELECT hash, sealeddeck_id FROM deck_hashes WHERE draft_id = ? AND seat = ?",
         args: [draftId, seat],
       });
-      if (storedHash.rows.length > 0 && storedHash.rows[0].hash === hash) {
-        logIndent(`Seat ${seat}: unchanged`);
+      const existingRowData = existingRow.rows.at(0);
+      const existing = existingRowData
+        ? {
+            hash: existingRowData.hash as string,
+            sealeddeckId: existingRowData.sealeddeck_id as string | null,
+          }
+        : undefined;
+
+      const action = decideSeatWrite(existing, hash, entry.sealeddeckId, force);
+
+      // A hand-recovered deck outranks anything fetched. Recovery is expensive
+      // and often the only copy that exists; silently reverting one would undo
+      // work that cannot be redone from this file.
+      if (action === "skip-recovered") {
+        logIndent(
+          `Seat ${seat}: skipped — hand-recovered deck (${existing?.sealeddeckId}). Pass --force to overwrite.`,
+        );
+        summary.skippedRecovered++;
         continue;
       }
 
-      // Delete old deck cards for this seat before reinserting
-      await client.execute({
-        sql: "DELETE FROM deck_cards WHERE draft_id = ? AND seat = ?",
-        args: [draftId, seat],
-      });
+      if (action === "unchanged") {
+        logIndent(`Seat ${seat}: unchanged`);
+        summary.unchanged++;
+        continue;
+      }
 
       // Resolve card names and build insert batch, aggregating duplicates
       const qtyMap = new Map<string, { cardId: number; zone: "deck" | "sideboard"; qty: number }>();
 
-      const warnings = await resolveZoneCards(client, cardCache, entry.deck, "deck", seat, qtyMap, true);
-      await resolveZoneCards(client, cardCache, entry.sideboard, "sideboard", seat, qtyMap, false);
+      const warnings = await resolveZoneCards(client, cardCache, entry.deck, "deck", seat, qtyMap, true, !dryRun);
+      await resolveZoneCards(client, cardCache, entry.sideboard, "sideboard", seat, qtyMap, false, !dryRun);
 
       const deckCards: DeckCardInsert[] = [...qtyMap.values()].map((e) => ({
         draftId,
@@ -423,38 +619,107 @@ async function main() {
       const maindeckQty = deckCards
         .filter((c) => c.zone === "deck")
         .reduce((sum, c) => sum + c.qty, 0);
+      const sideboardQty = deckCards
+        .filter((c) => c.zone === "sideboard")
+        .reduce((sum, c) => sum + c.qty, 0);
 
       if (maindeckQty < 20) {
         logIndent(
           `Seat ${seat}: skipped — only ${maindeckQty} maindeck cards (minimum 20)`,
         );
-        // Clean up any previously-stored data for this seat
-        await client.execute({
-          sql: "DELETE FROM deck_hashes WHERE draft_id = ? AND seat = ?",
-          args: [draftId, seat],
-        });
+        summary.skippedMalformed++;
+        if (!dryRun) {
+          // Clear the hash so a corrected resubmission is re-evaluated next run,
+          // but keep sealeddeck_id: it is the only record that this seat's deck was
+          // hand-recovered, and losing it disarms the overwrite guard permanently.
+          await client.execute({
+            sql: "UPDATE deck_hashes SET hash = '' WHERE draft_id = ? AND seat = ?",
+            args: [draftId, seat],
+          });
+        }
         continue;
       }
 
-      await batchInsertDeckCards(client, deckCards);
+      if (dryRun) {
+        // Name what's being replaced, and make an in-flight overwrite of a
+        // hand-recovered deck unmissable — this can only happen via --force,
+        // since decideSeatWrite would otherwise have returned "skip-recovered"
+        // above, and it is the highest-stakes event a reviewer can authorize.
+        const existingSource = existing?.sealeddeckId ?? null;
+        const isRecoveredOverwrite = existingSource?.startsWith("recovered:") ?? false;
 
-      // Store/update deck hash
-      await client.execute({
-        sql: "INSERT OR REPLACE INTO deck_hashes (draft_id, seat, hash) VALUES (?, ?, ?)",
-        args: [draftId, seat, hash],
-      });
+        let status: string;
+        if (isRecoveredOverwrite) {
+          status = `would OVERWRITE hand-recovered deck (${existingSource})`;
+        } else if (existing) {
+          status = `would update (replacing ${existingSource ?? "unknown source"})`;
+        } else {
+          status = "would create";
+        }
+        if (existing) {
+          summary.updated++;
+        } else {
+          summary.created++;
+        }
 
-      const status = storedHash.rows.length > 0 ? "updated" : "new";
+        logIndent(
+          `Seat ${seat}: ${status} — ${maindeckQty} maindeck + ${sideboardQty} sideboard cards from ${entry.sealeddeckId}` +
+            `${warnings > 0 ? ` [${warnings} unresolved names]` : ""}`,
+        );
+        continue;
+      }
+
+      // Replace this seat's deck only once a valid one is ready to take its place,
+      // and in one batch so the replacement cannot half-apply. Deleting earlier
+      // meant a malformed resubmission destroyed a good deck and then declined to
+      // write anything.
+      await client.batch([
+        {
+          sql: "DELETE FROM deck_cards WHERE draft_id = ? AND seat = ?",
+          args: [draftId, seat],
+        },
+        ...deckCardInsertStatements(deckCards),
+        {
+          sql: "INSERT OR REPLACE INTO deck_hashes (draft_id, seat, hash, sealeddeck_id) VALUES (?, ?, ?, ?)",
+          args: [draftId, seat, hash, entry.sealeddeckId],
+        },
+      ]);
+
+      if (existing) {
+        summary.updated++;
+      } else {
+        summary.created++;
+      }
+
+      const status = existing ? "updated" : "new";
       logIndent(
         `Seat ${seat}: ${deckCards.length} cards written (${status})${warnings > 0 ? ` [${warnings} warnings]` : ""}`,
       );
     }
   }
 
-  log("Done!");
+  log(
+    `Summary — ${dryRun ? "would create" : "created"}: ${summary.created}, ` +
+      `${dryRun ? "would update" : "updated"}: ${summary.updated}, ` +
+      `unchanged: ${summary.unchanged}, skipped (below threshold): ${summary.skippedBelowThreshold}, ` +
+      `skipped (malformed): ${summary.skippedMalformed}, skipped (recovered): ${summary.skippedRecovered}, ` +
+      `fetch errors: ${summary.fetchErrors}`,
+  );
+
+  log(dryRun ? "Dry run complete — re-run without --dry-run to apply." : "Done!");
 }
 
-main().catch((e) => {
-  console.error(e.message);
-  process.exit(1);
-});
+// Only run when invoked as a script. Importing this module — which the tests do,
+// for the pure matching functions — must never start a fetch-and-write against
+// production. `loadEnv` picks up real Turso credentials, so the guard is what
+// stands between `pnpm test` and a write to deck_cards.
+const invokedDirectly =
+  process.argv[1] !== undefined &&
+  realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (invokedDirectly) {
+  main().catch((e) => {
+    console.error(e.message);
+    process.exit(1);
+  });
+}
