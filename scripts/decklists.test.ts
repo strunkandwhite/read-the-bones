@@ -72,9 +72,14 @@ describe("matchDecksToSeats", () => {
   it("assigns a full-cube submission to its true owner", () => {
     // Regression for the corruption bug. This submitter pasted the entire
     // remaining cube into sealeddeck's `hidden` zone. Building the entry through
-    // extractStoredCards is the point: under the old code `hidden` leaked into
-    // the matching set, the list overlapped seat 1 completely as well, and seat 1
-    // was assigned a deck belonging to seat 2.
+    // extractStoredCards is the point: historically, before the precision gate
+    // existed, a full-cube `hidden` zone scored 100% recall against every seat
+    // and won on recall alone, so seat 1 was assigned a deck belonging to seat 2
+    // — the actual corruption that misfiled three decklists. Against today's
+    // code with `hidden` still (temporarily) leaking in, the precision gate
+    // instead drops both seats to 50% precision, so nothing is assigned and
+    // seat 2 — the true owner — gets no deck. Different failure, same root
+    // cause: `hidden` must never enter the matching set.
     const storedCards = extractStoredCards({
       poolId: "x",
       deck: [
