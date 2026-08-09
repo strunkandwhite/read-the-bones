@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { matchDecksToSeats, extractStoredCards } from "./decklists";
+import { matchDecksToSeats, extractStoredCards, decideSeatWrite } from "./decklists";
 
 const entry = (id: string, cards: string[]) => ({
   sealeddeckId: id,
@@ -123,5 +123,59 @@ describe("matchDecksToSeats", () => {
       seatPicks,
     );
     expect(result.size).toBe(0);
+  });
+});
+
+describe("decideSeatWrite", () => {
+  it("writes a brand-new seat with no existing row", () => {
+    const action = decideSeatWrite(undefined, "hash1", "aaa", false);
+    expect(action).toBe("write");
+  });
+
+  it("writes when the hash matches but provenance is still NULL (backfill)", () => {
+    // This is the state every seat was in before sealeddeck_id existed: the
+    // hash already matches, so nothing about the deck changed, but there is
+    // no recorded provenance yet. If this ever returned "unchanged", the
+    // column would stay NULL forever and the later prune would have nothing
+    // to query.
+    const action = decideSeatWrite(
+      { hash: "hash1", sealeddeckId: null },
+      "hash1",
+      "aaa",
+      false,
+    );
+    expect(action).toBe("write");
+  });
+
+  it("is unchanged when both hash and provenance already match", () => {
+    const action = decideSeatWrite(
+      { hash: "hash1", sealeddeckId: "aaa" },
+      "hash1",
+      "aaa",
+      false,
+    );
+    expect(action).toBe("unchanged");
+  });
+
+  it("skips a recovered deck without --force", () => {
+    const action = decideSeatWrite(
+      { hash: "hash1", sealeddeckId: "recovered:seat3.png" },
+      "hash2",
+      "aaa",
+      false,
+    );
+    expect(action).toBe("skip-recovered");
+  });
+
+  it("overwrites a recovered deck when --force is passed", () => {
+    // Same recovered row and a genuinely different incoming hash/id as the
+    // "without force" case above — force flips skip-recovered into write.
+    const action = decideSeatWrite(
+      { hash: "hash1", sealeddeckId: "recovered:seat3.png" },
+      "hash2",
+      "aaa",
+      true,
+    );
+    expect(action).toBe("write");
   });
 });

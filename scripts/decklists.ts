@@ -236,6 +236,40 @@ export function matchDecksToSeats(
   return assignments;
 }
 
+export type SeatAction = "skip-recovered" | "unchanged" | "write";
+
+/**
+ * Decide what to do with a seat's freshly fetched deck, given what's already
+ * stored for it. Pure so the two protective mechanisms it encodes — the
+ * recovered-deck guard and the hash+provenance short-circuit — stay covered
+ * by tests instead of living only inside `main()`'s `client.execute` calls.
+ *
+ * - A hand-recovered deck (`sealeddeckId` starting with `"recovered:"`)
+ *   refuses to be overwritten unless `force` is set, regardless of hash.
+ * - Otherwise, skip only when BOTH the hash and the recorded provenance
+ *   already match this submission. Checking hash alone would leave a seat
+ *   whose provenance is still `NULL` — the state every seat is in before
+ *   this column existed — skipped forever, since its hash already matches;
+ *   provenance would then never backfill and the later prune would have
+ *   nothing to query.
+ */
+export function decideSeatWrite(
+  existing: { hash: string; sealeddeckId: string | null } | undefined,
+  hash: string,
+  sealeddeckId: string,
+  force: boolean,
+): SeatAction {
+  if (existing?.sealeddeckId?.startsWith("recovered:") && !force) {
+    return "skip-recovered";
+  }
+
+  if (existing && existing.hash === hash && existing.sealeddeckId === sealeddeckId) {
+    return "unchanged";
+  }
+
+  return "write";
+}
+
 // ============================================================================
 // Turso integration (new in this script)
 // ============================================================================
@@ -450,23 +484,27 @@ async function main() {
         sql: "SELECT hash, sealeddeck_id FROM deck_hashes WHERE draft_id = ? AND seat = ?",
         args: [draftId, seat],
       });
-      const existing = existingRow.rows[0];
-      const existingSource = existing ? (existing.sealeddeck_id as string | null) : null;
+      const existingRowData = existingRow.rows.at(0);
+      const existing = existingRowData
+        ? {
+            hash: existingRowData.hash as string,
+            sealeddeckId: existingRowData.sealeddeck_id as string | null,
+          }
+        : undefined;
+
+      const action = decideSeatWrite(existing, hash, entry.sealeddeckId, force);
 
       // A hand-recovered deck outranks anything fetched. Recovery is expensive
       // and often the only copy that exists; silently reverting one would undo
       // work that cannot be redone from this file.
-      if (existingSource?.startsWith("recovered:") && !force) {
+      if (action === "skip-recovered") {
         logIndent(
-          `Seat ${seat}: skipped — hand-recovered deck (${existingSource}). Pass --force to overwrite.`,
+          `Seat ${seat}: skipped — hand-recovered deck (${existing?.sealeddeckId}). Pass --force to overwrite.`,
         );
         continue;
       }
 
-      // Skip only when the deck AND its recorded provenance are both current.
-      // Without the second half, every unchanged seat would keep a null
-      // sealeddeck_id forever and Task 12's prune would have nothing to query.
-      if (existing && existing.hash === hash && existingSource === entry.sealeddeckId) {
+      if (action === "unchanged") {
         logIndent(`Seat ${seat}: unchanged`);
         continue;
       }
