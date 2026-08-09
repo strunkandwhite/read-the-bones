@@ -40,16 +40,16 @@ export function filterRedactedPicks(
  * the first run of the new pipeline.
  *
  * `getOptedOutSeats` already returns 1-indexed seats, matching the 1-indexed
- * `pick_events.seat` / `deck_cards.seat` columns directly — no conversion
- * needed here (contrast `filterRedactedPicks`, which does convert).
+ * `pick_events.seat` / `deck_cards.seat` / `deck_hashes.seat` columns directly
+ * — no conversion needed here (contrast `filterRedactedPicks`, which converts).
  */
 export async function reconcileRedactedRows(
   client: Client,
   draftId: string,
-): Promise<{ picksDeleted: number; deckCardsDeleted: number }> {
+): Promise<{ picksDeleted: number; deckCardsDeleted: number; deckHashesDeleted: number }> {
   const optedOutSeats = await getOptedOutSeats(client, draftId);
   if (optedOutSeats.size === 0) {
-    return { picksDeleted: 0, deckCardsDeleted: 0 };
+    return { picksDeleted: 0, deckCardsDeleted: 0, deckHashesDeleted: 0 };
   }
 
   const seats = [...optedOutSeats];
@@ -63,9 +63,18 @@ export async function reconcileRedactedRows(
     sql: `DELETE FROM deck_cards WHERE draft_id = ? AND seat IN (${ph})`,
     args: [draftId, ...seats],
   });
+  // deck_hashes is the per-seat companion of deck_cards — provenance and the
+  // incremental-diff hash. Leaving it behind gives an opted-out seat a row
+  // pointing at cards that no longer exist, and this runs from a cron every
+  // minute, so the orphan would be created the minute after the opt-out.
+  const deckHashesResult = await client.execute({
+    sql: `DELETE FROM deck_hashes WHERE draft_id = ? AND seat IN (${ph})`,
+    args: [draftId, ...seats],
+  });
 
   return {
     picksDeleted: picksResult.rowsAffected ?? 0,
     deckCardsDeleted: deckCardsResult.rowsAffected ?? 0,
+    deckHashesDeleted: deckHashesResult.rowsAffected ?? 0,
   };
 }

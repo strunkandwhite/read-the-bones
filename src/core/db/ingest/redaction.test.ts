@@ -37,15 +37,16 @@ describe("reconcileRedactedRows", () => {
     mockClient = { execute: vi.fn(), batch: vi.fn() };
   });
 
-  it("deletes pick_events and deck_cards for opted-out seats and reports counts", async () => {
+  it("deletes pick_events, deck_cards and deck_hashes for opted-out seats and reports counts", async () => {
     mockClient.execute
       .mockResolvedValueOnce({ rows: [{ seat: 5 }] })                 // getOptedOutSeats
       .mockResolvedValueOnce({ rowsAffected: 45 })                    // pick_events delete
-      .mockResolvedValueOnce({ rowsAffected: 44 });                   // deck_cards delete
+      .mockResolvedValueOnce({ rowsAffected: 44 })                    // deck_cards delete
+      .mockResolvedValueOnce({ rowsAffected: 1 });                    // deck_hashes delete
 
     const result = await reconcileRedactedRows(mockClient as never, "d1");
 
-    expect(result).toEqual({ picksDeleted: 45, deckCardsDeleted: 44 });
+    expect(result).toEqual({ picksDeleted: 45, deckCardsDeleted: 44, deckHashesDeleted: 1 });
     // placeholders(1) === "?" — a hardcoded single-placeholder implementation
     // would still match this SQL, so the args assertion is what pins the bug;
     // the SQL assertion pins the placeholder count for the two-seat case below.
@@ -61,17 +62,27 @@ describe("reconcileRedactedRows", () => {
         args: ["d1", 5],
       }),
     );
+    // deck_hashes is the per-seat companion of deck_cards. Leaving it behind
+    // gives an opted-out seat a provenance row pointing at cards that no longer
+    // exist, recreated by the cron the minute after the opt-out.
+    expect(mockClient.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining("DELETE FROM deck_hashes WHERE draft_id = ? AND seat IN (?)"),
+        args: ["d1", 5],
+      }),
+    );
   });
 
   it("deletes for every opted-out seat when there are multiple", async () => {
     mockClient.execute
       .mockResolvedValueOnce({ rows: [{ seat: 3 }, { seat: 7 }] })    // getOptedOutSeats
       .mockResolvedValueOnce({ rowsAffected: 12 })                    // pick_events delete
-      .mockResolvedValueOnce({ rowsAffected: 9 });                    // deck_cards delete
+      .mockResolvedValueOnce({ rowsAffected: 9 })                     // deck_cards delete
+      .mockResolvedValueOnce({ rowsAffected: 2 });                    // deck_hashes delete
 
     const result = await reconcileRedactedRows(mockClient as never, "d1");
 
-    expect(result).toEqual({ picksDeleted: 12, deckCardsDeleted: 9 });
+    expect(result).toEqual({ picksDeleted: 12, deckCardsDeleted: 9, deckHashesDeleted: 2 });
     // placeholders(2) === "?, ?" — pins that the IN clause actually expands
     // with seats.length rather than being hardcoded to a single "?", which
     // the args-only assertion above cannot distinguish on its own.
@@ -87,12 +98,20 @@ describe("reconcileRedactedRows", () => {
         args: ["d1", 3, 7],
       }),
     );
+    expect(mockClient.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining(
+          "DELETE FROM deck_hashes WHERE draft_id = ? AND seat IN (?, ?)",
+        ),
+        args: ["d1", 3, 7],
+      }),
+    );
   });
 
   it("issues no deletes when the draft has no opt-outs", async () => {
     mockClient.execute.mockResolvedValueOnce({ rows: [] });
     const result = await reconcileRedactedRows(mockClient as never, "d1");
-    expect(result).toEqual({ picksDeleted: 0, deckCardsDeleted: 0 });
+    expect(result).toEqual({ picksDeleted: 0, deckCardsDeleted: 0, deckHashesDeleted: 0 });
     expect(mockClient.execute).toHaveBeenCalledTimes(1);
   });
 });

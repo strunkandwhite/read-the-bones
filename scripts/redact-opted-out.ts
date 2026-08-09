@@ -1,7 +1,7 @@
 /**
- * One-time migration: delete stored picks and deck cards for every opted-out
- * seat. Idempotent — it is the same reconcile pass the sync pipeline runs, so
- * it can be re-run safely and reports zero on a clean database.
+ * One-time migration: delete stored picks, deck cards and deck hashes for every
+ * opted-out seat. Idempotent — it is the same reconcile pass the sync pipeline
+ * runs, so it can be re-run safely and reports zero on a clean database.
  *
  * Usage:
  *   pnpm redact:opted-out             # deletes for real
@@ -24,10 +24,10 @@ import { getOptedOutSeats, placeholders } from "../src/core/db/queries/helpers";
 async function previewRedactedRows(
   client: Client,
   draftId: string,
-): Promise<{ picksToDelete: number; deckCardsToDelete: number }> {
+): Promise<{ picksToDelete: number; deckCardsToDelete: number; deckHashesToDelete: number }> {
   const optedOutSeats = await getOptedOutSeats(client, draftId);
   if (optedOutSeats.size === 0) {
-    return { picksToDelete: 0, deckCardsToDelete: 0 };
+    return { picksToDelete: 0, deckCardsToDelete: 0, deckHashesToDelete: 0 };
   }
 
   const seats = [...optedOutSeats];
@@ -41,10 +41,15 @@ async function previewRedactedRows(
     sql: `SELECT COUNT(*) AS n FROM deck_cards WHERE draft_id = ? AND seat IN (${ph})`,
     args: [draftId, ...seats],
   });
+  const deckHashesResult = await client.execute({
+    sql: `SELECT COUNT(*) AS n FROM deck_hashes WHERE draft_id = ? AND seat IN (${ph})`,
+    args: [draftId, ...seats],
+  });
 
   return {
     picksToDelete: Number(picksResult.rows[0].n),
     deckCardsToDelete: Number(deckCardsResult.rows[0].n),
+    deckHashesToDelete: Number(deckHashesResult.rows[0].n),
   };
 }
 
@@ -65,42 +70,59 @@ async function main() {
 
   let totalPicks = 0;
   let totalDeckCards = 0;
+  let totalDeckHashes = 0;
 
   for (const row of drafts.rows) {
     const draftId = row.draft_id as string;
     if (dryRun) {
-      const { picksToDelete, deckCardsToDelete } = await previewRedactedRows(client, draftId);
+      const { picksToDelete, deckCardsToDelete, deckHashesToDelete } = await previewRedactedRows(
+        client,
+        draftId,
+      );
       totalPicks += picksToDelete;
       totalDeckCards += deckCardsToDelete;
-      console.log(`  ${draftId}: ${picksToDelete} picks, ${deckCardsToDelete} deck cards would be deleted`);
+      totalDeckHashes += deckHashesToDelete;
+      console.log(
+        `  ${draftId}: ${picksToDelete} picks, ${deckCardsToDelete} deck cards, ${deckHashesToDelete} deck hashes would be deleted`,
+      );
     } else {
-      const { picksDeleted, deckCardsDeleted } = await reconcileRedactedRows(client, draftId);
+      const { picksDeleted, deckCardsDeleted, deckHashesDeleted } = await reconcileRedactedRows(
+        client,
+        draftId,
+      );
       totalPicks += picksDeleted;
       totalDeckCards += deckCardsDeleted;
-      console.log(`  ${draftId}: ${picksDeleted} picks, ${deckCardsDeleted} deck cards deleted`);
+      totalDeckHashes += deckHashesDeleted;
+      console.log(
+        `  ${draftId}: ${picksDeleted} picks, ${deckCardsDeleted} deck cards, ${deckHashesDeleted} deck hashes deleted`,
+      );
     }
   }
 
+  const totals = `${totalPicks} picks, ${totalDeckCards} deck cards and ${totalDeckHashes} deck hashes`;
+
   if (dryRun) {
-    console.log(
-      `\nDRY RUN: would delete ${totalPicks} picks and ${totalDeckCards} deck cards across ${drafts.rows.length} drafts.`,
-    );
+    console.log(`\nDRY RUN: would delete ${totals} across ${drafts.rows.length} drafts.`);
     console.log("Re-run without --dry-run to apply.");
     return;
   }
 
-  console.log(`\nDeleted ${totalPicks} picks and ${totalDeckCards} deck cards across ${drafts.rows.length} drafts.`);
+  console.log(`\nDeleted ${totals} across ${drafts.rows.length} drafts.`);
 
   const leftover = await client.execute(`
     SELECT
       (SELECT COUNT(*) FROM pick_events pe
          JOIN privacy_opt_outs p ON p.draft_id = pe.draft_id AND p.seat = pe.seat) AS picks,
       (SELECT COUNT(*) FROM deck_cards dc
-         JOIN privacy_opt_outs p ON p.draft_id = dc.draft_id AND p.seat = dc.seat) AS deck_cards
+         JOIN privacy_opt_outs p ON p.draft_id = dc.draft_id AND p.seat = dc.seat) AS deck_cards,
+      (SELECT COUNT(*) FROM deck_hashes dh
+         JOIN privacy_opt_outs p ON p.draft_id = dh.draft_id AND p.seat = dh.seat) AS deck_hashes
   `);
-  const { picks, deck_cards } = leftover.rows[0];
-  console.log(`Verification — remaining redacted rows: ${picks} picks, ${deck_cards} deck cards`);
-  if (Number(picks) !== 0 || Number(deck_cards) !== 0) {
+  const { picks, deck_cards, deck_hashes } = leftover.rows[0];
+  console.log(
+    `Verification — remaining redacted rows: ${picks} picks, ${deck_cards} deck cards, ${deck_hashes} deck hashes`,
+  );
+  if (Number(picks) !== 0 || Number(deck_cards) !== 0 || Number(deck_hashes) !== 0) {
     console.error("FAILED: redacted rows remain");
     process.exit(1);
   }

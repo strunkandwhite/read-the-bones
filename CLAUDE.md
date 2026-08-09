@@ -225,6 +225,8 @@ moves only when a new session lands.
 
 **Opt-out operational hazard:** `privacy_opt_outs` is the only thing the ingest filter consults, and `pnpm draft:reset` clears it (`db-helpers.ts`, `resetDraft`). Since `.opt-outs.json` is gitignored and never deployed, a `draft:reset` followed by `pnpm sync` **from a machine without that file** re-ingests the opted-out player's picks unredacted — and no read-time mask exists to catch it any more. Always confirm `.opt-outs.json` is present before re-syncing a draft that had opt-outs, and check `select * from privacy_opt_outs` afterwards.
 
+**Recovered-decklist reset hazard:** `pnpm draft:reset` and `pnpm draft:delete` wipe both `deck_cards` and `deck_hashes` for the draft (`db-helpers.ts`, `resetDraft`; `scripts/lib/deleteDraft.ts`) with no guard, no dry run and no prompt — and hand-recovered decklists go with them. Re-running `pnpm decklists` will not bring them back: the sealeddeck URLs for recovered seats are pruned from `data/decklists.txt` once their decks are stored, so nothing remains to re-fetch. Recovery is `pnpm decklists:import`, and that only works because the transcriptions are committed at `docs/decklist-recovery-parsed/`. **Never delete that directory** — it is the only copy of those decklists, and `data/` is gitignored.
+
 ## Design Documents
 
 - `docs/plans/2026-01-08-card-rankings-design.md` - Architecture and algorithm details
