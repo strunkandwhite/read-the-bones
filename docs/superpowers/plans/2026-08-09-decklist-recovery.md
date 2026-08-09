@@ -1978,7 +1978,15 @@ Expected: `tarmogoyf:2` no longer suspect; `tarmogoyf:10` and `terminate:10` no 
 turso db shell read-the-bones "SELECT COUNT(*) AS total, COUNT(sealeddeck_id) AS with_source FROM deck_hashes"
 ```
 
-Expected: `with_source` equals `total`. If any row is null, the hash short-circuit from Task 3 Step 4 is wrong — fix it and re-run before continuing, because Task 12's prune depends on this being complete.
+**This criterion was wrong as originally written and has been corrected.** It said `with_source` must equal `total`, and that a null meant the hash short-circuit was broken. That cannot hold: rows for seats whose submission is reassigned elsewhere — the three corrupted seats among them — are never rewritten, so they keep a null `sealeddeck_id` legitimately. Following the old instruction would send an operator to "fix" a guard that is working, and re-run 230 fetches plus a full rewrite for nothing.
+
+What to check instead: every seat that *received an assignment in this run* has a non-null `sealeddeck_id`. Nulls are expected exactly for seats with no matching submission — enumerate them and confirm each is explainable:
+
+```bash
+turso db shell read-the-bones "SELECT draft_id, seat FROM deck_hashes WHERE sealeddeck_id IS NULL ORDER BY draft_id, seat"
+```
+
+Expected nulls after this task: `baleful-strix:1`, `tarmogoyf:2`, `terminate:3` (their submissions now belong to their true owners), plus any seat whose URL is absent from `decklists.txt` or whose submission failed the gates. Anything else on that list is worth investigating before Task 9 deletes rows.
 
 ---
 
