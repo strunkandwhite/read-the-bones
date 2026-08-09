@@ -465,11 +465,15 @@ export async function getPicksWithCardDetails(
  * identical on the next poll, the route can skip the heavy board queries.
  *
  * When `seat` is provided (authenticated callers), a per-seat freshness marker
- * `~<queueLen>:<floatCount>` is appended to the sig. This ensures that queue or
- * float changes made on another device for the same seat break the short-circuit
- * within one polling interval. The queue length proxy detects add/remove (the
- * common cross-device case); reorder-only changes are an acceptable exception
- * given their negligible frequency and impact.
+ * `~<queueLen>:<floatCount>:<autoPick>` is appended to the sig. This ensures that
+ * queue, float, or auto-pick changes made on another device for the same seat
+ * break the short-circuit within one polling interval. The queue length proxy
+ * detects add/remove (the common cross-device case); reorder-only changes are an
+ * acceptable exception given their negligible frequency and impact.
+ *
+ * auto_pick must be in the marker: a walk-time pause disables it without making a
+ * pick or touching the queue, so without it an idle client keeps showing auto-pick
+ * as on indefinitely and acts on that stale view when its turn arrives.
  */
 export async function getLiveStateSig(
   client: Client,
@@ -515,6 +519,7 @@ export async function getLiveStateSig(
   if (seat !== undefined) {
     const seatResult = await client.execute({
       sql: `SELECT LENGTH(COALESCE(queue_json, '')) AS queue_len,
+                   auto_pick,
                    (SELECT COUNT(*) FROM floated_cards WHERE draft_id = ? AND seat = ?) AS float_count
             FROM seat_tokens WHERE draft_id = ? AND seat = ?`,
       args: [draftId, seat, draftId, seat],
@@ -522,7 +527,8 @@ export async function getLiveStateSig(
     if (seatResult.rows.length > 0) {
       const queueLen = (seatResult.rows[0].queue_len as number | null) ?? 0;
       const floatCount = (seatResult.rows[0].float_count as number | null) ?? 0;
-      sig = `${sig}~${queueLen}:${floatCount}`;
+      const autoPick = (seatResult.rows[0].auto_pick as number | null) ?? 1;
+      sig = `${sig}~${queueLen}:${floatCount}:${autoPick}`;
     }
   }
 

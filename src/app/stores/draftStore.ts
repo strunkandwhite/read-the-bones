@@ -425,6 +425,18 @@ function applyPollResults(
       ? prev.board
       : board;
 
+    // If the route returned per-seat `me` data (authenticated caller), delegate
+    // to liveStore via the registered callback — avoids a circular import.
+    //
+    // This runs BEFORE the setState below, which fires the nextSeat subscription
+    // and with it the auto-pick trigger. Applying `me` second would decide whether
+    // to auto-pick from the previous poll's autoPick/queue — so a seat whose
+    // auto-pick was disabled server-side would still fire once on the poll that
+    // announces its turn.
+    if (liveData.me !== undefined && applyMeDataCallback) {
+      applyMeDataCallback(liveData.me as LiveMeData);
+    }
+
     const stateUpdate: Partial<typeof state> = { pollCount: prev.pollCount + 1 };
     if (nextStatus !== prev.liveDraftStatus) stateUpdate.liveDraftStatus = nextStatus;
     if (nextBoard !== prev.board) stateUpdate.board = nextBoard;
@@ -432,12 +444,6 @@ function applyPollResults(
 
     if (pickBump) {
       useDraftStore.setState({ pickVersion: state.pickVersion + 1 });
-    }
-
-    // If the route returned per-seat `me` data (authenticated caller), delegate
-    // to liveStore via the registered callback — avoids a circular import.
-    if (liveData.me !== undefined && applyMeDataCallback) {
-      applyMeDataCallback(liveData.me as LiveMeData);
     }
   }
 

@@ -192,9 +192,10 @@ async function advanceAutoPick(
   totalPicksSoFar: number,
   numSeats: number,
   picksPerPlayer: number,
+  doublePickAfterRound: number | null,
   allSeatSettings: Map<number, { autoPick: boolean; displayName: string | null }>,
 ): Promise<AutoPickAdvance> {
-  const nextAfter = getNextPick(totalPicksSoFar, numSeats, picksPerPlayer);
+  const nextAfter = getNextPick(totalPicksSoFar, numSeats, picksPerPlayer, doublePickAfterRound);
   if (!nextAfter) return { kind: 'none' };
 
   const nextSettings = allSeatSettings.get(nextAfter.seat);
@@ -236,7 +237,7 @@ export async function triggerAutoPickOnDemand(
   // 1. Load draft metadata
   const meta = await getDraftMeta(client, draftId);
   if (!meta) throw new NotFoundError('Draft not found');
-  const { phase, numSeats, picksPerPlayer } = meta;
+  const { phase, numSeats, picksPerPlayer, doublePickAfterRound } = meta;
 
   if (phase !== 'drafting') {
     throw new ValidationError(`Draft is in '${phase}' phase, not 'drafting'`);
@@ -248,7 +249,7 @@ export async function triggerAutoPickOnDemand(
     args: [draftId],
   });
   const currentCount = pickCount.rows[0].cnt as number;
-  const next = getNextPick(currentCount, numSeats, picksPerPlayer);
+  const next = getNextPick(currentCount, numSeats, picksPerPlayer, doublePickAfterRound);
   if (!next) throw new ValidationError('All picks are made');
   if (next.seat !== seat) {
     throw new ValidationError(`It's seat ${next.seat}'s turn, not seat ${seat}'s`);
@@ -257,6 +258,14 @@ export async function triggerAutoPickOnDemand(
   // 3. Run candidate selection (shared implementation)
   const allSeatSettings = await getAllSeatSettings(client, draftId);
   const seatSettings = allSeatSettings.get(seat) ?? { autoPick: true, displayName: null };
+
+  // The seat's auto-pick toggle gates this path exactly as it gates the cascade
+  // (see advanceAutoPick). A client can hold a stale "auto-pick on" view of its
+  // own seat, so trusting the request alone would let it pick while the seat has
+  // auto-pick disabled server-side. Reporting autoPickDisabled corrects the client.
+  if (!seatSettings.autoPick) {
+    return { pickedCard: null, autoPickDisabled: true, phaseChanged: false, newPhase: null };
+  }
 
   const candidateResult = await selectAutoPickCandidateForSeat(
     client, draftId, seat, seatSettings, allSeatSettings,
@@ -338,7 +347,7 @@ export async function processPick(
   // 1. Load draft metadata
   const meta = await getDraftMeta(client, input.draftId);
   if (!meta) throw new NotFoundError('Draft not found');
-  const { phase, numSeats, picksPerPlayer, bannedCards } = meta;
+  const { phase, numSeats, picksPerPlayer, bannedCards, doublePickAfterRound } = meta;
 
   if (phase !== 'drafting') {
     throw new ValidationError(`Draft is in '${phase}' phase, not 'drafting'`);
@@ -350,7 +359,7 @@ export async function processPick(
     args: [input.draftId],
   });
   const currentCount = pickCount.rows[0].cnt as number;
-  const next = getNextPick(currentCount, numSeats, picksPerPlayer);
+  const next = getNextPick(currentCount, numSeats, picksPerPlayer, doublePickAfterRound);
   if (!next) throw new ValidationError('All picks are made');
   if (next.seat !== input.seat) {
     throw new ValidationError(`It's seat ${next.seat}'s turn, not seat ${input.seat}'s`);
@@ -446,7 +455,7 @@ export async function processPick(
 
     // Check next seat for auto-pick
     const advance = await advanceAutoPick(
-      client, input.draftId, totalAfter, numSeats, picksPerPlayer, allSeatSettings,
+      client, input.draftId, totalAfter, numSeats, picksPerPlayer, doublePickAfterRound, allSeatSettings,
     );
     if (advance.kind !== 'candidate') break;
 

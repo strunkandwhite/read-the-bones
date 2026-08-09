@@ -41,6 +41,7 @@ function mockDraftMeta(mockClient: ReturnType<typeof createMockClient>, override
   num_seats?: number;
   picks_per_player?: number;
   banned_cards?: string | null;
+  double_pick_after_round?: number | null;
 } = {}) {
   mockClient.execute.mockResolvedValueOnce(
     createQueryResult([{
@@ -48,6 +49,7 @@ function mockDraftMeta(mockClient: ReturnType<typeof createMockClient>, override
       num_seats: overrides.num_seats ?? 4,
       picks_per_player: overrides.picks_per_player ?? 6,
       banned_cards: overrides.banned_cards ?? null,
+      double_pick_after_round: overrides.double_pick_after_round ?? null,
     }]),
   );
 }
@@ -171,6 +173,42 @@ describe('processPick', () => {
     await expect(
       processPick(mockClient as never, baseInput),
     ).rejects.toThrow('Conflict: pick_n already exists — retry');
+  });
+
+  // With 4 seats and 6 picks each, the floor(N/4) heuristic starts double picks
+  // after round 4, so pick 18 belongs to seat 1 (seat 1's second pick of round 5).
+  // A draft that declares 6 stays on single picks throughout, making pick 18
+  // seat 2's. The declared value has to win, or the pick engine disagrees with
+  // the board about whose turn it is for the rest of the draft.
+  describe('honours the draft\'s declared double-pick boundary', () => {
+    it('accepts the seat the declared boundary puts on the clock', async () => {
+      mockDraftMeta(mockClient, { double_pick_after_round: 6 });
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cnt: 17 }]));
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ picked_count: 0, qty: 1 }]),
+      );
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([], 1));
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ picked_count: 1, qty: 1 }]),
+      );
+
+      const result = await processPick(mockClient as never, {
+        draftId: 'draft-1', seat: 2, cardId: 10, cardName: 'Bolt',
+      });
+
+      expect(result.picks[0]).toMatchObject({ pickN: 18, seat: 2 });
+    });
+
+    it('rejects the seat the heuristic would have put on the clock', async () => {
+      mockDraftMeta(mockClient, { double_pick_after_round: 6 });
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cnt: 17 }]));
+
+      await expect(
+        processPick(mockClient as never, {
+          draftId: 'draft-1', seat: 1, cardId: 10, cardName: 'Bolt',
+        }),
+      ).rejects.toThrow("It's seat 2's turn, not seat 1's");
+    });
   });
 
   it('records pick and returns it', async () => {
@@ -786,9 +824,39 @@ describe('processPick', () => {
 describe('triggerAutoPickOnDemand', () => {
   let mockClient: ReturnType<typeof createMockClient>;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockClient = createMockClient();
     vi.clearAllMocks();
+    // This path gates on the seat's auto-pick toggle, so every test here needs a
+    // definite answer for seat 1. mockReset drops any one-shot values queued by
+    // the cascade tests above, which vi.clearAllMocks leaves in place.
+    const { getAllSeatSettings } = await import('./db/queries/seatTokens');
+    vi.mocked(getAllSeatSettings).mockReset();
+    vi.mocked(getAllSeatSettings).mockResolvedValue(new Map([
+      [1, { autoPick: true, displayName: null }],
+    ]));
+  });
+
+  it('picks nothing and reports autoPickDisabled when the seat has auto-pick off', async () => {
+    const { getAllSeatSettings } = await import('./db/queries/seatTokens');
+    const { getAutoPickCandidate } = await import('./db/queries/pickQueue');
+    vi.mocked(getAllSeatSettings).mockResolvedValue(new Map([
+      [1, { autoPick: false, displayName: null }],
+    ]));
+
+    mockDraftMeta(mockClient);
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cnt: 0 }]));
+
+    const result = await triggerAutoPickOnDemand(mockClient as never, 'draft-1', 1);
+
+    expect(result).toEqual({
+      pickedCard: null,
+      autoPickDisabled: true,
+      phaseChanged: false,
+      newPhase: null,
+    });
+    // Bails before touching the queue at all
+    expect(getAutoPickCandidate).not.toHaveBeenCalled();
   });
 
   it('throws NotFoundError when draft does not exist', async () => {

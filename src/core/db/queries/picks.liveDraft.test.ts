@@ -218,11 +218,30 @@ describe("getLiveStateSig", () => {
     await insertSeatToken(db, "draft-1", 1, { displayName: "Alice", queueJson });
 
     const before = await getLiveStateSig(db, "draft-1", 1);
-    expect(before.sig).toBe(`drafting|0|Alice~${queueJson.length}:0`);
+    expect(before.sig).toBe(`drafting|0|Alice~${queueJson.length}:0:1`);
 
     await insertFloatedCard(db, "draft-1", 1, "Counterspell");
     const after = await getLiveStateSig(db, "draft-1", 1);
-    expect(after.sig).toBe(`drafting|0|Alice~${queueJson.length}:1`);
+    expect(after.sig).toBe(`drafting|0|Alice~${queueJson.length}:1:1`);
+    expect(after.sig).not.toBe(before.sig);
+  });
+
+  it("changes the per-seat marker when auto-pick is disabled server-side", async () => {
+    const db = await createMemDb();
+    await insertDraft(db, "draft-1", { phase: "drafting" });
+    const queueJson = JSON.stringify([{ mode: "pause", cards: ["Bolt"] }]);
+    await insertSeatToken(db, "draft-1", 1, { displayName: "Alice", queueJson });
+
+    const before = await getLiveStateSig(db, "draft-1", 1);
+
+    // A walk-time pause disables auto-pick without making a pick or touching the
+    // queue — the sig must still move, or an idle client never learns about it.
+    await db.execute({
+      sql: "UPDATE seat_tokens SET auto_pick = 0 WHERE draft_id = ? AND seat = ?",
+      args: ["draft-1", 1],
+    });
+
+    const after = await getLiveStateSig(db, "draft-1", 1);
     expect(after.sig).not.toBe(before.sig);
   });
 
