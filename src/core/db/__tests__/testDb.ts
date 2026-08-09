@@ -136,6 +136,7 @@ export async function createTestSchema(client: Client): Promise<void> {
       draft_id TEXT NOT NULL,
       seat INTEGER NOT NULL,
       hash TEXT NOT NULL,
+      sealeddeck_id TEXT,
       PRIMARY KEY (draft_id, seat)
     )
   `);

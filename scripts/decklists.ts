@@ -384,7 +384,9 @@ async function resolveZoneCards(
 
 async function main() {
   loadEnv();
-  const filterDraft = process.argv[2]; // Optional: specific draft label
+  // Skip flags so `pnpm decklists --dry-run` still works without a draft label.
+  const filterDraft = process.argv.slice(2).find((a) => !a.startsWith("--"));
+  const force = process.argv.includes("--force");
 
   const client = createClient({
     url: process.env.TURSO_DATABASE_URL!,
@@ -443,12 +445,28 @@ async function main() {
         .digest("hex")
         .slice(0, 16);
 
-      // Check stored hash — skip if unchanged
-      const storedHash = await client.execute({
-        sql: "SELECT hash FROM deck_hashes WHERE draft_id = ? AND seat = ?",
+      // Existing state for this seat, including where its deck came from.
+      const existingRow = await client.execute({
+        sql: "SELECT hash, sealeddeck_id FROM deck_hashes WHERE draft_id = ? AND seat = ?",
         args: [draftId, seat],
       });
-      if (storedHash.rows.length > 0 && storedHash.rows[0].hash === hash) {
+      const existing = existingRow.rows[0];
+      const existingSource = existing ? (existing.sealeddeck_id as string | null) : null;
+
+      // A hand-recovered deck outranks anything fetched. Recovery is expensive
+      // and often the only copy that exists; silently reverting one would undo
+      // work that cannot be redone from this file.
+      if (existingSource?.startsWith("recovered:") && !force) {
+        logIndent(
+          `Seat ${seat}: skipped — hand-recovered deck (${existingSource}). Pass --force to overwrite.`,
+        );
+        continue;
+      }
+
+      // Skip only when the deck AND its recorded provenance are both current.
+      // Without the second half, every unchanged seat would keep a null
+      // sealeddeck_id forever and Task 12's prune would have nothing to query.
+      if (existing && existing.hash === hash && existingSource === entry.sealeddeckId) {
         logIndent(`Seat ${seat}: unchanged`);
         continue;
       }
@@ -494,11 +512,11 @@ async function main() {
 
       // Store/update deck hash
       await client.execute({
-        sql: "INSERT OR REPLACE INTO deck_hashes (draft_id, seat, hash) VALUES (?, ?, ?)",
-        args: [draftId, seat, hash],
+        sql: "INSERT OR REPLACE INTO deck_hashes (draft_id, seat, hash, sealeddeck_id) VALUES (?, ?, ?, ?)",
+        args: [draftId, seat, hash, entry.sealeddeckId],
       });
 
-      const status = storedHash.rows.length > 0 ? "updated" : "new";
+      const status = existing ? "updated" : "new";
       logIndent(
         `Seat ${seat}: ${deckCards.length} cards written (${status})${warnings > 0 ? ` [${warnings} warnings]` : ""}`,
       );
