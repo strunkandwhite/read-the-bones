@@ -985,6 +985,8 @@ and immediately after `log(\`Found ${drafts.size} drafts in decklists.txt\`)`:
 
 The writer loop currently runs `DELETE FROM deck_cards` *before* resolving cards and *before* the `maindeckQty < 20` guard. A resubmission with fewer than 20 maindeck cards therefore wipes that seat's previously-good deck and then declines to write a replacement — silent decklist destruction, which is the exact failure this branch exists to stop. The precision gate from Task 2 lets more submissions reach this path, so the exposure grew.
 
+**This step also closes an Important finding from Task 3's review**, which reached the same defect from a different direction: once `--force` passes the recovered-deck guard, the delete runs before the incoming deck is validated, so a marginal submission leaves a hand-recovered seat with no cards, no hash, and no provenance — and that transcription may be the only copy in existence. `--force` is a global flag with no per-seat targeting, so the realistic trigger is an operator refreshing a whole draft, not one intending to clobber that seat. Reordering here fixes it for every seat rather than special-casing recovered ones. **The review of this task must confirm the finding is closed.**
+
 Reorder the loop body so nothing is destroyed until a good deck is ready to replace it. **Delete** the existing block:
 
 ```ts
@@ -2237,6 +2239,8 @@ grep "sealeddeck" data/decklists.txt
 ```
 
 Every survivor must be explainable. Expected categories: opted-out players' lists (never assignable by design), superseded duplicates for a seat that received a later submission, and — if Task 7 was NO-GO — the two malformed `Sideboard:` submissions. For each one, confirm which category it falls into using `/tmp/decklists-dryrun.txt`.
+
+**Do not read "absent from `deck_hashes`" as "never fetched."** `sealeddeck_id` records only the *winning* submission for each seat. A submission that was superseded by a later one for the same seat, or rejected as no-overlap or ambiguous, never reaches the writer loop and so never appears in the table at all. The prune therefore *retains* those URLs — which is the safe direction, since retaining costs a re-fetch while dropping loses the record — but it means the residue is "not stored" rather than "not tried." Classify each survivor from the dry-run log, not from its absence in the query.
 
 Remove the opted-out and superseded entries too; they will never be ingested and leaving them means every future run re-fetches and re-skips them. Keep only URLs that still represent unimported work, and add a comment line above any you keep saying why.
 
