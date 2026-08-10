@@ -140,9 +140,12 @@ export type BulkWinStatsEntry = {
 // path maintains it. Count alone would miss an in-place score correction.
 //
 // Known gap: scripts/merge-dfc-cards.ts deletes deck_cards rows without
-// touching deck_hashes, so it will not invalidate this memo. That is a rare
-// manual maintenance script and this is a dev-only metric; restarting the
-// dev server clears it.
+// touching deck_hashes, so it will not invalidate this memo. The same
+// script also renames cards (UPDATE cards SET name = ..., oracle_id = ...),
+// and computeAllCardWinStats keys its output on that name — a rename is
+// invisible to this fingerprint too, since it touches neither deck_hashes
+// nor match_events. Both are rare manual maintenance script effects on a
+// dev-only metric; restarting the dev server clears them.
 let winStatsCache: { key: string; result: Map<string, BulkWinStatsEntry> } | null = null;
 let winStatsPending: { key: string; promise: Promise<Map<string, BulkWinStatsEntry>> } | null = null;
 
