@@ -313,6 +313,41 @@ describe("getCards", () => {
     expect(bolt!.weightedGeomean).toBeCloseTo(20.8584, 3);
   });
 
+  it("keeps the real session gap when a draft filter excludes an interior completed session", async () => {
+    // d2 sits between d1 and d3 but is excluded from the draftIds selection.
+    // Session ordinals must still span every completed draft (not just the
+    // selection), so d3 stays two sessions back rather than collapsing to
+    // one when d2 drops out of the picked-card observations.
+    const drafts = [
+      draftRow("d1", { cubeSnapshotId: 1, date: "2026-08-01" }),
+      draftRow("d2", { cubeSnapshotId: 1, date: "2026-07-01" }),
+      draftRow("d3", { cubeSnapshotId: 1, date: "2026-06-01" }),
+    ];
+
+    const picks = [
+      pickRow("d1", "Bolt", 1, 1, 1),
+      pickRow("d3", "Bolt", 30, 2, 1),
+    ];
+
+    const cubeCards = [cubeCardRow(1, 1, "Bolt")];
+
+    setupMockExecute({
+      draftRows: drafts,
+      pickRows: picks,
+      cubeCardRows: cubeCards,
+      cubeSizeRows: [cubeSizeRow(1, 540)],
+    });
+
+    const result = await getCards({ draftIds: ["d1", "d3"] });
+
+    const bolt = result.cards.find((c) => c.cardName === "Bolt");
+    expect(bolt).toBeDefined();
+    // d1 ordinal 0 (weight 1); d2 (excluded from selection) occupies
+    // ordinal 1; d3 ordinal 2, weight 0.5^(2/4) = 0.707107:
+    // exp((1*ln(1) + 0.707107*ln(30)) / 1.707107) = 4.0911
+    expect(bolt!.weightedGeomean).toBeCloseTo(4.0911, 3);
+  });
+
   it("includes takenCards when activeDraft is provided", async () => {
     setupMockExecute({
       draftRows: [draftRow("d1")],

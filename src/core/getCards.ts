@@ -495,10 +495,12 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
 
   const selectedDraftSet = new Set(selectedDraftIds);
 
-  // Ordinals span the selected drafts only: with a draft filter applied, the
-  // newest selected session is the reference point.
+  // Session ordinals span every completed draft, not the selection: how much
+  // drafting has happened since a pick is a fact about the history, so
+  // deselecting an interior session must not re-weight the ones around it.
+  // This also keeps the main table's P# equal to the stats modal's.
   const sessionsAgo = sessionsAgoByDraft(
-    selectedDraftIds.map((draftId) => ({
+    completedDraftIds.map((draftId) => ({
       draftId,
       draftDate: draftMetadataMap.get(draftId)!.date,
     })),

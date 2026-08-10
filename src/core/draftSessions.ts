@@ -10,6 +10,12 @@
 /**
  * Map each draft to how many sessions back it is, 0 being the most recent
  * session among the drafts given.
+ *
+ * Ordinals are dense over the dates given, so callers must pass every
+ * stats-phase draft rather than a filtered subset. Only the differences
+ * between ordinals affect the weight, so a uniform shift is harmless, but a
+ * set that omits an interior session closes that gap and re-weights every
+ * older observation against the newest one.
  */
 export function sessionsAgoByDraft(
   drafts: Array<{ draftId: string; draftDate: string }>,

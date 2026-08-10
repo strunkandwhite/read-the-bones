@@ -267,8 +267,9 @@ export async function rankAvailableCards(
   // stateful.
   const draftPhase = statsPhaseFilter("d.phase");
   const pickPhase = statsPhaseFilter("d.phase");
+  const allDraftsPhase = statsPhaseFilter("d.phase");
 
-  const [draftsResult, picksResult, cubeSizesResult] = await Promise.all([
+  const [draftsResult, picksResult, cubeSizesResult, allDraftsPhaseResult] = await Promise.all([
     client.execute({
       sql: `SELECT DISTINCT d.draft_id, d.cube_snapshot_id, d.draft_date, csc.card_id
             FROM drafts d
@@ -294,6 +295,10 @@ export async function rankAvailableCards(
             )
             GROUP BY cube_snapshot_id`,
       args: cardIds,
+    }),
+    client.execute({
+      sql: `SELECT draft_id, draft_date FROM drafts d WHERE ${allDraftsPhase.fragment}`,
+      args: [...allDraftsPhase.args],
     }),
   ]);
 
@@ -346,12 +351,10 @@ export async function rankAvailableCards(
 
   // Map: cardId -> draftId -> { cubeSnapshotId, draftDate }, where card was in pool
   const cardDrafts = new Map<number, Map<string, { cubeSnapshotId: number; draftDate: string }>>();
-  const draftDates = new Map<string, string>();
   for (const row of draftsResult.rows) {
     const cardId = row.card_id as number;
     const draftId = row.draft_id as string;
     const draftDate = row.draft_date as string;
-    draftDates.set(draftId, draftDate);
     if (!cardDrafts.has(cardId)) cardDrafts.set(cardId, new Map());
     cardDrafts.get(cardId)!.set(draftId, {
       cubeSnapshotId: row.cube_snapshot_id as number,
@@ -359,10 +362,15 @@ export async function rankAvailableCards(
     });
   }
 
-  // Ordinals span every draft in play, not just the ones a given card was in.
-  // A card that sat out a session must keep the real gap on either side of it.
+  // Session ordinals span every stats-phase draft, not just those whose cube
+  // held one of the ranked cards. A card that sat out a session must keep the
+  // real gap on either side of it, and the gap is a fact about the drafting
+  // history rather than about this query's filters.
   const sessionsAgo = sessionsAgoByDraft(
-    [...draftDates].map(([draftId, draftDate]) => ({ draftId, draftDate })),
+    allDraftsPhaseResult.rows.map((row) => ({
+      draftId: row.draft_id as string,
+      draftDate: row.draft_date as string,
+    })),
   );
 
   // Map: cardId -> draftId -> pick positions
