@@ -120,6 +120,37 @@ describe("hashMatches", () => {
   });
 });
 
+describe("computeIngestionHash", () => {
+  const rows = [
+    { pool_hash: "p1", picks_hash: "k1", matches_hash: "m1" },
+    { pool_hash: "p2", picks_hash: "k2", matches_hash: "m2" },
+    { pool_hash: "p3", picks_hash: null, matches_hash: null },
+  ];
+
+  it("is independent of row order", () => {
+    const forward = computeIngestionHash(rows);
+    const reversed = computeIngestionHash([...rows].reverse());
+    const shuffled = computeIngestionHash([rows[1], rows[2], rows[0]]);
+    expect(reversed).toBe(forward);
+    expect(shuffled).toBe(forward);
+  });
+
+  it("still changes when a hash value changes", () => {
+    const before = computeIngestionHash(rows);
+    const after = computeIngestionHash([
+      { pool_hash: "p1", picks_hash: "CHANGED", matches_hash: "m1" },
+      rows[1],
+      rows[2],
+    ]);
+    expect(after).not.toBe(before);
+  });
+
+  it("treats null and empty string identically, as before", () => {
+    expect(computeIngestionHash([{ pool_hash: null, picks_hash: null, matches_hash: null }]))
+      .toBe(computeIngestionHash([{ pool_hash: "", picks_hash: "", matches_hash: "" }]));
+  });
+});
+
 describe("compareDomainHash", () => {
   it("returns 'skip' when hashes match", () => {
     expect(compareDomainHash("abc123", "abc123")).toBe("skip");
