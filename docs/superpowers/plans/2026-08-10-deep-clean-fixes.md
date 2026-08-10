@@ -1028,6 +1028,7 @@ Add every missing entry, including the worth-model and desire-metric specs and p
 
 - CLAUDE.md says `--pool` defaults to `cubecobra:samp`. `scripts/draft-create-live.ts:58` throws `"--pool is required"` and `samp` appears nowhere in the code. Reword as a team convention for which cube to use, not a code default.
 - The `/pick` route entry describes `{ auto: true }` as triggering the cascade. Since `34c21ea` it also consults the seat's `auto_pick` flag and returns `autoPickDisabled: true` without picking. Document the field.
+- CLAUDE.md's Active-draft-sync bullet says "The cron covers phases `setup`, `drafting`, and `playing`". Task 5 changed that: a draft still in `setup` has not had its first CLI sync, so the cron now skips it and reports `awaiting_cli_sync`. The draft-selection query still includes `setup`, so the phase list is right about which drafts are *considered* and wrong about which are *ingested*. Say that a Sheets draft needs one `pnpm sync <name>` before the cron will touch it, and why (opt-outs are recorded only by the CLI, which reads the gitignored `.opt-outs.json`).
 
 - [ ] **Step 6: Verify and commit**
 
