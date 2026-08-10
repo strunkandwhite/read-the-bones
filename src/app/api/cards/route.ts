@@ -1,11 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCards } from "@/core/getCards";
 
-// Win-stats data (decklist win rates) is only shown in non-production environments.
-// Using an env check rather than trusting the client-supplied Host header, which
-// can be spoofed and also appears in server/CDN logs when used for auth decisions.
-const WIN_STATS_ENABLED = process.env.NODE_ENV !== "production";
-
 export async function GET(request: NextRequest) {
   const { searchParams } = request.nextUrl;
 
@@ -26,7 +21,6 @@ export async function GET(request: NextRequest) {
       draftIds,
       activeDraft,
       poolAsOfDraft,
-      includeWinStats: WIN_STATS_ENABLED,
     });
 
     // Cache forever at the edge — the ?v= param busts the cache on new ingestions.

@@ -48,7 +48,7 @@ export interface RankAvailableCardsParams {
    * as "" — turns on color_flag/first_pick_score per row.
    */
   committed_colors?: string;
-  /** Dev-only worth-model fields (same gating shape as includeWinStats). */
+  /** Dev-only worth-model fields (same gating shape as the /api/cards/worth env gate). */
   include_worth?: boolean;
 }
 
@@ -306,18 +306,22 @@ export async function rankAvailableCards(
       args: cardIds,
     }),
     client.execute({
-      sql: `SELECT dc.card_id, dc.draft_id, dc.seat,
-              SUM(CASE WHEN me.seat1 = dc.seat THEN me.seat1_wins
-                       WHEN me.seat2 = dc.seat THEN me.seat2_wins
-                       ELSE 0 END) AS game_wins,
-              SUM(CASE WHEN me.seat1 = dc.seat THEN me.seat2_wins
-                       WHEN me.seat2 = dc.seat THEN me.seat1_wins
-                       ELSE 0 END) AS game_losses
+      // See getAllCardWinStats for why the seat totals are pre-aggregated:
+      // the direct `(me.seat1 = dc.seat OR me.seat2 = dc.seat)` join cannot
+      // use an index and re-reads a draft's whole match set per deck-card row.
+      sql: `WITH seat_totals AS (
+              SELECT draft_id, seat, SUM(w) AS game_wins, SUM(l) AS game_losses
+              FROM (
+                SELECT draft_id, seat1 AS seat, seat1_wins AS w, seat2_wins AS l FROM match_events
+                UNION ALL
+                SELECT draft_id, seat2 AS seat, seat2_wins AS w, seat1_wins AS l FROM match_events
+              )
+              GROUP BY draft_id, seat
+            )
+            SELECT dc.card_id, dc.draft_id, dc.seat, st.game_wins, st.game_losses
             FROM deck_cards dc
-            JOIN match_events me ON me.draft_id = dc.draft_id
-              AND (me.seat1 = dc.seat OR me.seat2 = dc.seat)
-            WHERE dc.card_id IN (${idPlaceholderStr}) AND dc.zone = 'deck'
-            GROUP BY dc.card_id, dc.draft_id, dc.seat`,
+            JOIN seat_totals st ON st.draft_id = dc.draft_id AND st.seat = dc.seat
+            WHERE dc.card_id IN (${idPlaceholderStr}) AND dc.zone = 'deck'`,
       args: cardIds,
     }),
   ]);

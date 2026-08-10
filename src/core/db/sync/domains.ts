@@ -30,11 +30,26 @@ export function hashMatches(matches: MatchResult[]): string {
   return sha256Short(lines.join("\n"));
 }
 
+/**
+ * Fingerprint the per-domain hashes of a set of drafts.
+ *
+ * Sorted before joining because callers disagree on row order — getCards
+ * orders by draft_date, getServerIngestionHash does not order at all — and an
+ * order-sensitive hash made them disagree on identical data. The client uses
+ * one as the ?v= cache-buster for /api/cards while SSR embeds the other, so
+ * the mismatch cost a CDN cache key per session. Sorting here, rather than
+ * adding ORDER BY at each call site, means they cannot diverge again.
+ *
+ * Sorting the mapped strings is a sound canonicalization: the value depends
+ * only on the multiset of (pool, picks, matches) triples, which is exactly
+ * what "has any draft's synced data changed" should mean.
+ */
 export function computeIngestionHash(
   rows: Array<{ pool_hash: unknown; picks_hash: unknown; matches_hash: unknown }>
 ): string {
   const combined = rows
     .map((r) => `${r.pool_hash ?? ""}:${r.picks_hash ?? ""}:${r.matches_hash ?? ""}`)
+    .sort()
     .join("|");
   return sha256Short(combined);
 }

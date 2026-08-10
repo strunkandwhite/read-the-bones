@@ -8,10 +8,11 @@ import type { ScryCard, EnrichedCardStats } from "@/core/types";
 import type { WorthCard } from "@/core/worthModel";
 import type { ColorFilterMode } from "@/core/colorFilter";
 import { isLocalClient } from "@/core/isLocal";
-import { getFrontFace } from "@/core/cardNames";
+import { cardNameKey, getFrontFace } from "@/core/cardNames";
 import { searchLocalCards } from "@/core/localSearch";
 import { hasScryfallOperators } from "@/core/searchUtils";
 import { DEFAULT_NUM_SEATS } from "@/core/constants";
+import type { BulkWinStatsEntry } from "@/core/db/queries/winStats";
 
 // ---------------------------------------------------------------------------
 // Empty defaults
@@ -83,6 +84,12 @@ let cardStatsCache = new Map<string, CardStatsCacheEntry>();
 // hash-change trigger retries (the dev server may have been mid-compile).
 let worthFetchedForHash: string | null = null;
 
+// Module-scoped cache marker for /api/cards/win-stats (dev-only route), and
+// the reference used to decide whether recompute() must rebuild the card-stats
+// map. Same shape as worthFetchedForHash.
+let winStatsFetchedForHash: string | null = null;
+let lastWinStatsRef: Map<string, BulkWinStatsEntry> | null = null;
+
 /** Exported for tests to clear debounce and cache state between runs. */
 export function _resetSearchState() {
   if (searchTimeout) {
@@ -97,6 +104,8 @@ export function _resetSearchState() {
   cachedCardStatsMap = new Map();
   cardStatsCache = new Map();
   worthFetchedForHash = null;
+  winStatsFetchedForHash = null;
+  lastWinStatsRef = null;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,6 +187,13 @@ interface CardStoreState {
   // Worth model state (dev-only; populated from /api/cards/worth on localhost)
   worthCards: Map<string, WorthCard>;
   worthModel: WorthModelSummary | null;
+  // Bulk decklist win rates (dev-only; populated from /api/cards/win-stats on
+  // localhost). Merged into cardStatsMap by recompute() rather than delivered
+  // inline on /api/cards, which refetches on every pick. Accepted staleness:
+  // reportMatchResult does not touch drafts.matches_hash, so a live match
+  // result changes the server-side numbers without changing cardData.ingestionHash
+  // — the client won't refetch win-stats until the next pick lands.
+  winStats: Map<string, BulkWinStatsEntry>;
   // Dev-only override for the pick desire is evaluated at (null = automatic:
   // the live draft's current pick, else 1). Session state, not persisted.
   desirePickOverride: number | null;
@@ -196,6 +212,7 @@ interface CardStoreState {
   selectCard: (name: string, excludeDraftId?: string) => Promise<void>;
   clearSelectedCard: () => void;
   fetchWorthTable: () => Promise<void>;
+  fetchWinStats: () => Promise<void>;
   setDesirePickOverride: (pick: number | null) => void;
 }
 
@@ -208,14 +225,28 @@ function recompute() {
   const { cardData, searchQuery, scryfallMatchNames } = state;
   const { activeDraft, hideTaken, selectedSeat, board } = useDraftStore.getState();
 
-  // Only rebuild maps when cardData reference changes
-  if (cardData !== lastCardDataRef) {
+  // Rebuild maps when either input reference changes. Win stats arrive on a
+  // separate, much less frequent request than cardData, so both are guards.
+  const { winStats } = state;
+  if (cardData !== lastCardDataRef || winStats !== lastWinStatsRef) {
     lastCardDataRef = cardData;
+    lastWinStatsRef = winStats;
     cachedScryfallDataMap = new Map<string, ScryCard>();
     cachedCardStatsMap = new Map<string, EnrichedCardStats>();
     for (const card of cardData.cards) {
       if (card.scryfall) cachedScryfallDataMap.set(card.cardName, card.scryfall);
-      cachedCardStatsMap.set(card.cardName, card);
+      const ws = winStats.get(cardNameKey(card.cardName));
+      cachedCardStatsMap.set(
+        card.cardName,
+        ws
+          ? {
+              ...card,
+              gpwr: ws.win_rate,
+              gpwrCi: ws.ci,
+              gpwrSampleSize: ws.sample_size,
+            }
+          : card,
+      );
     }
   }
 
@@ -366,6 +397,7 @@ export const useCardStore = create<CardStoreState>()(
     // Worth model state
     worthCards: new Map(),
     worthModel: null,
+    winStats: new Map(),
     desirePickOverride: null,
 
     // Derived state (initial empty values)
@@ -432,10 +464,15 @@ export const useCardStore = create<CardStoreState>()(
         const serverHash = useDraftStore.getState().syncStatus.ingestionHash;
         const currentHash = serverHash ?? get().cardData.ingestionHash;
 
+        // Sorted so the same selection always produces the same URL. The Set's
+        // insertion order changes as drafts are toggled, and an unsorted join
+        // gave each client its own permanently distinct CDN cache key for
+        // identical data — every one a full uncached getCards.
+        const draftsParam = [...selectedDrafts].sort().join(",");
+
         const params = new URLSearchParams();
-        params.set("drafts", [...selectedDrafts].join(","));
+        params.set("drafts", draftsParam);
         params.set("v", currentHash);
-        if (isLocalClient()) params.set("local", "1");
         if (activeDraft) params.set("activeDraft", activeDraft);
         if (effectivePool) params.set("poolAsOfDraft", effectivePool);
 
@@ -447,7 +484,7 @@ export const useCardStore = create<CardStoreState>()(
           includeDraftStats
             ? (() => {
                 const statsParams = new URLSearchParams();
-                statsParams.set("drafts", [...selectedDrafts].join(","));
+                statsParams.set("drafts", draftsParam);
                 statsParams.set("v", currentHash);
                 return fetch(`/api/draft-stats?${statsParams}`);
               })()
@@ -616,6 +653,38 @@ export const useCardStore = create<CardStoreState>()(
         set({ worthCards: new Map(), worthModel: null });
       }
     },
+
+    fetchWinStats: async () => {
+      // Dev-only: /api/cards/win-stats 404s in production builds, so production
+      // clients must never request it.
+      if (!isLocalClient()) return;
+
+      const currentHash = get().cardData.ingestionHash;
+      if (winStatsFetchedForHash === currentHash) return;
+      // Mark before awaiting so overlapping triggers don't double-fetch.
+      winStatsFetchedForHash = currentHash;
+
+      try {
+        const res = await fetch("/api/cards/win-stats");
+        if (!res.ok) throw new Error(`Win stats fetch failed: ${res.status}`);
+        const data = (await res.json()) as {
+          cards: Record<string, BulkWinStatsEntry>;
+        };
+        // A newer hash may have started its own fetch while this one was in
+        // flight; only the fetch that still owns the marker may write.
+        if (winStatsFetchedForHash !== currentHash) return;
+        set({ winStats: new Map(Object.entries(data.cards)) });
+        recompute();
+      } catch {
+        // Swallow: the dev server may still be compiling the route. Empty
+        // state hides the GPWR values; clearing the marker lets the next
+        // ingestionHash trigger retry.
+        if (winStatsFetchedForHash !== currentHash) return;
+        winStatsFetchedForHash = null;
+        set({ winStats: new Map() });
+        recompute();
+      }
+    },
   })),
 );
 
@@ -626,6 +695,14 @@ export const useCardStore = create<CardStoreState>()(
 useCardStore.subscribe(
   (state) => state.cardData.ingestionHash,
   () => void useCardStore.getState().fetchWorthTable(),
+);
+
+// Bulk win stats (dev-only): same trigger as the worth table — refetch
+// whenever the committed card data's ingestionHash changes. fetchWinStats
+// no-ops off localhost and when the hash is one it already fetched for.
+useCardStore.subscribe(
+  (state) => state.cardData.ingestionHash,
+  () => void useCardStore.getState().fetchWinStats(),
 );
 
 // ---------------------------------------------------------------------------

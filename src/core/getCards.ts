@@ -20,7 +20,6 @@ import { computeIngestionHash } from "./db/sync/domains";
 import { transformScryfallJson, parseBannedCardNames, placeholders } from "./db/queries/helpers";
 import { cardNameKey } from "./cardNames";
 import { DEFAULT_NUM_SEATS } from "./constants";
-import { getAllCardWinStats, type BulkWinStatsEntry } from "./db/queries/winStats";
 import { normalizeColorIdentity } from "./manaColors";
 
 // --- Internal types for extracted subfunctions ---
@@ -57,8 +56,6 @@ export type GetCardsParams = {
   activeDraft?: string;
   /** Use this draft's cube snapshot for pool filtering instead of the most recent */
   poolAsOfDraft?: string;
-  /** Include GPWR win stats (localhost only) */
-  includeWinStats?: boolean;
 };
 
 export type CardStatsResponse = {
@@ -423,23 +420,16 @@ function assembleCardStats(
   currentCubeSet: Set<string>,
   currentCubeKeySet: Set<string>,
   sessionsAgoByDraftId: Map<string, number>,
-  winStats?: Map<string, BulkWinStatsEntry>,
 ): EnrichedCardStats[] {
   // 8. Calculate card stats
   const stats = calculateCardStats(allPicks, sessionsAgoByDraftId);
 
-  // 9. Enrich stats with Scryfall data + optional GPWR
+  // 9. Enrich stats with Scryfall data
   const enrichedStats: EnrichedCardStats[] = stats.map((stat) => {
     const key = cardNameKey(stat.cardName);
-    const ws = winStats?.get(key);
     return {
       ...stat,
       scryfall: scryfallDataMap.get(key),
-      ...(ws && {
-        gpwr: ws.win_rate,
-        gpwrCi: ws.ci,
-        gpwrSampleSize: ws.sample_size,
-      }),
     };
   });
 
@@ -553,17 +543,11 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
     displayCubeSnapshotId, cubeCardsBySnapshot,
   );
 
-  // 7. Optionally fetch bulk win stats (localhost only)
-  const winStats = params.includeWinStats
-    ? await getAllCardWinStats(client)
-    : undefined;
-
   // 8-11. Calculate stats, enrich, filter, add new card stubs
   const allCards = assembleCardStats(
     allPicks, scryfallDataMap,
     currentCubeSet, currentCubeKeySet,
     sessionsAgo,
-    winStats,
   );
 
   // Convert draftMetadata Map to plain object
