@@ -17,6 +17,8 @@ import {
   insertCubeCard,
   insertDraft,
   insertPickEvent,
+  insertDeckCard,
+  insertMatch,
 } from "../../__tests__/testDb";
 import { danger, pickCdf, type WorthCard } from "../../../worthModel";
 
@@ -393,5 +395,39 @@ describe("rankAvailableCards — pick-score inputs", () => {
     // exp((0.5^(1/4)*ln(10) + 0.5^(3/4)*ln(40)) / (0.8409 + 0.5946)) = 17.76
     const beta = result.cards.find((c) => c.card_name === "Beta")!;
     expect(beta.geomean_pick).toBeCloseTo(17.8, 1);
+  });
+});
+
+describe("ranked available win aggregation", () => {
+  it("sums each seat's wins and losses across all of that seat's matches", async () => {
+    const db = await createMemDb();
+    await insertDraft(db, "d1", { phase: "complete" });
+    await insertCard(db, 1, "Bolt");
+    await insertDeckCard(db, "d1", 1, 1, "deck");
+    // Seat 1 is seat1 in one match and seat2 in the other.
+    await insertMatch(db, "d1", 1, 2, 2, 1);
+    await insertMatch(db, "d1", 3, 1, 1, 2);
+
+    const rows = await db.execute({
+      sql: `WITH seat_totals AS (
+              SELECT draft_id, seat, SUM(w) AS game_wins, SUM(l) AS game_losses
+              FROM (
+                SELECT draft_id, seat1 AS seat, seat1_wins AS w, seat2_wins AS l FROM match_events
+                UNION ALL
+                SELECT draft_id, seat2 AS seat, seat2_wins AS w, seat1_wins AS l FROM match_events
+              )
+              GROUP BY draft_id, seat
+            )
+            SELECT dc.card_id, dc.draft_id, dc.seat, st.game_wins, st.game_losses
+            FROM deck_cards dc
+            JOIN seat_totals st ON st.draft_id = dc.draft_id AND st.seat = dc.seat
+            WHERE dc.card_id IN (?) AND dc.zone = 'deck'`,
+      args: [1],
+    });
+
+    expect(rows.rows).toHaveLength(1);
+    // seat 1: wins 2 + 2 = 4, losses 1 + 1 = 2
+    expect(rows.rows[0].game_wins).toBe(4);
+    expect(rows.rows[0].game_losses).toBe(2);
   });
 });
