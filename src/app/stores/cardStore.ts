@@ -189,7 +189,10 @@ interface CardStoreState {
   worthModel: WorthModelSummary | null;
   // Bulk decklist win rates (dev-only; populated from /api/cards/win-stats on
   // localhost). Merged into cardStatsMap by recompute() rather than delivered
-  // inline on /api/cards, which refetches on every pick.
+  // inline on /api/cards, which refetches on every pick. Accepted staleness:
+  // reportMatchResult does not touch drafts.matches_hash, so a live match
+  // result changes the server-side numbers without changing cardData.ingestionHash
+  // — the client won't refetch win-stats until the next pick lands.
   winStats: Map<string, BulkWinStatsEntry>;
   // Dev-only override for the pick desire is evaluated at (null = automatic:
   // the live draft's current pick, else 1). Session state, not persisted.

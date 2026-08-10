@@ -100,6 +100,7 @@ function resetStores() {
     cardStatsLoading: false,
     worthCards: new Map(),
     worthModel: null,
+    winStats: new Map(),
   });
 }
 
@@ -1134,6 +1135,97 @@ describe("cardStore — worth table", () => {
 
     expect(useCardStore.getState().worthCards.size).toBe(0);
     expect(useCardStore.getState().worthModel).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Win stats (dev-only)
+// ---------------------------------------------------------------------------
+
+describe("cardStore — win stats", () => {
+  let fetchSpy: ReturnType<typeof vi.spyOn>;
+
+  const mockWinStatsResponse = {
+    cards: {
+      "lightning bolt": {
+        win_rate: 0.62,
+        ci: { lower: 0.5, upper: 0.73 },
+        sample_size: 14,
+      },
+    },
+  };
+
+  beforeEach(() => {
+    resetStores();
+    isLocalClientMock.mockReturnValue(true);
+    fetchSpy = vi.spyOn(globalThis, "fetch");
+    fetchSpy.mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes("/api/cards/win-stats")) {
+        return new Response(JSON.stringify(mockWinStatsResponse));
+      }
+      return new Response("", { status: 404 });
+    });
+  });
+
+  afterEach(() => {
+    fetchSpy.mockRestore();
+    isLocalClientMock.mockReturnValue(false);
+  });
+
+  it("a successful fetch merges gpwr/gpwrCi/gpwrSampleSize into cardStatsMap, keyed via cardNameKey normalisation", async () => {
+    // Payload key is lowercase ("lightning bolt") while the card's display
+    // name is "Lightning Bolt" — this only matches if cardNameKey() runs.
+    useCardStore.setState({
+      cardData: {
+        ...EMPTY_CARD_DATA,
+        cards: [makeCard("Lightning Bolt")],
+        ingestionHash: "hash-v1",
+      },
+    });
+
+    await vi.waitFor(() =>
+      expect(
+        useCardStore.getState().cardStatsMap.get("Lightning Bolt")?.gpwr,
+      ).toBe(0.62),
+    );
+
+    const entry = useCardStore.getState().cardStatsMap.get("Lightning Bolt");
+    expect(entry?.gpwr).toBe(0.62);
+    expect(entry?.gpwrCi).toEqual({ lower: 0.5, upper: 0.73 });
+    expect(entry?.gpwrSampleSize).toBe(14);
+  });
+
+  it("does not fetch when not a local client (production route 404s)", async () => {
+    isLocalClientMock.mockReturnValue(false);
+
+    await useCardStore.getState().fetchWinStats();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(useCardStore.getState().winStats.size).toBe(0);
+  });
+
+  it("caches by ingestionHash: repeat calls with the same hash do not refetch", async () => {
+    useCardStore.setState({
+      cardData: { ...EMPTY_CARD_DATA, ingestionHash: "hash-v1" },
+    });
+    await vi.waitFor(() =>
+      expect(useCardStore.getState().winStats.size).toBe(1),
+    );
+    fetchSpy.mockClear();
+
+    await useCardStore.getState().fetchWinStats();
+
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("swallows a failed fetch into an empty winStats state without throwing", async () => {
+    fetchSpy.mockRejectedValue(new Error("dev server mid-compile"));
+
+    await expect(
+      useCardStore.getState().fetchWinStats(),
+    ).resolves.not.toThrow();
+
+    expect(useCardStore.getState().winStats.size).toBe(0);
   });
 });
 

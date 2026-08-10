@@ -48,7 +48,7 @@ export interface RankAvailableCardsParams {
    * as "" — turns on color_flag/first_pick_score per row.
    */
   committed_colors?: string;
-  /** Dev-only worth-model fields (same gating shape as includeWinStats). */
+  /** Dev-only worth-model fields (same gating shape as the /api/cards/worth env gate). */
   include_worth?: boolean;
 }
 
