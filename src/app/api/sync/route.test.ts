@@ -13,6 +13,7 @@ vi.mock("@/core/db/sync/lock", () => ({
   releaseSyncLock: vi.fn().mockResolvedValue(undefined),
   updateLastSyncedAt: vi.fn().mockResolvedValue("1234567890"),
   getActiveDrafts: vi.fn().mockResolvedValue([]),
+  getLiveDraftingDrafts: vi.fn().mockResolvedValue([]),
   completeAgedPlayingDrafts: vi.fn().mockResolvedValue(0),
 }));
 
@@ -28,9 +29,16 @@ vi.mock("@/core/db/sync/syncActiveDraft", () => ({
   }),
 }));
 
+vi.mock("@/core/processPick", () => ({
+  resumeAutoPickForCurrentSeat: vi.fn().mockResolvedValue({
+    picks: [], phaseChanged: false, newPhase: null,
+  }),
+}));
+
 import { GET } from "./route";
-import { getActiveDrafts } from "@/core/db/sync/lock";
+import { getActiveDrafts, getLiveDraftingDrafts } from "@/core/db/sync/lock";
 import { syncActiveDraft } from "@/core/db/sync/syncActiveDraft";
+import { resumeAutoPickForCurrentSeat } from "@/core/processPick";
 
 // Helper to create GET request with cron auth
 function cronRequest(): NextRequest {
@@ -159,5 +167,80 @@ describe("GET /api/sync (cron)", () => {
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body.error).toBe("Server misconfiguration");
+  });
+});
+
+// vi.clearAllMocks() clears recorded calls but leaves implementations and any
+// queued mockResolvedValueOnce values in place, so each of these resets the
+// mocks it drives rather than inheriting whatever the previous test left.
+describe("GET /api/sync — live-draft auto-pick heartbeat", () => {
+  beforeEach(() => {
+    vi.mocked(getActiveDrafts).mockReset().mockResolvedValue([]);
+    vi.mocked(getLiveDraftingDrafts).mockReset().mockResolvedValue([]);
+    vi.mocked(resumeAutoPickForCurrentSeat).mockReset().mockResolvedValue({
+      picks: [], phaseChanged: false, newPhase: null,
+    });
+  });
+
+  it("nudges live drafts even when no Sheets draft is active", async () => {
+    vi.mocked(getLiveDraftingDrafts).mockResolvedValue(["kishla-skimmer"]);
+    vi.mocked(resumeAutoPickForCurrentSeat).mockResolvedValue({
+      picks: [{ pickN: 384, seat: 4, cardId: 1, cardName: "Bolt" }],
+      phaseChanged: false,
+      newPhase: null,
+    });
+
+    const res = await GET(cronRequest());
+    const body = await res.json();
+
+    expect(resumeAutoPickForCurrentSeat).toHaveBeenCalledWith(mockClient, "kishla-skimmer");
+    expect(body.status).toBe("no_active_drafts");
+    expect(body.autoPicked).toBe(1);
+  });
+
+  it("nudges every live draft and totals the picks", async () => {
+    vi.mocked(getLiveDraftingDrafts).mockResolvedValue(["draft-a", "draft-b"]);
+    vi.mocked(resumeAutoPickForCurrentSeat)
+      .mockResolvedValueOnce({
+        picks: [{ pickN: 1, seat: 1, cardId: 1, cardName: "A" }],
+        phaseChanged: false, newPhase: null,
+      })
+      .mockResolvedValueOnce({
+        picks: [
+          { pickN: 2, seat: 2, cardId: 2, cardName: "B" },
+          { pickN: 3, seat: 3, cardId: 3, cardName: "C" },
+        ],
+        phaseChanged: false, newPhase: null,
+      });
+
+    const body = await (await GET(cronRequest())).json();
+
+    expect(resumeAutoPickForCurrentSeat).toHaveBeenCalledTimes(2);
+    expect(body.autoPicked).toBe(3);
+  });
+
+  it("keeps going when one draft's nudge throws", async () => {
+    vi.mocked(getLiveDraftingDrafts).mockResolvedValue(["bad-draft", "good-draft"]);
+    vi.mocked(resumeAutoPickForCurrentSeat)
+      .mockRejectedValueOnce(new Error("Conflict: pick_n already exists — retry"))
+      .mockResolvedValueOnce({
+        picks: [{ pickN: 9, seat: 1, cardId: 1, cardName: "A" }],
+        phaseChanged: false, newPhase: null,
+      });
+
+    const res = await GET(cronRequest());
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.autoPicked).toBe(1);
+  });
+
+  it("runs the heartbeat even without a Sheets API key", async () => {
+    delete process.env.GOOGLE_SHEETS_API_KEY;
+    vi.mocked(getLiveDraftingDrafts).mockResolvedValue(["kishla-skimmer"]);
+
+    await GET(cronRequest());
+
+    expect(resumeAutoPickForCurrentSeat).toHaveBeenCalledWith(mockClient, "kishla-skimmer");
   });
 });

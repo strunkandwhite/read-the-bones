@@ -1,15 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
 import { timingSafeEqual } from "crypto";
+import type { Client } from "@libsql/client";
 import { getClient } from "@/core/db/client";
 import {
   acquireSyncLock,
   releaseSyncLock,
   updateLastSyncedAt,
   getActiveDrafts,
+  getLiveDraftingDrafts,
   completeAgedPlayingDrafts,
 } from "@/core/db/sync/lock";
 import { syncActiveDraft } from "@/core/db/sync/syncActiveDraft";
+import { resumeAutoPickForCurrentSeat } from "@/core/processPick";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
+
+/**
+ * Pick for the seat on the clock in every in-app draft that has one, and cascade
+ * from there.
+ *
+ * The cascade only ever runs as a side effect of a pick landing, and the client
+ * trigger only runs in an open browser — so a live draft whose players are all
+ * away sits dead, and strict rotisserie order means no other seat can pick to
+ * restart it. This is the only thing that recovers it unattended.
+ *
+ * One draft failing must not cost the others their nudge or fail the cron run:
+ * a client racing this call produces a ConflictError, which is a normal outcome
+ * here, not an error worth a non-200.
+ *
+ * Returns the total number of picks made, for the response body.
+ */
+async function runAutoPickHeartbeat(client: Client): Promise<number> {
+  const draftIds = await getLiveDraftingDrafts(client);
+  let picksMade = 0;
+
+  for (const draftId of draftIds) {
+    try {
+      const outcome = await resumeAutoPickForCurrentSeat(client, draftId);
+      picksMade += outcome.picks.length;
+    } catch (error) {
+      console.error(`[sync] auto-pick heartbeat failed for ${draftId}:`, error);
+    }
+  }
+
+  return picksMade;
+}
 
 async function runSync(): Promise<NextResponse> {
   const client = await getClient();
@@ -17,16 +51,21 @@ async function runSync(): Promise<NextResponse> {
   // Age backstop first so long-stale playing drafts drop out of this run
   await completeAgedPlayingDrafts(client);
 
+  // Before anything Sheets-related. Every early return below is about Sheets
+  // ingest — no active sheet draft, no API key, a lock already held — and none
+  // of them have any bearing on a live draft stalled on an absent player.
+  const autoPicked = await runAutoPickHeartbeat(client);
+
   // Check for active drafts (cheap query)
   const activeDrafts = await getActiveDrafts(client);
   if (activeDrafts.length === 0) {
-    return NextResponse.json({ status: "no_active_drafts" });
+    return NextResponse.json({ status: "no_active_drafts", autoPicked });
   }
 
   // Try to acquire lock
   const locked = await acquireSyncLock(client);
   if (!locked) {
-    return NextResponse.json({ status: "in_progress" });
+    return NextResponse.json({ status: "in_progress", autoPicked });
   }
 
   try {
@@ -34,7 +73,7 @@ async function runSync(): Promise<NextResponse> {
     if (!apiKey) {
       console.error("[sync] GOOGLE_SHEETS_API_KEY not set");
       return NextResponse.json(
-        { error: "Server misconfiguration" },
+        { error: "Server misconfiguration", autoPicked },
         { status: 500 },
       );
     }
@@ -63,6 +102,7 @@ async function runSync(): Promise<NextResponse> {
         picksInserted: totalPicksInserted,
         picksUpdated: totalPicksUpdated,
         matchesReplaced: totalMatchesReplaced,
+        autoPicked,
       });
     }
 
@@ -71,6 +111,7 @@ async function runSync(): Promise<NextResponse> {
       picksInserted: 0,
       picksUpdated: 0,
       matchesReplaced: 0,
+      autoPicked,
     });
   } finally {
     await releaseSyncLock(client);
