@@ -18,6 +18,7 @@ import { deckCardInsertStatements, type DeckCardInsert } from "../src/core/db/sy
 import { CardCache } from "../src/core/db/sync/card-cache";
 import { normalizeCardName, cardNameKey } from "../src/core/parseSheetRows";
 import { resolveCardNameToId } from "../src/core/db/sync/incremental";
+import { getOptedOutSeats } from "../src/core/db/queries/helpers";
 import { slugify } from "./lib/slugify";
 import { assertRecognizedFlags } from "./lib/cliFlags";
 import {
@@ -287,6 +288,25 @@ export function decideSeatWrite(
   return "write";
 }
 
+/**
+ * A seat in privacy_opt_outs must never gain stored deck rows. The matcher
+ * cannot reach one today because an opted-out seat has no picks to match
+ * against, but that is a consequence of the pick rows already being clean
+ * rather than a property of this script. Assert it locally so the guarantee
+ * does not depend on another module's invariant holding.
+ */
+export function assertSeatNotOptedOut(
+  seat: number,
+  optedOutSeats: Set<number>,
+  draftId: string,
+): void {
+  if (optedOutSeats.has(seat)) {
+    throw new Error(
+      `Refusing to write a deck for seat ${seat} of ${draftId}: the seat opted out`,
+    );
+  }
+}
+
 // ============================================================================
 // Turso integration (new in this script)
 // ============================================================================
@@ -552,6 +572,8 @@ async function main() {
     const seatPicks = await getSeatPicks(client, draftId);
     logIndent(`${seatPicks.size} seats in database`);
 
+    const optedOutSeats = await getOptedOutSeats(client, draftId);
+
     // Match decklists to seats
     const { assignments, skippedBelowThreshold } = matchDecksToSeats(decklists, seatPicks);
     logIndent(`Matched ${assignments.size} decklists to seats`);
@@ -600,6 +622,10 @@ async function main() {
         summary.unchanged++;
         continue;
       }
+
+      // Fires before both the dry-run report and the real write below, so a
+      // rehearsal never promises a write that would actually throw.
+      assertSeatNotOptedOut(seat, optedOutSeats, draftId);
 
       // Resolve card names and build insert batch, aggregating duplicates
       const qtyMap = new Map<string, { cardId: number; zone: "deck" | "sideboard"; qty: number }>();
