@@ -461,10 +461,15 @@ export const useCardStore = create<CardStoreState>()(
         const serverHash = useDraftStore.getState().syncStatus.ingestionHash;
         const currentHash = serverHash ?? get().cardData.ingestionHash;
 
+        // Sorted so the same selection always produces the same URL. The Set's
+        // insertion order changes as drafts are toggled, and an unsorted join
+        // gave each client its own permanently distinct CDN cache key for
+        // identical data — every one a full uncached getCards.
+        const draftsParam = [...selectedDrafts].sort().join(",");
+
         const params = new URLSearchParams();
-        params.set("drafts", [...selectedDrafts].join(","));
+        params.set("drafts", draftsParam);
         params.set("v", currentHash);
-        if (isLocalClient()) params.set("local", "1");
         if (activeDraft) params.set("activeDraft", activeDraft);
         if (effectivePool) params.set("poolAsOfDraft", effectivePool);
 
@@ -476,7 +481,7 @@ export const useCardStore = create<CardStoreState>()(
           includeDraftStats
             ? (() => {
                 const statsParams = new URLSearchParams();
-                statsParams.set("drafts", [...selectedDrafts].join(","));
+                statsParams.set("drafts", draftsParam);
                 statsParams.set("v", currentHash);
                 return fetch(`/api/draft-stats?${statsParams}`);
               })()
