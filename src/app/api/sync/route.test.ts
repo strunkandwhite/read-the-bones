@@ -36,7 +36,7 @@ vi.mock("@/core/processPick", () => ({
 }));
 
 import { GET } from "./route";
-import { getActiveDrafts, getLiveDraftingDrafts } from "@/core/db/sync/lock";
+import { getActiveDrafts, getLiveDraftingDrafts, acquireSyncLock } from "@/core/db/sync/lock";
 import { syncActiveDraft } from "@/core/db/sync/syncActiveDraft";
 import { resumeAutoPickForCurrentSeat } from "@/core/processPick";
 
@@ -235,12 +235,38 @@ describe("GET /api/sync — live-draft auto-pick heartbeat", () => {
     expect(body.autoPicked).toBe(1);
   });
 
+  it("nudges live drafts even when the sync lock is already held", async () => {
+    // A non-empty activeDrafts plus a held lock is the only way to reach the
+    // in_progress return — an empty activeDrafts list would return earlier,
+    // at no_active_drafts, without ever exercising this branch.
+    vi.mocked(getActiveDrafts).mockResolvedValue([
+      { draftId: "draft-1", sheetId: "sheet-abc" },
+    ]);
+    vi.mocked(acquireSyncLock).mockResolvedValueOnce(false);
+    vi.mocked(getLiveDraftingDrafts).mockResolvedValue(["kishla-skimmer"]);
+
+    const res = await GET(cronRequest());
+    const body = await res.json();
+
+    expect(resumeAutoPickForCurrentSeat).toHaveBeenCalledWith(mockClient, "kishla-skimmer");
+    expect(body.status).toBe("in_progress");
+  });
+
   it("runs the heartbeat even without a Sheets API key", async () => {
+    // Likewise, activeDrafts must be non-empty to reach the API-key check at
+    // all — otherwise this returns at no_active_drafts before ever looking at
+    // GOOGLE_SHEETS_API_KEY, and the test would pass for the wrong reason.
+    vi.mocked(getActiveDrafts).mockResolvedValue([
+      { draftId: "draft-1", sheetId: "sheet-abc" },
+    ]);
     delete process.env.GOOGLE_SHEETS_API_KEY;
     vi.mocked(getLiveDraftingDrafts).mockResolvedValue(["kishla-skimmer"]);
 
-    await GET(cronRequest());
+    const res = await GET(cronRequest());
+    const body = await res.json();
 
     expect(resumeAutoPickForCurrentSeat).toHaveBeenCalledWith(mockClient, "kishla-skimmer");
+    expect(res.status).toBe(500);
+    expect(body.error).toBe("Server misconfiguration");
   });
 });
