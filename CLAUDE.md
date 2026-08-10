@@ -140,6 +140,14 @@ The app exposes REST API routes under `/api/` for querying draft data. All route
 - `/api/sync` — Vercel cron sync endpoint (GET only, authenticated via `CRON_SECRET`). Runs **every minute** via Vercel cron (`vercel.json`; minute-level granularity requires a Pro plan). No manual POST endpoint exists, but the same GET can be triggered on demand: `curl -H "Authorization: Bearer $CRON_SECRET" https://read-the-bones.vercel.app/api/sync`. A sync lock makes concurrent calls safe — an overlapping request returns `{"status":"in_progress"}` instead of running twice.
 - `/api/sync-status` — Returns current sync lock state
 
+**Dev-only routes** (404 in production via `NODE_ENV !== "production"` — never reachable on the deployed site):
+- `/api/cards/worth` — Worth-model table. Memoized in `stats/worth.ts` on the stats-phase drafts' domain hashes.
+- `/api/cards/win-stats` — Bulk decklist win rates (the GPWR column). Memoized in `winStats.ts` on a fingerprint of `deck_hashes` plus a `match_events` aggregate — deliberately *not* the ingestion hash, which includes `picks_hash` and would invalidate on every pick.
+
+Both are fetched once per ingestion hash by `cardStore` (`fetchWorthTable`, `fetchWinStats`) and are gated client-side by `isLocalClient()`. Win stats used to ride inline on `/api/cards`; they were split out because that payload refetches on every pick while win rates change only when decklists or match results do.
+
+**A local dev server reads production Turso.** That is the single largest source of read volume — one dev page load costs far more than a production one, and dev has no CDN in front of it. Don't leave `pnpm dev` running against production longer than you need it.
+
 ## Deploying
 
 **There are two ways production gets deployed, and both are live:**
