@@ -4,6 +4,8 @@
  * Mana symbol rendering components using local SVG copies (public/mana/).
  */
 
+import { FACE_SEPARATOR } from "@/core/cardTypes";
+
 /**
  * Convert mana symbol like {W}, {2}, {W/U} to SVG filename.
  */
@@ -42,7 +44,7 @@ function ManaSymbol({ symbol }: { symbol: string }) {
 export function ManaSymbols({ cost }: { cost: string }) {
   if (!cost) return <span className="text-zinc-400">-</span>;
 
-  const faces = cost.split(" // ").map((face) => face.match(/\{[^}]+\}/g) || []);
+  const faces = cost.split(FACE_SEPARATOR).map((face) => face.match(/\{[^}]+\}/g) || []);
 
   return (
     <span className="flex flex-wrap items-center gap-0.5">

@@ -21,6 +21,7 @@ import { sessionsAgoByDraft } from "../../../draftSessions";
 import { DEFAULT_POOL_SIZE } from "../../../types";
 import { computeIngestionHash } from "../../sync/domains";
 import { normalizeColorIdentity } from "../../../manaColors";
+import { isFrontFaceLand } from "../../../cardTypes";
 import {
   actBy,
   estimateTau,
@@ -152,20 +153,6 @@ export async function getWorthTable(opts?: {
   return assembly;
 }
 
-/**
- * Land test on the FRONT face's supertype/type segment only. DFC type lines
- * join faces with " // "; a card that is a spell on the front and a land on
- * the back (MDFC) is drafted and priced as the spell, so only the front face
- * decides land-ness. Matching the whole-word "Land" before the em-dash also
- * avoids false positives from subtype text (e.g. "Island" contains "land").
- */
-function isFrontFaceLand(typeLine: string | undefined): boolean {
-  if (!typeLine) return false;
-  const frontFace = typeLine.split(" // ")[0];
-  const typesBeforeDash = frontFace.split("—")[0];
-  return typesBeforeDash.split(/\s+/).includes("Land");
-}
-
 function roundToTenth(value: number): number {
   return Math.round(value * 10) / 10;
 }
@@ -273,7 +260,7 @@ async function assembleWorthTable(
       cardMeta.set(name, {
         // WorthCard uses "" for colorless where normalizeColorIdentity uses "C".
         colors: normalized === "C" ? "" : normalized,
-        isLand: isFrontFaceLand(scryfall?.type_line),
+        isLand: isFrontFaceLand(scryfall?.type_line ?? ""),
       });
     }
   }
