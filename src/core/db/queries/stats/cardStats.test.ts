@@ -18,6 +18,7 @@ vi.mock("../../client", () => ({
 }));
 import { getClient } from "../../client";
 import { getCardStats } from "./cardStats";
+import { getCardPickStats } from "./pickStats";
 
 let db: Client;
 
@@ -199,5 +200,52 @@ describe("getCardStats", () => {
     expect(result!.wins).not.toBeNull();
     expect(result!.wins!.seats_maindecked).toBe(MIN_SAMPLE_SIZE);
     expect(result!.wins!.low_sample).toBe(false);
+  });
+});
+
+describe("getCardPickStats — session ordinals span every stats-phase draft", () => {
+  it("keeps the real session gap when a filter excludes an interior session", async () => {
+    // Session ordinals must span every stats-phase draft, not the drafts
+    // this call's own filters happen to keep. "jul" never has Bolt in its
+    // cube, so it never becomes an observation, but it must still occupy
+    // ordinal 1 between "aug" and "jun" — excluding it via exclude_draft_id
+    // must not collapse "jun" from ordinal 2 down to ordinal 1.
+    await insertCard(db, 1, "Bolt");
+    await insertCubeSnapshot(db, 1);
+    await insertCubeCard(db, 1, 1, 540);
+    await insertCubeSnapshot(db, 2); // jul's cube — deliberately without Bolt
+    await insertDraft(db, "aug", { date: "2026-08-01", cubeSnapshotId: 1 });
+    await insertDraft(db, "jul", { date: "2026-07-01", cubeSnapshotId: 2 });
+    await insertDraft(db, "jun", { date: "2026-06-01", cubeSnapshotId: 1 });
+    await insertPickEvent(db, "aug", 1, 1, 1);
+    await insertPickEvent(db, "jun", 30, 1, 1);
+
+    const unfiltered = await getCardPickStats(db, { card_name: "Bolt" });
+    const filtered = await getCardPickStats(db, {
+      card_name: "Bolt",
+      exclude_draft_id: "jul",
+    });
+
+    expect(filtered!.weighted_geomean).toBeCloseTo(unfiltered!.weighted_geomean, 10);
+  });
+
+  it("weights a two-sessions-back observation at 0.5^(2/4)", async () => {
+    // Aug at ordinal 0 (weight 1); jul (no Bolt pick) occupies ordinal 1;
+    // jun at ordinal 2 (weight 0.5^(2/4) = 0.70711).
+    await insertCard(db, 1, "Bolt");
+    await insertCubeSnapshot(db, 1);
+    await insertCubeCard(db, 1, 1, 540);
+    await insertCubeSnapshot(db, 2);
+    await insertDraft(db, "aug", { date: "2026-08-01", cubeSnapshotId: 1 });
+    await insertDraft(db, "jul", { date: "2026-07-01", cubeSnapshotId: 2 });
+    await insertDraft(db, "jun", { date: "2026-06-01", cubeSnapshotId: 1 });
+    await insertPickEvent(db, "aug", 1, 1, 1);
+    await insertPickEvent(db, "jun", 30, 1, 1);
+
+    const stats = await getCardPickStats(db, { card_name: "Bolt" });
+    const w = Math.pow(0.5, 2 / 4);
+    const rawGeomean = Math.exp((1 * Math.log(1) + w * Math.log(30)) / (1 + w));
+    // weighted_geomean is rounded to one decimal place by getCardPickStats.
+    expect(stats!.weighted_geomean).toBeCloseTo(rawGeomean, 1);
   });
 });

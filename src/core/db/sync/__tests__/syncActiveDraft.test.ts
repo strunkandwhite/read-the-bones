@@ -88,6 +88,25 @@ function phaseWrites(client: { execute: ReturnType<typeof vi.fn> }): string[] {
 
 const draft = { draftId: "test-draft", sheetId: "sheet-1" };
 
+function makeClientWithNoDomainHashes() {
+  // draft:create leaves a draft in 'setup' with every domain hash NULL —
+  // this is that state, before pnpm sync has ever touched the draft.
+  return phaseClient({ phase: "setup" });
+}
+
+function spyOnPickInserts(client: { batch: ReturnType<typeof vi.fn> }) {
+  const insertSpy = vi.fn();
+  client.batch = vi.fn().mockImplementation((stmts: any[]) => {
+    for (const s of stmts ?? []) {
+      if (typeof s.sql === "string" && s.sql.includes("INSERT") && s.sql.includes("pick_events")) {
+        insertSpy(s);
+      }
+    }
+    return Promise.resolve([]);
+  });
+  return insertSpy;
+}
+
 describe("syncActiveDraft phase decisions", () => {
   beforeEach(() => {
     mockFetch.mockReset();
@@ -148,13 +167,27 @@ describe("syncActiveDraft phase decisions", () => {
 
     await syncActiveDraft(client as any, draft, "api-key");
 
-    const sqls = client.execute.mock.calls.map(([p]: any[]) => p.sql as string);
-    const deleteIdx = sqls.findIndex((s) => s.includes("DELETE FROM pick_events"));
-    const dbPicksIdx = sqls.findIndex((s) => s.includes("JOIN cards"));
-    expect(deleteIdx).toBeGreaterThanOrEqual(0);
+    // The redaction delete now travels as a single client.batch call rather
+    // than a client.execute per table, so its position in the overall call
+    // order has to be read off invocationCallOrder (shared across mocks)
+    // instead of a single execute-calls array.
+    const deleteCallIdx = client.batch.mock.calls.findIndex((args: any[]) =>
+      (args[0] ?? []).some(
+        (s: any) => typeof s.sql === "string" && s.sql.includes("DELETE FROM pick_events"),
+      ),
+    );
+    expect(deleteCallIdx).toBeGreaterThanOrEqual(0);
+    const deleteOrder = client.batch.mock.invocationCallOrder[deleteCallIdx];
+
+    const dbPicksIdx = client.execute.mock.calls.findIndex(([p]: any[]) =>
+      (p.sql as string).includes("JOIN cards"),
+    );
+    expect(dbPicksIdx).toBeGreaterThanOrEqual(0);
+    const dbPicksOrder = client.execute.mock.invocationCallOrder[dbPicksIdx];
+
     // Deleting after the ingest read would let detectRemovedPicks see the
     // redacted positions as sheet deletions and flag the draft diverged.
-    expect(deleteIdx).toBeLessThan(dbPicksIdx);
+    expect(deleteOrder).toBeLessThan(dbPicksOrder);
 
     const insertedSeats = client.batch.mock.calls
       .flatMap(([stmts]: any[]) => stmts ?? [])
@@ -174,5 +207,20 @@ describe("syncActiveDraft phase decisions", () => {
 
     expect(result.phaseSet).toBe("playing");
     expect(result.diverged).toBe(false);
+  });
+
+  it("skips a draft that has never been synced from the CLI", async () => {
+    // No domain hashes recorded => draft:create ran but pnpm sync has not.
+    // Opt-outs are only recorded by the CLI, so ingesting here would write an
+    // opted-out seat's picks before anything knows to exclude them.
+    mockFetch.mockResolvedValue(sheet({}));
+    const client = makeClientWithNoDomainHashes();
+    const insertSpy = spyOnPickInserts(client);
+
+    const result = await syncActiveDraft(client as any, draft, "api-key");
+
+    expect(result.status).toBe("awaiting_cli_sync");
+    expect(result.picksInserted).toBe(0);
+    expect(insertSpy).not.toHaveBeenCalled();
   });
 });

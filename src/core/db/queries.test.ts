@@ -1798,6 +1798,8 @@ describe("rankAvailableCards", () => {
     cubeSizes?: { cube_snapshot_id: number; total_cards: number }[];
     playStats?: { card_id: number; draft_id: string; seat: number; zone: string }[];
     winStats?: { card_id: number; draft_id: string; seat: number; game_wins: number; game_losses: number }[];
+    /** Session-ordinal drafts (parallel query 4); defaults to one session per draftsWithCard draft_id. */
+    allStatsDrafts?: { draft_id: string; draft_date: string }[];
   }) {
     // 4. Batch card ID resolution
     mockClient.execute.mockResolvedValueOnce(
@@ -1815,11 +1817,20 @@ describe("rankAvailableCards", () => {
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult(opts.cubeSizes ?? [])
     );
-    // 8. Play stats (parallel query 4)
+    // 7b. All stats-phase drafts, for session ordinals (parallel query 4)
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult(
+        opts.allStatsDrafts ??
+          [...new Set((opts.draftsWithCard ?? []).map((d) => d.draft_id))].map(
+            (draft_id) => ({ draft_id, draft_date: "2026-01-01" })
+          )
+      )
+    );
+    // 8. Play stats (parallel query 5)
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult(opts.playStats ?? [])
     );
-    // 9. Win stats (parallel query 5)
+    // 9. Win stats (parallel query 6)
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult(opts.winStats ?? [])
     );

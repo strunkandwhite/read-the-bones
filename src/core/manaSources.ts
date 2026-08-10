@@ -11,6 +11,7 @@
 
 import type { ScryCard } from "./types";
 import { displayManaCost } from "./manaCost";
+import { FACE_SEPARATOR, isLand } from "./cardTypes";
 
 export type ManaColor = "W" | "U" | "B" | "R" | "G";
 
@@ -60,8 +61,6 @@ export type ColorSourceSplit = {
   requiredBy: string | null;
 };
 
-const FACE_SEPARATOR = " // ";
-
 /** A transforming double-faced card is cast as its front face, so a land on its
  *  back is not a land you can play. A modal one (Sink into Stupor // Soporific
  *  Springs) is. Scryfall's `layout` would say which, but it isn't stored — the
@@ -80,10 +79,11 @@ export function isLandSource(cardName: string, card: ScryCard | undefined): bool
   if (cardName in BASIC_LAND_NAMES) return true;
   if (!card) return false;
 
-  const typeFaces = faces(card.typeLine ?? "");
-  const landFaces = typeFaces.filter((face) => /\bland\b/i.test(face));
-  if (landFaces.length === 0) return false;
-  if (landFaces.length === typeFaces.length) return true;
+  const typeLine = card.typeLine ?? "";
+  if (!isLand(typeLine)) return false;
+
+  const allFacesLand = faces(typeLine).every((face) => isLand(face));
+  if (allFacesLand) return true;
   return !isTransformingCard(card);
 }
 

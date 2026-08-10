@@ -4,6 +4,7 @@ import type {
   DeckState,
   ScryCard,
 } from "./types";
+import { isLand } from "./cardTypes";
 
 /** The ordered mana-value columns. The deck zone repeats these once per row;
  *  the lands column stands outside them. */
@@ -154,7 +155,7 @@ const BASIC_LAND_NAMES = [
 
 /** Determine which column a card belongs in based on its Scryfall data. */
 export function getColumnKey(scryfall: ScryCard): ColumnKey {
-  if (scryfall.typeLine.toLowerCase().includes("land")) {
+  if (isLand(scryfall.typeLine)) {
     return "lands";
   }
   const mv = scryfall.manaValue;

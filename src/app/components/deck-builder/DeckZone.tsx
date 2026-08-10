@@ -10,6 +10,7 @@ import {
   toBaseColumnKey,
 } from "@/core/deckBuilder";
 import { colorSourceSplits, isNotableColor } from "@/core/manaSources";
+import { isLand, isCreature } from "@/core/cardTypes";
 import { isLocalClient } from "@/core/isLocal";
 import { ColorPills } from "../ManaSymbols";
 import type { DeckColumnKey } from "@/core/deckBuilder";
@@ -90,9 +91,9 @@ export function DeckZone({
     for (const col of Object.values(columns)) {
       for (const name of col) {
         if (BASIC_LAND_SET.has(name)) { lands++; continue; }
-        const tl = scryfallData.get(name)?.typeLine?.toLowerCase() ?? "";
-        if (tl.includes("land")) lands++;
-        else if (tl.includes("creature")) creatures++;
+        const tl = scryfallData.get(name)?.typeLine ?? "";
+        if (isLand(tl)) lands++;
+        else if (isCreature(tl)) creatures++;
         else spells++;
       }
     }

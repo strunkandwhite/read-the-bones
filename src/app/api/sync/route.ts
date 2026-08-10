@@ -90,7 +90,7 @@ function timingSafeStringEqual(a: string, b: string): boolean {
 }
 
 /**
- * GET /api/sync — Called by Vercel cron job every 10 minutes.
+ * GET /api/sync — Called by Vercel cron job every minute.
  * Requires CRON_SECRET authorization.
  */
 export const GET = withApiErrors(

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { useDraftStore, _resetPollingState, POLL_INTERVAL_MS } from "./draftStore";
+import { useDraftStore, _resetPollingState, POLL_INTERVAL_MS, type BoardData } from "./draftStore";
 
 function resetStore() {
   useDraftStore.setState({
@@ -1032,5 +1032,55 @@ describe("draftStore — fetchStandings", () => {
 
     expect(useDraftStore.getState().standings).toEqual([]);
     expect(useDraftStore.getState().standingsMatches).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Draft switch clears board state
+// ---------------------------------------------------------------------------
+
+function boardFixture(draftId: string): BoardData {
+  return {
+    picks: [{ pickN: 1, seat: 1, cardName: `${draftId}-card`, oracleId: "x", colorIdentity: ["R"], manaCost: "{R}" }],
+    numSeats: 8,
+    picksPerPlayer: 45,
+    doublePickAfterRound: null,
+    phase: "drafting",
+    seatNames: { "1": "Alice" },
+    bannedCards: [],
+    isSheetDraft: false,
+    redactedSeats: [],
+  };
+}
+
+describe("draftStore — draft switch clears board", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    resetStore();
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ unchanged: true }), { status: 200 }),
+    );
+  });
+
+  afterEach(() => {
+    useDraftStore.getState().stopPolling();
+    vi.restoreAllMocks();
+  });
+
+  it("drops the previous draft's board when the active draft changes", () => {
+    useDraftStore.setState({ activeDraft: "draft-a" });
+    useDraftStore.setState({
+      board: boardFixture("draft-a"),
+      liveDraftStatus: { latestPickN: 5, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 28 },
+    });
+    expect(useDraftStore.getState().board).not.toBeNull();
+
+    useDraftStore.setState({ activeDraft: "draft-b" });
+
+    // Consumers derive taken cards and the local-deck mode from board, and a
+    // deck save triggered in this window would write draft-a's cards to
+    // draft-b's seat.
+    expect(useDraftStore.getState().board).toBeNull();
+    expect(useDraftStore.getState().liveDraftStatus).toBeNull();
   });
 });

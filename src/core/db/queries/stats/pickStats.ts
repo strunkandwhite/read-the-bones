@@ -123,18 +123,17 @@ export async function getCardPickStats(
             GROUP BY cube_snapshot_id`,
       args: [...cubeSnapshotIds],
     }),
-    // Session ordinals must span every stats-phase draft matching this
-    // query's filters, not just the ones this card's cube included — a
-    // card that sat out an interior session (cube-absent, not banned) must
-    // keep the real gap on either side of it (same principle documented in
-    // rankedAvailable.ts, next to its own ordinal map). No ban filter here:
-    // a draft where THIS card was banned still happened and still occupies
-    // a session slot for numbering purposes. The ban only removes it from
-    // draftIds, the set that produces observations, below.
+    // Session ordinals span every stats-phase draft, not the filtered subset:
+    // how much drafting has happened since an observation is a fact about the
+    // world, not about the current query. Numbering a filtered set densely
+    // would close the gap left by an excluded interior session and silently
+    // re-weight every older observation. No ban filter either: a draft where
+    // THIS card was banned still happened and still occupies a session slot
+    // for numbering purposes — the ban only removes it from draftIds, the set
+    // that produces observations, below.
     client.execute({
-      sql: `SELECT draft_id, draft_date FROM drafts d
-            WHERE ${phaseFragment} ${draftWhere}`,
-      args: [...phaseArgs, ...draftArgs],
+      sql: `SELECT draft_id, draft_date FROM drafts d WHERE ${phaseFragment}`,
+      args: [...phaseArgs],
     }),
   ]);
 

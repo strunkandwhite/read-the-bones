@@ -396,6 +396,31 @@ describe("rankAvailableCards — pick-score inputs", () => {
     const beta = result.cards.find((c) => c.card_name === "Beta")!;
     expect(beta.geomean_pick).toBeCloseTo(17.8, 1);
   });
+
+  it("keeps the real session gap when an interior session's cube holds none of the ranked cards", async () => {
+    // "s2" sits between "s0" and "s3" but its cube is entirely disjoint from
+    // "live"'s (only "Other" is in it), so it never joins into the ranked
+    // cardIds set. It must still occupy ordinal 1: "s3" stays two sessions
+    // back, not one.
+    await insertCard(db, 1, "Bolt");
+    await insertCard(db, 2, "Other");
+    await insertCubeSnapshot(db, 1); // Bolt's cube — "live", "s0", "s3"
+    await insertCubeSnapshot(db, 2); // disjoint cube — "s2" only
+    await insertCubeCard(db, 1, 1);
+    await insertCubeCard(db, 2, 2);
+    await insertDraft(db, "live", { phase: "drafting", cubeSnapshotId: 1 });
+    await insertDraft(db, "s0", { date: "2026-08-01", phase: "complete", cubeSnapshotId: 1 });
+    await insertDraft(db, "s2", { date: "2026-07-01", phase: "complete", cubeSnapshotId: 2 });
+    await insertDraft(db, "s3", { date: "2026-06-01", phase: "complete", cubeSnapshotId: 1 });
+    await insertPickEvent(db, "s0", 1, 1, 1);
+    await insertPickEvent(db, "s3", 30, 1, 1);
+
+    const result = await rankAvailableCards({ draft_id: "live", before_pick_n: 1 });
+
+    // exp((1*ln(1) + 0.5^(2/4)*ln(30)) / (1 + 0.70711)) = 4.09
+    const bolt = findCard(result, "Bolt");
+    expect(bolt.geomean_pick).toBeCloseTo(4.1, 1);
+  });
 });
 
 describe("ranked available win aggregation", () => {

@@ -9,10 +9,16 @@ src/
   core/           # Framework-agnostic logic (parsing, stats, Scryfall)
     db/           # Turso database client, migrations
       queries/    # Domain-based query modules (cards, decks, decklists, drafts, floatedCards, helpers, matches, pickQueue, picks, playStats, pool, search, seatTokens, stats/, winStats, winningDecks)
-      ingest/     # Ingestion helpers (Scryfall resolution, db-helpers, utils)
+      ingest/     # Ingestion helpers (Scryfall resolution, db-helpers, redaction, utils)
       sync/       # Unified sync pipeline (incremental.ts, lock.ts, syncActiveDraft.ts, domain hashing, batch ops, card cache)
     draftPhases.ts      # Shared draft-phase predicates (isCompletedForStats, STATS_COMPLETE_PHASES)
+    draftSessions.ts    # Session ordinals (sessionsAgoByDraft) for recency weighting
     manaColors.ts       # WUBRG color-identity normalization (normalizeColorIdentity)
+    manaCost.ts         # Mana cost parsing, including prepared/DFC cards
+    manaSources.ts      # Colored mana source accounting for the deck builder
+    optOuts.ts          # Loads opt-out player names from .opt-outs.json
+    pickScore.ts        # Canonical pick score (P#): weighted geometric mean of pick positions
+    worthModel.ts       # Card worth model (Worth, PVI, Danger); pure math, no I/O
   build/          # Build-time utilities (Scryfall cache)
   app/            # Next.js web app
     api/
@@ -23,11 +29,14 @@ src/
       draft-board/  # Draft board modal and related components
     hooks/        # Custom hooks (useHoldToConfirm, useModalManagement, useScrollLock, useSharedDeckLoader, useSlowRenderTracking)
     stores/       # Zustand stores (draftStore, cardStore, liveStore, selectors, hydration, wiring)
-      live/       # liveStore action modules (auth, deckSave, picking, queueFloat)
+      live/       # liveStore action modules (auth, deckSave, localDeck, picking, queueFloat)
       computeMyDeckCardNames.ts  # Shared "my deck cards" union (picks + floats + queue)
       wiring.ts   # Explicit cross-store subscription registration
     api/          # API routes (internal + REST)
-scripts/          # CLI tools (sync, draft-create, draft-create-live, draft-start, draft-admin, draft-delete, decklists, backfill-scryfall)
+scripts/          # CLI tools: sync, draft-create, draft-create-live, draft-start, draft-admin, draft-delete,
+                  # draft-reset, decklists, decklists-integrity, import-recovered-decks, redact-opted-out,
+                  # backfill-scryfall, backfill-hashes, export-card-csv, merge-dfc-cards, screenshot, worth-validate
+  lib/            # Shared script helpers (cliFlags, deckMatching, deleteDraft, slugify)
 ```
 
 ## Key Commands
@@ -59,8 +68,8 @@ pnpm draft:delete <draft-id>   # Permanently delete a draft and all associated d
 
 # Draft lifecycle (live — for running rotisserie drafts in-app)
 pnpm draft:create-live --name "Name" --date 2026-04-01 --seats 10 --picks-per-player 45 --pool cubecobra:<id> --double-pick-after 25 [--banned-cards "Card A,Card B"]
-# --pool accepts cubecobra:<id> or file:<path>
-# Default cube ID for new drafts: cubecobra:samp
+# --pool accepts cubecobra:<id> or file:<path>; there is no code default, --pool is required
+# Team convention: use cubecobra:samp for the standard rotisserie cube
 # --double-pick-after is the last single-pick round; 45-pick drafts use 25.
 # Omitting it stores NULL, which falls back to the floor(N/4) heuristic
 # (round 23 for a 45-pick draft) — pass it explicitly for 45-pick drafts.
@@ -68,13 +77,21 @@ pnpm draft:start <name>              # Start drafting (setup → drafting)
 pnpm draft:admin <subcommand>        # Admin tools (undo-pick, edit-pick, regen-token, set-phase, add-ban, remove-ban, enter-match, reorder-seats)
 
 # Decklists
-pnpm decklists                 # Fetch decklists from sealeddeck.tech and write to Turso
-pnpm decklists tarkir          # Fetch decklists for a specific draft
-pnpm decklists --dry-run       # Report what would be written, change nothing
-pnpm decklists --force         # Also overwrite hand-recovered decks (see decklists:import)
+pnpm decklists                           # Fetch decklists from sealeddeck.tech and write to Turso
+pnpm decklists tarkir                    # Fetch decklists for a specific draft
+pnpm decklists --dry-run                 # Report what would be written, change nothing
+pnpm decklists --force                   # Also overwrite hand-recovered decks (see decklists:import)
+pnpm decklists:integrity                 # Audit every stored decklist against its seat's picks; list seats with no decklist
+pnpm decklists:integrity --write-report  # Refresh data/decklist-status.md, the remediation queue
+pnpm decklists:import                    # Import hand-recovered decklists from data/decklist-recovery/parsed/*.json
+pnpm decklists:import --dry-run          # Report what would be imported, change nothing
+pnpm decklists:import --force            # Overwrite a seat's existing (non-recovered) deck too
 
 # Scryfall data
 pnpm scryfall:backfill         # Fetch missing Scryfall data for cards in Turso, update local cache
+
+# Worth model
+pnpm worth:validate            # LODO validation of the card worth model; gates on a pinned minimum pooled correlation
 ```
 
 **Decklists:** `data/decklists.txt` is an **inbox, not an archive** — it holds sealeddeck.tech URLs that have not been ingested yet, grouped by draft name (a bare draft name on its own line, then its URLs; there is no comment syntax, so every non-URL line is read as a draft heading). Run `pnpm decklists --dry-run`, read the report, then `pnpm decklists`. **Once a submission is stored, remove its URL from the file.** It is currently empty; `data/decklist-status.md` records where all 230 of its former entries went.
@@ -206,7 +223,7 @@ Search is debounced (500ms) and runs locally against cached card data. Server-si
 
 ## Key Features
 
-- **Active draft sync:** Drafts linked to a Google Sheet (`sheetId` in metadata) are synced by a Vercel cron job calling `GET /api/sync` every minute (authenticated via `CRON_SECRET`). Each run refetches the sheet for every active draft, but per-domain hashing means an unchanged sheet writes nothing. The cron covers phases `setup`, `drafting`, and `playing`: it inserts missing picks, updates picks whose sheet cell was edited after the fact, and hash-syncs match results. When every pick cell is filled the draft moves `drafting → playing`; when the full round robin (n·(n−1)/2 matches) is recorded — or 60 days after the draft date — it moves `playing → complete` and leaves the sync window. `pnpm draft:admin set-phase` overrides at any time; there is no manual "Sync Now" button — use `pnpm sync <name>` from the CLI for on-demand full syncs.
+- **Active draft sync:** Drafts linked to a Google Sheet (`sheetId` in metadata) are synced by a Vercel cron job calling `GET /api/sync` every minute (authenticated via `CRON_SECRET`). Each run refetches the sheet for every active draft, but per-domain hashing means an unchanged sheet writes nothing. The draft-selection query considers phases `setup`, `drafting`, and `playing`, but the cron only ever ingests `drafting` and `playing`: a draft still in `setup` has not had its first CLI sync, which is the only path that records opt-outs (it reads the gitignored `.opt-outs.json`, never deployed to the cron's environment), so `syncActiveDraft` skips it and reports `awaiting_cli_sync` rather than risk writing an opted-out seat's picks unredacted. Run `pnpm sync <draft-name>` once after `pnpm draft:create` before the cron will touch a Sheets draft. Once ingesting, the cron inserts missing picks, updates picks whose sheet cell was edited after the fact, and hash-syncs match results. When every pick cell is filled the draft moves `drafting → playing`; when the full round robin (n·(n−1)/2 matches) is recorded — or 60 days after the draft date — it moves `playing → complete` and leaves the sync window. `pnpm draft:admin set-phase` overrides at any time; there is no manual "Sync Now" button — use `pnpm sync <name>` from the CLI for on-demand full syncs.
 - **Banned cards:** Drafts can specify banned cards in metadata. Banned cards are visually marked in the card table and excluded from available card queries.
 - **Deck builder:** Per-seat deck building panel with drag-and-drop, maindeck/sideboard zones, save status indicator, and shareable deck snapshots via `/api/deck`. Live drafts persist WIP decks server-side (seat token auth); sheet drafts persist locally in the browser (localStorage, keyed by draft + seat) with an "Add to Deck Builder" button replacing Float. The maindeck splits into a creature row and a non-creature row over the same mana-value columns, with a single full-height lands column beside them; the row is stored in the column key (`nc-` prefix), so a card the user moves stays where they put it. The sideboard is not split.
 - **Shared decks:** Immutable deck snapshots stored in the `decks` table (kind = 'snapshot'), accessible via short URLs.
@@ -245,6 +262,8 @@ moves only when a new session lands.
 
 **Opt-out operational hazard:** `privacy_opt_outs` is the only thing the ingest filter consults, and `pnpm draft:reset` clears it (`db-helpers.ts`, `resetDraft`). Since `.opt-outs.json` is gitignored and never deployed, a `draft:reset` followed by `pnpm sync` **from a machine without that file** re-ingests the opted-out player's picks unredacted — and no read-time mask exists to catch it any more. Always confirm `.opt-outs.json` is present before re-syncing a draft that had opt-outs, and check `select * from privacy_opt_outs` afterwards.
 
+`pnpm redact:opted-out` (add `--dry-run` to preview first) is the one-time migration that cleaned up rows written before ingest-time redaction existed: it deletes stored picks, deck cards and deck hashes for every seat already recorded in `privacy_opt_outs`. It is idempotent and reports zero on a clean database, so it is also the tool to reach for after the hazard above; re-run it once `.opt-outs.json` is back in place.
+
 **Recovered-decklist reset hazard:** `pnpm draft:reset` and `pnpm draft:delete` wipe both `deck_cards` and `deck_hashes` for the draft (`db-helpers.ts`, `resetDraft`; `scripts/lib/deleteDraft.ts`) with no guard, no dry run and no prompt — and hand-recovered decklists go with them. Re-running `pnpm decklists` will not bring them back: the sealeddeck URLs for recovered seats are pruned from `data/decklists.txt` once their decks are stored, so nothing remains to re-fetch. Recovery is `pnpm decklists:import`, reading `data/decklist-recovery/parsed/`.
 
 **That directory is gitignored and has no backup.** Decklists feed private stats, so they are deliberately kept out of this public repo — which means the transcriptions exist on one disk only, and a `draft:reset` plus a lost `data/` directory destroys those decklists permanently. There is no second copy anywhere. Back `data/decklist-recovery/parsed/` up somewhere outside the repo, and never `git clean -fdx` without checking it.
@@ -282,8 +301,12 @@ moves only when a new session lands.
 - `docs/superpowers/specs/2026-04-13-head-to-head-match-matrix-design.md` - Head-to-head match matrix with inline editing and OMW%/OGW% tiebreakers
 - `docs/superpowers/specs/2026-05-28-queue-panel-ux-design.md` - Queue panel UX: how-to section + buttons-only grouping
 - `docs/superpowers/specs/2026-07-19-sheet-draft-deck-builder-design.md` - Sheet-draft deck builder (local mode) design
+- `docs/superpowers/specs/2026-08-01-card-worth-model-design.md` - Card worth model (Worth, PVI, Danger) design
+- `docs/superpowers/specs/2026-08-02-desire-metric-design.md` - Desire metric and zero-prior worth design
 - `docs/superpowers/specs/2026-08-07-maindeck-creature-split-design.md` - Maindeck creature / non-creature split design
 - `docs/superpowers/specs/2026-08-08-ingest-time-redaction-design.md` - Ingest-time privacy redaction (opted-out picks never stored)
+- `docs/superpowers/specs/2026-08-08-mobile-viewport-and-queue-handle-design.md` - Mobile viewport units and queue drag handle design
+- `docs/superpowers/specs/2026-08-08-sparkline-per-node-tooltips-design.md` - Sparkline per-node tooltips design
 - `docs/superpowers/specs/2026-08-09-decklist-recovery-design.md` - Decklist recovery: precision-gated matching, provenance, recovered-deck import
 
 ### Superpowers Plans
@@ -325,7 +348,17 @@ moves only when a new session lands.
 - `docs/superpowers/plans/2026-06-11-deep-clean-fixes.md` - Deep clean fixes (2026-06-11 audit, this plan)
 - `docs/superpowers/plans/2026-07-19-sheet-draft-deck-builder.md` - Sheet-draft deck builder implementation
 - `docs/superpowers/plans/2026-07-20-sheet-draft-pick-reconciliation.md` - Sheet-draft pick reconciliation (float upgrade/removal on synced picks)
+- `docs/superpowers/plans/2026-07-29-sheet-sync-lifecycle.md` - Sheet sync reconciliation and lifecycle implementation (completion detection, post-hoc edits, playing phase)
+- `docs/superpowers/plans/2026-08-01-card-worth-model.md` - Card worth model implementation
+- `docs/superpowers/plans/2026-08-02-desire-metric.md` - Desire metric and zero-prior worth implementation
 - `docs/superpowers/plans/2026-08-07-maindeck-creature-split.md` - Maindeck creature / non-creature split implementation
+- `docs/superpowers/plans/2026-08-07-prepared-cost-and-deck-hover-worth.md` - Prepared-spell mana cost and deck-builder hover worth/PVI implementation
+- `docs/superpowers/plans/2026-08-07-recency-weighted-pick-score.md` - Recency-weighted pick score implementation (unifies pick-score formulas, adds session decay)
 - `docs/superpowers/plans/2026-08-08-ingest-time-redaction.md` - Ingest-time privacy redaction implementation
+- `docs/superpowers/plans/2026-08-08-mobile-viewport-and-queue-handle.md` - Mobile viewport units and queue drag handle implementation
+- `docs/superpowers/plans/2026-08-08-sparkline-per-node-tooltips.md` - Sparkline per-node tooltips implementation
 - `docs/superpowers/plans/2026-08-09-decklist-recovery.md` - Decklist recovery implementation
 - `docs/superpowers/plans/2026-08-09-sideboard-marker-finding.md` - Why two malformed submissions are unrecoverable at source (NO-GO finding)
+- `docs/superpowers/plans/2026-08-10-autopick-cascade-parity.md` - Auto-pick cascade parity implementation
+- `docs/superpowers/plans/2026-08-10-deep-clean-fixes.md` - Deep clean fixes (2026-08-10 audit, this plan)
+- `docs/superpowers/plans/2026-08-10-turso-read-reduction.md` - Turso read reduction implementation

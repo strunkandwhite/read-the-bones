@@ -4,8 +4,7 @@
  *
  * Rotisserie gives each card exactly one owner, so a correctly assigned deck
  * scores ~100% precision against its seat's picks. Anything lower is a
- * mis-assignment. This is the check that would have caught the hidden-zone
- * matching defect the day it landed.
+ * mis-assignment: cards in the stored deck that the seat never drafted.
  *
  * Usage:
  *   pnpm decklists:integrity

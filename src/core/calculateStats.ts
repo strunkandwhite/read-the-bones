@@ -33,8 +33,9 @@ function calculateSingleCardStats(
       .sort((a, b) => a.copyNumber - b.copyNumber);
     const untaken = draftPicks.find((pick) => !pick.wasPicked);
     observations.push({
-      // getCards.ts builds this map from the same selectedDraftIds that
-      // produce cardPicks, so every draftId reaching this loop has an entry.
+      // getCards.ts builds this map from completedDraftIds, a superset of
+      // the selectedDraftIds that produce cardPicks, so every draftId
+      // reaching this loop has an entry.
       sessionsAgo: sessionsAgoByDraftId.get(draftId)!,
       pickPositions: taken.map((pick) => pick.pickPosition),
       // An unpicked entry carries the pool size as its pickPosition. A draft

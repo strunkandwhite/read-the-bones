@@ -734,8 +734,18 @@ useDraftStore.subscribe(
     useDraftStore.getState().stopPolling();
     prevPickN = -1;
     lastLiveSig = null; // draft switched — never reuse a sig from the previous draft
-    // Reset standings so the previous draft's data isn't shown while loading.
-    useDraftStore.setState({ standings: [], standingsMatches: [], standingsLoading: false, pendingMatch: null });
+    // Drop everything scoped to the draft we just left. Consumers derive taken
+    // cards, local-deck mode and the pick matrix from board, and a deck save
+    // triggered from stale picks would write the previous draft's cards to
+    // this draft's seat.
+    useDraftStore.setState({
+      board: null,
+      liveDraftStatus: null,
+      standings: [],
+      standingsMatches: [],
+      standingsLoading: false,
+      pendingMatch: null,
+    });
     if (activeDraft) useDraftStore.getState().startPolling();
   },
 );

@@ -4,6 +4,7 @@ import {
   extractStoredCards,
   decideSeatWrite,
   parseDecklistArgs,
+  assertSeatNotOptedOut,
 } from "./decklists";
 import { cardNameKey } from "../src/core/parseSheetRows";
 
@@ -227,6 +228,18 @@ describe("decideSeatWrite", () => {
       true,
     );
     expect(action).toBe("write");
+  });
+});
+
+describe("assertSeatNotOptedOut", () => {
+  it("refuses to write a deck for a seat that opted out", () => {
+    expect(() => assertSeatNotOptedOut(2, new Set([2]), "tarkir")).toThrow(
+      /seat 2 .*opted out/i,
+    );
+  });
+
+  it("allows a seat that did not opt out", () => {
+    expect(() => assertSeatNotOptedOut(3, new Set([2]), "tarkir")).not.toThrow();
   });
 });
 

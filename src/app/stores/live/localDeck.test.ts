@@ -38,17 +38,23 @@ describe("getLocalDeckMode", () => {
   });
 
   it("is true for a sheet draft with a selected seat", () => {
-    useDraftStore.setState({ activeDraft: "sheet-1", selectedSeat: 3, board: makeBoard() });
+    // activeDraft and board are set in separate calls: the activeDraft
+    // subscription clears board on every switch, so a board set in the same
+    // call as activeDraft would be wiped straight back out.
+    useDraftStore.setState({ activeDraft: "sheet-1" });
+    useDraftStore.setState({ selectedSeat: 3, board: makeBoard() });
     expect(getLocalDeckMode()).toBe(true);
   });
 
   it("is false for live drafts", () => {
-    useDraftStore.setState({ activeDraft: "live-1", selectedSeat: 3, board: makeBoard({ isSheetDraft: false }) });
+    useDraftStore.setState({ activeDraft: "live-1" });
+    useDraftStore.setState({ selectedSeat: 3, board: makeBoard({ isSheetDraft: false }) });
     expect(getLocalDeckMode()).toBe(false);
   });
 
   it("is false with no seat selected", () => {
-    useDraftStore.setState({ activeDraft: "sheet-1", selectedSeat: null, board: makeBoard() });
+    useDraftStore.setState({ activeDraft: "sheet-1" });
+    useDraftStore.setState({ selectedSeat: null, board: makeBoard() });
     expect(getLocalDeckMode()).toBe(false);
   });
 

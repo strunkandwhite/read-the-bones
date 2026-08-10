@@ -1,7 +1,6 @@
 /**
- * Shared opt-out name loading from .opt-outs.json.
- * Used by both ingest (to store opt-outs in DB) and local draft tools
- * (to redact opted-out players when reading CSVs directly).
+ * Shared opt-out name loading from .opt-outs.json, the sole input recording
+ * which seats are excluded at ingest.
  */
 
 import { existsSync, readFileSync } from "fs";
@@ -15,25 +14,31 @@ const OPT_OUTS_PATH = join(PROJECT_ROOT, ".opt-outs.json");
 /**
  * Load opt-out player names from .opt-outs.json.
  * Returns a Set of lowercase names for case-insensitive matching.
+ *
+ * An absent file means no opt-outs: that is the normal state of a checkout
+ * without any, and the file is gitignored so it never reaches the serverless
+ * environment. A file that exists but cannot be read as an array of names
+ * throws instead, because this is the only input enforcing the opt-out
+ * promise and an empty result is indistinguishable from success.
  */
 export function loadOptOutNames(): Set<string> {
   if (!existsSync(OPT_OUTS_PATH)) {
     return new Set();
   }
 
+  let parsed: unknown;
   try {
-    const content = readFileSync(OPT_OUTS_PATH, "utf-8");
-    const names = JSON.parse(content) as string[];
-    return new Set(names.map((name) => name.toLowerCase()));
-  } catch {
-    return new Set();
+    parsed = JSON.parse(readFileSync(OPT_OUTS_PATH, "utf-8"));
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new Error(`Could not read ${OPT_OUTS_PATH}: ${detail}`);
   }
-}
 
-/**
- * Check if a drafter name matches any opt-out name.
- * @public Used by API routes for privacy filtering
- */
-export function isOptedOut(drafterName: string, optOutNames: Set<string>): boolean {
-  return optOutNames.has(drafterName.toLowerCase());
+  if (!Array.isArray(parsed) || parsed.some((name) => typeof name !== "string")) {
+    throw new Error(
+      `${OPT_OUTS_PATH} must be a JSON array of player names, e.g. ["Player One"]`,
+    );
+  }
+
+  return new Set(parsed.map((name) => name.toLowerCase()));
 }

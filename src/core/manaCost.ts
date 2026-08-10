@@ -1,7 +1,5 @@
 import type { ScryCard } from "./types";
-
-/** Multi-face costs are stored as "A // B"; this is Scryfall's separator. */
-const FACE_SEPARATOR = " // ";
+import { FACE_SEPARATOR } from "./cardTypes";
 
 /**
  * A prepared card's second face is only ever cast as a copy off the

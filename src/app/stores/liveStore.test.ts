@@ -1354,7 +1354,11 @@ describe("local deck mode — floats", () => {
   beforeEach(() => {
     localStorage.clear();
     resetStores();
-    useDraftStore.setState({ activeDraft: "sheet-1", selectedSeat: 3, board: makeSheetBoard() });
+    // activeDraft is set before board: the activeDraft subscription clears
+    // board on every switch, so a board set in the same call would be wiped
+    // straight back out.
+    useDraftStore.setState({ activeDraft: "sheet-1" });
+    useDraftStore.setState({ selectedSeat: 3, board: makeSheetBoard() });
   });
 
   afterEach(() => {
@@ -1406,7 +1410,11 @@ describe("local deck mode — reconcileLocalFloats", () => {
   beforeEach(() => {
     localStorage.clear();
     resetStores();
-    useDraftStore.setState({ activeDraft: "sheet-1", selectedSeat: 3, board: makeSheetBoard() });
+    // activeDraft is set before board: the activeDraft subscription clears
+    // board on every switch, so a board set in the same call would be wiped
+    // straight back out.
+    useDraftStore.setState({ activeDraft: "sheet-1" });
+    useDraftStore.setState({ selectedSeat: 3, board: makeSheetBoard() });
   });
 
   afterEach(() => {
@@ -1575,7 +1583,11 @@ describe("local deck mode — deck state persistence", () => {
     localStorage.clear();
     resetStores();
     vi.useFakeTimers();
-    useDraftStore.setState({ activeDraft: "sheet-1", selectedSeat: 3, board: makeSheetBoard() });
+    // activeDraft is set before board: the activeDraft subscription clears
+    // board on every switch, so a board set in the same call would be wiped
+    // straight back out.
+    useDraftStore.setState({ activeDraft: "sheet-1" });
+    useDraftStore.setState({ selectedSeat: 3, board: makeSheetBoard() });
   });
 
   afterEach(() => {
@@ -1989,8 +2001,8 @@ describe("liveStore — recomputePicking phase gate", () => {
       new Response("{}", { status: 200 }),
     );
 
+    useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
       board: { phase: "setup", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
     });
@@ -2014,8 +2026,8 @@ describe("liveStore — recomputePicking phase gate", () => {
       new Response("{}", { status: 200 }),
     );
 
+    useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
       board: { phase: "complete", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
     });
@@ -2046,8 +2058,8 @@ describe("liveStore — recomputePicking phase gate", () => {
     });
     vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
 
+    useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 3, recentPicks: [], matchCount: 0, totalMatches: 0 },
       board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
     });
@@ -2073,8 +2085,8 @@ describe("liveStore — recomputePicking phase gate", () => {
       new Response("{}", { status: 200 }),
     );
 
+    useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
       board: null,
     });
@@ -2130,8 +2142,8 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
     });
     vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
 
+    useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 3, recentPicks: [], matchCount: 0, totalMatches: 0 },
       board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
     });
@@ -2161,8 +2173,8 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
       new Response("{}", { status: 200 }),
     );
 
+    useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
     });
     useLiveStore.setState({
@@ -2185,8 +2197,8 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
       new Response("{}", { status: 200 }),
     );
 
+    useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
     });
     useLiveStore.setState({
@@ -2225,8 +2237,8 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
     });
     vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
 
+    useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
       board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
     });
@@ -2266,8 +2278,8 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
     });
     vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
 
+    useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
       board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
     });
@@ -2294,8 +2306,8 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
     });
     const refreshSpy = vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
 
+    useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
       board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
     });
@@ -2350,8 +2362,8 @@ describe("liveStore — poll-triggered auto-pick integration", () => {
     vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
 
     // Set up: it's my turn according to liveDraftStatus, draft is in drafting phase
+    useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 3, recentPicks: [], matchCount: 0, totalMatches: 0 },
       board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
     });
@@ -2394,8 +2406,8 @@ describe("liveStore — poll-triggered auto-pick integration", () => {
     });
     vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
 
+    useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
       board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
     });
@@ -2453,8 +2465,8 @@ describe("liveStore — toggleAutoPick mid-turn", () => {
     });
     vi.spyOn(useDraftStore.getState(), "refreshNow").mockResolvedValue();
 
+    useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
       board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
     });
@@ -2490,8 +2502,8 @@ describe("liveStore — toggleAutoPick mid-turn", () => {
       return new Response("{}", { status: 200 });
     });
 
+    useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      activeDraft: "draft-1",
       liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
       board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
     });

@@ -20,7 +20,6 @@ import { fetchDraftTabsRaw } from "../../sheets";
 import { parsePickRows, parseMatchRows } from "../../parseSheetRows";
 import { incrementalIngest, setDraftPhase } from "./incremental";
 import { filterRedactedPicks, reconcileRedactedRows } from "../ingest/redaction";
-import { getOptedOutSeats } from "../queries/helpers";
 import {
   hashMatches,
   getDomainHashes,
@@ -43,7 +42,7 @@ export interface SyncActiveDraftResult {
   picksInserted: number;
   picksUpdated: number;
   matchesReplaced: number;
-  status: "no_change" | "updated" | "completed" | "diverged";
+  status: "no_change" | "updated" | "completed" | "diverged" | "awaiting_cli_sync";
   diverged: boolean;
   /** Phase written this run, or null when no transition happened. */
   phaseSet: "drafting" | "playing" | "complete" | null;
@@ -91,12 +90,26 @@ export async function syncActiveDraft(
   const parsedPicks = parsePickRows(sheetData.picks, draft.draftId);
   const stored = await getDomainHashes(client, draft.draftId);
 
+  // A draft leaves 'setup' only when a sync actually ingests its picks, and
+  // the CLI is the only path that can do that for the first time: it is
+  // what records opt-outs (from the gitignored .opt-outs.json, never
+  // deployed here) before anything is written. A draft still in 'setup' has
+  // not had that first CLI sync yet, so ingesting here would write an
+  // opted-out seat's picks unredacted. The pool and cube snapshot also only
+  // ever land via the CLI, so there is no useful work to do here either.
+  if (!stored || stored.currentPhase === "setup") {
+    console.log(
+      `[sync] Draft ${draft.draftId} is awaiting its first CLI sync — skipping`,
+    );
+    result.status = "awaiting_cli_sync";
+    return result;
+  }
+
   // Delete any stored rows for opted-out seats BEFORE ingesting. Order is
   // load-bearing: incrementalIngest flags divergence when the DB holds a
   // position the parsed picks do not, so filtering while the rows are still
   // present would read as sheet deletions and halt the sync.
-  await reconcileRedactedRows(client, draft.draftId);
-  const optedOutSeats = await getOptedOutSeats(client, draft.draftId);
+  const { optedOutSeats } = await reconcileRedactedRows(client, draft.draftId);
   const redactedPicks = {
     ...parsedPicks,
     picks: filterRedactedPicks(parsedPicks.picks, optedOutSeats),

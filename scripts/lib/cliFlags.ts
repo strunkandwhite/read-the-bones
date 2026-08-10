@@ -1,7 +1,7 @@
 /**
- * Flag validation shared by the scripts that write decklists.
+ * Flag validation shared by the scripts that write or delete stored data.
  *
- * Both of them treat "no flags given" as "do the real thing", so a typo like
+ * They all treat "no flags given" as "do the real thing", so a typo like
  * `--dryrun` silently becomes a destructive pass against the one production
  * database. Rejecting unknown `--` arguments is what keeps a mistyped
  * rehearsal from being indistinguishable from an authorized run.

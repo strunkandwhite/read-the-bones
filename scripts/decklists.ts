@@ -18,6 +18,7 @@ import { deckCardInsertStatements, type DeckCardInsert } from "../src/core/db/sy
 import { CardCache } from "../src/core/db/sync/card-cache";
 import { normalizeCardName, cardNameKey } from "../src/core/parseSheetRows";
 import { resolveCardNameToId } from "../src/core/db/sync/incremental";
+import { getOptedOutSeats } from "../src/core/db/queries/helpers";
 import { slugify } from "./lib/slugify";
 import { assertRecognizedFlags } from "./lib/cliFlags";
 import {
@@ -160,8 +161,9 @@ function reportSkip(
   if (!best || best.score.overlap === 0) {
     // No overlap with any seat at all. This is an opted-out player's list:
     // their picks were never ingested, so there is nothing to match against.
-    // Seven of these occur every run. Warning on expected behaviour trains
-    // everyone to ignore the log, which is how 27 overwrite lines went unread.
+    // This is expected on every run, so it logs at info rather than warning:
+    // a warning here would be routine noise, training readers to skim past
+    // every warning line including the ones that matter.
     logIndent(
       `Skipping ${decklist.sealeddeckId} — no overlap with any seat (expected for an opted-out player)`,
     );
@@ -235,8 +237,11 @@ export function matchDecksToSeats(
 
     const { seat, score } = eligible[0];
 
-    // A genuine resubmission for the same seat should win. This overwrite was
-    // never the defect — it was the symptom of matching on the wrong card set.
+    // A later submission for the same seat overwrites the earlier one. The
+    // matcher scores recall/precision against deck + sideboard only, never
+    // sealeddeck's hidden zone, so two lists for the same seat land here
+    // because they are a genuine resubmission, not because both matched
+    // loosely on an oversized card set.
     const previous = assignments.get(seat);
     if (previous) {
       logIndent(
@@ -285,6 +290,25 @@ export function decideSeatWrite(
   }
 
   return "write";
+}
+
+/**
+ * A seat in privacy_opt_outs must never gain stored deck rows. The matcher
+ * cannot reach one today because an opted-out seat has no picks to match
+ * against, but that is a consequence of the pick rows already being clean
+ * rather than a property of this script. Assert it locally so the guarantee
+ * does not depend on another module's invariant holding.
+ */
+export function assertSeatNotOptedOut(
+  seat: number,
+  optedOutSeats: Set<number>,
+  draftId: string,
+): void {
+  if (optedOutSeats.has(seat)) {
+    throw new Error(
+      `Refusing to write a deck for seat ${seat} of ${draftId}: the seat opted out`,
+    );
+  }
 }
 
 // ============================================================================
@@ -552,6 +576,8 @@ async function main() {
     const seatPicks = await getSeatPicks(client, draftId);
     logIndent(`${seatPicks.size} seats in database`);
 
+    const optedOutSeats = await getOptedOutSeats(client, draftId);
+
     // Match decklists to seats
     const { assignments, skippedBelowThreshold } = matchDecksToSeats(decklists, seatPicks);
     logIndent(`Matched ${assignments.size} decklists to seats`);
@@ -600,6 +626,10 @@ async function main() {
         summary.unchanged++;
         continue;
       }
+
+      // Fires before both the dry-run report and the real write below, so a
+      // rehearsal never promises a write that would actually throw.
+      assertSeatNotOptedOut(seat, optedOutSeats, draftId);
 
       // Resolve card names and build insert batch, aggregating duplicates
       const qtyMap = new Map<string, { cardId: number; zone: "deck" | "sideboard"; qty: number }>();
@@ -670,9 +700,8 @@ async function main() {
       }
 
       // Replace this seat's deck only once a valid one is ready to take its place,
-      // and in one batch so the replacement cannot half-apply. Deleting earlier
-      // meant a malformed resubmission destroyed a good deck and then declined to
-      // write anything.
+      // and in one batch so the replacement cannot half-apply: a seat's stored
+      // deck is either the old one intact or the new one complete, never neither.
       await client.batch([
         {
           sql: "DELETE FROM deck_cards WHERE draft_id = ? AND seat = ?",
