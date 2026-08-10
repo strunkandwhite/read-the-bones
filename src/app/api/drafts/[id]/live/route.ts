@@ -76,10 +76,9 @@ export const GET = withApiErrors(
 
     // Opt-outs no longer gate the pick queries (redaction now happens at ingest
     // time), but the seat list still drives the pod sheet's [REDACTED] cells.
-    const optedOutSeats = await getOptedOutSeats(client, draftId);
-
-    // When authenticated, fetch per-seat data in parallel with board queries.
-    const [recentPicks, seatNames, matchCount, picks, seatQueue, seatFloats] = await Promise.all([
+    // It has no dependency on the other reads below, so it joins their Promise.all.
+    const [optedOutSeats, recentPicks, seatNames, matchCount, picks, seatQueue, seatFloats] = await Promise.all([
+      getOptedOutSeats(client, draftId),
       getRecentPicks(client, draftId, 10),
       getSeatDisplayNames(client, draftId),
       getMatchCount(client, draftId),

@@ -480,27 +480,47 @@ export async function getLiveStateSig(
   draftId: string,
   seat?: number,
 ): Promise<{ latestPickN: number; sig: string }> {
-  // Fetch latest pick number
-  const pickResult = await client.execute({
-    sql: "SELECT COALESCE(MAX(pick_n), 0) as latest FROM pick_events WHERE draft_id = ?",
-    args: [draftId],
-  });
+  // These four reads are mutually independent: the seat marker depends only on
+  // `seat` (a function argument), not on the other three queries' results, so
+  // all of them can be issued as one round trip instead of four serial ones.
+  const [pickResult, metaResult, namesResult, seatResult] = await Promise.all([
+    // Fetch latest pick number
+    client.execute({
+      sql: "SELECT COALESCE(MAX(pick_n), 0) as latest FROM pick_events WHERE draft_id = ?",
+      args: [draftId],
+    }),
+
+    // Fetch phase + match count in one query
+    client.execute({
+      sql: `SELECT d.phase,
+                   (SELECT COUNT(*) FROM match_events WHERE draft_id = d.draft_id) AS match_count
+            FROM drafts d WHERE d.draft_id = ?`,
+      args: [draftId],
+    }),
+
+    // Seat names are fetched separately: SQLite/libSQL doesn't support ORDER BY
+    // inside GROUP_CONCAT, and the sig must be deterministic across polls.
+    client.execute({
+      sql: `SELECT COALESCE(display_name, '') AS name FROM seat_tokens WHERE draft_id = ? ORDER BY seat`,
+      args: [draftId],
+    }),
+
+    // When a seat is authenticated, this feeds a per-seat freshness marker so that
+    // queue/float changes made on another device (same seat) break the short-circuit.
+    // Uses LENGTH(queue_json) as a cheap proxy for queue content (add/remove always
+    // changes length) plus the exact floated_cards count.
+    seat !== undefined
+      ? client.execute({
+          sql: `SELECT LENGTH(COALESCE(queue_json, '')) AS queue_len,
+                       auto_pick,
+                       (SELECT COUNT(*) FROM floated_cards WHERE draft_id = ? AND seat = ?) AS float_count
+                FROM seat_tokens WHERE draft_id = ? AND seat = ?`,
+          args: [draftId, seat, draftId, seat],
+        })
+      : null,
+  ]);
+
   const latestPickN = pickResult.rows[0].latest as number;
-
-  // Fetch phase + match count in one query
-  const metaResult = await client.execute({
-    sql: `SELECT d.phase,
-                 (SELECT COUNT(*) FROM match_events WHERE draft_id = d.draft_id) AS match_count
-          FROM drafts d WHERE d.draft_id = ?`,
-    args: [draftId],
-  });
-
-  // Seat names are fetched separately: SQLite/libSQL doesn't support ORDER BY
-  // inside GROUP_CONCAT, and the sig must be deterministic across polls.
-  const namesResult = await client.execute({
-    sql: `SELECT COALESCE(display_name, '') AS name FROM seat_tokens WHERE draft_id = ? ORDER BY seat`,
-    args: [draftId],
-  });
 
   const meta = metaResult.rows[0];
   const phase = (meta?.phase as string | null) ?? "";
@@ -512,24 +532,11 @@ export async function getLiveStateSig(
   // changes matchCount; a new pick changes latestPickN (checked separately).
   let sig = `${phase}|${matchCount}|${seatNamesCsv}`;
 
-  // When a seat is authenticated, append a per-seat freshness marker so that
-  // queue/float changes made on another device (same seat) break the short-circuit.
-  // Uses LENGTH(queue_json) as a cheap proxy for queue content (add/remove always
-  // changes length) plus the exact floated_cards count.
-  if (seat !== undefined) {
-    const seatResult = await client.execute({
-      sql: `SELECT LENGTH(COALESCE(queue_json, '')) AS queue_len,
-                   auto_pick,
-                   (SELECT COUNT(*) FROM floated_cards WHERE draft_id = ? AND seat = ?) AS float_count
-            FROM seat_tokens WHERE draft_id = ? AND seat = ?`,
-      args: [draftId, seat, draftId, seat],
-    });
-    if (seatResult.rows.length > 0) {
-      const queueLen = (seatResult.rows[0].queue_len as number | null) ?? 0;
-      const floatCount = (seatResult.rows[0].float_count as number | null) ?? 0;
-      const autoPick = (seatResult.rows[0].auto_pick as number | null) ?? 1;
-      sig = `${sig}~${queueLen}:${floatCount}:${autoPick}`;
-    }
+  if (seatResult && seatResult.rows.length > 0) {
+    const queueLen = (seatResult.rows[0].queue_len as number | null) ?? 0;
+    const floatCount = (seatResult.rows[0].float_count as number | null) ?? 0;
+    const autoPick = (seatResult.rows[0].auto_pick as number | null) ?? 1;
+    sig = `${sig}~${queueLen}:${floatCount}:${autoPick}`;
   }
 
   return { latestPickN, sig };

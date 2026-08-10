@@ -172,6 +172,27 @@ describe("getPicksWithCardDetails", () => {
 // /live request in production.
 // ---------------------------------------------------------------------------
 
+// Seeds a draft that exercises all four inputs to the sig at once: a pick
+// history (latestPickN), phase + a match (phase|matchCount), multiple named
+// seats (seatNamesCsv), and a queue/float/auto_pick state for seat 3 (the
+// per-seat marker).
+async function seedLiveDraftForSig(): Promise<Client> {
+  const db = await createMemDb();
+  await insertDraft(db, "d1", { phase: "drafting" });
+  await insertSeatToken(db, "d1", 1, { displayName: "Alice" });
+  await insertSeatToken(db, "d1", 2, { displayName: "Bob" });
+  await insertSeatToken(db, "d1", 3, {
+    displayName: "Carol",
+    queueJson: JSON.stringify([{ mode: "pause", cards: ["Bolt"] }]),
+  });
+  await insertMatch(db, "d1", 1, 2, 2, 1);
+  for (let pickN = 1; pickN <= 5; pickN++) {
+    await insertPickEvent(db, "d1", pickN, ((pickN - 1) % 3) + 1, 100 + pickN);
+  }
+  await insertFloatedCard(db, "d1", 3, "Counterspell");
+  return db;
+}
+
 describe("getLiveStateSig", () => {
   it("returns latestPickN and a composite sig from phase+matchCount+seatNames", async () => {
     const db = await createMemDb();
@@ -243,6 +264,14 @@ describe("getLiveStateSig", () => {
 
     const after = await getLiveStateSig(db, "draft-1", 1);
     expect(after.sig).not.toBe(before.sig);
+  });
+
+  it("produces a stable signature for a fixed draft state", async () => {
+    const client = await seedLiveDraftForSig();
+    const sig = await getLiveStateSig(client, "d1", 3);
+    expect(sig).toEqual(await getLiveStateSig(client, "d1", 3));
+    // Pin the literal so a reordering that changes composition is caught.
+    expect(sig.sig).toMatchInlineSnapshot(`"drafting|1|Alice:Bob:Carol~35:1:1"`);
   });
 
   it("produces distinct sigs for phase, match-count, and seat-name changes", async () => {
