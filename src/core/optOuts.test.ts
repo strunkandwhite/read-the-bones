@@ -1,28 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { isOptedOut } from "./optOuts";
 
 vi.mock("fs", () => ({
   existsSync: vi.fn(),
   readFileSync: vi.fn(),
 }));
-
-describe("isOptedOut", () => {
-  it("returns true for opted-out name (case insensitive)", () => {
-    const optOuts = new Set(["alice"]);
-    expect(isOptedOut("Alice", optOuts)).toBe(true);
-    expect(isOptedOut("ALICE", optOuts)).toBe(true);
-    expect(isOptedOut("alice", optOuts)).toBe(true);
-  });
-
-  it("returns false for non-opted-out name", () => {
-    const optOuts = new Set(["alice"]);
-    expect(isOptedOut("Bob", optOuts)).toBe(false);
-  });
-
-  it("returns false for empty opt-out set", () => {
-    expect(isOptedOut("Alice", new Set())).toBe(false);
-  });
-});
 
 describe("loadOptOutNames", () => {
   beforeEach(() => {
@@ -50,12 +31,23 @@ describe("loadOptOutNames", () => {
     expect(result).toEqual(new Set(["alice", "bob"]));
   });
 
-  it("returns empty set when file contains invalid JSON", async () => {
+  it("throws rather than silently reporting no opt-outs on malformed JSON", async () => {
     const fs = await import("fs");
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    vi.mocked(fs.readFileSync).mockReturnValue("not valid json");
+    vi.mocked(fs.readFileSync).mockReturnValue('["Player One",]');
 
     const { loadOptOutNames } = await import("./optOuts");
-    expect(loadOptOutNames()).toEqual(new Set());
+    expect(() => loadOptOutNames()).toThrow(/\.opt-outs\.json/);
+  });
+
+  it("throws when the file parses but is not an array of strings", async () => {
+    const fs = await import("fs");
+    vi.mocked(fs.existsSync).mockReturnValue(true);
+    vi.mocked(fs.readFileSync).mockReturnValue(
+      JSON.stringify({ names: ["Player One"] }),
+    );
+
+    const { loadOptOutNames } = await import("./optOuts");
+    expect(() => loadOptOutNames()).toThrow(/\.opt-outs\.json/);
   });
 });
