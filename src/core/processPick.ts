@@ -231,6 +231,10 @@ async function advanceAutoPick(
  * SAME candidate selection the cascade uses (`selectAutoPickCandidateForSeat`),
  * inserts the pick, and returns the result.
  *
+ * Cascades into following seats exactly as the manual path does — the two
+ * entry points differ only in how the first card is chosen, never in what
+ * happens afterward (see `insertPickAndCascade`).
+ *
  * The caller (POST /api/drafts/[id]/pick with `{ auto: true }`) must have
  * already authenticated the seat token — this function trusts `seat`.
  *
@@ -415,8 +419,9 @@ async function insertPickAndCascade(
  * The cascade only ever runs as a side effect of a pick landing, and the client
  * trigger only runs in an open browser. That leaves a gap: a draft moving into
  * `drafting` re-arms on a seat nobody is watching, and because rotisserie order is
- * strict, no other seat can pick to restart the chain. Called on every transition
- * into `drafting` so a resumed draft does not sit dead on an absent player.
+ * strict, no other seat can pick to restart the chain. Called from both CLI
+ * transitions into `drafting` (`draft-start.ts` and `draft-admin.ts set-phase`)
+ * so a resumed draft does not sit dead on an absent player.
  *
  * Safe to call at any time — returns an empty outcome when there is nothing to do.
  */

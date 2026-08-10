@@ -131,12 +131,18 @@ async function setPhase(client: Client, draftId: string, args: string[]) {
   console.log(`Draft "${draftId}" phase set to "${phase}"`);
 
   if (phase === "drafting") {
-    const resumed = await resumeAutoPickForCurrentSeat(client, draftId);
-    if (resumed.picks.length > 0) {
-      console.log(`Auto-picked ${resumed.picks.length} card(s) on resume:`);
-      for (const p of resumed.picks) {
-        console.log(`  pick ${p.pickN}  seat ${p.seat}  ${p.cardName}`);
+    try {
+      const resumed = await resumeAutoPickForCurrentSeat(client, draftId);
+      if (resumed.picks.length > 0) {
+        console.log(`Auto-picked ${resumed.picks.length} card(s) on resume:`);
+        for (const p of resumed.picks) {
+          console.log(`  pick ${p.pickN}  seat ${p.seat}  ${p.cardName}`);
+        }
       }
+    } catch (e) {
+      console.warn(
+        `  (auto-pick on resume skipped: ${e instanceof Error ? e.message : e})`,
+      );
     }
   }
 }

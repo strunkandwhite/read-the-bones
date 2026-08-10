@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Client } from '@libsql/client';
 import { processPick, triggerAutoPickOnDemand, resumeAutoPickForCurrentSeat } from './processPick';
+import { batchInsertPicks } from './db/sync/batch';
 import {
   createMemDb, insertCard, insertCubeSnapshot, insertCubeCard, insertDraft, insertSeatToken,
 } from './db/__tests__/testDb';
@@ -47,6 +48,9 @@ describe('pick provenance', () => {
     const client = await seed();
     await processPick(client, { draftId: DRAFT, seat: 1, cardId: 1, cardName: 'Manual Card' });
     const rows = await sources(client);
+    // Seat 1's manual pick, then seats 2 and 3 cascade off their queues; seat 3's
+    // second turn (round 2) finds an empty queue and the chain halts there.
+    expect(rows.length).toBe(3);
     expect(rows[0].source).toBe('manual');
     expect(rows.slice(1).every((r) => r.source === 'cascade')).toBe(true);
   });
@@ -55,6 +59,7 @@ describe('pick provenance', () => {
     const client = await seed();
     await triggerAutoPickOnDemand(client, DRAFT, 1);
     const rows = await sources(client);
+    expect(rows.length).toBe(3);
     expect(rows[0].source).toBe('ondemand');
     expect(rows.slice(1).every((r) => r.source === 'cascade')).toBe(true);
   });
@@ -63,7 +68,10 @@ describe('pick provenance', () => {
     const client = await seed();
     await resumeAutoPickForCurrentSeat(client, DRAFT);
     const rows = await sources(client);
+    expect(rows.length).toBe(3);
     expect(rows[0].source).toBe('resume');
+    expect(rows.slice(1).every((r) => r.source === 'cascade')).toBe(true);
+    expect(rows.map((r) => r.source)).toEqual(['resume', 'cascade', 'cascade']);
   });
 
   it('stamps created_at on every pick it writes', async () => {
@@ -74,5 +82,21 @@ describe('pick provenance', () => {
       args: [DRAFT],
     });
     expect(r.rows[0].c as number).toBe(0);
+  });
+});
+
+describe('sheet-sourced picks', () => {
+  it('batchInsertPicks stamps source=sheet and a non-null created_at', async () => {
+    const client = await createMemDb();
+    await batchInsertPicks(client, [
+      { draftId: DRAFT, pickN: 1, seat: 1, cardId: 1 },
+    ]);
+    const r = await client.execute({
+      sql: `SELECT source, created_at FROM pick_events WHERE draft_id = ? AND pick_n = ?`,
+      args: [DRAFT, 1],
+    });
+    expect(r.rows.length).toBe(1);
+    expect(r.rows[0].source).toBe('sheet');
+    expect(r.rows[0].created_at).not.toBeNull();
   });
 });
