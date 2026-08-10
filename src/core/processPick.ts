@@ -4,6 +4,7 @@ import { removeCardFromAllQueues, trimExcessQueueEntries, getAutoPickCandidate, 
 import { addFloatedCard, removeFloatedCardByCardId } from './db/queries/floatedCards';
 import { getAllSeatSettings, updateAutoPick } from './db/queries/seatTokens';
 import { getDraftMeta } from './db/queries/drafts';
+import { getLatestPickNumber } from './db/queries/picks';
 import { NotFoundError, ValidationError, ConflictError } from './errors';
 import type { PickSource } from './pickSource';
 
@@ -259,12 +260,12 @@ export async function triggerAutoPickOnDemand(
   }
 
   // 2. Verify it is this seat's turn
-  const pickCount = await client.execute({
-    sql: `SELECT COUNT(*) as cnt FROM pick_events WHERE draft_id = ?`,
-    args: [draftId],
-  });
-  const currentCount = pickCount.rows[0].cnt as number;
-  const next = getNextPick(currentCount, numSeats, picksPerPlayer, doublePickAfterRound);
+  // The highest pick taken, not how many rows exist: redaction and
+  // undo-pick both leave gaps in pick_n, and a count would then name an
+  // occupied slot and collide with insertPickEvent's uniqueness guard
+  // forever. The board and the live route derive the turn the same way.
+  const latestPickN = await getLatestPickNumber(client, draftId);
+  const next = getNextPick(latestPickN, numSeats, picksPerPlayer, doublePickAfterRound);
   if (!next) throw new ValidationError('All picks are made');
   if (next.seat !== seat) {
     throw new ValidationError(`It's seat ${next.seat}'s turn, not seat ${seat}'s`);
@@ -301,7 +302,7 @@ export async function triggerAutoPickOnDemand(
     client,
     draftId,
     { seat, cardId, cardName },
-    currentCount,
+    latestPickN,
     { numSeats, picksPerPlayer, doublePickAfterRound },
     allSeatSettings,
     'ondemand',
@@ -334,7 +335,7 @@ async function insertPickAndCascade(
   client: Client,
   draftId: string,
   firstPick: { seat: number; cardId: number; cardName: string },
-  currentCount: number,
+  latestPickN: number,
   meta: { numSeats: number; picksPerPlayer: number; doublePickAfterRound: number | null },
   allSeatSettings: Map<number, { autoPick: boolean; displayName: string | null }>,
   firstSource: PickSource,
@@ -349,7 +350,7 @@ async function insertPickAndCascade(
   let cascadeDepth = 0;
 
   while (cascadeDepth < maxCascade) {
-    const pickN = currentCount + picks.length + 1;
+    const pickN = latestPickN + picks.length + 1;
 
     const rowsAffected = await insertPickEvent(
       client, draftId, pickN, currentSeat, currentCardId,
@@ -384,7 +385,7 @@ async function insertPickAndCascade(
       await trimExcessQueueEntries(client, draftId, currentCardId, remainingAfterPick);
     }
 
-    const totalAfter = currentCount + picks.length;
+    const totalAfter = latestPickN + picks.length;
     const totalExpected = getTotalPicks(numSeats, picksPerPlayer);
     if (totalAfter >= totalExpected) {
       await client.execute({
@@ -436,13 +437,13 @@ export async function resumeAutoPickForCurrentSeat(
   const { phase, numSeats, picksPerPlayer, doublePickAfterRound } = meta;
   if (phase !== 'drafting') return empty;
 
-  const pickCount = await client.execute({
-    sql: `SELECT COUNT(*) as cnt FROM pick_events WHERE draft_id = ?`,
-    args: [draftId],
-  });
-  const currentCount = pickCount.rows[0].cnt as number;
+  // The highest pick taken, not how many rows exist: redaction and
+  // undo-pick both leave gaps in pick_n, and a count would then name an
+  // occupied slot and collide with insertPickEvent's uniqueness guard
+  // forever. The board and the live route derive the turn the same way.
+  const latestPickN = await getLatestPickNumber(client, draftId);
 
-  const next = getNextPick(currentCount, numSeats, picksPerPlayer, doublePickAfterRound);
+  const next = getNextPick(latestPickN, numSeats, picksPerPlayer, doublePickAfterRound);
   if (!next) return empty;
 
   const allSeatSettings = await getAllSeatSettings(client, draftId);
@@ -458,7 +459,7 @@ export async function resumeAutoPickForCurrentSeat(
     client,
     draftId,
     { seat: next.seat, cardId: candidateResult.cardId, cardName: candidateResult.cardName },
-    currentCount,
+    latestPickN,
     { numSeats, picksPerPlayer, doublePickAfterRound },
     allSeatSettings,
     'resume',
@@ -483,12 +484,12 @@ export async function processPick(
   }
 
   // 2. Derive whose turn it is
-  const pickCount = await client.execute({
-    sql: `SELECT COUNT(*) as cnt FROM pick_events WHERE draft_id = ?`,
-    args: [input.draftId],
-  });
-  const currentCount = pickCount.rows[0].cnt as number;
-  const next = getNextPick(currentCount, numSeats, picksPerPlayer, doublePickAfterRound);
+  // The highest pick taken, not how many rows exist: redaction and
+  // undo-pick both leave gaps in pick_n, and a count would then name an
+  // occupied slot and collide with insertPickEvent's uniqueness guard
+  // forever. The board and the live route derive the turn the same way.
+  const latestPickN = await getLatestPickNumber(client, input.draftId);
+  const next = getNextPick(latestPickN, numSeats, picksPerPlayer, doublePickAfterRound);
   if (!next) throw new ValidationError('All picks are made');
   if (next.seat !== input.seat) {
     throw new ValidationError(`It's seat ${next.seat}'s turn, not seat ${input.seat}'s`);
@@ -512,7 +513,7 @@ export async function processPick(
     client,
     input.draftId,
     { seat: input.seat, cardId: input.cardId, cardName: input.cardName },
-    currentCount,
+    latestPickN,
     { numSeats, picksPerPlayer, doublePickAfterRound },
     allSeatSettings,
     'manual',
