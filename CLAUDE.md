@@ -219,6 +219,8 @@ Search is debounced (500ms) and runs locally against cached card data. Server-si
   least one copy contributes only the copies it took — a leftover copy of a
   qty-2 card means demand was not two deep, not that the card went unwanted.
 
+**Pick provenance:** `pick_events.created_at` and `pick_events.source` record when a pick landed and which path produced it — `manual`, `ondemand`, `resume`, or `cascade`. Both are NULL for picks made before 2026-08-10. To see how a draft is actually advancing, group by source: `SELECT source, COUNT(*) FROM pick_events WHERE draft_id = ? GROUP BY source;`
+
 The UI displays "Pick Score" (P#): the weighted geometric mean of pick positions
 across drafts, computed by `src/core/pickScore.ts`. Three factors set an
 observation's weight — copy number (`0.5^(copy-1)`), whether anyone took it

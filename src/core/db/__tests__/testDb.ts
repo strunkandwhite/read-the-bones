@@ -63,6 +63,8 @@ export async function createTestSchema(client: Client): Promise<void> {
       pick_n INTEGER NOT NULL,
       seat INTEGER NOT NULL,
       card_id INTEGER NOT NULL,
+      created_at TEXT,
+      source TEXT,
       PRIMARY KEY (draft_id, pick_n)
     )
   `);

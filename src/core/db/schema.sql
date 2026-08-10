@@ -75,6 +75,12 @@ CREATE TABLE IF NOT EXISTS pick_events (
   PRIMARY KEY (draft_id, pick_n)
 );
 
+-- Pick provenance. Added 2026-08-10. Both columns are nullable: SQLite forbids a
+-- non-constant DEFAULT in ALTER TABLE ADD COLUMN, and picks made before this
+-- change have no honest value to backfill.
+ALTER TABLE pick_events ADD COLUMN created_at TEXT;
+ALTER TABLE pick_events ADD COLUMN source TEXT;
+
 -- Match results
 -- Records game wins between seats in a draft
 CREATE TABLE IF NOT EXISTS match_events (

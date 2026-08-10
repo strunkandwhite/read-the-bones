@@ -5,6 +5,7 @@ import { addFloatedCard, removeFloatedCardByCardId } from './db/queries/floatedC
 import { getAllSeatSettings, updateAutoPick } from './db/queries/seatTokens';
 import { getDraftMeta } from './db/queries/drafts';
 import { NotFoundError, ValidationError, ConflictError } from './errors';
+import type { PickSource } from './pickSource';
 
 export interface ProcessPickResult {
   picks: { pickN: number; seat: number; cardId: number; cardName: string }[];
@@ -93,14 +94,15 @@ async function insertPickEvent(
   pickN: number,
   seat: number,
   cardId: number,
+  source: PickSource,
 ): Promise<number> {
   const result = await client.execute({
-    sql: `INSERT INTO pick_events (draft_id, pick_n, seat, card_id)
-          SELECT ?, ?, ?, ?
+    sql: `INSERT INTO pick_events (draft_id, pick_n, seat, card_id, created_at, source)
+          SELECT ?, ?, ?, ?, datetime('now'), ?
           WHERE NOT EXISTS (
             SELECT 1 FROM pick_events WHERE draft_id = ? AND pick_n = ?
           )`,
-    args: [draftId, pickN, seat, cardId, draftId, pickN],
+    args: [draftId, pickN, seat, cardId, source, draftId, pickN],
   });
   return result.rowsAffected;
 }
@@ -298,6 +300,7 @@ export async function triggerAutoPickOnDemand(
     currentCount,
     { numSeats, picksPerPlayer, doublePickAfterRound },
     allSeatSettings,
+    'ondemand',
   );
 
   const first = outcome.picks[0];
@@ -330,6 +333,7 @@ async function insertPickAndCascade(
   currentCount: number,
   meta: { numSeats: number; picksPerPlayer: number; doublePickAfterRound: number | null },
   allSeatSettings: Map<number, { autoPick: boolean; displayName: string | null }>,
+  firstSource: PickSource,
 ): Promise<CascadeOutcome> {
   const { numSeats, picksPerPlayer, doublePickAfterRound } = meta;
   const picks: CascadeOutcome['picks'] = [];
@@ -345,6 +349,7 @@ async function insertPickAndCascade(
 
     const rowsAffected = await insertPickEvent(
       client, draftId, pickN, currentSeat, currentCardId,
+      cascadeDepth === 0 ? firstSource : 'cascade',
     );
     if (rowsAffected === 0) {
       throw new ConflictError('Conflict: pick_n already exists — retry');
@@ -451,6 +456,7 @@ export async function resumeAutoPickForCurrentSeat(
     currentCount,
     { numSeats, picksPerPlayer, doublePickAfterRound },
     allSeatSettings,
+    'resume',
   );
 }
 
@@ -504,5 +510,6 @@ export async function processPick(
     currentCount,
     { numSeats, picksPerPlayer, doublePickAfterRound },
     allSeatSettings,
+    'manual',
   );
 }
