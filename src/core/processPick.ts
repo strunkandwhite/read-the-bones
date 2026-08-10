@@ -403,6 +403,57 @@ async function insertPickAndCascade(
   return { picks, phaseChanged: false, newPhase: null };
 }
 
+/**
+ * Re-evaluate auto-pick for whichever seat is currently on the clock, and cascade
+ * from there.
+ *
+ * The cascade only ever runs as a side effect of a pick landing, and the client
+ * trigger only runs in an open browser. That leaves a gap: a draft moving into
+ * `drafting` re-arms on a seat nobody is watching, and because rotisserie order is
+ * strict, no other seat can pick to restart the chain. Called on every transition
+ * into `drafting` so a resumed draft does not sit dead on an absent player.
+ *
+ * Safe to call at any time — returns an empty outcome when there is nothing to do.
+ */
+export async function resumeAutoPickForCurrentSeat(
+  client: Client,
+  draftId: string,
+): Promise<CascadeOutcome> {
+  const empty: CascadeOutcome = { picks: [], phaseChanged: false, newPhase: null };
+
+  const meta = await getDraftMeta(client, draftId);
+  if (!meta) return empty;
+  const { phase, numSeats, picksPerPlayer, doublePickAfterRound } = meta;
+  if (phase !== 'drafting') return empty;
+
+  const pickCount = await client.execute({
+    sql: `SELECT COUNT(*) as cnt FROM pick_events WHERE draft_id = ?`,
+    args: [draftId],
+  });
+  const currentCount = pickCount.rows[0].cnt as number;
+
+  const next = getNextPick(currentCount, numSeats, picksPerPlayer, doublePickAfterRound);
+  if (!next) return empty;
+
+  const allSeatSettings = await getAllSeatSettings(client, draftId);
+  const seatSettings = allSeatSettings.get(next.seat);
+  if (!seatSettings?.autoPick) return empty;
+
+  const candidateResult = await selectAutoPickCandidateForSeat(
+    client, draftId, next.seat, seatSettings, allSeatSettings,
+  );
+  if (candidateResult.kind !== 'candidate') return empty;
+
+  return insertPickAndCascade(
+    client,
+    draftId,
+    { seat: next.seat, cardId: candidateResult.cardId, cardName: candidateResult.cardName },
+    currentCount,
+    { numSeats, picksPerPlayer, doublePickAfterRound },
+    allSeatSettings,
+  );
+}
+
 // ============================================================================
 // Main entry point
 // ============================================================================
