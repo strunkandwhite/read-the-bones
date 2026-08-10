@@ -124,6 +124,22 @@ export async function getActiveDrafts(
 const PLAYING_SYNC_WINDOW_DAYS = 60;
 
 /**
+ * In-app drafts currently in the drafting phase.
+ *
+ * Deliberately separate from getActiveDrafts, which filters on
+ * `sheet_id IS NOT NULL` because its callers ingest from Google Sheets. Live
+ * drafts have no sheet and need the opposite treatment: nothing to ingest, but
+ * a turn that can stall on an absent player until something nudges it.
+ */
+export async function getLiveDraftingDrafts(client: Client): Promise<string[]> {
+  const result = await client.execute({
+    sql: `SELECT draft_id FROM drafts WHERE phase = 'drafting' AND in_app = 1 ORDER BY draft_id`,
+    args: [],
+  });
+  return result.rows.map((row) => row.draft_id as string);
+}
+
+/**
  * Age backstop for the playing phase: pods that never record their full
  * round robin would otherwise sync forever. Only sheet drafts — live
  * (in-app) drafts manage their own lifecycle.
