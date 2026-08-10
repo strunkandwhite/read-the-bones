@@ -153,11 +153,12 @@ and why, unless `--force` is passed.
 **Residual hazard, mitigated by documentation rather than code.** `resetDraft`
 (`db-helpers.ts:15-16`) deletes `deck_cards` and `deck_hashes` wholesale for a draft, and
 `deleteDomainData(..., "decklists")` (`batch.ts:90-104`) does the same. A `pnpm draft:reset`
-therefore discards recovered decks along with everything else. This is survivable — and
-only survivable — because the parsed JSONs are committed to git at
-`data/decklist-recovery/parsed/`, so recovery is re-running `pnpm decklists:import`. This
-is the same class of trap CLAUDE.md already documents for `privacy_opt_outs`; it gets an
-entry beside it.
+therefore discards recovered decks along with everything else. Recovery is re-running
+`pnpm decklists:import` against `data/decklist-recovery/parsed/` — but `data/` is
+gitignored, so those parsed JSONs exist on one disk with no second copy. A `draft:reset`
+combined with a lost `data/` directory destroys them permanently; the mitigation is an
+out-of-repo backup, not version control. This is the same class of trap CLAUDE.md already
+documents for `privacy_opt_outs`; it gets an entry beside it.
 
 ### D5 — Wrong rows are deleted, and the seat joins the remediation queue
 
@@ -169,7 +170,7 @@ win rate and `deck_colors` filters all read `deck_cards`.
 Deletion alone would satisfy "correct" while defeating "flagged", so the seat is
 simultaneously recorded in the remediation queue (D6) with its reason.
 
-### D6 — The remediation queue is a committed artifact
+### D6 — The remediation queue is regenerated on demand, not preserved by version control
 
 `pnpm decklists:integrity` reports two things:
 
@@ -179,8 +180,10 @@ simultaneously recorded in the remediation queue (D6) with its reason.
    each with a reason: opted out / never collected / corrupt-and-deleted / awaiting image /
    awaiting URL.
 
-Its output is committed as `data/decklist-status.md`. `data/` is gitignored, and a queue
-that vanishes with the working directory is not a queue.
+`pnpm decklists:integrity --write-report` writes this as `data/decklist-status.md`. `data/`
+is gitignored, so the file itself has no git history — but it doesn't need one: it's a
+report over `deck_cards` and `deck_hashes`, not a source of truth, so rerunning the command
+regenerates it from the database and nothing is lost when the file is.
 
 This is the check that would have caught the original defect within a day. It is promoted
 from `data/decklist-recovery/scripts/integrity.mjs` (gitignored, throwaway) to a permanent
