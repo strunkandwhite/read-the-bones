@@ -227,7 +227,11 @@ describe('processPick', () => {
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([], 1),
     );
-    // 6. isLastCopy=true (0+1>=1), so removeCardFromAllQueues is called (mocked)
+    // 6. Post-insert copy-check re-query (picked_count now 1, qty 1 -> isLastCopy)
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ picked_count: 1, qty: 1 }]),
+    );
+    // 7. isLastCopy=true (1>=1), so removeCardFromAllQueues is called (mocked)
     // (no DB query for next seat auto_pick; uses allSeatSettings map -- seat 2 not in map -> break)
 
     const result = await processPick(mockClient as never, baseInput);
@@ -258,6 +262,10 @@ describe('processPick', () => {
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([], 1),
     );
+    // 5. Post-insert copy-check re-query (picked_count now 1, qty 1 -> isLastCopy)
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ picked_count: 1, qty: 1 }]),
+    );
 
     await processPick(mockClient as never, baseInput);
 
@@ -284,12 +292,16 @@ describe('processPick', () => {
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([], 1),
     );
-    // 5. isLastCopy=true, removeCardFromAllQueues is mocked
-    // 6. UPDATE drafts SET phase = 'playing'
+    // 5. Post-insert copy-check re-query (picked_count now 1, qty 1 -> isLastCopy)
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([{ picked_count: 1, qty: 1 }]),
+    );
+    // 6. isLastCopy=true, removeCardFromAllQueues is mocked
+    // 7. UPDATE drafts SET phase = 'playing'
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([], 1),
     );
-    // 7. Clear all queues on phase transition
+    // 8. Clear all queues on phase transition
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([], 0),
     );
@@ -342,6 +354,10 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([], 1),
       );
+      // 5. Post-insert copy-check re-query (picked_count now 1, qty 1 -> isLastCopy)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ picked_count: 1, qty: 1 }]),
+      );
 
       await processPick(mockClient as never, baseInput);
 
@@ -366,6 +382,10 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([], 1),
       );
+      // 5. Post-insert copy-check re-query (picked_count now 1, qty 1 -> isLastCopy)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ picked_count: 1, qty: 1 }]),
+      );
 
       await processPick(mockClient as never, baseInput);
 
@@ -389,7 +409,11 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([], 1),
       );
-      // 5. isLastCopy=true (1+1>=2) -> removeCardFromAllQueues is called (mocked)
+      // 5. Post-insert copy-check re-query (picked_count now 2, qty 2 -> isLastCopy)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ picked_count: 2, qty: 2 }]),
+      );
+      // 6. isLastCopy=true (2>=2) -> removeCardFromAllQueues is called (mocked)
       // (no DB query for next seat auto_pick; uses allSeatSettings map -> break)
 
       const result = await processPick(mockClient as never, {
@@ -435,7 +459,11 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([], 1),
       );
-      // 5. isLastCopy=false (0+1<2) -> skip queue removal
+      // 5. Post-insert copy-check re-query (picked_count now 1, qty 2 -> NOT last copy)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ picked_count: 1, qty: 2 }]),
+      );
+      // 6. isLastCopy=false (1<2) -> skip queue removal
       // (no DB query for next seat auto_pick; uses allSeatSettings map -> break)
 
       await processPick(mockClient as never, baseInput);
@@ -462,7 +490,11 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([], 1),
       );
-      // 5. isLastCopy=false -> trimExcessQueueEntries, not removeCardFromAllQueues
+      // 5. Post-insert copy-check re-query (picked_count now 1, qty 2 -> copies remain)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ picked_count: 1, qty: 2 }]),
+      );
+      // 6. isLastCopy=false -> trimExcessQueueEntries, not removeCardFromAllQueues
       // (no DB query for next seat; allSeatSettings returns empty map -> break)
 
       await processPick(mockClient as never, baseInput);
@@ -488,7 +520,11 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([], 1),
       );
-      // 5. isLastCopy=false (0+1 < 3) -> trimExcessQueueEntries called (mocked)
+      // 5. Post-insert copy-check re-query (picked_count now 1, qty 3 -> 2 remain)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ picked_count: 1, qty: 3 }]),
+      );
+      // 6. isLastCopy=false (1 < 3) -> trimExcessQueueEntries called (mocked)
       // (no DB query for next seat; allSeatSettings returns empty map -> break)
 
       await processPick(mockClient as never, {
@@ -532,13 +568,17 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([], 1),
       );
+      // 5. Post-insert copy-check re-query (picked_count now 1, qty 1 -> isLastCopy)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ picked_count: 1, qty: 1 }]),
+      );
       // After isLastCopy=true: removeCardFromAllQueues+removeFloatedCardByCardId are module mocks
-      // 5. Available cards query for seat 2
+      // 6. Available cards query for seat 2
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([{ card_id: 10 }]),
       );
       // getAutoPickCandidate returns candidate (mocked above) -> fulfillGroupEntry called
-      // 6. Card name lookup for candidate cardId=10 -- return empty to break cascade
+      // 7. Card name lookup for candidate cardId=10 -- return empty to break cascade
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([]),
       );
@@ -572,22 +612,23 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 0, qty: 1 }]));
       // 4. INSERT for seat 1 -- success
       mockClient.execute.mockResolvedValueOnce(createQueryResult([], 1));
+      // 5. Post-insert copy-check re-query for cardId=42 (picked_count now 1, qty 1 -> isLastCopy)
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
       // isLastCopy=true → removeCardFromAllQueues (mocked)
-      // 5. Available cards query (for advanceAutoPick: seat 2's turn)
+      // 6. Available cards query (for advanceAutoPick: seat 2's turn)
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 10 }]));
       // getAutoPickCandidate returns candidate for seat 2 (mocked)
       // fulfillGroupEntry (mocked, cards=[])
-      // 6. Card name lookup for cardId=10 → success
+      // 7. Card name lookup for cardId=10 → success
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ name: 'Lightning Bolt' }]));
       // Now cascadeDepth increments to 1; loop iteration 2:
-      // 7. INSERT for seat 2, card 10 -- success (second INSERT)
+      // 8. INSERT for seat 2, card 10 -- success (second INSERT)
       mockClient.execute.mockResolvedValueOnce(createQueryResult([], 1));
-      // Cascade pick copy check (cascadeDepth > 0):
-      // 8. getRemainingCopiesForPick for cardId=10
+      // 9. Post-insert copy-check re-query for cardId=10
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
       // isLastCopy=true → removeCardFromAllQueues (mocked)
       // totalAfter = 2 < 6, continue; advanceAutoPick for seat 1:
-      // 9. Available cards query
+      // 10. Available cards query
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 50 }]));
       // getAutoPickCandidate returns 'empty' (default mock) → break
 
@@ -619,6 +660,8 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 0, qty: 1 }]));
       // INSERT seat 1 success
       mockClient.execute.mockResolvedValueOnce(createQueryResult([], 1));
+      // Post-insert copy-check re-query for cardId=42 (picked_count now 1, qty 1 -> isLastCopy)
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
       // Available cards query
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 99 }]));
       // Card name lookup for cardId=99 → found
@@ -652,31 +695,25 @@ describe('processPick', () => {
       vi.mocked(getAutoPickCandidate).mockResolvedValue({ kind: 'candidate', cardId: 77, entryIndex: 0 });
       vi.mocked(fulfillGroupEntry).mockResolvedValue({ mode: 'flow-through', cards: [] });
 
-      // Mock sequence for maxCascade=4 iterations:
-      // Iteration 0 (cascadeDepth=0): INSERT + [no copy-check query] + available + name-lookup
-      // Iteration 1 (cascadeDepth=1): INSERT + copy-check + available + name-lookup
-      // Iteration 2 (cascadeDepth=2): INSERT + copy-check + available + name-lookup
-      // Iteration 3 (cascadeDepth=3): INSERT + copy-check + [advanceAutoPick starts but
-      //   cascadeDepth++ → 4 → loop exits before advanceAutoPick runs]
-      // Wait — advanceAutoPick runs BEFORE cascadeDepth++. After it returns a candidate,
-      // cascadeDepth increments and then the NEXT loop body starts. So iteration 3 DOES
-      // call advanceAutoPick but the result is consumed, cascadeDepth→4, loop exits.
-      // So iteration 3 needs: INSERT + copy-check + available + name-lookup.
-      // After cascadeDepth=4 the loop exits — no more picks.
+      // Mock sequence for maxCascade=4 iterations. Every iteration -- including the
+      // first -- re-queries copy counts after its insert (the shared cascade loop
+      // has no special case for the first pick):
+      // Each iteration: INSERT + copy-check + available + name-lookup
+      // Iteration 3's advanceAutoPick call resolves to a candidate, but cascadeDepth
+      // increments to maxCascade before the next loop body starts, so the loop exits
+      // without consuming that candidate in a fifth insert.
 
       mockDraftMeta(mockClient, { num_seats: numSeats, picks_per_player: picksPerPlayer });
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cnt: 0 }]));
-      // Initial availability check (cascadeDepth=0 uses availCheck result, no extra query)
+      // Initial availability check (validates before insert; the cascade loop re-queries separately)
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 0, qty: 1 }]));
 
       // Provide all needed execute mocks for maxCascade iterations
       for (let depth = 0; depth < maxCascade; depth++) {
         // INSERT success
         mockClient.execute.mockResolvedValueOnce(createQueryResult([], 1));
-        if (depth > 0) {
-          // Copy-check query (cascadeDepth > 0)
-          mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
-        }
+        // Post-insert copy-check re-query
+        mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
         // Available cards query (inside advanceAutoPick)
         mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 77 }]));
         // Card name lookup (inside advanceAutoPick)
@@ -719,6 +756,8 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cnt: 0 }]));
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 0, qty: 1 }]));
       mockClient.execute.mockResolvedValueOnce(createQueryResult([], 1));
+      // Post-insert copy-check re-query (picked_count now 1, qty 1 -> isLastCopy)
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 10 }]));
       // Card name lookup returns empty to break cascade after the float
       mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
@@ -758,8 +797,12 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([], 1),
       );
-      // 5. isLastCopy=true -> removeCardFromAllQueues (mocked, returns pauseSeats:[])
-      // 6. Available cards query for seat 2
+      // 5. Post-insert copy-check re-query (picked_count now 1, qty 1 -> isLastCopy)
+      mockClient.execute.mockResolvedValueOnce(
+        createQueryResult([{ picked_count: 1, qty: 1 }]),
+      );
+      // 6. isLastCopy=true -> removeCardFromAllQueues (mocked, returns pauseSeats:[])
+      // 7. Available cards query for seat 2
       mockClient.execute.mockResolvedValueOnce(
         createQueryResult([{ card_id: 10 }]),
       );
@@ -797,6 +840,8 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cnt: 0 }]));
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 0, qty: 1 }]));
       mockClient.execute.mockResolvedValueOnce(createQueryResult([], 1));
+      // Post-insert copy-check re-query (picked_count now 1, qty 1 -> isLastCopy)
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
       // Available cards for seat 2
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 55 }]));
       // Card name lookup: cascade break (empty)
@@ -851,6 +896,7 @@ describe('triggerAutoPickOnDemand', () => {
 
     expect(result).toEqual({
       pickedCard: null,
+      picks: [],
       autoPickDisabled: true,
       phaseChanged: false,
       newPhase: null,

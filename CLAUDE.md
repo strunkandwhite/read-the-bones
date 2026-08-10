@@ -124,7 +124,7 @@ The app exposes REST API routes under `/api/` for querying draft data. All route
 |-------|--------|------|-------------|
 | `/api/drafts/[id]/live` | GET | None/Token | Merged status + board data (phase, picks, seatNames, bannedCards). Accepts `?since=<pickN>&sig=<sig>` for change short-circuit (`{ unchanged: true }`). With a valid `X-Seat-Token`, the response includes `me: { seat, autoPick, displayName, queue, floatedCards }`. |
 | `/api/drafts/[id]/me` | GET | Token | Resolve seat from token: `{ seat, autoPick, displayName }` |
-| `/api/drafts/[id]/pick` | POST | Token | Submit a pick. Body: `{ card_name: string }` or `{ auto: true }` to trigger server-side auto-pick cascade. |
+| `/api/drafts/[id]/pick` | POST | Token | Submit a pick. Body: `{ card_name: string }` or `{ auto: true }` to auto-pick from the seat's queue. Both forms cascade: after each pick lands, following seats with auto-pick and an available queued card are picked for automatically. Returns `picks[]` with every pick made. `{ auto: true }` returns `autoPickDisabled: true` without picking when the seat has auto-pick off. |
 | `/api/drafts/[id]/queue` | GET/PUT | Token | Manage player's pick queue |
 | `/api/drafts/[id]/match` | POST | Token | Report a match result |
 | `/api/drafts/[id]/seat-settings` | PUT | Token | Update auto-pick toggle, display name |
@@ -218,6 +218,8 @@ Search is debounced (500ms) and runs locally against cached card data. Server-si
   half-weight observation at pickPosition = poolSize (540). A draft that took at
   least one copy contributes only the copies it took — a leftover copy of a
   qty-2 card means demand was not two deep, not that the card went unwanted.
+
+**Pick provenance:** `pick_events.created_at` and `pick_events.source` record when a pick landed and which path produced it — `manual`, `ondemand`, `resume`, `cascade`, or `sheet` (ingested from a Google Sheet by the sync pipeline). NULL means only that the pick predates this column — existing rows, including historical Sheets-synced ones, stay NULL because backfilling would invent provenance. To see how a draft is actually advancing, group by source: `SELECT source, COUNT(*) FROM pick_events WHERE draft_id = ? GROUP BY source;`
 
 The UI displays "Pick Score" (P#): the weighted geometric mean of pick positions
 across drafts, computed by `src/core/pickScore.ts`. Three factors set an

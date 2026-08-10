@@ -360,8 +360,25 @@ describe("insertNewPicks", () => {
     const batchArgs = client.batch.mock.calls[0][0];
     expect(batchArgs).toHaveLength(2);
     // Seats are converted from 0-indexed to 1-indexed
-    expect(batchArgs[0].args).toEqual(["draft-1", 1, 1, 10]);
-    expect(batchArgs[1].args).toEqual(["draft-1", 2, 2, 20]);
+    expect(batchArgs[0].args).toEqual(["draft-1", 1, 1, 10, "sheet"]);
+    expect(batchArgs[1].args).toEqual(["draft-1", 2, 2, 20, "sheet"]);
+  });
+
+  it("stamps sheet provenance and a created_at timestamp on every insert", async () => {
+    // This is the statement the every-minute cron sync (syncActiveDraft ->
+    // incrementalIngest -> insertNewPicks) actually executes, so a NULL here
+    // means sheet drafts never get provenance in production.
+    client.execute.mockResolvedValueOnce({
+      rows: [{ card_id: 10, name: "Lightning Bolt" }],
+    });
+    client.batch.mockResolvedValueOnce(undefined);
+
+    await insertNewPicks(client as any, "draft-1", [pick("Lightning Bolt", 1, 0)]);
+
+    const stmt = client.batch.mock.calls[0][0][0];
+    expect(stmt.sql).toContain("source, created_at");
+    expect(stmt.sql).toContain("datetime('now')");
+    expect(stmt.args).toEqual(["draft-1", 1, 1, 10, "sheet"]);
   });
 
   it("falls back to fuzzy resolution, and counts picks unresolved when that also fails", async () => {
@@ -402,7 +419,7 @@ describe("insertNewPicks", () => {
       pick("Brazen Borrower", 1, 0),
     ]);
     expect(result).toEqual({ inserted: 1, unresolved: 0 });
-    expect(client.batch.mock.calls[0][0][0].args).toEqual(["test-draft", 1, 1, 42]);
+    expect(client.batch.mock.calls[0][0][0].args).toEqual(["test-draft", 1, 1, 42, "sheet"]);
   });
 });
 

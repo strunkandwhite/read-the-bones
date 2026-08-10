@@ -5,6 +5,7 @@ import { addFloatedCard, removeFloatedCardByCardId } from './db/queries/floatedC
 import { getAllSeatSettings, updateAutoPick } from './db/queries/seatTokens';
 import { getDraftMeta } from './db/queries/drafts';
 import { NotFoundError, ValidationError, ConflictError } from './errors';
+import type { PickSource } from './pickSource';
 
 export interface ProcessPickResult {
   picks: { pickN: number; seat: number; cardId: number; cardName: string }[];
@@ -26,11 +27,20 @@ export interface ProcessPickInput {
 export interface AutoPickOnDemandResult {
   /** The card that was picked, or null when the queue yielded nothing. */
   pickedCard: { pickN: number; cardId: number; cardName: string } | null;
+  /** Every pick this call produced, including cascaded picks for later seats. */
+  picks: { pickN: number; seat: number; cardId: number; cardName: string }[];
   /**
    * True when pause-mode exhaustion caused the seat's auto-pick to be
    * disabled server-side. The client should reflect this state change.
    */
   autoPickDisabled: boolean;
+  phaseChanged: boolean;
+  newPhase: string | null;
+}
+
+/** The picks produced by one insert-plus-cascade run, and any phase change it caused. */
+export interface CascadeOutcome {
+  picks: { pickN: number; seat: number; cardId: number; cardName: string }[];
   phaseChanged: boolean;
   newPhase: string | null;
 }
@@ -84,14 +94,15 @@ async function insertPickEvent(
   pickN: number,
   seat: number,
   cardId: number,
+  source: PickSource,
 ): Promise<number> {
   const result = await client.execute({
-    sql: `INSERT INTO pick_events (draft_id, pick_n, seat, card_id)
-          SELECT ?, ?, ?, ?
+    sql: `INSERT INTO pick_events (draft_id, pick_n, seat, card_id, created_at, source)
+          SELECT ?, ?, ?, ?, datetime('now'), ?
           WHERE NOT EXISTS (
             SELECT 1 FROM pick_events WHERE draft_id = ? AND pick_n = ?
           )`,
-    args: [draftId, pickN, seat, cardId, draftId, pickN],
+    args: [draftId, pickN, seat, cardId, source, draftId, pickN],
   });
   return result.rowsAffected;
 }
@@ -220,6 +231,10 @@ async function advanceAutoPick(
  * SAME candidate selection the cascade uses (`selectAutoPickCandidateForSeat`),
  * inserts the pick, and returns the result.
  *
+ * Cascades into following seats exactly as the manual path does — the two
+ * entry points differ only in how the first card is chosen, never in what
+ * happens afterward (see `insertPickAndCascade`).
+ *
  * The caller (POST /api/drafts/[id]/pick with `{ auto: true }`) must have
  * already authenticated the seat token — this function trusts `seat`.
  *
@@ -264,7 +279,7 @@ export async function triggerAutoPickOnDemand(
   // own seat, so trusting the request alone would let it pick while the seat has
   // auto-pick disabled server-side. Reporting autoPickDisabled corrects the client.
   if (!seatSettings.autoPick) {
-    return { pickedCard: null, autoPickDisabled: true, phaseChanged: false, newPhase: null };
+    return { pickedCard: null, picks: [], autoPickDisabled: true, phaseChanged: false, newPhase: null };
   }
 
   const candidateResult = await selectAutoPickCandidateForSeat(
@@ -273,67 +288,181 @@ export async function triggerAutoPickOnDemand(
 
   if (candidateResult.kind === 'paused') {
     // Pause-mode exhaustion: auto-pick already disabled in selectAutoPickCandidateForSeat
-    return { pickedCard: null, autoPickDisabled: true, phaseChanged: false, newPhase: null };
+    return { pickedCard: null, picks: [], autoPickDisabled: true, phaseChanged: false, newPhase: null };
   }
   if (candidateResult.kind === 'none') {
     // Queue empty (flow-through exhausted or no entries)
-    return { pickedCard: null, autoPickDisabled: false, phaseChanged: false, newPhase: null };
+    return { pickedCard: null, picks: [], autoPickDisabled: false, phaseChanged: false, newPhase: null };
   }
 
   const { cardId, cardName } = candidateResult;
-  const pickN = currentCount + 1;
 
-  // 4. Insert with the same optimistic-concurrency guard as processPick
-  const rowsAffected = await insertPickEvent(client, draftId, pickN, seat, cardId);
-  if (rowsAffected === 0) {
-    throw new ConflictError('Conflict: pick_n already exists — retry');
-  }
+  const outcome = await insertPickAndCascade(
+    client,
+    draftId,
+    { seat, cardId, cardName },
+    currentCount,
+    { numSeats, picksPerPlayer, doublePickAfterRound },
+    allSeatSettings,
+    'ondemand',
+  );
 
-  // 5. Post-pick side effects (mirrors processPick)
-  const availCheck = await getRemainingCopiesForPick(client, draftId, cardId, cardName);
-  const isLastCopy = availCheck.pickedCount >= availCheck.qty;
-
-  if (isLastCopy) {
-    const { pauseSeats } = await removeCardFromAllQueues(client, draftId, cardId);
-    await Promise.all(
-      pauseSeats
-        .filter((s) => s !== seat)
-        .map(async (s) => {
-          await updateAutoPick(client, draftId, s, false);
-        })
-    );
-    await removeFloatedCardByCardId(client, draftId, cardId);
-  } else {
-    const remainingAfterPick = availCheck.qty - availCheck.pickedCount;
-    await trimExcessQueueEntries(client, draftId, cardId, remainingAfterPick);
-  }
-
-  // 6. Check if draft is complete
-  const totalAfter = currentCount + 1;
-  const totalExpected = getTotalPicks(numSeats, picksPerPlayer);
-  if (totalAfter >= totalExpected) {
-    await client.execute({
-      sql: `UPDATE drafts SET phase = 'playing' WHERE draft_id = ?`,
-      args: [draftId],
-    });
-    await client.execute({
-      sql: `UPDATE seat_tokens SET queue_json = '[]' WHERE draft_id = ?`,
-      args: [draftId],
-    });
-    return {
-      pickedCard: { pickN, cardId, cardName },
-      autoPickDisabled: false,
-      phaseChanged: true,
-      newPhase: 'playing',
-    };
-  }
-
+  const first = outcome.picks[0];
   return {
-    pickedCard: { pickN, cardId, cardName },
+    pickedCard: first ? { pickN: first.pickN, cardId: first.cardId, cardName: first.cardName } : null,
+    picks: outcome.picks,
     autoPickDisabled: false,
-    phaseChanged: false,
-    newPhase: null,
+    phaseChanged: outcome.phaseChanged,
+    newPhase: outcome.newPhase,
   };
+}
+
+/**
+ * Insert a pick and then cascade forward: after each pick lands, ask whether the
+ * next seat on the clock has auto-pick enabled with an available queued card, and
+ * if so pick for them too. Continues until a seat has no valid auto-pick.
+ *
+ * This is the single implementation of chain continuation. Both entry points use
+ * it — a manual pick and an on-demand auto-pick differ only in how the FIRST card
+ * is chosen, never in what happens afterward.
+ *
+ * The caller is responsible for all validation (phase, turn, availability, bans)
+ * before calling. Copy counts are re-queried after every insert, including the
+ * first, so the caller does not need to pass its own availability check in.
+ */
+async function insertPickAndCascade(
+  client: Client,
+  draftId: string,
+  firstPick: { seat: number; cardId: number; cardName: string },
+  currentCount: number,
+  meta: { numSeats: number; picksPerPlayer: number; doublePickAfterRound: number | null },
+  allSeatSettings: Map<number, { autoPick: boolean; displayName: string | null }>,
+  firstSource: PickSource,
+): Promise<CascadeOutcome> {
+  const { numSeats, picksPerPlayer, doublePickAfterRound } = meta;
+  const picks: CascadeOutcome['picks'] = [];
+  const maxCascade = numSeats * 2;
+
+  let currentSeat = firstPick.seat;
+  let currentCardId = firstPick.cardId;
+  let currentCardName = firstPick.cardName;
+  let cascadeDepth = 0;
+
+  while (cascadeDepth < maxCascade) {
+    const pickN = currentCount + picks.length + 1;
+
+    const rowsAffected = await insertPickEvent(
+      client, draftId, pickN, currentSeat, currentCardId,
+      cascadeDepth === 0 ? firstSource : 'cascade',
+    );
+    if (rowsAffected === 0) {
+      throw new ConflictError('Conflict: pick_n already exists — retry');
+    }
+
+    picks.push({ pickN, seat: currentSeat, cardId: currentCardId, cardName: currentCardName });
+
+    // Re-query after the insert, so pickedCount already includes the pick just made.
+    const copyInfo = await getRemainingCopiesForPick(
+      client, draftId, currentCardId, currentCardName,
+    );
+    const isLastCopy = copyInfo.pickedCount >= copyInfo.qty;
+    const remainingAfterPick = copyInfo.qty - copyInfo.pickedCount;
+
+    if (isLastCopy) {
+      const { pauseSeats } = await removeCardFromAllQueues(client, draftId, currentCardId);
+      await Promise.all(
+        pauseSeats
+          .filter((s) => s !== currentSeat)
+          .map(async (s) => {
+            await updateAutoPick(client, draftId, s, false);
+            const prev = allSeatSettings.get(s);
+            if (prev) allSeatSettings.set(s, { ...prev, autoPick: false });
+          })
+      );
+      await removeFloatedCardByCardId(client, draftId, currentCardId);
+    } else {
+      await trimExcessQueueEntries(client, draftId, currentCardId, remainingAfterPick);
+    }
+
+    const totalAfter = currentCount + picks.length;
+    const totalExpected = getTotalPicks(numSeats, picksPerPlayer);
+    if (totalAfter >= totalExpected) {
+      await client.execute({
+        sql: `UPDATE drafts SET phase = 'playing' WHERE draft_id = ?`,
+        args: [draftId],
+      });
+      await client.execute({
+        sql: `UPDATE seat_tokens SET queue_json = '[]' WHERE draft_id = ?`,
+        args: [draftId],
+      });
+      return { picks, phaseChanged: true, newPhase: 'playing' };
+    }
+
+    const advance = await advanceAutoPick(
+      client, draftId, totalAfter, numSeats, picksPerPlayer, doublePickAfterRound, allSeatSettings,
+    );
+    if (advance.kind !== 'candidate') break;
+
+    currentSeat = advance.seat;
+    currentCardId = advance.cardId;
+    currentCardName = advance.cardName;
+    cascadeDepth++;
+  }
+
+  return { picks, phaseChanged: false, newPhase: null };
+}
+
+/**
+ * Re-evaluate auto-pick for whichever seat is currently on the clock, and cascade
+ * from there.
+ *
+ * The cascade only ever runs as a side effect of a pick landing, and the client
+ * trigger only runs in an open browser. That leaves a gap: a draft moving into
+ * `drafting` re-arms on a seat nobody is watching, and because rotisserie order is
+ * strict, no other seat can pick to restart the chain. Called from both CLI
+ * transitions into `drafting` (`draft-start.ts` and `draft-admin.ts set-phase`)
+ * so a resumed draft does not sit dead on an absent player.
+ *
+ * Safe to call at any time — returns an empty outcome when there is nothing to do.
+ */
+export async function resumeAutoPickForCurrentSeat(
+  client: Client,
+  draftId: string,
+): Promise<CascadeOutcome> {
+  const empty: CascadeOutcome = { picks: [], phaseChanged: false, newPhase: null };
+
+  const meta = await getDraftMeta(client, draftId);
+  if (!meta) return empty;
+  const { phase, numSeats, picksPerPlayer, doublePickAfterRound } = meta;
+  if (phase !== 'drafting') return empty;
+
+  const pickCount = await client.execute({
+    sql: `SELECT COUNT(*) as cnt FROM pick_events WHERE draft_id = ?`,
+    args: [draftId],
+  });
+  const currentCount = pickCount.rows[0].cnt as number;
+
+  const next = getNextPick(currentCount, numSeats, picksPerPlayer, doublePickAfterRound);
+  if (!next) return empty;
+
+  const allSeatSettings = await getAllSeatSettings(client, draftId);
+  const seatSettings = allSeatSettings.get(next.seat);
+  if (!seatSettings?.autoPick) return empty;
+
+  const candidateResult = await selectAutoPickCandidateForSeat(
+    client, draftId, next.seat, seatSettings, allSeatSettings,
+  );
+  if (candidateResult.kind !== 'candidate') return empty;
+
+  return insertPickAndCascade(
+    client,
+    draftId,
+    { seat: next.seat, cardId: candidateResult.cardId, cardName: candidateResult.cardName },
+    currentCount,
+    { numSeats, picksPerPlayer, doublePickAfterRound },
+    allSeatSettings,
+    'resume',
+  );
 }
 
 // ============================================================================
@@ -377,93 +506,15 @@ export async function processPick(
   }
 
   // 4. Insert with optimistic concurrency + cascade
-  const picks: ProcessPickResult['picks'] = [];
-  const maxCascade = numSeats * 2;
   const allSeatSettings = await getAllSeatSettings(client, input.draftId);
 
-  let currentSeat = input.seat;
-  let currentCardId = input.cardId;
-  let currentCardName = input.cardName;
-  let cascadeDepth = 0;
-
-  while (cascadeDepth < maxCascade) {
-    const pickN = currentCount + picks.length + 1;
-
-    const rowsAffected = await insertPickEvent(
-      client, input.draftId, pickN, currentSeat, currentCardId,
-    );
-    if (rowsAffected === 0) {
-      throw new ConflictError('Conflict: pick_n already exists — retry');
-    }
-
-    picks.push({
-      pickN,
-      seat: currentSeat,
-      cardId: currentCardId,
-      cardName: currentCardName,
-    });
-
-    // Determine remaining copies after this pick
-    let isLastCopy: boolean;
-    let remainingAfterPick: number;
-    if (cascadeDepth === 0) {
-      // Initial pick: reuse the validation query result
-      isLastCopy = availCheck.pickedCount + 1 >= availCheck.qty;
-      remainingAfterPick = availCheck.qty - (availCheck.pickedCount + 1);
-    } else {
-      // Cascade pick: re-query the count now. Throws if card is not in cube.
-      const copyInfo = await getRemainingCopiesForPick(
-        client, input.draftId, currentCardId, currentCardName,
-      );
-      isLastCopy = copyInfo.pickedCount >= copyInfo.qty;
-      remainingAfterPick = copyInfo.qty - copyInfo.pickedCount;
-    }
-
-    if (isLastCopy) {
-      const { pauseSeats } = await removeCardFromAllQueues(client, input.draftId, currentCardId);
-      // Disable auto-pick for seats whose first entry was exhausted with pause mode
-      await Promise.all(
-        pauseSeats
-          .filter((s) => s !== currentSeat)
-          .map(async (s) => {
-            await updateAutoPick(client, input.draftId, s, false);
-            const prev = allSeatSettings.get(s);
-            if (prev) allSeatSettings.set(s, { ...prev, autoPick: false });
-          })
-      );
-      await removeFloatedCardByCardId(client, input.draftId, currentCardId);
-    } else {
-      // Not last copy: trim queue entries that exceed remaining availability
-      await trimExcessQueueEntries(client, input.draftId, currentCardId, remainingAfterPick);
-    }
-
-    // Check if draft is complete
-    const totalAfter = currentCount + picks.length;
-    const totalExpected = getTotalPicks(numSeats, picksPerPlayer);
-    if (totalAfter >= totalExpected) {
-      await client.execute({
-        sql: `UPDATE drafts SET phase = 'playing' WHERE draft_id = ?`,
-        args: [input.draftId],
-      });
-      // Clear all queues — they're irrelevant once drafting ends
-      await client.execute({
-        sql: `UPDATE seat_tokens SET queue_json = '[]' WHERE draft_id = ?`,
-        args: [input.draftId],
-      });
-      return { picks, phaseChanged: true, newPhase: 'playing' };
-    }
-
-    // Check next seat for auto-pick
-    const advance = await advanceAutoPick(
-      client, input.draftId, totalAfter, numSeats, picksPerPlayer, doublePickAfterRound, allSeatSettings,
-    );
-    if (advance.kind !== 'candidate') break;
-
-    currentSeat = advance.seat;
-    currentCardId = advance.cardId;
-    currentCardName = advance.cardName;
-    cascadeDepth++;
-  }
-
-  return { picks, phaseChanged: false, newPhase: null };
+  return insertPickAndCascade(
+    client,
+    input.draftId,
+    { seat: input.seat, cardId: input.cardId, cardName: input.cardName },
+    currentCount,
+    { numSeats, picksPerPlayer, doublePickAfterRound },
+    allSeatSettings,
+    'manual',
+  );
 }

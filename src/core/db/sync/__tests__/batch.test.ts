@@ -28,7 +28,7 @@ describe("batchInsertPicks", () => {
     const stmts = client.batch.mock.calls[0][0];
     expect(stmts).toHaveLength(2);
     expect(stmts[0].sql).toContain("INSERT INTO pick_events");
-    expect(stmts[0].args).toEqual(["d1", 1, 1, 100]);
+    expect(stmts[0].args).toEqual(["d1", 1, 1, 100, "sheet"]);
   });
 
   it("does nothing for empty picks array", async () => {

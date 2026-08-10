@@ -19,6 +19,7 @@ import { regenerateToken } from "../src/core/db/queries/seatTokens";
 import { CardCache } from "../src/core/db/sync/card-cache";
 import { loadScryfallCache } from "../src/core/db/ingest/scryfall";
 import { resolveCardNamesToCache } from "../src/core/db/ingest/serializeScryfall";
+import { resumeAutoPickForCurrentSeat } from "../src/core/processPick";
 import { slugify } from "./lib/slugify";
 
 function getArg(args: string[], flag: string): string | undefined {
@@ -128,6 +129,22 @@ async function setPhase(client: Client, draftId: string, args: string[]) {
   if (result.rowsAffected === 0) throw new Error(`Draft "${draftId}" not found`);
 
   console.log(`Draft "${draftId}" phase set to "${phase}"`);
+
+  if (phase === "drafting") {
+    try {
+      const resumed = await resumeAutoPickForCurrentSeat(client, draftId);
+      if (resumed.picks.length > 0) {
+        console.log(`Auto-picked ${resumed.picks.length} card(s) on resume:`);
+        for (const p of resumed.picks) {
+          console.log(`  pick ${p.pickN}  seat ${p.seat}  ${p.cardName}`);
+        }
+      }
+    } catch (e) {
+      console.warn(
+        `  (auto-pick on resume skipped: ${e instanceof Error ? e.message : e})`,
+      );
+    }
+  }
 }
 
 async function addBan(client: Client, draftId: string, args: string[]) {

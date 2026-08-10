@@ -29,8 +29,8 @@ export async function batchInsertPicks(client: Client, picks: PickInsert[]): Pro
   if (picks.length === 0) return;
   await client.batch(
     picks.map((p) => ({
-      sql: "INSERT INTO pick_events (draft_id, pick_n, seat, card_id) VALUES (?, ?, ?, ?)",
-      args: [p.draftId, p.pickN, p.seat, p.cardId],
+      sql: "INSERT INTO pick_events (draft_id, pick_n, seat, card_id, source, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))",
+      args: [p.draftId, p.pickN, p.seat, p.cardId, "sheet"],
     })),
   );
 }
