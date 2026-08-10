@@ -20,7 +20,6 @@ import { fetchDraftTabsRaw } from "../../sheets";
 import { parsePickRows, parseMatchRows } from "../../parseSheetRows";
 import { incrementalIngest, setDraftPhase } from "./incremental";
 import { filterRedactedPicks, reconcileRedactedRows } from "../ingest/redaction";
-import { getOptedOutSeats } from "../queries/helpers";
 import {
   hashMatches,
   getDomainHashes,
@@ -110,8 +109,7 @@ export async function syncActiveDraft(
   // load-bearing: incrementalIngest flags divergence when the DB holds a
   // position the parsed picks do not, so filtering while the rows are still
   // present would read as sheet deletions and halt the sync.
-  await reconcileRedactedRows(client, draft.draftId);
-  const optedOutSeats = await getOptedOutSeats(client, draft.draftId);
+  const { optedOutSeats } = await reconcileRedactedRows(client, draft.draftId);
   const redactedPicks = {
     ...parsedPicks,
     picks: filterRedactedPicks(parsedPicks.picks, optedOutSeats),

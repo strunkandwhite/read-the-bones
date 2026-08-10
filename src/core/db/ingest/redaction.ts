@@ -70,6 +70,14 @@ export async function countRedactedRows(
   return { picks, deckCards, deckHashes };
 }
 
+export interface ReconcileRedactedRowsResult {
+  picksDeleted: number;
+  deckCardsDeleted: number;
+  deckHashesDeleted: number;
+  /** The opted-out seat set this pass fetched, so callers need not re-query it. */
+  optedOutSeats: Set<number>;
+}
+
 /**
  * Delete any stored rows belonging to opted-out seats.
  *
@@ -86,10 +94,10 @@ export async function countRedactedRows(
 export async function reconcileRedactedRows(
   client: Client,
   draftId: string,
-): Promise<{ picksDeleted: number; deckCardsDeleted: number; deckHashesDeleted: number }> {
+): Promise<ReconcileRedactedRowsResult> {
   const optedOutSeats = await getOptedOutSeats(client, draftId);
   if (optedOutSeats.size === 0) {
-    return { picksDeleted: 0, deckCardsDeleted: 0, deckHashesDeleted: 0 };
+    return { picksDeleted: 0, deckCardsDeleted: 0, deckHashesDeleted: 0, optedOutSeats };
   }
 
   const seats = [...optedOutSeats];
@@ -99,20 +107,22 @@ export async function reconcileRedactedRows(
   // incremental-diff hash. Leaving it behind gives an opted-out seat a row
   // pointing at cards that no longer exist, and this runs from a cron every
   // minute, so the orphan would be created the minute after the opt-out.
-  const results = await Promise.all(
-    REDACTED_TABLES.map((table) =>
-      client.execute({
-        // REDACTED_TABLES is a fixed literal tuple, never user input, so
-        // interpolating a table name here introduces no injection surface.
-        sql: `DELETE FROM ${table} WHERE draft_id = ? AND seat IN (${ph})`,
-        args: [draftId, ...seats],
-      }),
-    ),
+  //
+  // A single batch instead of three sequential round trips: batch() returns
+  // one ResultSet per statement, in statement order, so rowsAffected can be
+  // read positionally the same way the sequential executes were.
+  const results = await client.batch(
+    REDACTED_TABLES.map((table) => ({
+      // REDACTED_TABLES is a fixed literal tuple, never user input, so
+      // interpolating a table name here introduces no injection surface.
+      sql: `DELETE FROM ${table} WHERE draft_id = ? AND seat IN (${ph})`,
+      args: [draftId, ...seats],
+    })),
   );
 
   const [picksDeleted, deckCardsDeleted, deckHashesDeleted] = results.map(
     (r) => r.rowsAffected ?? 0,
   );
 
-  return { picksDeleted, deckCardsDeleted, deckHashesDeleted };
+  return { picksDeleted, deckCardsDeleted, deckHashesDeleted, optedOutSeats };
 }

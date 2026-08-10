@@ -167,13 +167,27 @@ describe("syncActiveDraft phase decisions", () => {
 
     await syncActiveDraft(client as any, draft, "api-key");
 
-    const sqls = client.execute.mock.calls.map(([p]: any[]) => p.sql as string);
-    const deleteIdx = sqls.findIndex((s) => s.includes("DELETE FROM pick_events"));
-    const dbPicksIdx = sqls.findIndex((s) => s.includes("JOIN cards"));
-    expect(deleteIdx).toBeGreaterThanOrEqual(0);
+    // The redaction delete now travels as a single client.batch call rather
+    // than a client.execute per table, so its position in the overall call
+    // order has to be read off invocationCallOrder (shared across mocks)
+    // instead of a single execute-calls array.
+    const deleteCallIdx = client.batch.mock.calls.findIndex((args: any[]) =>
+      (args[0] ?? []).some(
+        (s: any) => typeof s.sql === "string" && s.sql.includes("DELETE FROM pick_events"),
+      ),
+    );
+    expect(deleteCallIdx).toBeGreaterThanOrEqual(0);
+    const deleteOrder = client.batch.mock.invocationCallOrder[deleteCallIdx];
+
+    const dbPicksIdx = client.execute.mock.calls.findIndex(([p]: any[]) =>
+      (p.sql as string).includes("JOIN cards"),
+    );
+    expect(dbPicksIdx).toBeGreaterThanOrEqual(0);
+    const dbPicksOrder = client.execute.mock.invocationCallOrder[dbPicksIdx];
+
     // Deleting after the ingest read would let detectRemovedPicks see the
     // redacted positions as sheet deletions and flag the draft diverged.
-    expect(deleteIdx).toBeLessThan(dbPicksIdx);
+    expect(deleteOrder).toBeLessThan(dbPicksOrder);
 
     const insertedSeats = client.batch.mock.calls
       .flatMap(([stmts]: any[]) => stmts ?? [])
