@@ -278,7 +278,7 @@ describe('processPick', () => {
 
   it('transitions to playing when all picks are made', async () => {
     // 4 seats * 6 picks = 24 total. currentCount = 23, so this is the last pick.
-    // derivePickSeat(24, {4, 6}): trailing single-pick round, seat = 4.
+    // derivePickSeat(24, {4, 6}): last double pick of round 5, seat = 4.
 
     // 1. Draft metadata
     mockDraftMeta(mockClient);

@@ -57,7 +57,8 @@ const PICK_EXPLANATION = `Weighted geometric mean of pick positions across all d
 
 Weighting factors:
 • Copy weight: 0.5^(n-1) for nth copy
-• Unpicked cards: 0.5x weight (position set to pool size)`;
+• Unpicked cards: 0.5x weight (position set to pool size)
+• Session recency: a recent draft counts for more than an old one, and drafts sharing a date count as one session, not one per pod`;
 
 /** Shared cell renderer for the dev-only Worth and PVI columns. */
 function renderWorthModelValue(

@@ -42,8 +42,8 @@ export const GET = withApiErrors(
     // We run getLiveStateSig (cheap queries) to check if anything changed. If the
     // pick number and sig are both identical, return {unchanged:true} without running
     // the heavy board queries. For authenticated callers, the sig includes a per-seat
-    // freshness marker (~queueLen:floatCount) so cross-device queue/float changes
-    // also break the short-circuit.
+    // freshness marker (~queueLen:floatCount:autoPick) so cross-device queue/float/
+    // auto-pick changes also break the short-circuit.
     const url = new URL(request.url);
     const sinceParam = url.searchParams.get("since");
     const sigParam = url.searchParams.get("sig");
@@ -120,8 +120,11 @@ export const GET = withApiErrors(
       // Seat-level flag for the pod sheet: cells for opted-out seats render
       // "[REDACTED]" structurally (from draft metadata) rather than from a pick
       // row, since no pick row exists for these seats. Always present, [] when
-      // nothing is redacted. Deliberately excluded from getLiveStateSig — see
-      // comment at that call site.
+      // nothing is redacted. Not part of getLiveStateSig's sig: because this
+      // field isn't in the signature, an opt-out recorded mid-draft does not
+      // change the sig, so a polling client keeps short-circuiting and does not
+      // see the new redactedSeats until some other change (a pick, a name edit,
+      // a phase change) breaks the short-circuit for an unrelated reason.
       redactedSeats: [...optedOutSeats].sort((a, b) => a - b),
       // Client echoes latestPickN + sig back on subsequent polls for the change short-circuit.
       // Including sig in the response avoids the client having to recompute the server's
