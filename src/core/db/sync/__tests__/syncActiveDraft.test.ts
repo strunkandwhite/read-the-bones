@@ -88,6 +88,25 @@ function phaseWrites(client: { execute: ReturnType<typeof vi.fn> }): string[] {
 
 const draft = { draftId: "test-draft", sheetId: "sheet-1" };
 
+function makeClientWithNoDomainHashes() {
+  // draft:create leaves a draft in 'setup' with every domain hash NULL —
+  // this is that state, before pnpm sync has ever touched the draft.
+  return phaseClient({ phase: "setup" });
+}
+
+function spyOnPickInserts(client: { batch: ReturnType<typeof vi.fn> }) {
+  const insertSpy = vi.fn();
+  client.batch = vi.fn().mockImplementation((stmts: any[]) => {
+    for (const s of stmts ?? []) {
+      if (typeof s.sql === "string" && s.sql.includes("INSERT") && s.sql.includes("pick_events")) {
+        insertSpy(s);
+      }
+    }
+    return Promise.resolve([]);
+  });
+  return insertSpy;
+}
+
 describe("syncActiveDraft phase decisions", () => {
   beforeEach(() => {
     mockFetch.mockReset();
@@ -174,5 +193,20 @@ describe("syncActiveDraft phase decisions", () => {
 
     expect(result.phaseSet).toBe("playing");
     expect(result.diverged).toBe(false);
+  });
+
+  it("skips a draft that has never been synced from the CLI", async () => {
+    // No domain hashes recorded => draft:create ran but pnpm sync has not.
+    // Opt-outs are only recorded by the CLI, so ingesting here would write an
+    // opted-out seat's picks before anything knows to exclude them.
+    mockFetch.mockResolvedValue(sheet({}));
+    const client = makeClientWithNoDomainHashes();
+    const insertSpy = spyOnPickInserts(client);
+
+    const result = await syncActiveDraft(client as any, draft, "api-key");
+
+    expect(result.status).toBe("awaiting_cli_sync");
+    expect(result.picksInserted).toBe(0);
+    expect(insertSpy).not.toHaveBeenCalled();
   });
 });
