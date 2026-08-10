@@ -11,10 +11,13 @@
  */
 
 import type { Client } from "@libsql/client";
+import { realpathSync } from "fs";
+import { fileURLToPath } from "url";
 import { loadEnv } from "../src/core/db/ingest/utils";
 import { getClient } from "../src/core/db/client";
 import { reconcileRedactedRows } from "../src/core/db/ingest/redaction";
 import { getOptedOutSeats, placeholders } from "../src/core/db/queries/helpers";
+import { assertRecognizedFlags } from "./lib/cliFlags";
 
 /**
  * Read-only count of what reconcileRedactedRows would delete for a draft,
@@ -53,9 +56,23 @@ async function previewRedactedRows(
   };
 }
 
+const RECOGNIZED_FLAGS = new Set(["--dry-run"]);
+
+/**
+ * Parse CLI args into flags. Pure so the "reject a typo'd flag" behavior — the
+ * difference between a rehearsal and a real DELETE pass against the one
+ * production database — is covered by a unit test rather than only by invoking
+ * the script.
+ */
+export function parseRedactArgs(argv: string[]): { dryRun: boolean } {
+  assertRecognizedFlags(argv, RECOGNIZED_FLAGS);
+
+  return { dryRun: argv.includes("--dry-run") };
+}
+
 async function main() {
   loadEnv();
-  const dryRun = process.argv.includes("--dry-run");
+  const { dryRun } = parseRedactArgs(process.argv.slice(2));
   const client = await getClient();
 
   console.log(
@@ -128,7 +145,17 @@ async function main() {
   }
 }
 
-main().catch((e) => {
-  console.error(e instanceof Error ? e.message : e);
-  process.exit(1);
-});
+// Only run when invoked as a script. Importing this module — which the test
+// does, for the pure parseRedactArgs function — must never start a migration.
+// `loadEnv` picks up real Turso credentials, so the guard is what stands
+// between `pnpm test` and a DELETE against production.
+const invokedDirectly =
+  process.argv[1] !== undefined &&
+  realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+
+if (invokedDirectly) {
+  main().catch((e) => {
+    console.error(e instanceof Error ? e.message : e);
+    process.exit(1);
+  });
+}
