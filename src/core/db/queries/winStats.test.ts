@@ -14,12 +14,13 @@ import {
   insertDeckCard,
   insertMatch,
 } from "../__tests__/testDb";
-import { getAllCardWinStats } from "./winStats";
+import { getAllCardWinStats, _resetWinStatsCache } from "./winStats";
 
 let db: Client;
 
 beforeEach(async () => {
   db = await createMemDb();
+  _resetWinStatsCache();
 });
 
 describe("getAllCardWinStats", () => {
@@ -93,5 +94,77 @@ describe("getAllCardWinStats", () => {
     const result = await getAllCardWinStats(db);
     expect(result.get("bolt")!.win_rate).toBe(0.75);
     expect(result.get("counterspell")!.win_rate).toBe(0.25);
+  });
+});
+
+describe("getAllCardWinStats memoization", () => {
+  it("serves a repeat call from the memo without re-running the bulk query", async () => {
+    await insertDraft(db, "d1");
+    await insertCard(db, 1, "Bolt");
+    await insertDeckCard(db, "d1", 1, 1, "deck");
+    await insertMatch(db, "d1", 1, 2, 2, 0);
+
+    const first = await getAllCardWinStats(db);
+    const second = await getAllCardWinStats(db);
+    // Same object identity proves the second call did not recompute.
+    expect(second).toBe(first);
+  });
+
+  it("recomputes when a match result is added", async () => {
+    await insertDraft(db, "d1");
+    await insertCard(db, 1, "Bolt");
+    await insertDeckCard(db, "d1", 1, 1, "deck");
+    await insertMatch(db, "d1", 1, 2, 2, 0);
+
+    const first = await getAllCardWinStats(db);
+    expect(first.get("bolt")!.win_rate).toBe(1);
+
+    await insertMatch(db, "d1", 1, 3, 0, 2);
+    const second = await getAllCardWinStats(db);
+    expect(second).not.toBe(first);
+    expect(second.get("bolt")!.win_rate).toBe(0.5);
+  });
+
+  it("recomputes when a match score is corrected in place", async () => {
+    await insertDraft(db, "d1");
+    await insertCard(db, 1, "Bolt");
+    await insertDeckCard(db, "d1", 1, 1, "deck");
+    await insertMatch(db, "d1", 1, 2, 2, 1);
+
+    const first = await getAllCardWinStats(db);
+    expect(first.get("bolt")!.win_rate).toBeCloseTo(0.667, 3);
+
+    // Same pairing, scores swapped — count is unchanged, so the fingerprint
+    // must be catching the per-column sums.
+    await db.execute({
+      sql: `UPDATE match_events SET seat1_wins = 1, seat2_wins = 2
+            WHERE draft_id = 'd1' AND seat1 = 1 AND seat2 = 2`,
+      args: [],
+    });
+    const second = await getAllCardWinStats(db);
+    expect(second.get("bolt")!.win_rate).toBeCloseTo(0.333, 3);
+  });
+
+  it("recomputes when a decklist hash changes", async () => {
+    await insertDraft(db, "d1");
+    await insertCard(db, 1, "Bolt");
+    await insertCard(db, 2, "Counterspell");
+    await insertDeckCard(db, "d1", 1, 1, "deck");
+    await insertMatch(db, "d1", 1, 2, 2, 0);
+    await db.execute({
+      sql: `INSERT INTO deck_hashes (draft_id, seat, hash) VALUES ('d1', 1, 'h1')`,
+      args: [],
+    });
+
+    const first = await getAllCardWinStats(db);
+    expect(first.has("counterspell")).toBe(false);
+
+    await insertDeckCard(db, "d1", 1, 2, "deck");
+    await db.execute({
+      sql: `UPDATE deck_hashes SET hash = 'h2' WHERE draft_id = 'd1' AND seat = 1`,
+      args: [],
+    });
+    const second = await getAllCardWinStats(db);
+    expect(second.has("counterspell")).toBe(true);
   });
 });

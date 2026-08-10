@@ -127,11 +127,57 @@ export type BulkWinStatsEntry = {
   sample_size: number;
 };
 
+// Module-level memo for the bulk win-stats table. Deliberately NOT keyed on
+// the ingestion hash: that includes picks_hash, which changes on every pick,
+// and win stats do not depend on picks at all. They depend only on
+// deck_cards, match_events and card names — so the key below reads
+// deck_hashes (the per-seat decklist content hash) and an aggregate of
+// match_events.
+//
+// match_events is fingerprinted by count plus both win-column sums rather
+// than drafts.matches_hash, because live drafts write it through
+// reportMatchResult, which never updates that column — only the Sheets sync
+// path maintains it. Count alone would miss an in-place score correction.
+//
+// Known gap: scripts/merge-dfc-cards.ts deletes deck_cards rows without
+// touching deck_hashes, so it will not invalidate this memo. That is a rare
+// manual maintenance script and this is a dev-only metric; restarting the
+// dev server clears it.
+let winStatsCache: { key: string; result: Map<string, BulkWinStatsEntry> } | null = null;
+let winStatsPending: { key: string; promise: Promise<Map<string, BulkWinStatsEntry>> } | null = null;
+
+/** @public Test hook: clears the module-level bulk win-stats memo. */
+export function _resetWinStatsCache(): void {
+  winStatsCache = null;
+  winStatsPending = null;
+}
+
+async function computeWinStatsFingerprint(client: Client): Promise<string> {
+  const [decks, matches] = await Promise.all([
+    client.execute({
+      sql: `SELECT draft_id, seat, hash FROM deck_hashes ORDER BY draft_id, seat`,
+      args: [],
+    }),
+    client.execute({
+      sql: `SELECT COUNT(*) AS n,
+                   COALESCE(SUM(seat1_wins), 0) AS w1,
+                   COALESCE(SUM(seat2_wins), 0) AS w2
+            FROM match_events`,
+      args: [],
+    }),
+  ]);
+  const decksPart = decks.rows
+    .map((r) => `${r.draft_id}:${r.seat}:${r.hash}`)
+    .join(",");
+  const m = matches.rows[0];
+  return `${decksPart}|${m?.n ?? 0}:${m?.w1 ?? 0}:${m?.w2 ?? 0}`;
+}
+
 /**
  * Get win stats for all cards at once. Same logic as getCardWinStats but
  * aggregated across all cards in a single query.
  */
-export async function getAllCardWinStats(
+async function computeAllCardWinStats(
   client: Client,
 ): Promise<Map<string, BulkWinStatsEntry>> {
   const db = client;
@@ -201,4 +247,27 @@ export async function getAllCardWinStats(
   }
 
   return stats;
+}
+
+/**
+ * Get win stats for all cards at once, memoized on a fingerprint of the only
+ * tables the result depends on. Concurrent cold callers share one in-flight
+ * computation (the UI fetch and the MCP tool typically race on dev-server start).
+ */
+export async function getAllCardWinStats(
+  client: Client,
+): Promise<Map<string, BulkWinStatsEntry>> {
+  const key = await computeWinStatsFingerprint(client);
+  if (winStatsCache?.key === key) return winStatsCache.result;
+  if (winStatsPending?.key === key) return winStatsPending.promise;
+
+  const assembly = computeAllCardWinStats(client);
+  winStatsPending = { key, promise: assembly };
+  try {
+    const result = await assembly;
+    winStatsCache = { key, result };
+    return result;
+  } finally {
+    winStatsPending = null;
+  }
 }
