@@ -124,7 +124,7 @@ The app exposes REST API routes under `/api/` for querying draft data. All route
 |-------|--------|------|-------------|
 | `/api/drafts/[id]/live` | GET | None/Token | Merged status + board data (phase, picks, seatNames, bannedCards). Accepts `?since=<pickN>&sig=<sig>` for change short-circuit (`{ unchanged: true }`). With a valid `X-Seat-Token`, the response includes `me: { seat, autoPick, displayName, queue, floatedCards }`. |
 | `/api/drafts/[id]/me` | GET | Token | Resolve seat from token: `{ seat, autoPick, displayName }` |
-| `/api/drafts/[id]/pick` | POST | Token | Submit a pick. Body: `{ card_name: string }` or `{ auto: true }` to trigger server-side auto-pick cascade. |
+| `/api/drafts/[id]/pick` | POST | Token | Submit a pick. Body: `{ card_name: string }` or `{ auto: true }` to auto-pick from the seat's queue. Both forms cascade: after each pick lands, following seats with auto-pick and an available queued card are picked for automatically. Returns `picks[]` with every pick made. `{ auto: true }` returns `autoPickDisabled: true` without picking when the seat has auto-pick off. |
 | `/api/drafts/[id]/queue` | GET/PUT | Token | Manage player's pick queue |
 | `/api/drafts/[id]/match` | POST | Token | Report a match result |
 | `/api/drafts/[id]/seat-settings` | PUT | Token | Update auto-pick toggle, display name |
