@@ -309,8 +309,8 @@ export async function insertNewPicks(
     }
     // pick.seat is 0-indexed from parsePickRows, convert to 1-indexed
     statements.push({
-      sql: "INSERT OR IGNORE INTO pick_events (draft_id, pick_n, seat, card_id) VALUES (?, ?, ?, ?)",
-      args: [draftId, pick.pickPosition, pick.seat + 1, cardId],
+      sql: "INSERT OR IGNORE INTO pick_events (draft_id, pick_n, seat, card_id, source, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))",
+      args: [draftId, pick.pickPosition, pick.seat + 1, cardId, "sheet"],
     });
   }
 
