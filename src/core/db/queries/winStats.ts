@@ -137,21 +137,31 @@ export async function getAllCardWinStats(
   const db = client;
 
   const result = await db.execute({
-    sql: `SELECT c.name AS card_name,
+    // Pre-aggregating match results per (draft_id, seat) is what makes this
+    // affordable. Joining deck_cards directly to match_events needs
+    // `(me.seat1 = dc.seat OR me.seat2 = dc.seat)`, which no index can serve:
+    // the planner scans deck_cards and re-reads every match row of the draft
+    // for each one. Folding the two seat columns into one via UNION ALL first
+    // yields ~one row per drafted seat, which the planner then drives the join
+    // from, seeking deck_cards on its full (draft_id, seat) key.
+    sql: `WITH seat_totals AS (
+            SELECT draft_id, seat, SUM(w) AS game_wins, SUM(l) AS game_losses
+            FROM (
+              SELECT draft_id, seat1 AS seat, seat1_wins AS w, seat2_wins AS l FROM match_events
+              UNION ALL
+              SELECT draft_id, seat2 AS seat, seat2_wins AS w, seat1_wins AS l FROM match_events
+            )
+            GROUP BY draft_id, seat
+          )
+          SELECT c.name AS card_name,
                  dc.draft_id,
                  dc.seat,
-                 SUM(CASE WHEN me.seat1 = dc.seat THEN me.seat1_wins
-                          WHEN me.seat2 = dc.seat THEN me.seat2_wins
-                          ELSE 0 END) AS game_wins,
-                 SUM(CASE WHEN me.seat1 = dc.seat THEN me.seat2_wins
-                          WHEN me.seat2 = dc.seat THEN me.seat1_wins
-                          ELSE 0 END) AS game_losses
+                 st.game_wins,
+                 st.game_losses
           FROM deck_cards dc
-          JOIN match_events me ON me.draft_id = dc.draft_id
-            AND (me.seat1 = dc.seat OR me.seat2 = dc.seat)
+          JOIN seat_totals st ON st.draft_id = dc.draft_id AND st.seat = dc.seat
           JOIN cards c ON dc.card_id = c.card_id
-          WHERE dc.zone = 'deck'
-          GROUP BY c.name, dc.draft_id, dc.seat`,
+          WHERE dc.zone = 'deck'`,
     args: [],
   });
 
