@@ -10,51 +10,12 @@
  *                                     # anything
  */
 
-import type { Client } from "@libsql/client";
 import { realpathSync } from "fs";
 import { fileURLToPath } from "url";
 import { loadEnv } from "../src/core/db/ingest/utils";
 import { getClient } from "../src/core/db/client";
-import { reconcileRedactedRows } from "../src/core/db/ingest/redaction";
-import { getOptedOutSeats, placeholders } from "../src/core/db/queries/helpers";
+import { reconcileRedactedRows, countRedactedRows, REDACTED_TABLES } from "../src/core/db/ingest/redaction";
 import { assertRecognizedFlags } from "./lib/cliFlags";
-
-/**
- * Read-only count of what reconcileRedactedRows would delete for a draft,
- * without deleting anything. Mirrors its DELETE queries' WHERE clauses
- * exactly, swapped for COUNT(*).
- */
-async function previewRedactedRows(
-  client: Client,
-  draftId: string,
-): Promise<{ picksToDelete: number; deckCardsToDelete: number; deckHashesToDelete: number }> {
-  const optedOutSeats = await getOptedOutSeats(client, draftId);
-  if (optedOutSeats.size === 0) {
-    return { picksToDelete: 0, deckCardsToDelete: 0, deckHashesToDelete: 0 };
-  }
-
-  const seats = [...optedOutSeats];
-  const ph = placeholders(seats.length);
-
-  const picksResult = await client.execute({
-    sql: `SELECT COUNT(*) AS n FROM pick_events WHERE draft_id = ? AND seat IN (${ph})`,
-    args: [draftId, ...seats],
-  });
-  const deckCardsResult = await client.execute({
-    sql: `SELECT COUNT(*) AS n FROM deck_cards WHERE draft_id = ? AND seat IN (${ph})`,
-    args: [draftId, ...seats],
-  });
-  const deckHashesResult = await client.execute({
-    sql: `SELECT COUNT(*) AS n FROM deck_hashes WHERE draft_id = ? AND seat IN (${ph})`,
-    args: [draftId, ...seats],
-  });
-
-  return {
-    picksToDelete: Number(picksResult.rows[0].n),
-    deckCardsToDelete: Number(deckCardsResult.rows[0].n),
-    deckHashesToDelete: Number(deckHashesResult.rows[0].n),
-  };
-}
 
 const RECOGNIZED_FLAGS = new Set(["--dry-run"]);
 
@@ -92,15 +53,12 @@ async function main() {
   for (const row of drafts.rows) {
     const draftId = row.draft_id as string;
     if (dryRun) {
-      const { picksToDelete, deckCardsToDelete, deckHashesToDelete } = await previewRedactedRows(
-        client,
-        draftId,
-      );
-      totalPicks += picksToDelete;
-      totalDeckCards += deckCardsToDelete;
-      totalDeckHashes += deckHashesToDelete;
+      const { picks, deckCards, deckHashes } = await countRedactedRows(client, draftId);
+      totalPicks += picks;
+      totalDeckCards += deckCards;
+      totalDeckHashes += deckHashes;
       console.log(
-        `  ${draftId}: ${picksToDelete} picks, ${deckCardsToDelete} deck cards, ${deckHashesToDelete} deck hashes would be deleted`,
+        `  ${draftId}: ${picks} picks, ${deckCards} deck cards, ${deckHashes} deck hashes would be deleted`,
       );
     } else {
       const { picksDeleted, deckCardsDeleted, deckHashesDeleted } = await reconcileRedactedRows(
@@ -126,20 +84,21 @@ async function main() {
 
   console.log(`\nDeleted ${totals} across ${drafts.rows.length} drafts.`);
 
-  const leftover = await client.execute(`
-    SELECT
-      (SELECT COUNT(*) FROM pick_events pe
-         JOIN privacy_opt_outs p ON p.draft_id = pe.draft_id AND p.seat = pe.seat) AS picks,
-      (SELECT COUNT(*) FROM deck_cards dc
-         JOIN privacy_opt_outs p ON p.draft_id = dc.draft_id AND p.seat = dc.seat) AS deck_cards,
-      (SELECT COUNT(*) FROM deck_hashes dh
-         JOIN privacy_opt_outs p ON p.draft_id = dh.draft_id AND p.seat = dh.seat) AS deck_hashes
-  `);
-  const { picks, deck_cards, deck_hashes } = leftover.rows[0];
-  console.log(
-    `Verification — remaining redacted rows: ${picks} picks, ${deck_cards} deck cards, ${deck_hashes} deck hashes`,
+  const leftoverResults = await Promise.all(
+    REDACTED_TABLES.map((table) =>
+      client.execute(`
+        SELECT COUNT(*) AS n FROM ${table} t
+        JOIN privacy_opt_outs p ON p.draft_id = t.draft_id AND p.seat = t.seat
+      `),
+    ),
   );
-  if (Number(picks) !== 0 || Number(deck_cards) !== 0 || Number(deck_hashes) !== 0) {
+  const leftoverCounts = leftoverResults.map((r) => Number(r.rows[0].n));
+
+  console.log(
+    "Verification — remaining redacted rows: " +
+      REDACTED_TABLES.map((table, i) => `${leftoverCounts[i]} ${table}`).join(", "),
+  );
+  if (leftoverCounts.some((n) => n !== 0)) {
     console.error("FAILED: redacted rows remain");
     process.exit(1);
   }

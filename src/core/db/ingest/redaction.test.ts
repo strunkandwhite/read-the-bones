@@ -1,6 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { filterRedactedPicks, reconcileRedactedRows } from "./redaction";
+import type { Client } from "@libsql/client";
+import { filterRedactedPicks, reconcileRedactedRows, countRedactedRows } from "./redaction";
 import type { CardPick } from "../../types";
+import {
+  createMemDb,
+  insertCard,
+  insertCubeSnapshot,
+  insertCubeCard,
+  insertDraft,
+  insertPickEvent,
+  insertDeckCard,
+  insertPrivacyOptOut,
+} from "../__tests__/testDb";
 
 function pick(seat: number, pickPosition: number, cardName: string): CardPick {
   return { cardName, pickPosition, copyNumber: 1, wasPicked: true, draftId: "d1", seat, color: "" };
@@ -113,5 +124,70 @@ describe("reconcileRedactedRows", () => {
     const result = await reconcileRedactedRows(mockClient as never, "d1");
     expect(result).toEqual({ picksDeleted: 0, deckCardsDeleted: 0, deckHashesDeleted: 0 });
     expect(mockClient.execute).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * Seeds a draft with a retained seat and, optionally, an opted-out seat, each
+ * with rows in pick_events, deck_cards and deck_hashes. Seeding both is what
+ * makes the counts discriminating: a WHERE clause that redacted the wrong
+ * seat, or all seats, would still pass a fixture with only one seat present.
+ */
+async function seedDraftWithOptedOutSeat(
+  client: Client,
+  { draftId, optedOutSeat }: { draftId: string; optedOutSeat: number | null }
+): Promise<void> {
+  await insertCubeSnapshot(client, 1);
+  await insertCard(client, 1, "Bolt");
+  await insertCard(client, 2, "Swords to Plowshares");
+  await insertCubeCard(client, 1, 1);
+  await insertCubeCard(client, 1, 2);
+  await insertDraft(client, draftId, { cubeSnapshotId: 1 });
+
+  const retainedSeat = 1;
+  await insertPickEvent(client, draftId, 1, retainedSeat, 1);
+  await insertDeckCard(client, draftId, retainedSeat, 1, "deck");
+  await client.execute({
+    sql: `INSERT INTO deck_hashes (draft_id, seat, hash) VALUES (?, ?, ?)`,
+    args: [draftId, retainedSeat, "hash-retained"],
+  });
+
+  if (optedOutSeat !== null) {
+    await insertPrivacyOptOut(client, draftId, optedOutSeat);
+    await insertPickEvent(client, draftId, 2, optedOutSeat, 2);
+    await insertDeckCard(client, draftId, optedOutSeat, 2, "deck");
+    await client.execute({
+      sql: `INSERT INTO deck_hashes (draft_id, seat, hash) VALUES (?, ?, ?)`,
+      args: [draftId, optedOutSeat, "hash-opted-out"],
+    });
+  }
+}
+
+describe("countRedactedRows", () => {
+  it("counts exactly the rows reconcileRedactedRows would delete", async () => {
+    const client = await createMemDb();
+    await seedDraftWithOptedOutSeat(client, { draftId: "d1", optedOutSeat: 2 });
+
+    const counted = await countRedactedRows(client, "d1");
+    const deleted = await reconcileRedactedRows(client, "d1");
+
+    expect(counted).toEqual({
+      picks: deleted.picksDeleted,
+      deckCards: deleted.deckCardsDeleted,
+      deckHashes: deleted.deckHashesDeleted,
+    });
+    // The seeding must produce a non-trivial case, or this asserts 0 === 0.
+    expect(counted.picks).toBeGreaterThan(0);
+    expect(counted.deckHashes).toBeGreaterThan(0);
+  });
+
+  it("counts nothing when the draft has no opted-out seats", async () => {
+    const client = await createMemDb();
+    await seedDraftWithOptedOutSeat(client, { draftId: "d1", optedOutSeat: null });
+    expect(await countRedactedRows(client, "d1")).toEqual({
+      picks: 0,
+      deckCards: 0,
+      deckHashes: 0,
+    });
   });
 });
