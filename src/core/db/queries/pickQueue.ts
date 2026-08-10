@@ -198,19 +198,33 @@ export async function trimExcessQueueEntries(
 }
 
 /**
- * Remove an entire queue entry at a given index for a seat.
- * Called after auto-picking from a group entry.
- * Returns the removed entry so the caller can demote non-picked cards to float.
+ * Remove the queue entry a just-landed auto-pick consumed, and return it so the
+ * caller can demote the cards that lost out to float. Picking any card in a
+ * group fulfills the whole entry.
+ *
+ * `entryIndex` is where the entry sat when the candidate was chosen and `cardId`
+ * is what actually got picked. The index is only trusted while the entry there
+ * still holds that card: a queue PUT landing in between would otherwise shift
+ * everything down and make the index point at an innocent entry. Returns null
+ * when the card is no longer in the queue at all, meaning something else already
+ * removed it and there is nothing left to fulfill.
  */
 export async function fulfillGroupEntry(
   client: Client,
   draftId: string,
   seat: number,
   entryIndex: number,
-): Promise<QueueEntry> {
+  cardId: number,
+): Promise<QueueEntry | null> {
   const queue = await getQueue(client, draftId, seat);
-  const removed = queue[entryIndex];
-  const newQueue = queue.filter((_, i) => i !== entryIndex);
-  await setQueue(client, draftId, seat, newQueue);
+
+  const indexHoldsCard = queue[entryIndex]?.cards.some((c) => c.id === cardId) ?? false;
+  const index = indexHoldsCard
+    ? entryIndex
+    : queue.findIndex((entry) => entry.cards.some((c) => c.id === cardId));
+  if (index === -1) return null;
+
+  const removed = queue[index];
+  await setQueue(client, draftId, seat, queue.filter((_, i) => i !== index));
   return removed;
 }

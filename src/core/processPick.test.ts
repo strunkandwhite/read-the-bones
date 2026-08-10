@@ -8,7 +8,7 @@ vi.mock('./db/queries/pickQueue', () => ({
   removeCardFromAllQueues: vi.fn().mockResolvedValue({ pauseSeats: [] }),
   trimExcessQueueEntries: vi.fn().mockResolvedValue(undefined),
   getAutoPickCandidate: vi.fn().mockResolvedValue({ kind: 'empty' }),
-  fulfillGroupEntry: vi.fn().mockResolvedValue({ mode: 'pause', cards: [] }),
+  fulfillGroupEntry: vi.fn().mockResolvedValue(null),
 }));
 
 // Mock floatedCards module
@@ -543,53 +543,36 @@ describe('processPick', () => {
   });
 
   describe('auto-pick cascade', () => {
-    it('calls fulfillGroupEntry after a successful auto-pick cascade step', async () => {
+    it('does not touch the queue when a cascade candidate never becomes a pick', async () => {
       const { getAutoPickCandidate, fulfillGroupEntry } = await import('./db/queries/pickQueue');
       const { getAllSeatSettings } = await import('./db/queries/seatTokens');
 
-      // Seat 2 has auto-pick enabled
       vi.mocked(getAllSeatSettings).mockResolvedValueOnce(new Map([
         [2, { autoPick: true, displayName: null }],
       ]));
-      // getAutoPickCandidate returns a candidate for seat 2
       vi.mocked(getAutoPickCandidate).mockResolvedValueOnce({
         kind: 'candidate', cardId: 10, entryIndex: 0,
       });
 
       // 1. Draft metadata -- 2 seats, 3 picks each (6 total)
       mockDraftMeta(mockClient, { num_seats: 2, picks_per_player: 3 });
-      // 2. Pick count -- 0 (seat 1's turn)
-      mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([{ latest: 0 }]),
-      );
+      // 2. Latest pick number -- 0 (seat 1's turn)
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ latest: 0 }]));
       // 3. Availability check -- qty=1, picked_count=0
-      mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([{ picked_count: 0, qty: 1 }]),
-      );
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 0, qty: 1 }]));
       // 4. INSERT pick_events for seat 1 -- success
-      mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([], 1),
-      );
-      // 5. Post-insert copy-check re-query (picked_count now 1, qty 1 -> isLastCopy)
-      mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([{ picked_count: 1, qty: 1 }]),
-      );
-      // After isLastCopy=true: removeCardFromAllQueues+removeFloatedCardByCardId are module mocks
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([], 1));
+      // 5. Post-insert copy-check re-query (picked_count 1, qty 1 -> isLastCopy)
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
       // 6. Available cards query for seat 2
-      mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([{ card_id: 10 }]),
-      );
-      // getAutoPickCandidate returns candidate (mocked above) -> fulfillGroupEntry called
-      // 7. Card name lookup for candidate cardId=10 -- return empty to break cascade
-      mockClient.execute.mockResolvedValueOnce(
-        createQueryResult([]),
-      );
-      // cardRow.rows.length === 0 -> break
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 10 }]));
+      // 7. Card name lookup returns nothing -> candidate is abandoned
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
       const result = await processPick(mockClient as never, baseInput);
 
       expect(result.picks).toHaveLength(1);
-      expect(fulfillGroupEntry).toHaveBeenCalledWith(mockClient, 'draft-1', 2, 0);
+      expect(fulfillGroupEntry).not.toHaveBeenCalled();
     });
 
     it('completes a full cascade: second INSERT happens and both picks are returned', async () => {
@@ -744,6 +727,10 @@ describe('processPick', () => {
       vi.mocked(getAutoPickCandidate).mockResolvedValueOnce({
         kind: 'candidate', cardId: 10, entryIndex: 0,
       });
+      // Seat 2 is on the clock again after its own pick (double-pick round);
+      // this ends the cascade there instead of inheriting whatever a prior
+      // test's persistent mock left behind.
+      vi.mocked(getAutoPickCandidate).mockResolvedValueOnce({ kind: 'empty' });
       // Group has 3 cards; cardId 10 is picked, 20 and 30 should be floated
       vi.mocked(fulfillGroupEntry).mockResolvedValueOnce({
         mode: 'pause',
@@ -761,11 +748,21 @@ describe('processPick', () => {
       // Post-insert copy-check re-query (picked_count now 1, qty 1 -> isLastCopy)
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 10 }]));
-      // Card name lookup returns empty to break cascade after the float
-      mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+      // Card name lookup succeeds -- the candidate becomes seat 2's pick
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ name: 'Lightning Bolt' }]));
+      // INSERT for seat 2 -- success, so fulfillGroupEntry's demotions actually land
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([], 1));
+      // Post-insert copy-check re-query for cardId=10
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
+      // 2 seats / 3 picks each means seat 2 is on the clock again (double-pick
+      // round); available-cards query for that next candidate select, whose
+      // getAutoPickCandidate call falls through to the module default ('empty'),
+      // ending the cascade.
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 20 }]));
 
       await processPick(mockClient as never, baseInput);
 
+      expect(fulfillGroupEntry).toHaveBeenCalledWith(mockClient, 'draft-1', 2, 0, 10);
       // Picked card should NOT be floated
       expect(addFloatedCard).not.toHaveBeenCalledWith(mockClient, 'draft-1', 2, 'Lightning Bolt');
       // Non-picked group members should be floated
@@ -829,6 +826,10 @@ describe('processPick', () => {
       vi.mocked(getAutoPickCandidate).mockResolvedValueOnce({
         kind: 'candidate', cardId: 55, entryIndex: 0,
       });
+      // Seat 2 is on the clock again after its own pick (double-pick round);
+      // this ends the cascade there instead of inheriting whatever a prior
+      // test's persistent mock left behind.
+      vi.mocked(getAutoPickCandidate).mockResolvedValueOnce({ kind: 'empty' });
       // Group entry for seat 2: cards 55 (picked) and 66 (demoted to float)
       vi.mocked(fulfillGroupEntry).mockResolvedValueOnce({
         mode: 'flow-through',
@@ -846,8 +847,17 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
       // Available cards for seat 2
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 55 }]));
-      // Card name lookup: cascade break (empty)
-      mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
+      // Card name lookup succeeds -- the candidate becomes seat 2's pick
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ name: 'Dark Ritual' }]));
+      // INSERT for seat 2 -- success, so fulfillGroupEntry's demotions actually land
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([], 1));
+      // Post-insert copy-check re-query for cardId=55
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
+      // 2 seats / 3 picks each means seat 2 is on the clock again (double-pick
+      // round); available-cards query for that next candidate select, whose
+      // getAutoPickCandidate call falls through to the module default ('empty'),
+      // ending the cascade.
+      mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 66 }]));
 
       await processPick(mockClient as never, baseInput);
 
@@ -1043,9 +1053,10 @@ describe('triggerAutoPickOnDemand', () => {
   });
 
   it('throws ConflictError when optimistic INSERT is beaten (cascade fired first)', async () => {
-    const { getAutoPickCandidate, fulfillGroupEntry } = await import('./db/queries/pickQueue');
+    const { getAutoPickCandidate } = await import('./db/queries/pickQueue');
     vi.mocked(getAutoPickCandidate).mockResolvedValueOnce({ kind: 'candidate', cardId: 7, entryIndex: 0 });
-    vi.mocked(fulfillGroupEntry).mockResolvedValueOnce({ mode: 'pause', cards: [{ id: 7, name: 'Bolt' }] });
+    // fulfillGroupEntry is never reached here: the queue is only committed after
+    // a successful INSERT, and this INSERT loses the race.
 
     mockDraftMeta(mockClient);
     mockClient.execute.mockResolvedValueOnce(createQueryResult([{ latest: 0 }]));

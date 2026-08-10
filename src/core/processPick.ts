@@ -109,11 +109,11 @@ async function insertPickEvent(
 }
 
 type AutoPickAdvance =
-  | { kind: 'candidate'; seat: number; cardId: number; cardName: string }
+  | { kind: 'candidate'; seat: number; cardId: number; cardName: string; entryIndex: number }
   | { kind: 'none' };
 
 type SeatCandidateResult =
-  | { kind: 'candidate'; cardId: number; cardName: string }
+  | { kind: 'candidate'; cardId: number; cardName: string; entryIndex: number }
   | { kind: 'paused' }
   | { kind: 'none' };
 
@@ -121,10 +121,14 @@ type SeatCandidateResult =
  * Single source of truth for auto-pick candidate selection for a given seat.
  *
  * Runs the queue-traversal semantics (try entries in order, within each entry
- * try each card, pause-mode stops on exhaustion, flow-through continues, group
- * entries are fulfilled and non-picked members are demoted to float).  When
+ * try each card, pause-mode stops on exhaustion, flow-through continues).  When
  * the queue is exhausted in pause mode, auto-pick is disabled for the seat and
  * `{ kind: 'paused' }` is returned so the caller can surface the state change.
+ *
+ * Choosing is otherwise read-only: the chosen entry is reported by index and
+ * removed only once its pick has actually landed (see `commitQueueEntryForPick`).
+ * Removing it here instead meant a selection that never became a pick still
+ * consumed the entry, silently deleting queued cards nobody picked.
  *
  * Called by both:
  *  - `advanceAutoPick` (cascade path — fires after a preceding pick lands)
@@ -168,25 +172,18 @@ async function selectAutoPickCandidateForSeat(
     return { kind: 'none' };
   }
 
-  // Fulfill the group entry and demote non-picked members to float
-  const fulfilledEntry = await fulfillGroupEntry(
-    client, draftId, seat, autoPickResult.entryIndex,
-  );
-  const candidate = autoPickResult.cardId;
-  const nonPicked = fulfilledEntry.cards.filter((c) => c.id !== candidate);
-  await Promise.all(nonPicked.map((c) => addFloatedCard(client, draftId, seat, c.name)));
-
   // Resolve the card name from the DB
   const cardRow = await client.execute({
     sql: `SELECT name FROM cards WHERE card_id = ?`,
-    args: [candidate],
+    args: [autoPickResult.cardId],
   });
   if (cardRow.rows.length === 0) return { kind: 'none' };
 
   return {
     kind: 'candidate',
-    cardId: candidate,
+    cardId: autoPickResult.cardId,
     cardName: cardRow.rows[0].name as string,
+    entryIndex: autoPickResult.entryIndex,
   };
 }
 
@@ -218,7 +215,13 @@ async function advanceAutoPick(
   );
 
   if (result.kind === 'candidate') {
-    return { kind: 'candidate', seat: nextAfter.seat, cardId: result.cardId, cardName: result.cardName };
+    return {
+      kind: 'candidate',
+      seat: nextAfter.seat,
+      cardId: result.cardId,
+      cardName: result.cardName,
+      entryIndex: result.entryIndex,
+    };
   }
   return { kind: 'none' };
 }
@@ -301,7 +304,7 @@ export async function triggerAutoPickOnDemand(
   const outcome = await insertPickAndCascade(
     client,
     draftId,
-    { seat, cardId, cardName },
+    { seat, cardId, cardName, entryIndex: candidateResult.entryIndex },
     latestPickN,
     { numSeats, picksPerPlayer, doublePickAfterRound },
     allSeatSettings,
@@ -316,6 +319,29 @@ export async function triggerAutoPickOnDemand(
     phaseChanged: outcome.phaseChanged,
     newPhase: outcome.newPhase,
   };
+}
+
+/**
+ * Commit the queue consequences of an auto-pick that has just landed: the entry
+ * leaves the queue entirely (any one card fulfills a group) and the cards that
+ * lost out are demoted to float.
+ *
+ * Runs after the INSERT, never before. The insert is the only step that can
+ * fail on a race, so anything committed ahead of it is a change that outlives a
+ * pick that never happened.
+ */
+async function commitQueueEntryForPick(
+  client: Client,
+  draftId: string,
+  seat: number,
+  entryIndex: number,
+  pickedCardId: number,
+): Promise<void> {
+  const fulfilled = await fulfillGroupEntry(client, draftId, seat, entryIndex, pickedCardId);
+  if (!fulfilled) return;
+
+  const nonPicked = fulfilled.cards.filter((c) => c.id !== pickedCardId);
+  await Promise.all(nonPicked.map((c) => addFloatedCard(client, draftId, seat, c.name)));
 }
 
 /**
@@ -334,7 +360,7 @@ export async function triggerAutoPickOnDemand(
 async function insertPickAndCascade(
   client: Client,
   draftId: string,
-  firstPick: { seat: number; cardId: number; cardName: string },
+  firstPick: { seat: number; cardId: number; cardName: string; entryIndex: number | null },
   latestPickN: number,
   meta: { numSeats: number; picksPerPlayer: number; doublePickAfterRound: number | null },
   allSeatSettings: Map<number, { autoPick: boolean; displayName: string | null }>,
@@ -347,6 +373,7 @@ async function insertPickAndCascade(
   let currentSeat = firstPick.seat;
   let currentCardId = firstPick.cardId;
   let currentCardName = firstPick.cardName;
+  let currentEntryIndex = firstPick.entryIndex;
   let cascadeDepth = 0;
 
   while (cascadeDepth < maxCascade) {
@@ -361,6 +388,14 @@ async function insertPickAndCascade(
     }
 
     picks.push({ pickN, seat: currentSeat, cardId: currentCardId, cardName: currentCardName });
+
+    // Before removeCardFromAllQueues / trimExcessQueueEntries, both of which
+    // rewrite queue_json and would invalidate the entry index.
+    if (currentEntryIndex !== null) {
+      await commitQueueEntryForPick(
+        client, draftId, currentSeat, currentEntryIndex, currentCardId,
+      );
+    }
 
     // Re-query after the insert, so pickedCount already includes the pick just made.
     const copyInfo = await getRemainingCopiesForPick(
@@ -407,6 +442,7 @@ async function insertPickAndCascade(
     currentSeat = advance.seat;
     currentCardId = advance.cardId;
     currentCardName = advance.cardName;
+    currentEntryIndex = advance.entryIndex;
     cascadeDepth++;
   }
 
@@ -458,7 +494,12 @@ export async function resumeAutoPickForCurrentSeat(
   return insertPickAndCascade(
     client,
     draftId,
-    { seat: next.seat, cardId: candidateResult.cardId, cardName: candidateResult.cardName },
+    {
+      seat: next.seat,
+      cardId: candidateResult.cardId,
+      cardName: candidateResult.cardName,
+      entryIndex: candidateResult.entryIndex,
+    },
     latestPickN,
     { numSeats, picksPerPlayer, doublePickAfterRound },
     allSeatSettings,
@@ -512,7 +553,7 @@ export async function processPick(
   return insertPickAndCascade(
     client,
     input.draftId,
-    { seat: input.seat, cardId: input.cardId, cardName: input.cardName },
+    { seat: input.seat, cardId: input.cardId, cardName: input.cardName, entryIndex: null },
     latestPickN,
     { numSeats, picksPerPlayer, doublePickAfterRound },
     allSeatSettings,

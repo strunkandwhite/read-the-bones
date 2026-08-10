@@ -430,20 +430,45 @@ describe("fulfillGroupEntry", () => {
   let client: ReturnType<typeof createMockClient>;
   beforeEach(() => { client = createMockClient(); });
 
-  it("removes the entry at the given index", async () => {
-    client.execute.mockResolvedValueOnce({
-      rows: [{
-        queue_json: JSON.stringify([
-          { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }] },
-          { mode: "pause", cards: [{ id: 30, name: "Recall" }] },
-        ]),
-      }],
+  const QUEUE = JSON.stringify([
+    { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }] },
+    { mode: "pause", cards: [{ id: 30, name: "Recall" }] },
+  ]);
+
+  it("removes the entry at the given index and returns it", async () => {
+    client.execute.mockResolvedValueOnce({ rows: [{ queue_json: QUEUE }] });
+
+    const removed = await fulfillGroupEntry(client, "draft-1", 1, 0, 10);
+
+    expect(removed).toEqual({
+      mode: "flow-through",
+      cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }],
     });
-
-    await fulfillGroupEntry(client, "draft-1", 1, 0);
-
     const call = client.execute.mock.calls[1][0]; // second call is the UPDATE
-    const json = JSON.parse(call.args[0] as string);
-    expect(json).toEqual([{ mode: "pause", cards: [{ id: 30, name: "Recall" }] }]);
+    expect(JSON.parse(call.args[0] as string)).toEqual([
+      { mode: "pause", cards: [{ id: 30, name: "Recall" }] },
+    ]);
+  });
+
+  it("finds the entry by card when the index has drifted", async () => {
+    client.execute.mockResolvedValueOnce({ rows: [{ queue_json: QUEUE }] });
+
+    // Index 0 no longer holds Recall — a queue PUT reordered underneath us.
+    const removed = await fulfillGroupEntry(client, "draft-1", 1, 0, 30);
+
+    expect(removed).toEqual({ mode: "pause", cards: [{ id: 30, name: "Recall" }] });
+    const call = client.execute.mock.calls[1][0];
+    expect(JSON.parse(call.args[0] as string)).toEqual([
+      { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }] },
+    ]);
+  });
+
+  it("returns null and writes nothing when the card is already gone", async () => {
+    client.execute.mockResolvedValueOnce({ rows: [{ queue_json: QUEUE }] });
+
+    const removed = await fulfillGroupEntry(client, "draft-1", 1, 0, 999);
+
+    expect(removed).toBeNull();
+    expect(client.execute).toHaveBeenCalledTimes(1); // the SELECT only, no UPDATE
   });
 });
