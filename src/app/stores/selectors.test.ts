@@ -218,8 +218,11 @@ describe("getCardStatus — local deck mode", () => {
   });
 
   it("reports floated without auth when local deck mode is active", () => {
+    // activeDraft is set before board: the activeDraft subscription clears
+    // board on every switch, so a board set in the same call would be wiped
+    // straight back out.
+    useDraftStore.setState({ activeDraft: "sheet-1" });
     useDraftStore.setState({
-      activeDraft: "sheet-1",
       selectedSeat: 3,
       board: {
         picks: [], numSeats: 10, picksPerPlayer: 45, doublePickAfterRound: null, phase: "complete",
@@ -235,8 +238,8 @@ describe("getCardStatus — local deck mode", () => {
   });
 
   it("does not report floated for live-draft spectators", () => {
+    useDraftStore.setState({ activeDraft: "live-1" });
     useDraftStore.setState({
-      activeDraft: "live-1",
       selectedSeat: 3,
       board: {
         picks: [], numSeats: 10, picksPerPlayer: 45, doublePickAfterRound: null, phase: "drafting",
