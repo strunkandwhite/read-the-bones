@@ -11,7 +11,7 @@
 //
 //   syncActiveDraft      — Incremental cron path (insert missing picks + hash-compare
 //   (syncActiveDraft.ts)   matches only, no pool/cube/opt-out rebuild).
-//                          Used by: GET /api/sync (Vercel cron, every 10 min).
+//                          Used by: GET /api/sync (Vercel cron, every minute).
 //
 // Both paths share the draft-phase lifecycle predicates (computeSyncTargetPhase,
 // isMatchesComplete) from draftPhases.ts, ensuring picks-done drafts land in

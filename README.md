@@ -41,7 +41,7 @@ pnpm dev
 
 Requires a Turso database. Set `TURSO_DATABASE_URL` and `TURSO_AUTH_TOKEN` in `.env.local`, then run `pnpm db:migrate` to create tables.
 
-For Sheets-based draft sync, set `GOOGLE_SHEETS_API_KEY` in `.env.local`. For the Vercel cron sync (runs every 10 minutes in production), also set `CRON_SECRET` — the cron endpoint (`GET /api/sync`) rejects requests without it.
+For Sheets-based draft sync, set `GOOGLE_SHEETS_API_KEY` in `.env.local`. For the Vercel cron sync (runs every minute in production), also set `CRON_SECRET` — the cron endpoint (`GET /api/sync`) rejects requests without it.
 
 ## Development
 
@@ -69,8 +69,9 @@ Re-run `pnpm sync <draft-name>` to pull updated data as the draft progresses. Us
 
 For drafts run directly in the app:
 
-1. Create: `pnpm draft:create-live --name "Name" --date 2026-04-01 --seats 10 --picks-per-player 45 --pool cubecobra:<id> [--banned-cards "Card A,Card B"]`
+1. Create: `pnpm draft:create-live --name "Name" --date 2026-04-01 --seats 10 --picks-per-player 45 --pool cubecobra:<id> --double-pick-after 25 [--banned-cards "Card A,Card B"]`
    - `--pool` accepts `cubecobra:<id>` or `file:<path>` (local card-list file)
+   - `--double-pick-after` is the last single-pick round. Omitting it stores NULL and falls back to a floor(N/4) heuristic, which gives round 23 for a 45-pick draft and puts the board and the server on different seats.
 2. Start: `pnpm draft:start <draft-name>`
 3. Share seat URLs with players (printed by the create command)
 
@@ -120,7 +121,7 @@ A player can opt out of having their card choices recorded. Create a `.opt-outs.
 ["Player Name", "Another Player"]
 ```
 
-Names are matched case-insensitively against the drafter names on the sheet. When you run `pnpm sync`, matching seats are recorded in `privacy_opt_outs`, and from then on **their picks and deck lists are never written to the database at all** — not hidden at read time, but absent. Every sync also deletes any such rows that predate the opt-out, so adding a name is retroactive.
+Names are matched case-insensitively against the drafter names on the sheet. When you run `pnpm sync`, matching seats are recorded in `privacy_opt_outs`, and from then on **their picks and deck lists are never written to the database at all** — not hidden at read time, but absent. Every sync of a draft still in the sync window also deletes any such rows that predate the opt-out. Completed drafts have left that window, so add a name before the drafts it applies to complete; naming a seat afterwards requires re-syncing those drafts individually with `pnpm sync <draft-name>`.
 
 Precisely what this does and does not cover:
 
