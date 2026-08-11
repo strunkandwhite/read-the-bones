@@ -189,10 +189,7 @@ describe("transformApiResponse", () => {
     it("should return empty imageUri when neither top-level nor card_faces have it", () => {
       const apiResponse: ScryfallApiResponse = {
         name: "Text-Only Card",
-        card_faces: [
-          { oracle_text: "Face 1" },
-          { oracle_text: "Face 2" },
-        ],
+        card_faces: [{ oracle_text: "Face 1" }, { oracle_text: "Face 2" }],
       };
 
       const result = transformApiResponse(apiResponse);
@@ -394,8 +391,7 @@ const mockDoubleFacedResponse = {
 const mockDfcNoTopLevelColorsResponse = {
   name: "Jace, Vryn's Prodigy // Jace, Telepath Unbound",
   cmc: 2,
-  type_line:
-    "Legendary Creature — Human Wizard // Legendary Planeswalker — Jace",
+  type_line: "Legendary Creature — Human Wizard // Legendary Planeswalker — Jace",
   color_identity: ["U"],
   // No top-level colors — Scryfall puts them on card_faces for DFCs
   card_faces: [

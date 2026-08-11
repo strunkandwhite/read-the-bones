@@ -14,12 +14,7 @@ describe("InlineEditableName", () => {
 
   it("renders current name as text when not editable", () => {
     render(
-      <InlineEditableName
-        currentName="Alice"
-        seatNumber={1}
-        isEditable={false}
-        onSave={vi.fn()}
-      />,
+      <InlineEditableName currentName="Alice" seatNumber={1} isEditable={false} onSave={vi.fn()} />
     );
     expect(screen.getByText("Alice")).toBeTruthy();
     expect(screen.queryByRole("textbox")).toBeNull();
@@ -27,12 +22,7 @@ describe("InlineEditableName", () => {
 
   it("renders current name as text when editable but not editing", () => {
     render(
-      <InlineEditableName
-        currentName="Alice"
-        seatNumber={1}
-        isEditable={true}
-        onSave={vi.fn()}
-      />,
+      <InlineEditableName currentName="Alice" seatNumber={1} isEditable={true} onSave={vi.fn()} />
     );
     expect(screen.getByText("Alice")).toBeTruthy();
     expect(screen.queryByRole("textbox")).toBeNull();
@@ -40,12 +30,7 @@ describe("InlineEditableName", () => {
 
   it("enters edit mode on click when editable", () => {
     render(
-      <InlineEditableName
-        currentName="Alice"
-        seatNumber={1}
-        isEditable={true}
-        onSave={vi.fn()}
-      />,
+      <InlineEditableName currentName="Alice" seatNumber={1} isEditable={true} onSave={vi.fn()} />
     );
     fireEvent.click(screen.getByText("Alice"));
     expect(screen.getByRole("textbox")).toBeTruthy();
@@ -54,12 +39,7 @@ describe("InlineEditableName", () => {
 
   it("does not enter edit mode on click when not editable", () => {
     render(
-      <InlineEditableName
-        currentName="Alice"
-        seatNumber={1}
-        isEditable={false}
-        onSave={vi.fn()}
-      />,
+      <InlineEditableName currentName="Alice" seatNumber={1} isEditable={false} onSave={vi.fn()} />
     );
     fireEvent.click(screen.getByText("Alice"));
     expect(screen.queryByRole("textbox")).toBeNull();
@@ -68,12 +48,7 @@ describe("InlineEditableName", () => {
   it("saves on Enter", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
-      <InlineEditableName
-        currentName="Alice"
-        seatNumber={1}
-        isEditable={true}
-        onSave={onSave}
-      />,
+      <InlineEditableName currentName="Alice" seatNumber={1} isEditable={true} onSave={onSave} />
     );
     fireEvent.click(screen.getByText("Alice"));
     const input = screen.getByRole("textbox") as HTMLInputElement;
@@ -86,12 +61,7 @@ describe("InlineEditableName", () => {
   it("cancels on Escape and reverts to original value", () => {
     const onSave = vi.fn();
     render(
-      <InlineEditableName
-        currentName="Alice"
-        seatNumber={1}
-        isEditable={true}
-        onSave={onSave}
-      />,
+      <InlineEditableName currentName="Alice" seatNumber={1} isEditable={true} onSave={onSave} />
     );
     fireEvent.click(screen.getByText("Alice"));
     const input = screen.getByRole("textbox");
@@ -107,12 +77,7 @@ describe("InlineEditableName", () => {
   it("saves on blur", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
-      <InlineEditableName
-        currentName="Alice"
-        seatNumber={1}
-        isEditable={true}
-        onSave={onSave}
-      />,
+      <InlineEditableName currentName="Alice" seatNumber={1} isEditable={true} onSave={onSave} />
     );
     fireEvent.click(screen.getByText("Alice"));
     const input = screen.getByRole("textbox");
@@ -125,12 +90,7 @@ describe("InlineEditableName", () => {
   it("does not call onSave when value unchanged", () => {
     const onSave = vi.fn();
     render(
-      <InlineEditableName
-        currentName="Alice"
-        seatNumber={1}
-        isEditable={true}
-        onSave={onSave}
-      />,
+      <InlineEditableName currentName="Alice" seatNumber={1} isEditable={true} onSave={onSave} />
     );
     fireEvent.click(screen.getByText("Alice"));
     const input = screen.getByRole("textbox");
@@ -142,12 +102,7 @@ describe("InlineEditableName", () => {
   it("calls onSave with empty string to clear name", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
-      <InlineEditableName
-        currentName="Alice"
-        seatNumber={1}
-        isEditable={true}
-        onSave={onSave}
-      />,
+      <InlineEditableName currentName="Alice" seatNumber={1} isEditable={true} onSave={onSave} />
     );
     fireEvent.click(screen.getByText("Alice"));
     const input = screen.getByRole("textbox");
@@ -159,12 +114,7 @@ describe("InlineEditableName", () => {
 
   it("enforces 50 character max length", () => {
     render(
-      <InlineEditableName
-        currentName="Alice"
-        seatNumber={1}
-        isEditable={true}
-        onSave={vi.fn()}
-      />,
+      <InlineEditableName currentName="Alice" seatNumber={1} isEditable={true} onSave={vi.fn()} />
     );
     fireEvent.click(screen.getByText("Alice"));
     const input = screen.getByRole("textbox") as HTMLInputElement;
@@ -174,12 +124,7 @@ describe("InlineEditableName", () => {
   it("reverts display on save failure", async () => {
     const onSave = vi.fn().mockRejectedValue(new Error("fail"));
     render(
-      <InlineEditableName
-        currentName="Alice"
-        seatNumber={1}
-        isEditable={true}
-        onSave={onSave}
-      />,
+      <InlineEditableName currentName="Alice" seatNumber={1} isEditable={true} onSave={onSave} />
     );
     fireEvent.click(screen.getByText("Alice"));
     const input = screen.getByRole("textbox");
@@ -192,12 +137,7 @@ describe("InlineEditableName", () => {
   it("does not call onSave when name is cleared while already at fallback 'Seat N'", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     render(
-      <InlineEditableName
-        currentName="Seat 3"
-        seatNumber={3}
-        isEditable={true}
-        onSave={onSave}
-      />,
+      <InlineEditableName currentName="Seat 3" seatNumber={3} isEditable={true} onSave={onSave} />
     );
     fireEvent.click(screen.getByText("Seat 3"));
     const input = screen.getByRole("textbox");

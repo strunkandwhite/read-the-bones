@@ -21,11 +21,7 @@ export function makeHydrateToken(set: SetState) {
   };
 }
 
-export function makeFetchMySeat(
-  set: SetState,
-  get: GetState,
-  recomputePicking: () => void,
-) {
+export function makeFetchMySeat(set: SetState, get: GetState, recomputePicking: () => void) {
   return async (): Promise<void> => {
     const { seatToken } = get();
     const activeDraft = useDraftStore.getState().activeDraft;
@@ -49,11 +45,7 @@ export function makeFetchMySeat(
   };
 }
 
-export function makeToggleAutoPick(
-  set: SetState,
-  get: GetState,
-  recomputePicking: () => void,
-) {
+export function makeToggleAutoPick(set: SetState, get: GetState, recomputePicking: () => void) {
   return async (): Promise<void> => {
     const { seatToken, autoPick } = get();
     const activeDraft = useDraftStore.getState().activeDraft;

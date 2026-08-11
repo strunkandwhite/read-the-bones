@@ -22,18 +22,14 @@ beforeEach(() => {
 
 describe("GET /api/draft-stats", () => {
   it("calls getDraftStats with parsed draft IDs", async () => {
-    const req = new NextRequest(
-      new URL("http://localhost:3000/api/draft-stats?drafts=d1,d2"),
-    );
+    const req = new NextRequest(new URL("http://localhost:3000/api/draft-stats?drafts=d1,d2"));
     await GET(req);
 
     expect(getDraftStats).toHaveBeenCalledWith({ draftIds: ["d1", "d2"] });
   });
 
   it("passes undefined draftIds when no drafts param", async () => {
-    const req = new NextRequest(
-      new URL("http://localhost:3000/api/draft-stats"),
-    );
+    const req = new NextRequest(new URL("http://localhost:3000/api/draft-stats"));
     await GET(req);
 
     expect(getDraftStats).toHaveBeenCalledWith({ draftIds: undefined });
@@ -41,23 +37,19 @@ describe("GET /api/draft-stats", () => {
 
   it("returns JSON response with the real getDraftStats shape and cache headers", async () => {
     vi.mocked(getDraftStats).mockResolvedValueOnce({
-      winRateBySeat: [
-        { seat: 1, wins: 5, losses: 3, winRate: 0.625, ciLower: 0.3, ciUpper: 0.9 },
-      ],
+      winRateBySeat: [{ seat: 1, wins: 5, losses: 3, winRate: 0.625, ciLower: 0.3, ciUpper: 0.9 }],
       winRateByColor: [
         { color: "UB", wins: 4, losses: 2, winRate: 0.667, ciLower: 0.3, ciUpper: 0.9 },
       ],
       ingestionHash: "abc123def456abcd",
     });
 
-    const req = new NextRequest(
-      new URL("http://localhost:3000/api/draft-stats"),
-    );
+    const req = new NextRequest(new URL("http://localhost:3000/api/draft-stats"));
     const res = await GET(req);
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe(
-      "public, s-maxage=31536000, stale-while-revalidate=60",
+      "public, s-maxage=31536000, stale-while-revalidate=60"
     );
 
     const body = await res.json();
@@ -74,9 +66,7 @@ describe("GET /api/draft-stats", () => {
   it("returns 500 on error", async () => {
     vi.mocked(getDraftStats).mockRejectedValueOnce(new Error("fail"));
 
-    const req = new NextRequest(
-      new URL("http://localhost:3000/api/draft-stats"),
-    );
+    const req = new NextRequest(new URL("http://localhost:3000/api/draft-stats"));
     const res = await GET(req);
 
     expect(res.status).toBe(500);

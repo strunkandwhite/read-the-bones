@@ -53,7 +53,7 @@ describe("reconcileRedactedRows", () => {
     mockClient.batch.mockResolvedValueOnce([
       { rowsAffected: 45 }, // pick_events delete
       { rowsAffected: 44 }, // deck_cards delete
-      { rowsAffected: 1 },  // deck_hashes delete
+      { rowsAffected: 1 }, // deck_hashes delete
     ]);
 
     const result = await reconcileRedactedRows(mockClient as never, "d1");
@@ -95,8 +95,8 @@ describe("reconcileRedactedRows", () => {
     mockClient.execute.mockResolvedValueOnce({ rows: [{ seat: 3 }, { seat: 7 }] }); // getOptedOutSeats
     mockClient.batch.mockResolvedValueOnce([
       { rowsAffected: 12 }, // pick_events delete
-      { rowsAffected: 9 },  // deck_cards delete
-      { rowsAffected: 2 },  // deck_hashes delete
+      { rowsAffected: 9 }, // deck_cards delete
+      { rowsAffected: 2 }, // deck_hashes delete
     ]);
 
     const result = await reconcileRedactedRows(mockClient as never, "d1");
@@ -113,16 +113,20 @@ describe("reconcileRedactedRows", () => {
     const statements = mockClient.batch.mock.calls[0][0];
     expect(statements).toEqual([
       expect.objectContaining({
-        sql: expect.stringContaining("DELETE FROM pick_events WHERE draft_id = ? AND seat IN (?, ?)"),
-        args: ["d1", 3, 7],
-      }),
-      expect.objectContaining({
-        sql: expect.stringContaining("DELETE FROM deck_cards WHERE draft_id = ? AND seat IN (?, ?)"),
+        sql: expect.stringContaining(
+          "DELETE FROM pick_events WHERE draft_id = ? AND seat IN (?, ?)"
+        ),
         args: ["d1", 3, 7],
       }),
       expect.objectContaining({
         sql: expect.stringContaining(
-          "DELETE FROM deck_hashes WHERE draft_id = ? AND seat IN (?, ?)",
+          "DELETE FROM deck_cards WHERE draft_id = ? AND seat IN (?, ?)"
+        ),
+        args: ["d1", 3, 7],
+      }),
+      expect.objectContaining({
+        sql: expect.stringContaining(
+          "DELETE FROM deck_hashes WHERE draft_id = ? AND seat IN (?, ?)"
         ),
         args: ["d1", 3, 7],
       }),

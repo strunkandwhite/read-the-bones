@@ -19,7 +19,7 @@ describe("CollapsibleSection", () => {
     render(
       <CollapsibleSection title="Draft Grid" storageKey="test:grid">
         <div>Grid body</div>
-      </CollapsibleSection>,
+      </CollapsibleSection>
     );
     expect(bodyWrapper("Grid body").hidden).toBe(false);
     const toggle = screen.getByRole("button", { name: "Draft Grid" });
@@ -30,7 +30,7 @@ describe("CollapsibleSection", () => {
     render(
       <CollapsibleSection title="Draft Grid" storageKey="test:grid">
         <div>Grid body</div>
-      </CollapsibleSection>,
+      </CollapsibleSection>
     );
     fireEvent.click(screen.getByRole("button", { name: "Draft Grid" }));
     expect(bodyWrapper("Grid body").hidden).toBe(true);
@@ -42,7 +42,7 @@ describe("CollapsibleSection", () => {
     render(
       <CollapsibleSection title="Draft Grid" storageKey="test:grid">
         <div>Grid body</div>
-      </CollapsibleSection>,
+      </CollapsibleSection>
     );
     const toggle = screen.getByRole("button", { name: "Draft Grid" });
     fireEvent.click(toggle);
@@ -55,7 +55,7 @@ describe("CollapsibleSection", () => {
     render(
       <CollapsibleSection title="Draft Grid" storageKey="test:grid">
         <div>Grid body</div>
-      </CollapsibleSection>,
+      </CollapsibleSection>
     );
     fireEvent.click(screen.getByRole("button", { name: "Draft Grid" }));
     // Content is still in the DOM (live updates keep flowing), just hidden.
@@ -66,7 +66,7 @@ describe("CollapsibleSection", () => {
     const first = render(
       <CollapsibleSection title="Pick Queue" storageKey="test:queue">
         <div>Queue body</div>
-      </CollapsibleSection>,
+      </CollapsibleSection>
     );
     fireEvent.click(screen.getByRole("button", { name: "Pick Queue" }));
     first.unmount();
@@ -74,7 +74,7 @@ describe("CollapsibleSection", () => {
     render(
       <CollapsibleSection title="Pick Queue" storageKey="test:queue">
         <div>Queue body</div>
-      </CollapsibleSection>,
+      </CollapsibleSection>
     );
     expect(bodyWrapper("Queue body").hidden).toBe(true);
   });
@@ -88,7 +88,7 @@ describe("CollapsibleSection", () => {
         <CollapsibleSection title="Pick Queue" storageKey="test:queue">
           <div>Queue body</div>
         </CollapsibleSection>
-      </>,
+      </>
     );
     fireEvent.click(screen.getByRole("button", { name: "Draft Grid" }));
     expect(bodyWrapper("Grid body").hidden).toBe(true);
@@ -104,7 +104,7 @@ describe("CollapsibleSection", () => {
         expandedClassName="flex-1"
       >
         <div>Grid body</div>
-      </CollapsibleSection>,
+      </CollapsibleSection>
     );
     const section = screen.getByRole("button", { name: "Draft Grid" }).parentElement!;
     expect(section.className).toContain("flex-1");

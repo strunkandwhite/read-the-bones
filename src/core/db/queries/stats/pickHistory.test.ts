@@ -19,23 +19,58 @@ describe("getPickHistory", () => {
   it("returns per-draft pick positions ordered by date", async () => {
     client.execute.mockResolvedValueOnce({
       rows: [
-        { draft_id: "d1", draft_name: "Tarkir", draft_date: "2026-01-15", num_seats: 10, pick_n: 12, pool_size: 540 },
-        { draft_id: "d2", draft_name: "Innistrad", draft_date: "2026-02-01", num_seats: 10, pick_n: 5, pool_size: 540 },
+        {
+          draft_id: "d1",
+          draft_name: "Tarkir",
+          draft_date: "2026-01-15",
+          num_seats: 10,
+          pick_n: 12,
+          pool_size: 540,
+        },
+        {
+          draft_id: "d2",
+          draft_name: "Innistrad",
+          draft_date: "2026-02-01",
+          num_seats: 10,
+          pick_n: 5,
+          pool_size: 540,
+        },
       ],
     });
     client.execute.mockResolvedValueOnce({ rows: [] });
 
     const result = await getPickHistory(client, "Lightning Bolt");
     expect(result.pickHistory).toEqual([
-      { draftId: "d1", draftName: "Tarkir", draftDate: "2026-01-15", pickPosition: 12, picked: true, numSeats: 10 },
-      { draftId: "d2", draftName: "Innistrad", draftDate: "2026-02-01", pickPosition: 5, picked: true, numSeats: 10 },
+      {
+        draftId: "d1",
+        draftName: "Tarkir",
+        draftDate: "2026-01-15",
+        pickPosition: 12,
+        picked: true,
+        numSeats: 10,
+      },
+      {
+        draftId: "d2",
+        draftName: "Innistrad",
+        draftDate: "2026-02-01",
+        pickPosition: 5,
+        picked: true,
+        numSeats: 10,
+      },
     ]);
   });
 
   it("marks unpicked cards with poolSize as position", async () => {
     client.execute.mockResolvedValueOnce({
       rows: [
-        { draft_id: "d1", draft_name: "Tarkir", draft_date: "2026-01-15", num_seats: 10, pick_n: null, pool_size: 540 },
+        {
+          draft_id: "d1",
+          draft_name: "Tarkir",
+          draft_date: "2026-01-15",
+          num_seats: 10,
+          pick_n: null,
+          pool_size: 540,
+        },
       ],
     });
     client.execute.mockResolvedValueOnce({ rows: [] });
@@ -48,9 +83,30 @@ describe("getPickHistory", () => {
   it("computes 15-bucket pick distribution", async () => {
     client.execute.mockResolvedValueOnce({
       rows: [
-        { draft_id: "d1", draft_name: "A", draft_date: "2026-01-01", num_seats: 10, pick_n: 5, pool_size: 540 },
-        { draft_id: "d2", draft_name: "B", draft_date: "2026-01-02", num_seats: 10, pick_n: 35, pool_size: 540 },
-        { draft_id: "d3", draft_name: "C", draft_date: "2026-01-03", num_seats: 10, pick_n: 8, pool_size: 540 },
+        {
+          draft_id: "d1",
+          draft_name: "A",
+          draft_date: "2026-01-01",
+          num_seats: 10,
+          pick_n: 5,
+          pool_size: 540,
+        },
+        {
+          draft_id: "d2",
+          draft_name: "B",
+          draft_date: "2026-01-02",
+          num_seats: 10,
+          pick_n: 35,
+          pool_size: 540,
+        },
+        {
+          draft_id: "d3",
+          draft_name: "C",
+          draft_date: "2026-01-03",
+          num_seats: 10,
+          pick_n: 8,
+          pool_size: 540,
+        },
       ],
     });
     client.execute.mockResolvedValueOnce({ rows: [] });
@@ -85,7 +141,14 @@ describe("getPickHistory", () => {
   it("clamps high pick positions to the last bucket", async () => {
     client.execute.mockResolvedValueOnce({
       rows: [
-        { draft_id: "d1", draft_name: "A", draft_date: "2026-01-01", num_seats: 10, pick_n: null, pool_size: 540 },
+        {
+          draft_id: "d1",
+          draft_name: "A",
+          draft_date: "2026-01-01",
+          num_seats: 10,
+          pick_n: null,
+          pool_size: 540,
+        },
       ],
     });
     client.execute.mockResolvedValueOnce({ rows: [] });

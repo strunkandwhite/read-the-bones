@@ -1,13 +1,7 @@
 /**
  * Tooltip component that shows a "?" icon with hover-revealed tooltip text.
  */
-export function InfoTooltip({
-  text,
-  align = "left",
-}: {
-  text: string;
-  align?: "left" | "right";
-}) {
+export function InfoTooltip({ text, align = "left" }: { text: string; align?: "left" | "right" }) {
   return (
     <div className="group relative ml-1 inline-block">
       <span className="inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-zinc-200 text-xs text-zinc-500 dark:bg-zinc-700 dark:text-zinc-400">

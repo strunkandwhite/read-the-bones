@@ -37,7 +37,7 @@ function draftRow(
     poolHash = "ph1",
     picksHash = "pi1",
     matchesHash = "mh1",
-  } = {},
+  } = {}
 ) {
   return {
     draft_id: id,
@@ -145,43 +145,41 @@ function setupMockExecute(options: {
   }
   const effectiveScryfallRows = scryfallRows ?? defaultScryfallRows;
 
-  mockClient.execute.mockImplementation(
-    (query: { sql: string; args?: unknown[] } | string) => {
-      const sql = typeof query === "string" ? query : query.sql;
+  mockClient.execute.mockImplementation((query: { sql: string; args?: unknown[] } | string) => {
+    const sql = typeof query === "string" ? query : query.sql;
 
-      // Drafts metadata query
-      if (sql.includes("FROM drafts d") && sql.includes("ORDER BY")) {
-        return Promise.resolve({ rows: draftRows });
-      }
+    // Drafts metadata query
+    if (sql.includes("FROM drafts d") && sql.includes("ORDER BY")) {
+      return Promise.resolve({ rows: draftRows });
+    }
 
-      // Cube pool sizes
-      if (sql.includes("SUM(qty) as pool_size")) {
-        return Promise.resolve({ rows: cubeSizeRows });
-      }
+    // Cube pool sizes
+    if (sql.includes("SUM(qty) as pool_size")) {
+      return Promise.resolve({ rows: cubeSizeRows });
+    }
 
-      // Pick events (lean — no scryfall_json): ORDER BY clause includes pe.pick_n
-      if (sql.includes("FROM pick_events pe") && sql.includes("ORDER BY pe.draft_id")) {
-        return Promise.resolve({ rows: pickRows });
-      }
+    // Pick events (lean — no scryfall_json): ORDER BY clause includes pe.pick_n
+    if (sql.includes("FROM pick_events pe") && sql.includes("ORDER BY pe.draft_id")) {
+      return Promise.resolve({ rows: pickRows });
+    }
 
-      // TakenCards query for activeDraft (no ORDER BY pe.draft_id)
-      if (sql.includes("FROM pick_events pe")) {
-        return Promise.resolve({ rows: takenRows });
-      }
+    // TakenCards query for activeDraft (no ORDER BY pe.draft_id)
+    if (sql.includes("FROM pick_events pe")) {
+      return Promise.resolve({ rows: takenRows });
+    }
 
-      // Cube snapshot cards (lean — no scryfall_json)
-      if (sql.includes("FROM cube_snapshot_cards csc")) {
-        return Promise.resolve({ rows: cubeCardRows });
-      }
+    // Cube snapshot cards (lean — no scryfall_json)
+    if (sql.includes("FROM cube_snapshot_cards csc")) {
+      return Promise.resolve({ rows: cubeCardRows });
+    }
 
-      // Scryfall batch load: one query per distinct card_id set
-      if (sql.includes("FROM cards") && sql.includes("WHERE card_id IN")) {
-        return Promise.resolve({ rows: effectiveScryfallRows });
-      }
+    // Scryfall batch load: one query per distinct card_id set
+    if (sql.includes("FROM cards") && sql.includes("WHERE card_id IN")) {
+      return Promise.resolve({ rows: effectiveScryfallRows });
+    }
 
-      return Promise.resolve({ rows: [] });
-    },
-  );
+    return Promise.resolve({ rows: [] });
+  });
 }
 
 // --- Tests ---
@@ -234,10 +232,7 @@ describe("getCards", () => {
   });
 
   it("aggregates pick events across multiple drafts to compute stats", async () => {
-    const drafts = [
-      draftRow("d1", { cubeSnapshotId: 1 }),
-      draftRow("d2", { cubeSnapshotId: 1 }),
-    ];
+    const drafts = [draftRow("d1", { cubeSnapshotId: 1 }), draftRow("d2", { cubeSnapshotId: 1 })];
 
     const picks = [
       // Card picked early in both drafts
@@ -247,10 +242,7 @@ describe("getCards", () => {
       pickRow("d1", "Cancel", 80, 3),
     ];
 
-    const cubeCards = [
-      cubeCardRow(1, 1, "Counterspell"),
-      cubeCardRow(1, 2, "Cancel"),
-    ];
+    const cubeCards = [cubeCardRow(1, 1, "Counterspell"), cubeCardRow(1, 2, "Cancel")];
 
     setupMockExecute({
       draftRows: drafts,
@@ -289,10 +281,7 @@ describe("getCards", () => {
       draftRow("d2", { cubeSnapshotId: 1, date: "2026-02-01" }),
     ];
 
-    const picks = [
-      pickRow("d1", "Lightning Bolt", 50, 1),
-      pickRow("d2", "Lightning Bolt", 10, 2),
-    ];
+    const picks = [pickRow("d1", "Lightning Bolt", 50, 1), pickRow("d2", "Lightning Bolt", 10, 2)];
 
     const cubeCards = [cubeCardRow(1, 1, "Lightning Bolt")];
 
@@ -324,10 +313,7 @@ describe("getCards", () => {
       draftRow("d3", { cubeSnapshotId: 1, date: "2026-06-01" }),
     ];
 
-    const picks = [
-      pickRow("d1", "Bolt", 1, 1, 1),
-      pickRow("d3", "Bolt", 30, 2, 1),
-    ];
+    const picks = [pickRow("d1", "Bolt", 1, 1, 1), pickRow("d3", "Bolt", 30, 2, 1)];
 
     const cubeCards = [cubeCardRow(1, 1, "Bolt")];
 
@@ -369,10 +355,7 @@ describe("getCards", () => {
 
   it("filters cube cards by poolAsOfDraft snapshot", async () => {
     // Two drafts with different cube snapshots
-    const drafts = [
-      draftRow("d1", { cubeSnapshotId: 1 }),
-      draftRow("d2", { cubeSnapshotId: 2 }),
-    ];
+    const drafts = [draftRow("d1", { cubeSnapshotId: 1 }), draftRow("d2", { cubeSnapshotId: 2 })];
 
     // Snapshot 1 has Bolt, snapshot 2 has Bolt + Counterspell
     const cubeCards = [
@@ -471,7 +454,13 @@ describe("getCards", () => {
       cubeCardRows: [cubeCardRow(1, 42, "Lightning Bolt", 1)],
       cubeSizeRows: [cubeSizeRow(1, 200)],
       // Explicit scryfall data for card_id=42 matches the pick + cube row
-      scryfallRows: [{ card_id: 42, name: "Lightning Bolt", scryfall_json: scryfallJson("Lightning Bolt", ["R"]) }],
+      scryfallRows: [
+        {
+          card_id: 42,
+          name: "Lightning Bolt",
+          scryfall_json: scryfallJson("Lightning Bolt", ["R"]),
+        },
+      ],
     });
 
     const result = await getCards({});
@@ -517,10 +506,7 @@ describe("getCards", () => {
         }),
       ],
       pickRows: [],
-      cubeCardRows: [
-        cubeCardRow(1, 1, "Lightning Bolt"),
-        cubeCardRow(1, 2, "Black Lotus"),
-      ],
+      cubeCardRows: [cubeCardRow(1, 1, "Lightning Bolt"), cubeCardRow(1, 2, "Black Lotus")],
       cubeSizeRows: [cubeSizeRow(1, 200)],
     });
 
@@ -625,8 +611,8 @@ describe("getCards", () => {
     // entries are generated for it during buildAllPicks).
     setupMockExecute({
       draftRows: [
-        draftRow("d1", { cubeSnapshotId: 1 }),    // completed, selected
-        draftRow("d2", { cubeSnapshotId: 2, phase: "drafting" }),  // not completed — excluded
+        draftRow("d1", { cubeSnapshotId: 1 }), // completed, selected
+        draftRow("d2", { cubeSnapshotId: 2, phase: "drafting" }), // not completed — excluded
       ],
       pickRows: [pickRow("d1", "Lightning Bolt", 3, 1, 1)],
       cubeCardRows: [
@@ -638,7 +624,11 @@ describe("getCards", () => {
       ],
       cubeSizeRows: [cubeSizeRow(1, 200), cubeSizeRow(2, 200)],
       scryfallRows: [
-        { card_id: 1, name: "Lightning Bolt", scryfall_json: scryfallJson("Lightning Bolt", ["R"]) },
+        {
+          card_id: 1,
+          name: "Lightning Bolt",
+          scryfall_json: scryfallJson("Lightning Bolt", ["R"]),
+        },
         { card_id: 2, name: "Counterspell", scryfall_json: scryfallJson("Counterspell", ["U"]) },
       ],
     });
@@ -667,7 +657,9 @@ describe("getCards", () => {
       ],
       cubeCardRows: [cubeCardRow(1, 10, "Counterspell", 2)],
       cubeSizeRows: [cubeSizeRow(1, 200)],
-      scryfallRows: [{ card_id: 10, name: "Counterspell", scryfall_json: scryfallJson("Counterspell", ["U"]) }],
+      scryfallRows: [
+        { card_id: 10, name: "Counterspell", scryfall_json: scryfallJson("Counterspell", ["U"]) },
+      ],
     });
 
     const result = await getCards({});
@@ -683,14 +675,14 @@ describe("getCards", () => {
     const calls = mockClient.execute.mock.calls.map((c: unknown[]) =>
       typeof c[0] === "string" ? c[0] : (c[0] as { sql: string }).sql
     );
-    const scryfallBatchCall = calls.find((sql: string) =>
-      sql.includes("FROM cards") && sql.includes("WHERE card_id IN")
+    const scryfallBatchCall = calls.find(
+      (sql: string) => sql.includes("FROM cards") && sql.includes("WHERE card_id IN")
     );
     expect(scryfallBatchCall).toBeDefined();
 
     // Verify neither the picks query nor the cube query selects scryfall_json
-    const picksQuery = calls.find((sql: string) =>
-      sql.includes("FROM pick_events pe") && sql.includes("ORDER BY pe.draft_id")
+    const picksQuery = calls.find(
+      (sql: string) => sql.includes("FROM pick_events pe") && sql.includes("ORDER BY pe.draft_id")
     );
     expect(picksQuery).toBeDefined();
     expect(picksQuery).not.toContain("scryfall_json");

@@ -22,19 +22,15 @@ export async function getColorPairBreakdown(
   cardName: string,
   draftId?: string,
   excludeDraftId?: string,
-  cardId?: number,
+  cardId?: number
 ): Promise<ColorPairEntry[]> {
   const draftFilter = draftId ? "AND dc.draft_id = ?" : "";
   const excludeFilter = excludeDraftId ? "AND dc.draft_id != ?" : "";
 
   // When card_id is provided, filter deck_cards directly by ID (skips the name→id join).
   const useCardId = cardId !== undefined;
-  const cardFilter = useCardId
-    ? "dc.card_id = ?"
-    : "c.name = ?";
-  const cardJoin = useCardId
-    ? ""
-    : "JOIN cards c ON c.card_id = dc.card_id";
+  const cardFilter = useCardId ? "dc.card_id = ?" : "c.name = ?";
+  const cardJoin = useCardId ? "" : "JOIN cards c ON c.card_id = dc.card_id";
 
   const args: (string | number)[] = [useCardId ? cardId : cardName];
   if (draftId) args.push(draftId);

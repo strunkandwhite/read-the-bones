@@ -96,7 +96,11 @@ async function migrate(): Promise<void> {
       } catch (stmtError) {
         // ALTER TABLE ADD COLUMN fails if column already exists — that's safe to skip
         const msg = stmtError instanceof Error ? stmtError.message : String(stmtError);
-        if (/duplicate column/i.test(msg) || /already exists/i.test(msg) || /no such table/i.test(msg)) {
+        if (
+          /duplicate column/i.test(msg) ||
+          /already exists/i.test(msg) ||
+          /no such table/i.test(msg)
+        ) {
           console.log(`  SKIP (already exists): ${name}`);
         } else {
           throw stmtError;
@@ -128,7 +132,7 @@ async function migrateQueueToJson(client: ReturnType<typeof createClient>) {
     sql: `PRAGMA table_info(seat_tokens)`,
     args: [],
   });
-  const hasQueueJson = colCheck.rows.some((r) => r.name === 'queue_json');
+  const hasQueueJson = colCheck.rows.some((r) => r.name === "queue_json");
   if (!hasQueueJson) return; // Column not yet added, skip
 
   console.log(`[db:migrate] Migrating pick_queue → queue_json...`);
@@ -154,9 +158,9 @@ async function migrateQueueToJson(client: ReturnType<typeof createClient>) {
   // Write JSON to seat_tokens
   const statements: { sql: string; args: (string | number)[] }[] = [];
   for (const [key, cards] of grouped) {
-    const [draftId, seatStr] = key.split(':');
+    const [draftId, seatStr] = key.split(":");
     const queueJson = cards.map((c) => ({
-      mode: 'pause',
+      mode: "pause",
       cards: [{ id: c.id, name: c.name }],
     }));
     statements.push({

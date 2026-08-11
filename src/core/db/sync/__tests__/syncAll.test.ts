@@ -55,12 +55,7 @@ import { fetchDraftTabsRaw } from "../../../sheets";
 // ---------------------------------------------------------------------------
 
 function minimalPickRows(drafterName: string): string[][] {
-  return [
-    [],
-    [],
-    ["", "", drafterName, "↩"],
-    ["1", "→", "Lightning Bolt", "R"],
-  ];
+  return [[], [], ["", "", drafterName, "↩"], ["1", "→", "Lightning Bolt", "R"]];
 }
 
 function minimalPoolRows(): string[][] {
@@ -88,15 +83,17 @@ type ExecHandler = (params: { sql: string; args: unknown[] }) => {
 function makeClient(execHandler?: ExecHandler) {
   const handler: ExecHandler = execHandler ?? (() => ({ rows: [] }));
   return {
-    execute: vi.fn().mockImplementation((params: { sql: string; args: unknown[] }) =>
-      Promise.resolve(handler(params)),
-    ),
+    execute: vi
+      .fn()
+      .mockImplementation((params: { sql: string; args: unknown[] }) =>
+        Promise.resolve(handler(params))
+      ),
     batch: vi.fn().mockResolvedValue([]),
   };
 }
 
 function makeMultiDraftClient(
-  drafts: Array<{ draftId: string; sheetId: string }>,
+  drafts: Array<{ draftId: string; sheetId: string }>
 ): ReturnType<typeof makeClient> {
   return makeClient((params) => {
     // Draft list query (for all-active or filter)
@@ -153,9 +150,7 @@ describe("syncAll", () => {
       expect(result.results).toHaveLength(0);
       // No draft queries should have run
       const executedSqls = client.execute.mock.calls.map((c: any[]) => c[0].sql as string);
-      const draftQueries = executedSqls.filter((sql) =>
-        sql.includes("SELECT draft_id"),
-      );
+      const draftQueries = executedSqls.filter((sql) => sql.includes("SELECT draft_id"));
       expect(draftQueries).toHaveLength(0);
     });
   });
@@ -189,10 +184,7 @@ describe("syncAll", () => {
 
       expect(result.errors).toHaveLength(0);
       expect(result.results).toHaveLength(2);
-      expect(result.results.map((r) => r.draftId).sort()).toEqual([
-        "draft-alpha",
-        "draft-beta",
-      ]);
+      expect(result.results.map((r) => r.draftId).sort()).toEqual(["draft-alpha", "draft-beta"]);
 
       // Both drafts should have been processed (fetchDraftTabsRaw called twice)
       expect(vi.mocked(fetchDraftTabsRaw)).toHaveBeenCalledTimes(2);

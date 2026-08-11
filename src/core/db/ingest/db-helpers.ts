@@ -72,12 +72,8 @@ export async function ensureCubeSnapshot(
       sql: "SELECT card_id, qty FROM cube_snapshot_cards WHERE cube_snapshot_id = ?",
       args: [cubeSnapshotId],
     });
-    const existingCardIds = new Set(
-      snapshotCards.rows.map((r) => r.card_id as number)
-    );
-    const currentCardIds = new Set(
-      Array.from(cardIds.values()).map((v) => v.cardId)
-    );
+    const existingCardIds = new Set(snapshotCards.rows.map((r) => r.card_id as number));
+    const currentCardIds = new Set(Array.from(cardIds.values()).map((v) => v.cardId));
 
     const consistent =
       existingCardIds.size === currentCardIds.size &&
@@ -113,9 +109,7 @@ export async function ensureCubeSnapshot(
     }
 
     // Card IDs changed (e.g. DFC resolution fixed) — recreate snapshot cards
-    log(
-      `Cube snapshot ${cubeSnapshotId} has stale card_ids, recreating...`
-    );
+    log(`Cube snapshot ${cubeSnapshotId} has stale card_ids, recreating...`);
     await client.execute({
       sql: "DELETE FROM cube_snapshot_cards WHERE cube_snapshot_id = ?",
       args: [cubeSnapshotId],

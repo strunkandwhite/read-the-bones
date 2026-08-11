@@ -9,7 +9,16 @@
 
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Client } from "@libsql/client";
-import { createMemDb, insertCard, insertCubeSnapshot, insertCubeCard, insertDraft, insertPickEvent, insertMatch, insertDeckCard } from "../../__tests__/testDb";
+import {
+  createMemDb,
+  insertCard,
+  insertCubeSnapshot,
+  insertCubeCard,
+  insertDraft,
+  insertPickEvent,
+  insertMatch,
+  insertDeckCard,
+} from "../../__tests__/testDb";
 import { MIN_SAMPLE_SIZE } from "../../../constants";
 
 // getCardStats calls getClient() internally — redirect to the in-memory instance.

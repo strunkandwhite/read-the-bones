@@ -5,22 +5,30 @@ import { updateAutoPick, updateDisplayName, getSeatSettings } from "@/core/db/qu
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 export const PUT = withApiErrors(
-  async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) => {
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { id: draftId } = await params;
     const client = await getClient();
     const { seat } = await authenticateSeat(client, request, draftId);
 
     const body = await request.json();
 
-    if (body.display_name !== undefined && body.display_name !== null && typeof body.display_name !== "string") {
+    if (
+      body.display_name !== undefined &&
+      body.display_name !== null &&
+      typeof body.display_name !== "string"
+    ) {
       return NextResponse.json({ error: "display_name must be a string" }, { status: 400 });
     }
 
-    if (body.display_name !== undefined && typeof body.display_name === "string" && body.display_name.length > 50) {
-      return NextResponse.json({ error: "display_name must be 50 characters or fewer" }, { status: 400 });
+    if (
+      body.display_name !== undefined &&
+      typeof body.display_name === "string" &&
+      body.display_name.length > 50
+    ) {
+      return NextResponse.json(
+        { error: "display_name must be 50 characters or fewer" },
+        { status: 400 }
+      );
     }
 
     if (body.auto_pick !== undefined) {
@@ -41,5 +49,5 @@ export const PUT = withApiErrors(
       displayName: settings!.displayName,
     });
   },
-  "[/api/drafts/[id]/seat-settings] Error:",
+  "[/api/drafts/[id]/seat-settings] Error:"
 );

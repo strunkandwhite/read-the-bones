@@ -28,10 +28,9 @@ describe("GET /api/drafts/[id]/available", () => {
 
   it("passes filters to getAvailableCards", async () => {
     vi.mocked(queries.getAvailableCards).mockResolvedValue(emptyAvailableResult);
-    const res = await GET(
-      makeRequest("tarkir", { before_pick_n: "50", color: "R" }),
-      { params: Promise.resolve({ id: "tarkir" }) },
-    );
+    const res = await GET(makeRequest("tarkir", { before_pick_n: "50", color: "R" }), {
+      params: Promise.resolve({ id: "tarkir" }),
+    });
     expect(res.status).toBe(200);
     expect(queries.getAvailableCards).toHaveBeenCalledWith(expect.anything(), {
       draft_id: "tarkir",
@@ -48,10 +47,9 @@ describe("GET /api/drafts/[id]/available", () => {
 
   it("returns 500 when query throws", async () => {
     vi.mocked(queries.getAvailableCards).mockRejectedValueOnce(new Error("DB error"));
-    const res = await GET(
-      makeRequest("tarkir", { before_pick_n: "50" }),
-      { params: Promise.resolve({ id: "tarkir" }) },
-    );
+    const res = await GET(makeRequest("tarkir", { before_pick_n: "50" }), {
+      params: Promise.resolve({ id: "tarkir" }),
+    });
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body).toHaveProperty("error");

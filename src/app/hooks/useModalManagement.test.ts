@@ -14,7 +14,7 @@ describe("useModalManagement", () => {
 
   it("initializes with all modals closed", () => {
     const { result } = renderHook(() =>
-      useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 }),
+      useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 })
     );
 
     expect(useLiveStore.getState().deckBuilderActive).toBe(false);
@@ -26,7 +26,7 @@ describe("useModalManagement", () => {
     localStorage.setItem("deckBuilderOpen", "true");
 
     const { result } = renderHook(() =>
-      useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 }),
+      useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 })
     );
 
     expect(useLiveStore.getState().deckBuilderActive).toBe(true);
@@ -37,7 +37,7 @@ describe("useModalManagement", () => {
     localStorage.setItem("deckBuilderOpen", "true");
 
     const { result } = renderHook(() =>
-      useModalManagement({ activeDraft: null, selectedSeat: null }),
+      useModalManagement({ activeDraft: null, selectedSeat: null })
     );
 
     expect(useLiveStore.getState().deckBuilderActive).toBe(false);
@@ -48,10 +48,9 @@ describe("useModalManagement", () => {
     localStorage.setItem("deckBuilderOpen", "true");
 
     // Simulate pre-hydration: no draft or seat yet
-    const { result, rerender } = renderHook(
-      (props) => useModalManagement(props),
-      { initialProps: { activeDraft: null as string | null, selectedSeat: null as number | null } },
-    );
+    const { result, rerender } = renderHook((props) => useModalManagement(props), {
+      initialProps: { activeDraft: null as string | null, selectedSeat: null as number | null },
+    });
 
     // Pre-hydration: modal must stay closed
     expect(result.current.deckBuilderModalOpen).toBe(false);
@@ -70,10 +69,9 @@ describe("useModalManagement", () => {
   it("does not re-open deck builder after user closes it (once-guard)", () => {
     localStorage.setItem("deckBuilderOpen", "true");
 
-    const { result, rerender } = renderHook(
-      (props) => useModalManagement(props),
-      { initialProps: { activeDraft: "draft-1" as string | null, selectedSeat: 1 as number | null } },
-    );
+    const { result, rerender } = renderHook((props) => useModalManagement(props), {
+      initialProps: { activeDraft: "draft-1" as string | null, selectedSeat: 1 as number | null },
+    });
 
     // Initial restore fires on mount (activeDraft/selectedSeat provided from the start)
     expect(result.current.deckBuilderModalOpen).toBe(true);
@@ -94,7 +92,7 @@ describe("useModalManagement", () => {
 
   it("persists modal open state to localStorage", () => {
     const { result } = renderHook(() =>
-      useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 }),
+      useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 })
     );
 
     act(() => {
@@ -111,10 +109,9 @@ describe("useModalManagement", () => {
   });
 
   it("closes modals when draft is deselected", () => {
-    const { result, rerender } = renderHook(
-      (props) => useModalManagement(props),
-      { initialProps: { activeDraft: "draft-1" as string | null, selectedSeat: 1 as number | null } },
-    );
+    const { result, rerender } = renderHook((props) => useModalManagement(props), {
+      initialProps: { activeDraft: "draft-1" as string | null, selectedSeat: 1 as number | null },
+    });
 
     act(() => {
       useLiveStore.getState().setDeckBuilderActive(true);
@@ -131,7 +128,7 @@ describe("useModalManagement", () => {
 
   it("closes deck builder modal on Escape key", () => {
     const { result } = renderHook(() =>
-      useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 }),
+      useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 })
     );
 
     act(() => {
@@ -149,7 +146,7 @@ describe("useModalManagement", () => {
     // deckBuilderActive gates the poll→rebuild loop; leaving it true after close
     // causes unnecessary syncDeckWithPicks churn on every poll.
     const { result } = renderHook(() =>
-      useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 }),
+      useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 })
     );
 
     // Open the modal, setting deckBuilderActive=true
@@ -169,7 +166,7 @@ describe("useModalManagement", () => {
 
   it("deactivates deckBuilderActive when modal is closed via Escape key", () => {
     const { result } = renderHook(() =>
-      useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 }),
+      useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 })
     );
 
     act(() => {
@@ -188,7 +185,7 @@ describe("useModalManagement", () => {
 
   it("closes draft board modal on Escape key", () => {
     const { result } = renderHook(() =>
-      useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 }),
+      useModalManagement({ activeDraft: "draft-1", selectedSeat: 1 })
     );
 
     act(() => {

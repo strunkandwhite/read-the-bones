@@ -19,10 +19,7 @@ function inputs(worth: number, geomean: number): DesireInputs {
 describe("desireAt", () => {
   it("is worth × overdueDanger at the pick", () => {
     const card = inputs(0.04, 30);
-    expect(desireAt(10, card)).toBeCloseTo(
-      0.04 * overdueDanger(10, DESIRE_HORIZON, 30, SIGMA),
-      12,
-    );
+    expect(desireAt(10, card)).toBeCloseTo(0.04 * overdueDanger(10, DESIRE_HORIZON, 30, SIGMA), 12);
   });
 
   it("holds at full worth for a card stranded past its window", () => {
@@ -86,7 +83,7 @@ describe("desireCurvePoints", () => {
 describe("desire index", () => {
   const card = (
     worth: number | null,
-    flags: Partial<Pick<WorthCard, "prior_only" | "is_land" | "in_current_cube">> = {},
+    flags: Partial<Pick<WorthCard, "prior_only" | "is_land" | "in_current_cube">> = {}
   ) =>
     ({
       worth,
@@ -112,7 +109,7 @@ describe("desire index", () => {
         card(0.09, { prior_only: true }),
         card(-0.12, { is_land: true }),
         card(0.2, { in_current_cube: false }),
-      ]),
+      ])
     ).toBe(0.04);
   });
 

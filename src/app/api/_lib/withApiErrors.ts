@@ -13,7 +13,7 @@ type Handler<TArgs extends unknown[]> = (...args: TArgs) => Promise<NextResponse
  */
 export function withApiErrors<TArgs extends unknown[]>(
   handler: Handler<TArgs>,
-  label: string,
+  label: string
 ): Handler<TArgs> {
   return async (...args: TArgs): Promise<NextResponse> => {
     try {

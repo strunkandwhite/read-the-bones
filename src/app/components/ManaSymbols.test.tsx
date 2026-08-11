@@ -6,9 +6,7 @@ import { ManaSymbols } from "./ManaSymbols";
 afterEach(cleanup);
 
 function renderedSymbols(): string[] {
-  return [...document.querySelectorAll("img")].map(
-    (img) => img.getAttribute("alt") ?? "",
-  );
+  return [...document.querySelectorAll("img")].map((img) => img.getAttribute("alt") ?? "");
 }
 
 describe("ManaSymbols", () => {

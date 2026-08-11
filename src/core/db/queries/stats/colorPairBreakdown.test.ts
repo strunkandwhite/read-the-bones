@@ -45,9 +45,9 @@ describe("getColorPairBreakdown", () => {
 
     // Mock inferDeckColor for each unique deck
     (inferDeckColor as ReturnType<typeof vi.fn>)
-      .mockReturnValueOnce("RW")  // d1:1
-      .mockReturnValueOnce("RW")  // d1:2
-      .mockReturnValueOnce("BR")  // d2:1
+      .mockReturnValueOnce("RW") // d1:1
+      .mockReturnValueOnce("RW") // d1:2
+      .mockReturnValueOnce("BR") // d2:1
       .mockReturnValueOnce("UR"); // d2:3
 
     const result = await getColorPairBreakdown(client, "Lightning Bolt");
@@ -137,9 +137,7 @@ describe("getColorPairBreakdown", () => {
     (inferDeckColor as ReturnType<typeof vi.fn>).mockReturnValueOnce("C");
 
     const result = await getColorPairBreakdown(client, "Sol Ring");
-    expect(result).toEqual([
-      { colorPair: "C", percentage: 100, deckCount: 1 },
-    ]);
+    expect(result).toEqual([{ colorPair: "C", percentage: 100, deckCount: 1 }]);
   });
 
   it("accepts optional draftId filter", async () => {

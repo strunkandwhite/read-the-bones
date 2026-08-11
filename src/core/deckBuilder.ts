@@ -1,21 +1,9 @@
-import type {
-  BasicLandCounts,
-  ColumnMap,
-  DeckState,
-  ScryCard,
-} from "./types";
+import type { BasicLandCounts, ColumnMap, DeckState, ScryCard } from "./types";
 import { isLand } from "./cardTypes";
 
 /** The ordered mana-value columns. The deck zone repeats these once per row;
  *  the lands column stands outside them. */
-export const MANA_VALUE_COLUMN_KEYS = [
-  "mv-0-1",
-  "mv-2",
-  "mv-3",
-  "mv-4",
-  "mv-5",
-  "mv-6+",
-] as const;
+export const MANA_VALUE_COLUMN_KEYS = ["mv-0-1", "mv-2", "mv-3", "mv-4", "mv-5", "mv-6+"] as const;
 
 export type ManaValueColumnKey = (typeof MANA_VALUE_COLUMN_KEYS)[number];
 
@@ -98,10 +86,7 @@ export function migrateDeckState(state: DeckState & { speculativeCards?: unknown
     cleaned = state;
   }
 
-  const isCanonical = (
-    zone: Record<string, string[]>,
-    keys: readonly DeckColumnKey[],
-  ): boolean =>
+  const isCanonical = (zone: Record<string, string[]>, keys: readonly DeckColumnKey[]): boolean =>
     keys.every((key) => Array.isArray(zone[key])) &&
     Object.keys(zone).every((key) => (keys as readonly string[]).includes(key));
 
@@ -114,7 +99,7 @@ export function migrateDeckState(state: DeckState & { speculativeCards?: unknown
 
   const normalizeZone = (
     zoneName: "deck" | "sideboard",
-    zone: Record<string, string[]>,
+    zone: Record<string, string[]>
   ): Record<string, string[]> => {
     const keys = columnKeysForZone(zoneName);
     const normalized = createEmptyColumnMap(zoneName);
@@ -145,13 +130,7 @@ export function migrateDeckState(state: DeckState & { speculativeCards?: unknown
   };
 }
 
-const BASIC_LAND_NAMES = [
-  "Plains",
-  "Island",
-  "Swamp",
-  "Mountain",
-  "Forest",
-] as const;
+const BASIC_LAND_NAMES = ["Plains", "Island", "Swamp", "Mountain", "Forest"] as const;
 
 /** Determine which column a card belongs in based on its Scryfall data. */
 export function getColumnKey(scryfall: ScryCard): ColumnKey {
@@ -196,7 +175,7 @@ export function createEmptyColumnMap(zone: "deck" | "sideboard"): ColumnMap {
  *  sideboard's key set. */
 export function assignCardsToColumns(
   cardNames: string[],
-  scryfallData: Map<string, ScryCard>,
+  scryfallData: Map<string, ScryCard>
 ): ColumnMap {
   const columns = createEmptyColumnMap("sideboard");
   for (const name of cardNames) {
@@ -380,7 +359,7 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
       const next = structuredClone(state);
       next.basicLands = { ...action.basics };
       const lands = (next.zones.deck["lands"] ?? []).filter(
-        (name) => !BASIC_LAND_NAMES.includes(name as (typeof BASIC_LAND_NAMES)[number]),
+        (name) => !BASIC_LAND_NAMES.includes(name as (typeof BASIC_LAND_NAMES)[number])
       );
       // Add new basic land entries based on counts
       for (const land of BASIC_LAND_NAMES) {
@@ -399,7 +378,7 @@ export function deckReducer(state: DeckState, action: DeckAction): DeckState {
         const cards = next.zones.deck[col];
         // Skip basic lands — they get removed, not moved to sideboard
         const nonBasics = cards.filter(
-          (name) => !BASIC_LAND_NAMES.includes(name as (typeof BASIC_LAND_NAMES)[number]),
+          (name) => !BASIC_LAND_NAMES.includes(name as (typeof BASIC_LAND_NAMES)[number])
         );
         // The sideboard is a single row, so a card sitting in the maindeck's
         // non-creature row lands in the matching mana-value column.

@@ -6,9 +6,7 @@ export async function GET(request: NextRequest) {
 
   // Parse draft IDs from comma-separated query param
   const draftsParam = searchParams.get("drafts");
-  const draftIds = draftsParam
-    ? draftsParam.split(",").filter(Boolean)
-    : undefined;
+  const draftIds = draftsParam ? draftsParam.split(",").filter(Boolean) : undefined;
 
   // Parse active draft ID (for taken-card filtering, not included in stats)
   const activeDraft = searchParams.get("activeDraft") ?? undefined;
@@ -36,9 +34,6 @@ export async function GET(request: NextRequest) {
     });
   } catch (error) {
     console.error("[/api/cards] Error:", error);
-    return NextResponse.json(
-      { error: "Failed to load card data" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to load card data" }, { status: 500 });
   }
 }

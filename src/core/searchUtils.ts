@@ -7,8 +7,7 @@
  * Matches operators like type:, t:, c:, color:, id:, identity:, m:, mana:, mv=, cmc=, etc.
  * Also detects negation (-prefix), OR keyword, parentheses, and exact name (!prefix).
  */
-const SCRYFALL_OPERATOR_PATTERN =
-  /\b(type|t|c|color|cmc|mv|o|oracle|id|identity|m|mana)[:=<>!]/i;
+const SCRYFALL_OPERATOR_PATTERN = /\b(type|t|c|color|cmc|mv|o|oracle|id|identity|m|mana)[:=<>!]/i;
 const SCRYFALL_SYNTAX_PATTERN = /[()]|\bor\b|^!/i;
 
 /**

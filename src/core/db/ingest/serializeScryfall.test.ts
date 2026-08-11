@@ -75,7 +75,9 @@ describe("resolveCardNamesToCache", () => {
     const missing: Array<{ name: string; oracleId: string; scryfallJson: string | null }> = [];
     return {
       get: (name: string) => nameToId.get(name.toLowerCase()),
-      set: (name: string, id: number) => { nameToId.set(name.toLowerCase(), id); },
+      set: (name: string, id: number) => {
+        nameToId.set(name.toLowerCase(), id);
+      },
       markMissing: (name: string, oracleId: string, scryfallJson: string | null) => {
         missing.push({ name, oracleId, scryfallJson });
       },
@@ -87,16 +89,19 @@ describe("resolveCardNamesToCache", () => {
   }
 
   const mockScryfallCache = new Map<string, ScryCard>([
-    ["lightning bolt", {
-      name: "Lightning Bolt",
-      imageUri: "https://cards.scryfall.io/normal/front/lightning-bolt.jpg",
-      manaCost: "{R}",
-      manaValue: 1,
-      typeLine: "Instant",
-      colors: ["R"],
-      colorIdentity: ["R"],
-      oracleText: "Lightning Bolt deals 3 damage to any target.",
-    }],
+    [
+      "lightning bolt",
+      {
+        name: "Lightning Bolt",
+        imageUri: "https://cards.scryfall.io/normal/front/lightning-bolt.jpg",
+        manaCost: "{R}",
+        manaValue: 1,
+        typeLine: "Instant",
+        colors: ["R"],
+        colorIdentity: ["R"],
+        oracleText: "Lightning Bolt deals 3 damage to any target.",
+      },
+    ],
   ]);
 
   it("skips names already in the card cache", () => {
@@ -136,14 +141,10 @@ describe("resolveCardNamesToCache", () => {
   it("processes multiple names in one call", () => {
     const cache = makeCache();
 
-    resolveCardNamesToCache(
-      ["Lightning Bolt", "Force of Will"],
-      cache as never,
-      mockScryfallCache,
-    );
+    resolveCardNamesToCache(["Lightning Bolt", "Force of Will"], cache as never, mockScryfallCache);
 
     const missing = cache.getMissing();
     expect(missing).toHaveLength(2);
-    expect(missing.map(m => m.name).sort()).toEqual(["Force of Will", "Lightning Bolt"]);
+    expect(missing.map((m) => m.name).sort()).toEqual(["Force of Will", "Lightning Bolt"]);
   });
 });

@@ -92,7 +92,11 @@ async function loadDraftMetadata(client: Client): Promise<DraftMetadataResult | 
   });
 
   const ingestionHash = computeIngestionHash(
-    draftsResult.rows as unknown as Array<{ pool_hash: unknown; picks_hash: unknown; matches_hash: unknown }>
+    draftsResult.rows as unknown as Array<{
+      pool_hash: unknown;
+      picks_hash: unknown;
+      matches_hash: unknown;
+    }>
   );
 
   if (draftsResult.rows.length === 0) {
@@ -124,12 +128,12 @@ async function loadDraftMetadata(client: Client): Promise<DraftMetadataResult | 
     const bannedCardsJson = row.banned_cards as string | null;
     const bannedNames = parseBannedCardNames(bannedCardsJson);
     if (bannedNames.length > 0) {
-      const banKeys = new Set(bannedNames.map(n => cardNameKey(n)));
+      const banKeys = new Set(bannedNames.map((n) => cardNameKey(n)));
       bannedCardsByDraft.set(draftId, banKeys);
       bannedCardNamesByDraft.set(draftId, bannedNames);
     }
 
-    if (row.phase === 'complete' || row.phase === 'playing') {
+    if (row.phase === "complete" || row.phase === "playing") {
       completedDraftSet.add(draftId);
     }
 
@@ -157,7 +161,7 @@ async function loadDraftMetadata(client: Client): Promise<DraftMetadataResult | 
  */
 async function getCubePoolSizes(
   client: Client,
-  uniqueCubeSnapshots: number[],
+  uniqueCubeSnapshots: number[]
 ): Promise<Map<number, number>> {
   if (uniqueCubeSnapshots.length === 0) return new Map();
 
@@ -243,8 +247,11 @@ async function loadPickEvents(client: Client, draftIds: string[]): Promise<PickE
  */
 async function loadCubeCards(
   client: Client,
-  uniqueCubeSnapshots: number[],
-): Promise<{ cubeCardsBySnapshot: Map<number, Map<number, CubeCardInfo>>; cubeCardIds: Set<number> }> {
+  uniqueCubeSnapshots: number[]
+): Promise<{
+  cubeCardsBySnapshot: Map<number, Map<number, CubeCardInfo>>;
+  cubeCardIds: Set<number>;
+}> {
   if (uniqueCubeSnapshots.length === 0) {
     return { cubeCardsBySnapshot: new Map(), cubeCardIds: new Set() };
   }
@@ -288,7 +295,7 @@ async function loadCubeCards(
  */
 async function loadScryfallDataForCards(
   client: Client,
-  allCardIds: Set<number>,
+  allCardIds: Set<number>
 ): Promise<Map<string, ScryCard>> {
   if (allCardIds.size === 0) return new Map();
 
@@ -327,7 +334,7 @@ function buildAllPicks(
   draftCubeSnapshots: Map<string, number>,
   poolSizes: Map<number, number>,
   bannedCardsByDraft: Map<string, Set<string>>,
-  scryfallDataMap: Map<string, ScryCard>,
+  scryfallDataMap: Map<string, ScryCard>
 ): CardPick[] {
   const allPicks: CardPick[] = [];
 
@@ -338,7 +345,9 @@ function buildAllPicks(
       for (const pick of picks) {
         const key = cardNameKey(pick.cardName);
         const scryData = scryfallDataMap.get(key);
-        allPicks.push(scryData ? { ...pick, color: getColorFromIdentity(scryData.colorIdentity) } : pick);
+        allPicks.push(
+          scryData ? { ...pick, color: getColorFromIdentity(scryData.colorIdentity) } : pick
+        );
       }
     }
   }
@@ -391,7 +400,7 @@ function buildAllPicks(
  */
 function buildCubeDisplayData(
   displayCubeSnapshotId: number | null,
-  cubeCardsBySnapshot: Map<number, Map<number, CubeCardInfo>>,
+  cubeCardsBySnapshot: Map<number, Map<number, CubeCardInfo>>
 ): CubeDisplayData {
   const cubeCopies: Record<string, number> = {};
 
@@ -419,7 +428,7 @@ function assembleCardStats(
   scryfallDataMap: Map<string, ScryCard>,
   currentCubeSet: Set<string>,
   currentCubeKeySet: Set<string>,
-  sessionsAgoByDraftId: Map<string, number>,
+  sessionsAgoByDraftId: Map<string, number>
 ): EnrichedCardStats[] {
   // 8. Calculate card stats
   const stats = calculateCardStats(allPicks, sessionsAgoByDraftId);
@@ -484,8 +493,14 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
   }
 
   const {
-    draftIds, completedDraftIds, draftMetadataMap, draftCubeSnapshots,
-    mostRecentCubeSnapshotId, bannedCardsByDraft, bannedCardNamesByDraft, ingestionHash,
+    draftIds,
+    completedDraftIds,
+    draftMetadataMap,
+    draftCubeSnapshots,
+    mostRecentCubeSnapshotId,
+    bannedCardsByDraft,
+    bannedCardNamesByDraft,
+    ingestionHash,
   } = draftMeta;
 
   const completedDraftIdSet = new Set(completedDraftIds);
@@ -503,7 +518,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
     completedDraftIds.map((draftId) => ({
       draftId,
       draftDate: draftMetadataMap.get(draftId)!.date,
-    })),
+    }))
   );
 
   // 2. Collect cube snapshots needed for selected drafts + display snapshot
@@ -514,7 +529,7 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
   }
   // Ensure display snapshot is included (for pool filtering / cube display)
   const displayCubeSnapshotId = params.poolAsOfDraft
-    ? draftCubeSnapshots.get(params.poolAsOfDraft) ?? mostRecentCubeSnapshotId
+    ? (draftCubeSnapshots.get(params.poolAsOfDraft) ?? mostRecentCubeSnapshotId)
     : mostRecentCubeSnapshotId;
   if (displayCubeSnapshotId !== null) selectedSnapshotIds.add(displayCubeSnapshotId);
 
@@ -522,7 +537,10 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
   const poolSizes = await getCubePoolSizes(client, uniqueCubeSnapshots);
 
   // 3. Load picks scoped to selected drafts (no scryfall_json — lean rows)
-  const { cardIds: pickCardIds, picksByDraftAndCard } = await loadPickEvents(client, selectedDraftIds);
+  const { cardIds: pickCardIds, picksByDraftAndCard } = await loadPickEvents(
+    client,
+    selectedDraftIds
+  );
 
   // 4. Load cube snapshot cards to find unpicked cards (no scryfall_json)
   const { cubeCardsBySnapshot, cubeCardIds } = await loadCubeCards(client, uniqueCubeSnapshots);
@@ -535,27 +553,39 @@ export async function getCards(params: GetCardsParams): Promise<CardStatsRespons
 
   // 5. Build picks array from selected drafts, including unpicked entries
   const allPicks = buildAllPicks(
-    selectedDraftIds, selectedDraftSet, picksByDraftAndCard,
-    cubeCardsBySnapshot, draftCubeSnapshots, poolSizes,
-    bannedCardsByDraft, scryfallDataMap,
+    selectedDraftIds,
+    selectedDraftSet,
+    picksByDraftAndCard,
+    cubeCardsBySnapshot,
+    draftCubeSnapshots,
+    poolSizes,
+    bannedCardsByDraft,
+    scryfallDataMap
   );
 
   // 6. Build cube display data from the selected pool snapshot
   const { cubeCopies, currentCubeSet, currentCubeKeySet } = buildCubeDisplayData(
-    displayCubeSnapshotId, cubeCardsBySnapshot,
+    displayCubeSnapshotId,
+    cubeCardsBySnapshot
   );
 
   // 8-11. Calculate stats, enrich, filter, add new card stubs
   const allCards = assembleCardStats(
-    allPicks, scryfallDataMap,
-    currentCubeSet, currentCubeKeySet,
-    sessionsAgo,
+    allPicks,
+    scryfallDataMap,
+    currentCubeSet,
+    currentCubeKeySet,
+    sessionsAgo
   );
 
   // Convert draftMetadata Map to plain object
   const draftMetadataObj: Record<string, { name: string; date: string; numDrafters: number }> = {};
   for (const [id, meta] of draftMetadataMap) {
-    draftMetadataObj[id] = { name: meta.name, date: meta.date, numDrafters: meta.numDrafters ?? DEFAULT_NUM_SEATS };
+    draftMetadataObj[id] = {
+      name: meta.name,
+      date: meta.date,
+      numDrafters: meta.numDrafters ?? DEFAULT_NUM_SEATS,
+    };
   }
 
   // Query taken cards with seat info for active draft filtering

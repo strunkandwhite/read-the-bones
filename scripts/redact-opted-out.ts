@@ -14,7 +14,11 @@ import { realpathSync } from "fs";
 import { fileURLToPath } from "url";
 import { loadEnv } from "../src/core/db/ingest/utils";
 import { getClient } from "../src/core/db/client";
-import { reconcileRedactedRows, countRedactedRows, REDACTED_TABLES } from "../src/core/db/ingest/redaction";
+import {
+  reconcileRedactedRows,
+  countRedactedRows,
+  REDACTED_TABLES,
+} from "../src/core/db/ingest/redaction";
 import { assertRecognizedFlags } from "./lib/cliFlags";
 
 const RECOGNIZED_FLAGS = new Set(["--dry-run"]);
@@ -39,11 +43,11 @@ async function main() {
   console.log(
     dryRun
       ? "=== DRY RUN — previewing only, no rows will be deleted ===\n"
-      : "=== LIVE RUN — deleting redacted rows ===\n",
+      : "=== LIVE RUN — deleting redacted rows ===\n"
   );
 
   const drafts = await client.execute(
-    "SELECT DISTINCT draft_id FROM privacy_opt_outs ORDER BY draft_id",
+    "SELECT DISTINCT draft_id FROM privacy_opt_outs ORDER BY draft_id"
   );
 
   let totalPicks = 0;
@@ -58,18 +62,18 @@ async function main() {
       totalDeckCards += deckCards;
       totalDeckHashes += deckHashes;
       console.log(
-        `  ${draftId}: ${picks} picks, ${deckCards} deck cards, ${deckHashes} deck hashes would be deleted`,
+        `  ${draftId}: ${picks} picks, ${deckCards} deck cards, ${deckHashes} deck hashes would be deleted`
       );
     } else {
       const { picksDeleted, deckCardsDeleted, deckHashesDeleted } = await reconcileRedactedRows(
         client,
-        draftId,
+        draftId
       );
       totalPicks += picksDeleted;
       totalDeckCards += deckCardsDeleted;
       totalDeckHashes += deckHashesDeleted;
       console.log(
-        `  ${draftId}: ${picksDeleted} picks, ${deckCardsDeleted} deck cards, ${deckHashesDeleted} deck hashes deleted`,
+        `  ${draftId}: ${picksDeleted} picks, ${deckCardsDeleted} deck cards, ${deckHashesDeleted} deck hashes deleted`
       );
     }
   }
@@ -89,14 +93,14 @@ async function main() {
       client.execute(`
         SELECT COUNT(*) AS n FROM ${table} t
         JOIN privacy_opt_outs p ON p.draft_id = t.draft_id AND p.seat = t.seat
-      `),
-    ),
+      `)
+    )
   );
   const leftoverCounts = leftoverResults.map((r) => Number(r.rows[0].n));
 
   console.log(
     "Verification — remaining redacted rows: " +
-      REDACTED_TABLES.map((table, i) => `${leftoverCounts[i]} ${table}`).join(", "),
+      REDACTED_TABLES.map((table, i) => `${leftoverCounts[i]} ${table}`).join(", ")
   );
   if (leftoverCounts.some((n) => n !== 0)) {
     console.error("FAILED: redacted rows remain");
@@ -109,8 +113,7 @@ async function main() {
 // `loadEnv` picks up real Turso credentials, so the guard is what stands
 // between `pnpm test` and a DELETE against production.
 const invokedDirectly =
-  process.argv[1] !== undefined &&
-  realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+  process.argv[1] !== undefined && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (invokedDirectly) {
   main().catch((e) => {

@@ -6,10 +6,7 @@ import { resolveCardId } from "@/core/db/queries/cards";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 export const POST = withApiErrors(
-  async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) => {
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { id: draftId } = await params;
     const client = await getClient();
 
@@ -43,5 +40,5 @@ export const POST = withApiErrors(
 
     return NextResponse.json(result);
   },
-  "[/api/drafts/[id]/pick] Error:",
+  "[/api/drafts/[id]/pick] Error:"
 );

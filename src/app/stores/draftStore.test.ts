@@ -127,7 +127,9 @@ describe("draftStore — selection state", () => {
     let subscriptionFired = false;
     const unsub = useDraftStore.subscribe(
       (s) => s.selectedDrafts,
-      () => { subscriptionFired = true; },
+      () => {
+        subscriptionFired = true;
+      }
     );
 
     useDraftStore.getState().hydrate({ completedDraftIds: ["d1", "d2"] });
@@ -146,7 +148,9 @@ describe("draftStore — selection state", () => {
     let subscriptionFired = false;
     const unsub = useDraftStore.subscribe(
       (s) => s.selectedDrafts,
-      () => { subscriptionFired = true; },
+      () => {
+        subscriptionFired = true;
+      }
     );
 
     useDraftStore.getState().hydrate({ completedDraftIds: ["d1", "d2", "d3"] });
@@ -271,11 +275,12 @@ describe("draftStore — polling", () => {
 
   function mockFetchResponses(
     liveData: Record<string, unknown>,
-    syncData: Record<string, unknown>,
+    syncData: Record<string, unknown>
   ) {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     fetchSpy.mockImplementation(async (input: string | URL | Request) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
       if (url.includes("/live")) {
         return new Response(JSON.stringify(liveData), { status: 200 });
       }
@@ -297,7 +302,9 @@ describe("draftStore — polling", () => {
     picksPerPlayer: 45,
     matchCount: 0,
     totalMatches: 28,
-    picks: [{ pickN: 1, seat: 1, cardName: "Bolt", oracleId: "x", colorIdentity: ["R"], manaCost: "{R}" }],
+    picks: [
+      { pickN: 1, seat: 1, cardName: "Bolt", oracleId: "x", colorIdentity: ["R"], manaCost: "{R}" },
+    ],
     bannedCards: [],
   };
 
@@ -333,7 +340,11 @@ describe("draftStore — polling", () => {
 
     const urls = fetchSpy.mock.calls.map((c) => {
       const input = c[0];
-      return typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      return typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : (input as Request).url;
     });
     expect(urls).toContain("/api/drafts/draft-1/live");
     expect(urls).toContain("/api/sync-status");
@@ -374,7 +385,8 @@ describe("draftStore — polling", () => {
 
     // Change latestPickN
     fetchSpy.mockImplementation(async (input: string | URL | Request) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
       if (url.includes("/live")) {
         return new Response(JSON.stringify({ ...baseLiveData, latestPickN: 10 }), { status: 200 });
       }
@@ -396,11 +408,12 @@ describe("draftStore — polling", () => {
     const dv1 = useDraftStore.getState().dataVersion;
 
     fetchSpy.mockImplementation(async (input: string | URL | Request) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
       if (url.includes("/live")) {
         return new Response(
           JSON.stringify({ ...baseLiveData, seatNames: { "1": "Charlie", "2": "Bob" } }),
-          { status: 200 },
+          { status: 200 }
         );
       }
       return new Response(JSON.stringify(baseSyncData), { status: 200 });
@@ -425,13 +438,14 @@ describe("draftStore — polling", () => {
     const v1 = useDraftStore.getState().dataVersion;
 
     fetchSpy.mockImplementation(async (input: string | URL | Request) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+      const url =
+        typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
       if (url.includes("/live")) {
         return new Response(JSON.stringify(baseLiveData), { status: 200 });
       }
       return new Response(
         JSON.stringify({ ...baseSyncData, lastSyncedAt: "2026-02-01T00:00:00Z" }),
-        { status: 200 },
+        { status: 200 }
       );
     });
 
@@ -464,7 +478,11 @@ describe("draftStore — polling", () => {
 
     const urls = fetchSpy.mock.calls.map((c) => {
       const input = c[0];
-      return typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      return typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.toString()
+          : (input as Request).url;
     });
     expect(urls).toContain("/api/drafts/draft-1/live");
   });
@@ -493,18 +511,27 @@ describe("draftStore — polling", () => {
 
     // Controlled promise for the interval fetch (will resolve LAST with stale data)
     let resolveInterval!: (r: Response) => void;
-    const intervalPromise = new Promise<Response>((res) => { resolveInterval = res; });
+    const intervalPromise = new Promise<Response>((res) => {
+      resolveInterval = res;
+    });
 
     // Controlled promise for the refreshNow fetch (will resolve FIRST with newer data)
     let resolveRefresh!: (r: Response) => void;
-    const refreshPromise = new Promise<Response>((res) => { resolveRefresh = res; });
+    const refreshPromise = new Promise<Response>((res) => {
+      resolveRefresh = res;
+    });
 
     const staleData = { ...baseLiveData, latestPickN: 5 };
     const freshData = { ...baseLiveData, latestPickN: 10 };
 
     let fetchCallCount = 0;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input: string | URL | Request) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : (input as Request).url;
       if (!url.includes("/live")) {
         return new Response(JSON.stringify(baseSyncData), { status: 200 });
       }
@@ -551,9 +578,7 @@ describe("draftStore — polling", () => {
     const fullData = { ...baseLiveData, liveSig: "drafting|0|Alice:Bob" };
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     // background doFetch from startPolling + our explicit refreshNow — both get fullData
-    fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify(fullData), { status: 200 }),
-    );
+    fetchSpy.mockResolvedValue(new Response(JSON.stringify(fullData), { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.getState().stopPolling();
@@ -580,7 +605,7 @@ describe("draftStore — polling", () => {
 
     // Second refreshNow: server returns {unchanged:true}
     fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ unchanged: true }), { status: 200 }),
+      new Response(JSON.stringify({ unchanged: true }), { status: 200 })
     );
 
     await useDraftStore.getState().refreshNow();
@@ -599,9 +624,7 @@ describe("draftStore — polling", () => {
     const fullData = { ...baseLiveData, latestPickN: 7, liveSig };
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     // Seed spy BEFORE activeDraft change so background doFetch is handled
-    fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify(fullData), { status: 200 }),
-    );
+    fetchSpy.mockResolvedValue(new Response(JSON.stringify(fullData), { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.getState().stopPolling();
@@ -613,11 +636,9 @@ describe("draftStore — polling", () => {
 
     // Clear previous calls so we only see the two explicit refreshNow calls
     fetchSpy.mockClear();
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify(fullData), { status: 200 }));
     fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify(fullData), { status: 200 }),
-    );
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({ unchanged: true }), { status: 200 }),
+      new Response(JSON.stringify({ unchanged: true }), { status: 200 })
     );
 
     await useDraftStore.getState().refreshNow();
@@ -627,7 +648,11 @@ describe("draftStore — polling", () => {
     const liveCallUrls = fetchSpy.mock.calls
       .map((c) => {
         const input = c[0];
-        return typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+        return typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : (input as Request).url;
       })
       .filter((u) => u.includes("/live"));
 
@@ -644,9 +669,7 @@ describe("draftStore — polling", () => {
     const fullData = { ...baseLiveData, latestPickN: 3, liveSig };
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     // Seed spy BEFORE activeDraft change so background doFetch is handled
-    fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify(fullData), { status: 200 }),
-    );
+    fetchSpy.mockResolvedValue(new Response(JSON.stringify(fullData), { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.getState().stopPolling();
@@ -654,16 +677,12 @@ describe("draftStore — polling", () => {
 
     // Explicit refreshNow for draft-1 — caches the sig
     fetchSpy.mockClear();
-    fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify(fullData), { status: 200 }),
-    );
+    fetchSpy.mockResolvedValueOnce(new Response(JSON.stringify(fullData), { status: 200 }));
     await useDraftStore.getState().refreshNow();
 
     // Switch to draft-2 — subscription resets lastLiveSig before starting new polling
     fetchSpy.mockReset();
-    fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify({ ...fullData }), { status: 200 }),
-    );
+    fetchSpy.mockResolvedValue(new Response(JSON.stringify({ ...fullData }), { status: 200 }));
     useDraftStore.getState().setActiveDraft("draft-2");
     // Wait for the subscription's auto-start polling immediate fetch
     await vi.advanceTimersByTimeAsync(0);
@@ -672,7 +691,11 @@ describe("draftStore — polling", () => {
     const draft2LiveCalls = fetchSpy.mock.calls
       .map((c) => {
         const input = c[0];
-        return typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+        return typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : (input as Request).url;
       })
       .filter((u) => u.includes("draft-2") && u.includes("/live"));
 
@@ -690,9 +713,7 @@ describe("draftStore — polling", () => {
     // Set up spy to return full payload every poll (unchanged content = task 22's short-circuit
     // would fire, but here we simulate a full-response path to verify compare-before-set).
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify(baseLiveData), { status: 200 }),
-    );
+    fetchSpy.mockResolvedValue(new Response(JSON.stringify(baseLiveData), { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.getState().stopPolling();
@@ -720,9 +741,7 @@ describe("draftStore — polling", () => {
 
   it("new pick changes board and liveDraftStatus references but not when unchanged", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    fetchSpy.mockResolvedValue(
-      new Response(JSON.stringify(baseLiveData), { status: 200 }),
-    );
+    fetchSpy.mockResolvedValue(new Response(JSON.stringify(baseLiveData), { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.getState().stopPolling();
@@ -734,13 +753,23 @@ describe("draftStore — polling", () => {
     const statusRef1 = useDraftStore.getState().liveDraftStatus;
 
     // Simulate a new pick arriving
-    const newPick = { pickN: 2, seat: 2, cardName: "Counterspell", oracleId: "y", colorIdentity: ["U"], manaCost: "{U}{U}" };
+    const newPick = {
+      pickN: 2,
+      seat: 2,
+      cardName: "Counterspell",
+      oracleId: "y",
+      colorIdentity: ["U"],
+      manaCost: "{U}{U}",
+    };
     fetchSpy.mockResolvedValueOnce(
-      new Response(JSON.stringify({
-        ...baseLiveData,
-        latestPickN: 6,
-        picks: [...baseLiveData.picks, newPick],
-      }), { status: 200 }),
+      new Response(
+        JSON.stringify({
+          ...baseLiveData,
+          latestPickN: 6,
+          picks: [...baseLiveData.picks, newPick],
+        }),
+        { status: 200 }
+      )
     );
 
     await useDraftStore.getState().refreshNow();
@@ -754,7 +783,12 @@ describe("draftStore — polling", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     // Route both /live and /sync-status responses
     fetchSpy.mockImplementation(async (input: string | URL | Request) => {
-      const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : (input as Request).url;
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.toString()
+            : (input as Request).url;
       if (url.includes("/api/sync-status")) {
         return new Response(JSON.stringify(baseSyncData), { status: 200 });
       }
@@ -926,7 +960,6 @@ describe("draftStore — polling", () => {
   });
 });
 
-
 // ---------------------------------------------------------------------------
 // fetchStandings — store action (Task 29: component fetch consolidation)
 // ---------------------------------------------------------------------------
@@ -943,12 +976,26 @@ describe("draftStore — fetchStandings", () => {
   it("GETs /api/drafts/{id}/standings and populates standings/standingsMatches", async () => {
     const standingsPayload = {
       standings: [
-        { seat: 1, matchWins: 3, matchLosses: 1, gameWins: 6, gameLosses: 2, omwPct: 0.6, ogwPct: 0.58 },
-        { seat: 2, matchWins: 1, matchLosses: 3, gameWins: 2, gameLosses: 6, omwPct: null, ogwPct: null },
+        {
+          seat: 1,
+          matchWins: 3,
+          matchLosses: 1,
+          gameWins: 6,
+          gameLosses: 2,
+          omwPct: 0.6,
+          ogwPct: 0.58,
+        },
+        {
+          seat: 2,
+          matchWins: 1,
+          matchLosses: 3,
+          gameWins: 2,
+          gameLosses: 6,
+          omwPct: null,
+          ogwPct: null,
+        },
       ],
-      matches: [
-        { seat1: 1, seat2: 2, seat1Wins: 2, seat2Wins: 0 },
-      ],
+      matches: [{ seat1: 1, seat2: 2, seat1Wins: 2, seat2Wins: 0 }],
     };
     // Use mockImplementation to return a fresh Response per call (body can only be read once)
     vi.spyOn(globalThis, "fetch").mockImplementation((url: string | URL | Request) => {
@@ -976,7 +1023,9 @@ describe("draftStore — fetchStandings", () => {
     let resolveStandings!: (v: Response) => void;
     vi.spyOn(globalThis, "fetch").mockImplementation((url: string | URL | Request) => {
       if (String(url).includes("/standings")) {
-        return new Promise<Response>((resolve) => { resolveStandings = resolve; });
+        return new Promise<Response>((resolve) => {
+          resolveStandings = resolve;
+        });
       }
       return Promise.resolve(new Response(JSON.stringify({ unchanged: true }), { status: 200 }));
     });
@@ -1014,13 +1063,23 @@ describe("draftStore — fetchStandings", () => {
 
   it("resets standings when activeDraft changes", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ unchanged: true }), { status: 200 }),
+      new Response(JSON.stringify({ unchanged: true }), { status: 200 })
     );
 
     // Start from a draft that already has standings loaded
     useDraftStore.setState({ activeDraft: "draft-A" });
     useDraftStore.setState({
-      standings: [{ seat: 1, matchWins: 2, matchLosses: 0, gameWins: 4, gameLosses: 0, omwPct: null, ogwPct: null }],
+      standings: [
+        {
+          seat: 1,
+          matchWins: 2,
+          matchLosses: 0,
+          gameWins: 4,
+          gameLosses: 0,
+          omwPct: null,
+          ogwPct: null,
+        },
+      ],
       standingsMatches: [{ seat1: 1, seat2: 2, seat1Wins: 2, seat2Wins: 0 }],
     });
 
@@ -1041,7 +1100,16 @@ describe("draftStore — fetchStandings", () => {
 
 function boardFixture(draftId: string): BoardData {
   return {
-    picks: [{ pickN: 1, seat: 1, cardName: `${draftId}-card`, oracleId: "x", colorIdentity: ["R"], manaCost: "{R}" }],
+    picks: [
+      {
+        pickN: 1,
+        seat: 1,
+        cardName: `${draftId}-card`,
+        oracleId: "x",
+        colorIdentity: ["R"],
+        manaCost: "{R}",
+      },
+    ],
     numSeats: 8,
     picksPerPlayer: 45,
     doublePickAfterRound: null,
@@ -1058,7 +1126,7 @@ describe("draftStore — draft switch clears board", () => {
     localStorage.clear();
     resetStore();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ unchanged: true }), { status: 200 }),
+      new Response(JSON.stringify({ unchanged: true }), { status: 200 })
     );
   });
 
@@ -1071,7 +1139,13 @@ describe("draftStore — draft switch clears board", () => {
     useDraftStore.setState({ activeDraft: "draft-a" });
     useDraftStore.setState({
       board: boardFixture("draft-a"),
-      liveDraftStatus: { latestPickN: 5, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 28 },
+      liveDraftStatus: {
+        latestPickN: 5,
+        nextSeat: 2,
+        recentPicks: [],
+        matchCount: 0,
+        totalMatches: 28,
+      },
     });
     expect(useDraftStore.getState().board).not.toBeNull();
 

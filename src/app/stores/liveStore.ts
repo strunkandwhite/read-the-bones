@@ -226,7 +226,7 @@ export const useLiveStore = create<LiveStoreState>()(
       fetchDeckState: makeFetchDeckState(boundSet, get),
       shareDeck: makeShareDeck(get),
     };
-  }),
+  })
 );
 
 // ---------------------------------------------------------------------------
@@ -297,7 +297,7 @@ useDraftStore.subscribe(
         viewingSharedDeck: false,
       });
     }
-  },
+  }
 );
 
 // ---------------------------------------------------------------------------
@@ -309,8 +309,14 @@ useDraftStore.subscribe(
 // cross-device queue/float changes break the short-circuit and deliver fresh data.
 
 // Server-side queue format — server always sends { id, name }
-interface ServerQueueCard { id: number; name: string; }
-interface ServerQueueEntry { mode: "pause" | "flow-through"; cards: ServerQueueCard[]; }
+interface ServerQueueCard {
+  id: number;
+  name: string;
+}
+interface ServerQueueEntry {
+  mode: "pause" | "flow-through";
+  cards: ServerQueueCard[];
+}
 
 function applyMeFromPoll(me: LiveMeData): void {
   const set = useLiveStore.setState;
@@ -373,7 +379,7 @@ export const _applyMeDataForTest = applyMeFromPoll;
 // Recompute picking state when nextSeat changes
 useDraftStore.subscribe(
   (state) => state.liveDraftStatus?.nextSeat,
-  () => recomputePicking(),
+  () => recomputePicking()
 );
 
 // ---------------------------------------------------------------------------
@@ -391,7 +397,7 @@ useCardStore.subscribe(
   () => {
     useLiveStore.getState().reconcileLocalFloats();
     debouncedSyncDeckWithPicks();
-  },
+  }
 );
 
 // Sync deck when card data arrives. A deck opened before Scryfall data lands
@@ -399,7 +405,7 @@ useCardStore.subscribe(
 // migration has to wait for the map.
 useCardStore.subscribe(
   (state) => state.scryfallDataMap,
-  () => debouncedSyncDeckWithPicks(),
+  () => debouncedSyncDeckWithPicks()
 );
 
 // Rebuild deck when deck builder is activated
@@ -409,25 +415,25 @@ useLiveStore.subscribe(
     if (active) {
       debouncedSyncDeckWithPicks();
     }
-  },
+  }
 );
 
 // Rebuild deck when float state changes
 useLiveStore.subscribe(
   (state) => state.floatedCards,
-  () => debouncedSyncDeckWithPicks(),
+  () => debouncedSyncDeckWithPicks()
 );
 
 // Rebuild deck when queue changes
 useLiveStore.subscribe(
   (state) => state.queue,
-  () => debouncedSyncDeckWithPicks(),
+  () => debouncedSyncDeckWithPicks()
 );
 
 // Rebuild deck when mySeat resolves (identity fix)
 useLiveStore.subscribe(
   (state) => state.mySeat,
-  () => debouncedSyncDeckWithPicks(),
+  () => debouncedSyncDeckWithPicks()
 );
 
 // Local deck mode (sheet drafts): load per-seat local floats + deck state when
@@ -435,6 +441,7 @@ useLiveStore.subscribe(
 const syncLocalDeck = makeSyncLocalDeck(useLiveStore.getState, getLiveStoreRef);
 
 useDraftStore.subscribe(
-  (state) => `${state.activeDraft ?? ""}|${state.board?.isSheetDraft === true}|${state.selectedSeat ?? ""}`,
-  () => syncLocalDeck(),
+  (state) =>
+    `${state.activeDraft ?? ""}|${state.board?.isSheetDraft === true}|${state.selectedSeat ?? ""}`,
+  () => syncLocalDeck()
 );

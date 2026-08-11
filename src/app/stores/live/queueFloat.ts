@@ -16,8 +16,14 @@ export type { QueueGroupEntry };
 // Internal types matching server format
 // ---------------------------------------------------------------------------
 
-interface ServerQueueCard { id: number; name: string; }
-interface ServerQueueEntry { mode: "pause" | "flow-through"; cards: ServerQueueCard[]; }
+interface ServerQueueCard {
+  id: number;
+  name: string;
+}
+interface ServerQueueEntry {
+  mode: "pause" | "flow-through";
+  cards: ServerQueueCard[];
+}
 
 // ---------------------------------------------------------------------------
 // parseServerQueue — canonical conversion from server { id, name } to client shape
@@ -54,7 +60,7 @@ export async function syncQueue(
   getLiveStore: () => { getState: GetState; fetchFloatedCards: () => Promise<void> },
   newQueue: QueueGroupEntry[],
   previousQueue?: QueueGroupEntry[],
-  fallbackFloats?: string[],
+  fallbackFloats?: string[]
 ): Promise<void> {
   const { seatToken } = get();
   const fallbackQueue = previousQueue ?? get().queue;
@@ -117,23 +123,24 @@ export async function mutateFloat(
   get: GetState,
   getLiveStore: () => { fetchFloatedCards: () => Promise<void> },
   cardName: string,
-  method: "PUT" | "DELETE",
+  method: "PUT" | "DELETE"
 ): Promise<void> {
   const { seatToken, floatedCards: previous } = get();
   const activeDraft = useDraftStore.getState().activeDraft;
   if (!activeDraft) return;
 
-  const next =
-    method === "PUT"
-      ? [...previous, cardName]
-      : previous.filter((c) => c !== cardName);
+  const next = method === "PUT" ? [...previous, cardName] : previous.filter((c) => c !== cardName);
 
   if (!seatToken) {
     // Local deck mode (sheet drafts): persist floats to localStorage, no API.
     if (!getLocalDeckMode()) return;
     const { selectedSeat } = useDraftStore.getState();
     if (selectedSeat === null) return;
-    set({ floatedCards: next, floatedCardsSet: new Set(next), floatedCardsKey: `${activeDraft}:${selectedSeat}` });
+    set({
+      floatedCards: next,
+      floatedCardsSet: new Set(next),
+      floatedCardsKey: `${activeDraft}:${selectedSeat}`,
+    });
     saveLocalFloats(activeDraft, selectedSeat, next);
     return;
   }
@@ -195,7 +202,7 @@ export function makeFetchQueue(set: SetState, get: GetState) {
 export function makeAddToQueue(
   set: SetState,
   get: GetState,
-  getLiveStore: () => { getState: GetState; fetchFloatedCards: () => Promise<void> },
+  getLiveStore: () => { getState: GetState; fetchFloatedCards: () => Promise<void> }
 ) {
   return (cardName: string): void => {
     const { queue: original, floatedCards } = get();
@@ -218,7 +225,7 @@ export function makeAddToQueue(
 export function makeRemoveFromQueue(
   set: SetState,
   get: GetState,
-  getLiveStore: () => { getState: GetState; fetchFloatedCards: () => Promise<void> },
+  getLiveStore: () => { getState: GetState; fetchFloatedCards: () => Promise<void> }
 ) {
   return (cardName: string): void => {
     const { queue: original, floatedCards } = get();
@@ -236,9 +243,7 @@ export function makeRemoveFromQueue(
       })
       .filter((entry) => entry.cards.length > 0);
     if (!found) return;
-    const nextFloats = floatedCards.includes(cardName)
-      ? floatedCards
-      : [...floatedCards, cardName];
+    const nextFloats = floatedCards.includes(cardName) ? floatedCards : [...floatedCards, cardName];
     set({
       queue: optimisticQueue,
       queuedCardCounts: deriveQueuedCardCounts(optimisticQueue),
@@ -252,7 +257,7 @@ export function makeRemoveFromQueue(
 export function makeReorderQueue(
   set: SetState,
   get: GetState,
-  getLiveStore: () => { getState: GetState; fetchFloatedCards: () => Promise<void> },
+  getLiveStore: () => { getState: GetState; fetchFloatedCards: () => Promise<void> }
 ) {
   return (entries: QueueGroupEntry[]): void => {
     const { queue: original } = get();
@@ -264,13 +269,11 @@ export function makeReorderQueue(
 export function makeSetEntryMode(
   set: SetState,
   get: GetState,
-  getLiveStore: () => { getState: GetState; fetchFloatedCards: () => Promise<void> },
+  getLiveStore: () => { getState: GetState; fetchFloatedCards: () => Promise<void> }
 ) {
   return (entryIndex: number, mode: "pause" | "flow-through"): void => {
     const { queue: original } = get();
-    const newQueue = original.map((entry, i) =>
-      i === entryIndex ? { ...entry, mode } : entry,
-    );
+    const newQueue = original.map((entry, i) => (i === entryIndex ? { ...entry, mode } : entry));
     set({ queue: newQueue, queuedCardCounts: deriveQueuedCardCounts(newQueue) });
     void syncQueue(set, get, getLiveStore, newQueue, original);
   };
@@ -290,8 +293,7 @@ export function makeFetchFloatedCards(set: SetState, get: GetState) {
       const incoming = loadLocalFloats(activeDraft, selectedSeat);
       const prevFloats = get().floatedCards;
       const floatsChanged =
-        incoming.length !== prevFloats.length ||
-        incoming.some((c, i) => c !== prevFloats[i]);
+        incoming.length !== prevFloats.length || incoming.some((c, i) => c !== prevFloats[i]);
       const key = `${activeDraft}:${selectedSeat}`;
       if (floatsChanged) {
         set({ floatedCards: incoming, floatedCardsSet: new Set(incoming), floatedCardsKey: key });
@@ -314,8 +316,7 @@ export function makeFetchFloatedCards(set: SetState, get: GetState) {
           const incoming: string[] = data.cards;
           const prevFloats = get().floatedCards;
           const floatsChanged =
-            incoming.length !== prevFloats.length ||
-            incoming.some((c, i) => c !== prevFloats[i]);
+            incoming.length !== prevFloats.length || incoming.some((c, i) => c !== prevFloats[i]);
           if (floatsChanged) {
             set({ floatedCards: incoming, floatedCardsSet: new Set(incoming) });
           }
@@ -330,16 +331,15 @@ export function makeFetchFloatedCards(set: SetState, get: GetState) {
 export function makeAddFloat(
   set: SetState,
   get: GetState,
-  getLiveStore: () => { fetchFloatedCards: () => Promise<void> },
+  getLiveStore: () => { fetchFloatedCards: () => Promise<void> }
 ) {
-  return (cardName: string): Promise<void> =>
-    mutateFloat(set, get, getLiveStore, cardName, "PUT");
+  return (cardName: string): Promise<void> => mutateFloat(set, get, getLiveStore, cardName, "PUT");
 }
 
 export function makeRemoveFloat(
   set: SetState,
   get: GetState,
-  getLiveStore: () => { fetchFloatedCards: () => Promise<void> },
+  getLiveStore: () => { fetchFloatedCards: () => Promise<void> }
 ) {
   return (cardName: string): Promise<void> =>
     mutateFloat(set, get, getLiveStore, cardName, "DELETE");
@@ -371,7 +371,7 @@ export function makeReconcileLocalFloats(set: SetState, get: GetState) {
 
     const previous = get().floatedCards;
     const next = previous.filter(
-      (name) => !seatCardNames?.has(name) && !takenCardNamesSet?.has(name),
+      (name) => !seatCardNames?.has(name) && !takenCardNamesSet?.has(name)
     );
     if (next.length === previous.length) return;
 

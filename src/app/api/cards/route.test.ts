@@ -14,9 +14,7 @@ beforeEach(() => {
 
 describe("GET /api/cards", () => {
   it("parses comma-separated draft IDs from query param", async () => {
-    const req = new NextRequest(
-      new URL("http://localhost:3000/api/cards?drafts=draft-1,draft-2"),
-    );
+    const req = new NextRequest(new URL("http://localhost:3000/api/cards?drafts=draft-1,draft-2"));
     await GET(req);
 
     expect(getCards).toHaveBeenCalledWith({
@@ -28,7 +26,7 @@ describe("GET /api/cards", () => {
 
   it("passes activeDraft and poolAsOfDraft params", async () => {
     const req = new NextRequest(
-      new URL("http://localhost:3000/api/cards?activeDraft=active-1&poolAsOfDraft=pool-1"),
+      new URL("http://localhost:3000/api/cards?activeDraft=active-1&poolAsOfDraft=pool-1")
     );
     await GET(req);
 
@@ -40,14 +38,12 @@ describe("GET /api/cards", () => {
   });
 
   it("sets long cache-control when no activeDraft", async () => {
-    const req = new NextRequest(
-      new URL("http://localhost:3000/api/cards?drafts=draft-1"),
-    );
+    const req = new NextRequest(new URL("http://localhost:3000/api/cards?drafts=draft-1"));
     const res = await GET(req);
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe(
-      "public, s-maxage=31536000, stale-while-revalidate=60",
+      "public, s-maxage=31536000, stale-while-revalidate=60"
     );
   });
 
@@ -55,23 +51,19 @@ describe("GET /api/cards", () => {
     // Previously activeDraft triggered no-store because takenCards changed per pick.
     // Now the client derives taken state from board.picks, so the payload only
     // changes on ingestion — same long-cache policy applies to both paths.
-    const req = new NextRequest(
-      new URL("http://localhost:3000/api/cards?activeDraft=active-1"),
-    );
+    const req = new NextRequest(new URL("http://localhost:3000/api/cards?activeDraft=active-1"));
     const res = await GET(req);
 
     expect(res.status).toBe(200);
     expect(res.headers.get("Cache-Control")).toBe(
-      "public, s-maxage=31536000, stale-while-revalidate=60",
+      "public, s-maxage=31536000, stale-while-revalidate=60"
     );
   });
 
   it("returns 500 on error", async () => {
     vi.mocked(getCards).mockRejectedValueOnce(new Error("DB error"));
 
-    const req = new NextRequest(
-      new URL("http://localhost:3000/api/cards"),
-    );
+    const req = new NextRequest(new URL("http://localhost:3000/api/cards"));
     const res = await GET(req);
 
     expect(res.status).toBe(500);

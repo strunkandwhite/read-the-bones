@@ -16,10 +16,7 @@
 
 import { describe, it, expect, beforeEach } from "vitest";
 import { createClient, type Client } from "@libsql/client";
-import {
-  acquireSyncLock,
-  releaseSyncLock,
-} from "../lock";
+import { acquireSyncLock, releaseSyncLock } from "../lock";
 
 const LOCK_TIMEOUT_SECONDS = 120;
 
@@ -105,10 +102,7 @@ describe("acquireSyncLock — real SQL", () => {
     // Simulate two sync workers racing: the first one succeeds, the second fails.
     // Sequential calls on the same connection precisely model the CAS — the SQL
     // UPDATE WHERE predicate is the serialization point.
-    const results = await Promise.all([
-      acquireSyncLock(client),
-      acquireSyncLock(client),
-    ]);
+    const results = await Promise.all([acquireSyncLock(client), acquireSyncLock(client)]);
 
     // Exactly one must have won
     const winners = results.filter(Boolean);

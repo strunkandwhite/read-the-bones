@@ -15,17 +15,8 @@ import { sessionsAgoByDraft } from "../../../draftSessions";
 import { wilsonInterval } from "../../../wilsonInterval";
 import { DEFAULT_POOL_SIZE } from "../../../types";
 import { MIN_SAMPLE_SIZE } from "../../../constants";
-import {
-  colorFlag,
-  overdueDanger,
-  pairSupply,
-  type WorthCard,
-} from "../../../worthModel";
-import {
-  derivePickSeat,
-  getTotalPicks,
-  picksUntilNextTurn,
-} from "../../../snakeDraft";
+import { colorFlag, overdueDanger, pairSupply, type WorthCard } from "../../../worthModel";
+import { derivePickSeat, getTotalPicks, picksUntilNextTurn } from "../../../snakeDraft";
 
 export interface RankAvailableCardsParams {
   draft_id: string;
@@ -34,12 +25,7 @@ export interface RankAvailableCardsParams {
   type_contains?: string;
   deck_colors?: string;
   limit?: number;
-  sort_by?:
-    | "geomean_pick"
-    | "win_rate"
-    | "play_rate"
-    | "pick_value"
-    | "first_pick_score";
+  sort_by?: "geomean_pick" | "win_rate" | "play_rate" | "pick_value" | "first_pick_score";
   /** Seat whose snake schedule defines the danger horizon and supply slots. */
   seat?: number;
   /**
@@ -92,9 +78,7 @@ export interface RankAvailableCardsResult {
 }
 
 // All ten two-color pairs in canonical WUBRG order (matches pairEdges keys).
-const WUBRG_PAIRS = [
-  "WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG",
-];
+const WUBRG_PAIRS = ["WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG"];
 
 interface WorthContext {
   worthByName: Map<string, WorthCard>;
@@ -113,7 +97,7 @@ interface WorthContext {
  */
 async function buildWorthContext(
   client: Client,
-  params: RankAvailableCardsParams,
+  params: RankAvailableCardsParams
 ): Promise<WorthContext | null> {
   const meta = await getDraftMeta(client, params.draft_id);
   if (!meta) return null;
@@ -171,7 +155,7 @@ async function buildWorthContext(
       card.worth !== null &&
       card.worth > 0 &&
       card.geomean !== null &&
-      card.geomean > 0,
+      card.geomean > 0
   );
   const pairSupplyByPair: Record<string, number> = {};
   for (const pair of WUBRG_PAIRS) {
@@ -179,9 +163,7 @@ async function buildWorthContext(
       .filter((card) => [...card.colors].every((color) => pair.includes(color)))
       .map((card) => ({ worth: card.worth!, geo: card.geomean! }));
     pairSupplyByPair[pair] =
-      sigma > 0
-        ? pairSupply(pairCards, slots, params.before_pick_n, sigma)
-        : 0;
+      sigma > 0 ? pairSupply(pairCards, slots, params.before_pick_n, sigma) : 0;
   }
 
   return {
@@ -223,9 +205,7 @@ export async function rankAvailableCards(
     };
   }
 
-  const worthContext = params.include_worth
-    ? await buildWorthContext(client, params)
-    : null;
+  const worthContext = params.include_worth ? await buildWorthContext(client, params) : null;
 
   const cardNames = available.cards.map((c) => c.card_name);
 
@@ -370,7 +350,7 @@ export async function rankAvailableCards(
     allDraftsPhaseResult.rows.map((row) => ({
       draftId: row.draft_id as string,
       draftDate: row.draft_date as string,
-    })),
+    }))
   );
 
   // Map: cardId -> draftId -> pick positions
@@ -397,7 +377,8 @@ export async function rankAvailableCards(
 
     // Overall stats (always computed when filtering)
     if (matchingSeats) {
-      if (!cardPlayStatsOverall.has(cardId)) cardPlayStatsOverall.set(cardId, { maindecked: 0, total: 0 });
+      if (!cardPlayStatsOverall.has(cardId))
+        cardPlayStatsOverall.set(cardId, { maindecked: 0, total: 0 });
       const overall = cardPlayStatsOverall.get(cardId)!;
       overall.total++;
       if ((row.zone as string) === "deck") overall.maindecked++;
@@ -422,7 +403,8 @@ export async function rankAvailableCards(
 
     // Overall stats (always computed when filtering)
     if (matchingSeats) {
-      if (!cardWinStatsOverall.has(cardId)) cardWinStatsOverall.set(cardId, { wins: 0, losses: 0, seats: 0 });
+      if (!cardWinStatsOverall.has(cardId))
+        cardWinStatsOverall.set(cardId, { wins: 0, losses: 0, seats: 0 });
       const overall = cardWinStatsOverall.get(cardId)!;
       overall.wins += row.game_wins as number;
       overall.losses += row.game_losses as number;
@@ -461,8 +443,7 @@ export async function rankAvailableCards(
       });
     }
 
-    const geomean =
-      observations.length > 0 ? Math.round(pickScore(observations) * 10) / 10 : 0;
+    const geomean = observations.length > 0 ? Math.round(pickScore(observations) * 10) / 10 : 0;
 
     // Play stats — use filtered when available, fall back to overall
     const play = cardPlayStats.get(cardId);
@@ -486,13 +467,13 @@ export async function rankAvailableCards(
     let lowSample = false;
     let winFiltered = false;
 
-    if (win && (win.wins + win.losses) > 0) {
+    if (win && win.wins + win.losses > 0) {
       const total = win.wins + win.losses;
       winRate = round3(win.wins / total);
       winRateCi = wilsonInterval(win.wins, total);
       lowSample = win.seats < MIN_SAMPLE_SIZE;
       winFiltered = !!matchingSeats;
-    } else if (matchingSeats && winOverall && (winOverall.wins + winOverall.losses) > 0) {
+    } else if (matchingSeats && winOverall && winOverall.wins + winOverall.losses > 0) {
       const total = winOverall.wins + winOverall.losses;
       winRate = round3(winOverall.wins / total);
       winRateCi = wilsonInterval(winOverall.wins, total);
@@ -525,19 +506,13 @@ export async function rankAvailableCards(
       const dangerWindow = Math.max(worthContext.horizon - 1, 0);
       const dangerValue =
         worthGeomean !== null && worthGeomean > 0 && worthContext.sigma > 0 && dangerWindow > 0
-          ? overdueDanger(
-              params.before_pick_n,
-              dangerWindow,
-              worthGeomean,
-              worthContext.sigma,
-            )
+          ? overdueDanger(params.before_pick_n, dangerWindow, worthGeomean, worthContext.sigma)
           : worthGeomean !== null && worthGeomean > 0 && worthContext.sigma > 0
             ? 0
             : null;
       rankedCard.worth = worth;
       rankedCard.danger = dangerValue;
-      rankedCard.pick_value =
-        worth !== null && dangerValue !== null ? worth * dangerValue : null;
+      rankedCard.pick_value = worth !== null && dangerValue !== null ? worth * dangerValue : null;
 
       if (params.committed_colors !== undefined) {
         // colorFlag needs the card's color identity — unknown to the worth
@@ -547,14 +522,12 @@ export async function rankAvailableCards(
               worthCard.colors,
               worthContext.pairEdges,
               { committed: params.committed_colors },
-              worthContext.kappa,
+              worthContext.kappa
             )
           : null;
         rankedCard.color_flag = flag;
         rankedCard.first_pick_score =
-          rankedCard.pick_value !== null && flag !== null
-            ? rankedCard.pick_value + flag
-            : null;
+          rankedCard.pick_value !== null && flag !== null ? rankedCard.pick_value + flag : null;
       }
     }
 

@@ -12,7 +12,9 @@ vi.mock("../client", () => ({
 
 describe("resolveCardId", () => {
   let client: ReturnType<typeof createMockClient>;
-  beforeEach(() => { client = createMockClient(); });
+  beforeEach(() => {
+    client = createMockClient();
+  });
 
   it("returns card_id for an existing card", async () => {
     client.execute.mockResolvedValueOnce({ rows: [{ card_id: 42 }] });

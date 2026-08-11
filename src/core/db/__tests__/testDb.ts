@@ -165,14 +165,16 @@ export async function insertCard(
 ): Promise<void> {
   await client.execute({
     sql: `INSERT INTO cards (card_id, oracle_id, name, scryfall_json) VALUES (?, ?, ?, ?)`,
-    args: [cardId, `oracle-${cardId}`, name, opts.scryfallJson ? JSON.stringify(opts.scryfallJson) : null],
+    args: [
+      cardId,
+      `oracle-${cardId}`,
+      name,
+      opts.scryfallJson ? JSON.stringify(opts.scryfallJson) : null,
+    ],
   });
 }
 
-export async function insertCubeSnapshot(
-  client: Client,
-  snapshotId: number
-): Promise<void> {
+export async function insertCubeSnapshot(client: Client, snapshotId: number): Promise<void> {
   await client.execute({
     sql: `INSERT INTO cube_snapshots (cube_snapshot_id, cube_hash) VALUES (?, ?)`,
     args: [snapshotId, `hash-${snapshotId}`],

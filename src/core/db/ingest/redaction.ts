@@ -22,10 +22,7 @@ import { getOptedOutSeats, placeholders } from "../queries/helpers";
  * holds the 1-indexed seat numbers stored in privacy_opt_outs. The conversion
  * happens here so callers never have to think about it.
  */
-export function filterRedactedPicks(
-  picks: CardPick[],
-  optedOutSeats: Set<number>,
-): CardPick[] {
+export function filterRedactedPicks(picks: CardPick[], optedOutSeats: Set<number>): CardPick[] {
   if (optedOutSeats.size === 0) return picks;
   return picks.filter((pick) => !optedOutSeats.has(pick.seat + 1));
 }
@@ -45,10 +42,7 @@ const EMPTY_COUNTS: RedactionCounts = { picks: 0, deckCards: 0, deckHashes: 0 };
 /**
  * Read-only count of what reconcileRedactedRows would delete for a draft.
  */
-export async function countRedactedRows(
-  client: Client,
-  draftId: string,
-): Promise<RedactionCounts> {
+export async function countRedactedRows(client: Client, draftId: string): Promise<RedactionCounts> {
   const optedOutSeats = await getOptedOutSeats(client, draftId);
   if (optedOutSeats.size === 0) return EMPTY_COUNTS;
 
@@ -62,8 +56,8 @@ export async function countRedactedRows(
         // interpolating a table name here introduces no injection surface.
         sql: `SELECT COUNT(*) AS n FROM ${table} WHERE draft_id = ? AND seat IN (${ph})`,
         args: [draftId, ...seats],
-      }),
-    ),
+      })
+    )
   );
 
   const [picks, deckCards, deckHashes] = results.map((r) => Number(r.rows[0].n));
@@ -93,7 +87,7 @@ export interface ReconcileRedactedRowsResult {
  */
 export async function reconcileRedactedRows(
   client: Client,
-  draftId: string,
+  draftId: string
 ): Promise<ReconcileRedactedRowsResult> {
   const optedOutSeats = await getOptedOutSeats(client, draftId);
   if (optedOutSeats.size === 0) {
@@ -117,11 +111,11 @@ export async function reconcileRedactedRows(
       // interpolating a table name here introduces no injection surface.
       sql: `DELETE FROM ${table} WHERE draft_id = ? AND seat IN (${ph})`,
       args: [draftId, ...seats],
-    })),
+    }))
   );
 
   const [picksDeleted, deckCardsDeleted, deckHashesDeleted] = results.map(
-    (r) => r.rowsAffected ?? 0,
+    (r) => r.rowsAffected ?? 0
   );
 
   return { picksDeleted, deckCardsDeleted, deckHashesDeleted, optedOutSeats };

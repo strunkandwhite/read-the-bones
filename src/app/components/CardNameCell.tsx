@@ -12,14 +12,21 @@ interface CardNameCellProps {
 }
 
 export function CardNameCell({
-  card, cubeCopies, remainingCopies, cardStatus, queuePosition,
+  card,
+  cubeCopies,
+  remainingCopies,
+  cardStatus,
+  queuePosition,
 }: CardNameCellProps) {
   const imageUri = card.scryfall?.imageUri;
   const accentColor = cardStatus === "picked" ? "rgb(16 185 129)" : undefined;
 
   return (
-    <div className="min-w-0" style={accentColor ? { borderLeft: `4px solid ${accentColor}`, paddingLeft: 8 } : undefined}>
-      <div className="flex cursor-pointer items-center gap-2 min-w-0">
+    <div
+      className="min-w-0"
+      style={accentColor ? { borderLeft: `4px solid ${accentColor}`, paddingLeft: 8 } : undefined}
+    >
+      <div className="flex min-w-0 cursor-pointer items-center gap-2">
         {imageUri && (
           <img
             src={imageUri}
@@ -30,7 +37,9 @@ export function CardNameCell({
             className="shrink-0 rounded-sm object-cover shadow-sm"
           />
         )}
-        <span className="min-w-0 flex-1 font-medium text-zinc-900 dark:text-zinc-100">{card.cardName}</span>
+        <span className="min-w-0 flex-1 font-medium text-zinc-900 dark:text-zinc-100">
+          {card.cardName}
+        </span>
         {/* Note indicators */}
         {card.timesAvailable === 1 && (
           <span
@@ -55,9 +64,7 @@ export function CardNameCell({
                 : `${cubeCopies} copies in the cube`
             }
           >
-            {remainingCopies !== undefined
-              ? `${remainingCopies}/${cubeCopies}`
-              : `×${cubeCopies}`}
+            {remainingCopies !== undefined ? `${remainingCopies}/${cubeCopies}` : `×${cubeCopies}`}
           </span>
         )}
         {/* Status icon */}

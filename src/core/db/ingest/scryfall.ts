@@ -51,8 +51,7 @@ export async function backfillScryfallData(
     const name = row.name as string;
 
     // Look up in scryfall cache (try exact name and lowercase)
-    const scryfallData = scryfallCache.get(name.toLowerCase()) ||
-      scryfallCache.get(name);
+    const scryfallData = scryfallCache.get(name.toLowerCase()) || scryfallCache.get(name);
 
     if (scryfallData) {
       const scryfallJson = serializeScryfallEntry(scryfallData);

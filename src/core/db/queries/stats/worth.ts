@@ -11,11 +11,7 @@
 import type { Client } from "@libsql/client";
 import { getClient } from "../../client";
 import { statsPhaseFilter } from "../../../draftPhases";
-import {
-  inferSeatColors,
-  parseScryfallJson,
-  placeholders,
-} from "../helpers";
+import { inferSeatColors, parseScryfallJson, placeholders } from "../helpers";
 import { pickScore, type DraftObservation } from "../../../pickScore";
 import { sessionsAgoByDraft } from "../../../draftSessions";
 import { DEFAULT_POOL_SIZE } from "../../../types";
@@ -75,9 +71,7 @@ export function _resetWorthCache(): void {
  * module cache entirely — they neither read nor write it.
  * @public Consumed by the /api/cards/worth route (task A3).
  */
-export async function getWorthTable(opts?: {
-  excludeDraftId?: string;
-}): Promise<WorthTableResult> {
+export async function getWorthTable(opts?: { excludeDraftId?: string }): Promise<WorthTableResult> {
   const client = await getClient();
 
   const phaseFilter = statsPhaseFilter("phase");
@@ -114,7 +108,7 @@ export async function getWorthTable(opts?: {
       pool_hash: unknown;
       picks_hash: unknown;
       matches_hash: unknown;
-    }>,
+    }>
   )}|${latestFingerprint}|${datesFingerprint}`;
   if (!bypassCache && worthCache?.key === cacheKey) {
     return worthCache.result;
@@ -163,7 +157,7 @@ function binomialStandardError(winRate: number, games: number): number {
 
 async function assembleWorthTable(
   client: Client,
-  statsDrafts: StatsDraftRef[],
+  statsDrafts: StatsDraftRef[]
 ): Promise<WorthTableResult> {
   const statsDraftIds = statsDrafts.map((draft) => draft.draftId);
 
@@ -186,9 +180,7 @@ async function assembleWorthTable(
       ? 2 * (latestDraftResult.rows[0].num_seats as number)
       : DEFAULT_ACT_BY_HORIZON;
 
-  const snapshotIds = new Set<number>(
-    statsDrafts.map((draft) => draft.cubeSnapshotId),
-  );
+  const snapshotIds = new Set<number>(statsDrafts.map((draft) => draft.cubeSnapshotId));
   if (currentCubeSnapshotId !== null) snapshotIds.add(currentCubeSnapshotId);
 
   const snapshotIdList = [...snapshotIds];
@@ -208,19 +200,18 @@ async function assembleWorthTable(
 
   const hasStatsDrafts = statsDraftIds.length > 0;
   const draftIdPlaceholders = placeholders(statsDraftIds.length);
-  const [picksResult, winsResult, matchesResult, seatColors] =
-    await Promise.all([
-      hasStatsDrafts
-        ? client.execute({
-            sql: `SELECT draft_id, card_id, pick_n FROM pick_events
+  const [picksResult, winsResult, matchesResult, seatColors] = await Promise.all([
+    hasStatsDrafts
+      ? client.execute({
+          sql: `SELECT draft_id, card_id, pick_n FROM pick_events
                   WHERE draft_id IN (${draftIdPlaceholders})
                   ORDER BY draft_id, pick_n`,
-            args: statsDraftIds,
-          })
-        : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
-      hasStatsDrafts
-        ? client.execute({
-            sql: `SELECT dc.card_id, dc.draft_id, dc.seat,
+          args: statsDraftIds,
+        })
+      : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
+    hasStatsDrafts
+      ? client.execute({
+          sql: `SELECT dc.card_id, dc.draft_id, dc.seat,
                     SUM(CASE WHEN me.seat1 = dc.seat THEN me.seat1_wins
                              WHEN me.seat2 = dc.seat THEN me.seat2_wins
                              ELSE 0 END) AS game_wins,
@@ -232,20 +223,20 @@ async function assembleWorthTable(
                     AND (me.seat1 = dc.seat OR me.seat2 = dc.seat)
                   WHERE dc.zone = 'deck' AND dc.draft_id IN (${draftIdPlaceholders})
                   GROUP BY dc.card_id, dc.draft_id, dc.seat`,
-            args: statsDraftIds,
-          })
-        : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
-      hasStatsDrafts
-        ? client.execute({
-            sql: `SELECT draft_id, seat1, seat2, seat1_wins, seat2_wins
+          args: statsDraftIds,
+        })
+      : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
+    hasStatsDrafts
+      ? client.execute({
+          sql: `SELECT draft_id, seat1, seat2, seat1_wins, seat2_wins
                   FROM match_events WHERE draft_id IN (${draftIdPlaceholders})`,
-            args: statsDraftIds,
-          })
-        : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
-      hasStatsDrafts
-        ? inferSeatColors(client, statsDraftIds)
-        : Promise.resolve(new Map<string, string>()),
-    ]);
+          args: statsDraftIds,
+        })
+      : Promise.resolve({ rows: [] as Record<string, unknown>[] }),
+    hasStatsDrafts
+      ? inferSeatColors(client, statsDraftIds)
+      : Promise.resolve(new Map<string, string>()),
+  ]);
 
   // Card metadata keyed by normalized name (names in the cards table are
   // already suffix-stripped at ingestion, so name is the multi-copy key).
@@ -278,7 +269,7 @@ async function assembleWorthTable(
     snapshotCardNames.get(snapshotId)!.add(name);
     poolSizeBySnapshot.set(
       snapshotId,
-      (poolSizeBySnapshot.get(snapshotId) ?? 0) + (row.qty as number),
+      (poolSizeBySnapshot.get(snapshotId) ?? 0) + (row.qty as number)
     );
   }
 
@@ -314,12 +305,7 @@ async function assembleWorthTable(
   // games count toward every color in its inferred identity.
   const colorTallies = new Map<string, { wins: number; losses: number }>();
   const pairTallies = new Map<string, { wins: number; losses: number }>();
-  const tallySeat = (
-    draftId: string,
-    seat: number,
-    wins: number,
-    losses: number,
-  ) => {
+  const tallySeat = (draftId: string, seat: number, wins: number, losses: number) => {
     const seatColor = seatColors.get(`${draftId}:${seat}`);
     if (!seatColor || seatColor === "C") return;
     for (const colorLetter of seatColor) {
@@ -406,8 +392,7 @@ async function assembleWorthTable(
     const allPicks = [...byDraft.values()].flat();
     if (allPicks.length === 0) continue;
     centeredCardCount++;
-    const meanLogPick =
-      allPicks.reduce((sum, pick) => sum + Math.log(pick), 0) / allPicks.length;
+    const meanLogPick = allPicks.reduce((sum, pick) => sum + Math.log(pick), 0) / allPicks.length;
     for (const pick of allPicks) {
       const residual = Math.log(pick) - meanLogPick;
       residualSquaredSum += residual * residual;
@@ -453,14 +438,12 @@ async function assembleWorthTable(
     fitPoints.map(({ lnGeo, delta, se }) => ({
       resid: delta - (a + b * lnGeo),
       se,
-    })),
+    }))
   );
   // Quality spread around the ZERO prior (raw deltas, not curve residuals):
   // worth shrinks toward zero, so its weight must use total spread or the
   // shrinkage understates true quality variance.
-  const tau0 = estimateTau(
-    fitPoints.map(({ delta, se }) => ({ resid: delta, se })),
-  );
+  const tau0 = estimateTau(fitPoints.map(({ delta, se }) => ({ resid: delta, se })));
 
   const cards: WorthCard[] = [];
   for (const name of [...tableNames].sort()) {
@@ -491,9 +474,7 @@ async function assembleWorthTable(
     }
 
     const actByPick =
-      inCurrentCube && priced && sigma > 0
-        ? actBy(geomean, actByHorizon, sigma)
-        : null;
+      inCurrentCube && priced && sigma > 0 ? actBy(geomean, actByHorizon, sigma) : null;
 
     cards.push({
       card_name: name,

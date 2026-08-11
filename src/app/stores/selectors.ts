@@ -135,7 +135,18 @@ export function useCardStatuses(cardNames: readonly string[]): Map<string, CardS
       map.set(cardName, { status: "none" });
     }
     return map;
-  }, [cardNames, isAuthed, localDeckMode, queuedCardCounts, floatedCardsSet, queue, seatCardNames, takenCardNamesSet, takenCardCounts, cardData]);
+  }, [
+    cardNames,
+    isAuthed,
+    localDeckMode,
+    queuedCardCounts,
+    floatedCardsSet,
+    queue,
+    seatCardNames,
+    takenCardNamesSet,
+    takenCardCounts,
+    cardData,
+  ]);
 }
 
 /**
@@ -171,7 +182,12 @@ export function useCardStatus(cardName: string | null): CardStatusResult {
         }
         const cubeCopies = cardData.cubeCopies[cardName] ?? 1;
         const takenCount = takenCardCounts?.get(cardName) ?? 0;
-        return { status: "queued", queuePosition: entryPosition, queuedCount: count, remainingCopies: cubeCopies - takenCount };
+        return {
+          status: "queued",
+          queuePosition: entryPosition,
+          queuedCount: count,
+          remainingCopies: cubeCopies - takenCount,
+        };
       }
     }
     if ((isAuthed || localDeckMode) && floatedCardsSet.has(cardName)) return { status: "floated" };
@@ -182,7 +198,18 @@ export function useCardStatus(cardName: string | null): CardStatusResult {
     }
     if (takenCardNamesSet?.has(cardName)) return { status: "taken" };
     return { status: "none" };
-  }, [cardName, isAuthed, localDeckMode, queuedCardCounts, floatedCardsSet, queue, seatCardNames, takenCardNamesSet, takenCardCounts, cardData]);
+  }, [
+    cardName,
+    isAuthed,
+    localDeckMode,
+    queuedCardCounts,
+    floatedCardsSet,
+    queue,
+    seatCardNames,
+    takenCardNamesSet,
+    takenCardCounts,
+    cardData,
+  ]);
 }
 
 export function getImageUrl(cardName: string | null): string | undefined {
@@ -205,7 +232,15 @@ export function getMyDeckCardNames(): Set<string> {
   const { floatedCards, queue } = useLiveStore.getState();
   const isAuthed = getIsAuthed();
 
-  return new Set(computeMyDeckCardNames({ picks: seatCardList ?? [], isAuthed, localDeckMode: getLocalDeckMode(), floatedCards, queue }));
+  return new Set(
+    computeMyDeckCardNames({
+      picks: seatCardList ?? [],
+      isAuthed,
+      localDeckMode: getLocalDeckMode(),
+      floatedCards,
+      queue,
+    })
+  );
 }
 
 /**
@@ -222,6 +257,14 @@ export function useMyDeckCardNames(): Set<string> {
   return useMemo(() => {
     const isAuthed = mySeat !== null && mySeat === selectedSeat;
     const localDeckMode = isSheetDraft && selectedSeat !== null;
-    return new Set(computeMyDeckCardNames({ picks: seatCardList ?? [], isAuthed, localDeckMode, floatedCards, queue }));
+    return new Set(
+      computeMyDeckCardNames({
+        picks: seatCardList ?? [],
+        isAuthed,
+        localDeckMode,
+        floatedCards,
+        queue,
+      })
+    );
   }, [seatCardList, floatedCards, queue, mySeat, selectedSeat, isSheetDraft]);
 }

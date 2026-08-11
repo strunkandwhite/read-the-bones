@@ -26,11 +26,13 @@ describe("GET /api/drafts", () => {
 
   it("passes date and name filters", async () => {
     vi.mocked(queries.listDrafts).mockResolvedValue([]);
-    const res = await GET(makeRequest({
-      date_from: "2025-01-01",
-      date_to: "2025-12-31",
-      draft_name: "tarkir",
-    }));
+    const res = await GET(
+      makeRequest({
+        date_from: "2025-01-01",
+        date_to: "2025-12-31",
+        draft_name: "tarkir",
+      })
+    );
     expect(res.status).toBe(200);
     expect(queries.listDrafts).toHaveBeenCalledWith(expect.anything(), {
       date_from: "2025-01-01",

@@ -38,7 +38,7 @@ describe("GET /api/drafts/[id]/available/ranked", () => {
         limit: "10",
         sort_by: "win_rate",
       }),
-      { params: Promise.resolve({ id: "tarkir" }) },
+      { params: Promise.resolve({ id: "tarkir" }) }
     );
     expect(res.status).toBe(200);
     expect(queries.rankAvailableCards).toHaveBeenCalledWith({
@@ -54,43 +54,35 @@ describe("GET /api/drafts/[id]/available/ranked", () => {
 
   it("clamps negative limit to 1 (prevents slice(0, negative) returning wrong results)", async () => {
     vi.mocked(queries.rankAvailableCards).mockResolvedValue(emptyResult);
-    await GET(
-      makeRequest("tarkir", { before_pick_n: "50", limit: "-5" }),
-      { params: Promise.resolve({ id: "tarkir" }) },
-    );
-    expect(queries.rankAvailableCards).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: 1 }),
-    );
+    await GET(makeRequest("tarkir", { before_pick_n: "50", limit: "-5" }), {
+      params: Promise.resolve({ id: "tarkir" }),
+    });
+    expect(queries.rankAvailableCards).toHaveBeenCalledWith(expect.objectContaining({ limit: 1 }));
   });
 
   it("clamps limit to 1000 maximum", async () => {
     vi.mocked(queries.rankAvailableCards).mockResolvedValue(emptyResult);
-    await GET(
-      makeRequest("tarkir", { before_pick_n: "50", limit: "9999" }),
-      { params: Promise.resolve({ id: "tarkir" }) },
-    );
+    await GET(makeRequest("tarkir", { before_pick_n: "50", limit: "9999" }), {
+      params: Promise.resolve({ id: "tarkir" }),
+    });
     expect(queries.rankAvailableCards).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: 1000 }),
+      expect.objectContaining({ limit: 1000 })
     );
   });
 
   it("uses default limit of 50 when limit is not provided", async () => {
     vi.mocked(queries.rankAvailableCards).mockResolvedValue(emptyResult);
-    await GET(
-      makeRequest("tarkir", { before_pick_n: "50" }),
-      { params: Promise.resolve({ id: "tarkir" }) },
-    );
-    expect(queries.rankAvailableCards).toHaveBeenCalledWith(
-      expect.objectContaining({ limit: 50 }),
-    );
+    await GET(makeRequest("tarkir", { before_pick_n: "50" }), {
+      params: Promise.resolve({ id: "tarkir" }),
+    });
+    expect(queries.rankAvailableCards).toHaveBeenCalledWith(expect.objectContaining({ limit: 50 }));
   });
 
   it("silently ignores unrecognized sort_by values without enabling worth (documented quirk)", async () => {
     vi.mocked(queries.rankAvailableCards).mockResolvedValue(emptyResult);
-    const res = await GET(
-      makeRequest("tarkir", { before_pick_n: "50", sort_by: "bogus" }),
-      { params: Promise.resolve({ id: "tarkir" }) },
-    );
+    const res = await GET(makeRequest("tarkir", { before_pick_n: "50", sort_by: "bogus" }), {
+      params: Promise.resolve({ id: "tarkir" }),
+    });
     expect(res.status).toBe(200);
     const callArgs = vi.mocked(queries.rankAvailableCards).mock.calls[0][0];
     expect(callArgs.sort_by).toBeUndefined();
@@ -107,7 +99,7 @@ describe("GET /api/drafts/[id]/available/ranked", () => {
           committed_colors: "UR",
           sort_by: "pick_value",
         }),
-        { params: Promise.resolve({ id: "tarkir" }) },
+        { params: Promise.resolve({ id: "tarkir" }) }
       );
       expect(res.status).toBe(200);
       expect(queries.rankAvailableCards).toHaveBeenCalledWith(
@@ -116,22 +108,21 @@ describe("GET /api/drafts/[id]/available/ranked", () => {
           committed_colors: "UR",
           sort_by: "pick_value",
           include_worth: true,
-        }),
+        })
       );
     });
 
     it("enables worth when only seat is provided", async () => {
       vi.mocked(queries.rankAvailableCards).mockResolvedValue(emptyResult);
-      await GET(
-        makeRequest("tarkir", { before_pick_n: "50", seat: "7" }),
-        { params: Promise.resolve({ id: "tarkir" }) },
-      );
+      await GET(makeRequest("tarkir", { before_pick_n: "50", seat: "7" }), {
+        params: Promise.resolve({ id: "tarkir" }),
+      });
       expect(queries.rankAvailableCards).toHaveBeenCalledWith(
         expect.objectContaining({
           seat: 7,
           sort_by: undefined,
           include_worth: true,
-        }),
+        })
       );
     });
 
@@ -143,25 +134,25 @@ describe("GET /api/drafts/[id]/available/ranked", () => {
           sort_by: "first_pick_score",
           committed_colors: "",
         }),
-        { params: Promise.resolve({ id: "tarkir" }) },
+        { params: Promise.resolve({ id: "tarkir" }) }
       );
       expect(queries.rankAvailableCards).toHaveBeenCalledWith(
         expect.objectContaining({
           sort_by: "first_pick_score",
           committed_colors: "",
           include_worth: true,
-        }),
+        })
       );
     });
 
     it("rejects first_pick_score without committed_colors with 400", async () => {
       const response = await GET(
         makeRequest("tarkir", { before_pick_n: "50", sort_by: "first_pick_score" }),
-        { params: Promise.resolve({ id: "tarkir" }) },
+        { params: Promise.resolve({ id: "tarkir" }) }
       );
       expect(response.status).toBe(400);
       expect((await response.json()).error).toBe(
-        "sort_by=first_pick_score requires committed_colors",
+        "sort_by=first_pick_score requires committed_colors"
       );
       expect(queries.rankAvailableCards).not.toHaveBeenCalled();
     });
@@ -169,34 +160,30 @@ describe("GET /api/drafts/[id]/available/ranked", () => {
     it("rejects duplicate committed_colors letters with 400", async () => {
       const response = await GET(
         makeRequest("tarkir", { before_pick_n: "50", committed_colors: "WW" }),
-        { params: Promise.resolve({ id: "tarkir" }) },
+        { params: Promise.resolve({ id: "tarkir" }) }
       );
       expect(response.status).toBe(400);
     });
 
     it("rejects a non-positive seat with 400", async () => {
-      const response = await GET(
-        makeRequest("tarkir", { before_pick_n: "50", seat: "-3" }),
-        { params: Promise.resolve({ id: "tarkir" }) },
-      );
+      const response = await GET(makeRequest("tarkir", { before_pick_n: "50", seat: "-3" }), {
+        params: Promise.resolve({ id: "tarkir" }),
+      });
       expect(response.status).toBe(400);
-      expect((await response.json()).error).toBe(
-        "seat must be a positive integer (1-indexed)",
-      );
+      expect((await response.json()).error).toBe("seat must be a positive integer (1-indexed)");
     });
 
     it("treats empty committed_colors as valid (uncommitted state)", async () => {
       vi.mocked(queries.rankAvailableCards).mockResolvedValue(emptyResult);
-      const res = await GET(
-        makeRequest("tarkir", { before_pick_n: "50", committed_colors: "" }),
-        { params: Promise.resolve({ id: "tarkir" }) },
-      );
+      const res = await GET(makeRequest("tarkir", { before_pick_n: "50", committed_colors: "" }), {
+        params: Promise.resolve({ id: "tarkir" }),
+      });
       expect(res.status).toBe(200);
       expect(queries.rankAvailableCards).toHaveBeenCalledWith(
         expect.objectContaining({
           committed_colors: "",
           include_worth: true,
-        }),
+        })
       );
     });
 
@@ -208,15 +195,13 @@ describe("GET /api/drafts/[id]/available/ranked", () => {
             before_pick_n: "50",
             committed_colors: committedColors,
           }),
-          { params: Promise.resolve({ id: "tarkir" }) },
+          { params: Promise.resolve({ id: "tarkir" }) }
         );
         expect(res.status).toBe(400);
         const body = await res.json();
-        expect(body.error).toBe(
-          "committed_colors must be at most two distinct letters from WUBRG",
-        );
+        expect(body.error).toBe("committed_colors must be at most two distinct letters from WUBRG");
         expect(queries.rankAvailableCards).not.toHaveBeenCalled();
-      },
+      }
     );
   });
 
@@ -243,10 +228,9 @@ describe("GET /api/drafts/[id]/available/ranked", () => {
       { sort_by: "first_pick_score" },
     ])("returns 400 for worth params %j in production", async (params) => {
       const { productionGet, freshQueries } = await importProductionRoute();
-      const res = await productionGet(
-        makeRequest("tarkir", { before_pick_n: "50", ...params }),
-        { params: Promise.resolve({ id: "tarkir" }) },
-      );
+      const res = await productionGet(makeRequest("tarkir", { before_pick_n: "50", ...params }), {
+        params: Promise.resolve({ id: "tarkir" }),
+      });
       expect(res.status).toBe(400);
       const body = await res.json();
       expect(body.error).toBe("worth model is not available in production");
@@ -257,11 +241,11 @@ describe("GET /api/drafts/[id]/available/ranked", () => {
       const { productionGet, freshQueries } = await importProductionRoute();
       const res = await productionGet(
         makeRequest("tarkir", { before_pick_n: "50", sort_by: "win_rate" }),
-        { params: Promise.resolve({ id: "tarkir" }) },
+        { params: Promise.resolve({ id: "tarkir" }) }
       );
       expect(res.status).toBe(200);
       expect(freshQueries.rankAvailableCards).toHaveBeenCalledWith(
-        expect.objectContaining({ sort_by: "win_rate" }),
+        expect.objectContaining({ sort_by: "win_rate" })
       );
       const callArgs = vi.mocked(freshQueries.rankAvailableCards).mock.calls[0][0];
       expect(callArgs.include_worth).toBeUndefined();
@@ -271,7 +255,7 @@ describe("GET /api/drafts/[id]/available/ranked", () => {
       const { productionGet, freshQueries } = await importProductionRoute();
       const res = await productionGet(
         makeRequest("tarkir", { before_pick_n: "50", sort_by: "bogus" }),
-        { params: Promise.resolve({ id: "tarkir" }) },
+        { params: Promise.resolve({ id: "tarkir" }) }
       );
       expect(res.status).toBe(200);
       const callArgs = vi.mocked(freshQueries.rankAvailableCards).mock.calls[0][0];

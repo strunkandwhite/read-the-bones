@@ -647,7 +647,13 @@ describe("getDraft", () => {
   it("should return draft with num_seats", async () => {
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
-        { draft_id: "draft1", draft_name: "Vintage Cube", draft_date: "2025-01-15", num_seats: 8, banned_cards: '["Lightning Bolt"]' },
+        {
+          draft_id: "draft1",
+          draft_name: "Vintage Cube",
+          draft_date: "2025-01-15",
+          num_seats: 8,
+          banned_cards: '["Lightning Bolt"]',
+        },
       ])
     );
 
@@ -749,7 +755,6 @@ describe("getPicks", () => {
     expect(result.picks).toEqual([]);
     expect(result.total).toBe(0);
   });
-
 });
 
 // ============================================================================
@@ -766,9 +771,7 @@ describe("getAvailableCards", () => {
 
   it("should return available cards before a pick", async () => {
     // Draft lookup
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ cube_snapshot_id: 1 }])
-    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cube_snapshot_id: 1 }]));
     // Cube cards
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
@@ -778,9 +781,7 @@ describe("getAvailableCards", () => {
       ])
     );
     // Picked cards
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ card_id: 1, pick_count: 1 }])
-    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 1, pick_count: 1 }]));
 
     const result = await getAvailableCards(mockClient as never, {
       draft_id: "draft1",
@@ -790,10 +791,7 @@ describe("getAvailableCards", () => {
     expect(result.draft_id).toBe("draft1");
     expect(result.before_pick_n).toBe(5);
     expect(result.cards).toHaveLength(2);
-    expect(result.cards.map((c) => c.card_name).sort()).toEqual([
-      "Counterspell",
-      "Dark Ritual",
-    ]);
+    expect(result.cards.map((c) => c.card_name).sort()).toEqual(["Counterspell", "Dark Ritual"]);
   });
 
   it("should return empty when draft not found", async () => {
@@ -808,9 +806,7 @@ describe("getAvailableCards", () => {
   });
 
   it("should filter by color identity", async () => {
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ cube_snapshot_id: 1 }])
-    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cube_snapshot_id: 1 }]));
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
         {
@@ -846,9 +842,7 @@ describe("getAvailableCards", () => {
   });
 
   it("should filter colorless cards with C", async () => {
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ cube_snapshot_id: 1 }])
-    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cube_snapshot_id: 1 }]));
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
         {
@@ -878,9 +872,7 @@ describe("getAvailableCards", () => {
   });
 
   it("should filter by type_contains", async () => {
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ cube_snapshot_id: 1 }])
-    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cube_snapshot_id: 1 }]));
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
         {
@@ -910,18 +902,12 @@ describe("getAvailableCards", () => {
   });
 
   it("should handle multiple quantities", async () => {
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cube_snapshot_id: 1 }]));
     mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ cube_snapshot_id: 1 }])
-    );
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([
-        { card_id: 1, name: "Lightning Bolt", scryfall_json: null, qty: 3 },
-      ])
+      createQueryResult([{ card_id: 1, name: "Lightning Bolt", scryfall_json: null, qty: 3 }])
     );
     // One copy already picked
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ card_id: 1, pick_count: 1 }])
-    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 1, pick_count: 1 }]));
 
     const result = await getAvailableCards(mockClient as never, {
       draft_id: "draft1",
@@ -933,18 +919,12 @@ describe("getAvailableCards", () => {
   });
 
   it("should exclude cards with no remaining copies", async () => {
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cube_snapshot_id: 1 }]));
     mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ cube_snapshot_id: 1 }])
-    );
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([
-        { card_id: 1, name: "Lightning Bolt", scryfall_json: null, qty: 1 },
-      ])
+      createQueryResult([{ card_id: 1, name: "Lightning Bolt", scryfall_json: null, qty: 1 }])
     );
     // Already picked
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ card_id: 1, pick_count: 1 }])
-    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 1, pick_count: 1 }]));
 
     const result = await getAvailableCards(mockClient as never, {
       draft_id: "draft1",
@@ -961,9 +941,7 @@ describe("getAvailableCards", () => {
     );
     // Cube cards
     mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([
-        { card_id: 1, name: "Lightning Bolt", qty: 1 },
-      ])
+      createQueryResult([{ card_id: 1, name: "Lightning Bolt", qty: 1 }])
     );
     // Picks
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
@@ -985,7 +963,12 @@ describe("getAvailableCards", () => {
     );
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
-        { card_id: 1, name: "Lightning Bolt", scryfall_json: JSON.stringify({ color_identity: ["R"] }), qty: 1 },
+        {
+          card_id: 1,
+          name: "Lightning Bolt",
+          scryfall_json: JSON.stringify({ color_identity: ["R"] }),
+          qty: 1,
+        },
       ])
     );
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
@@ -1009,7 +992,12 @@ describe("getAvailableCards", () => {
     );
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
-        { card_id: 1, name: "Tarmogoyf", scryfall_json: JSON.stringify({ type_line: "Creature - Lhurgoyf" }), qty: 1 },
+        {
+          card_id: 1,
+          name: "Tarmogoyf",
+          scryfall_json: JSON.stringify({ type_line: "Creature - Lhurgoyf" }),
+          qty: 1,
+        },
       ])
     );
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
@@ -1055,7 +1043,9 @@ describe("getAvailableCards", () => {
     // Banned card stored as just the front face: "Delver of Secrets"
     // Cube card is the full DFC name: "Delver of Secrets // Insectile Aberration"
     mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ cube_snapshot_id: 1, banned_cards: JSON.stringify(["Delver of Secrets"]) }])
+      createQueryResult([
+        { cube_snapshot_id: 1, banned_cards: JSON.stringify(["Delver of Secrets"]) },
+      ])
     );
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult([
@@ -1136,9 +1126,7 @@ describe("getStandings", () => {
   it("should handle draws (equal game wins)", async () => {
     // Mock match events
     mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([
-        { draft_id: "draft1", seat1: 1, seat2: 2, seat1_wins: 1, seat2_wins: 1 },
-      ])
+      createQueryResult([{ draft_id: "draft1", seat1: 1, seat2: 2, seat1_wins: 1, seat2_wins: 1 }])
     );
 
     const result = await getStandings(mockClient as never, "draft1");
@@ -1203,14 +1191,44 @@ describe("getStandings", () => {
     // between them. OGW% must decide the tie: seat 3 (≈49.0%) ranks above
     // seats 8 and 2 (≈48.5%).
     const matches: Array<[number, number, number, number]> = [
-      [1, 2, 1, 2], [1, 3, 2, 1], [1, 5, 2, 0], [1, 6, 2, 1], [1, 8, 1, 2],
-      [1, 9, 0, 2], [2, 3, 1, 2], [2, 4, 2, 1], [2, 5, 2, 1], [2, 6, 2, 0],
-      [2, 7, 2, 0], [2, 8, 1, 2], [2, 9, 1, 2], [2, 10, 0, 2], [3, 4, 2, 1],
-      [3, 5, 0, 2], [3, 6, 0, 2], [3, 7, 2, 0], [3, 8, 2, 1], [3, 9, 2, 1],
-      [3, 10, 1, 2], [4, 5, 2, 1], [4, 6, 2, 0], [4, 7, 2, 1], [4, 8, 2, 1],
-      [4, 9, 2, 1], [4, 10, 0, 2], [5, 6, 1, 2], [5, 8, 2, 1], [5, 9, 2, 0],
-      [5, 10, 1, 2], [6, 8, 0, 2], [6, 10, 0, 2], [7, 8, 1, 2], [7, 10, 2, 1],
-      [8, 9, 2, 0], [8, 10, 0, 2], [9, 10, 1, 2],
+      [1, 2, 1, 2],
+      [1, 3, 2, 1],
+      [1, 5, 2, 0],
+      [1, 6, 2, 1],
+      [1, 8, 1, 2],
+      [1, 9, 0, 2],
+      [2, 3, 1, 2],
+      [2, 4, 2, 1],
+      [2, 5, 2, 1],
+      [2, 6, 2, 0],
+      [2, 7, 2, 0],
+      [2, 8, 1, 2],
+      [2, 9, 1, 2],
+      [2, 10, 0, 2],
+      [3, 4, 2, 1],
+      [3, 5, 0, 2],
+      [3, 6, 0, 2],
+      [3, 7, 2, 0],
+      [3, 8, 2, 1],
+      [3, 9, 2, 1],
+      [3, 10, 1, 2],
+      [4, 5, 2, 1],
+      [4, 6, 2, 0],
+      [4, 7, 2, 1],
+      [4, 8, 2, 1],
+      [4, 9, 2, 1],
+      [4, 10, 0, 2],
+      [5, 6, 1, 2],
+      [5, 8, 2, 1],
+      [5, 9, 2, 0],
+      [5, 10, 1, 2],
+      [6, 8, 0, 2],
+      [6, 10, 0, 2],
+      [7, 8, 1, 2],
+      [7, 10, 2, 1],
+      [8, 9, 2, 0],
+      [8, 10, 0, 2],
+      [9, 10, 1, 2],
     ];
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult(
@@ -1261,9 +1279,7 @@ describe("getStandings", () => {
   it("pads with zero-record entries for seats with no matches when numSeats is provided", async () => {
     // Only seat 1 vs seat 2 has played
     mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([
-        { draft_id: "draft1", seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 0 },
-      ])
+      createQueryResult([{ draft_id: "draft1", seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 0 }])
     );
 
     // numSeats = 4: seats 3 and 4 have never played
@@ -1284,9 +1300,7 @@ describe("getStandings", () => {
     // Seat 1 beats seat 2 (2-0); seat 2 has record 0-1 → raw OMW% for seat 1 = 0/1 = 0,
     // but floor raises it to 1/3
     mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([
-        { draft_id: "draft1", seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 0 },
-      ])
+      createQueryResult([{ draft_id: "draft1", seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 0 }])
     );
 
     const result = await getStandings(mockClient as never, "draft1");
@@ -1320,7 +1334,7 @@ describe("getCardPickStats", () => {
     mockClient.execute.mockResolvedValueOnce(createQueryResult([])); // prefix
     mockClient.execute.mockResolvedValueOnce(createQueryResult([])); // substring
 
-    const result = await getCardPickStats(mockClient as never, { card_name:"Nonexistent" });
+    const result = await getCardPickStats(mockClient as never, { card_name: "Nonexistent" });
 
     expect(result).toBeNull();
   });
@@ -1333,7 +1347,7 @@ describe("getCardPickStats", () => {
     // Drafts with card
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    const result = await getCardPickStats(mockClient as never, { card_name:"Test Card" });
+    const result = await getCardPickStats(mockClient as never, { card_name: "Test Card" });
 
     expect(result).toEqual({
       card_name: "Test Card",
@@ -1348,7 +1362,9 @@ describe("getCardPickStats", () => {
   it("should compute basic stats for a card picked in one draft", async () => {
     // Card lookup
     mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ card_id: 1, oracle_id: "abc", name: "Lightning Bolt", scryfall_json: null }])
+      createQueryResult([
+        { card_id: 1, oracle_id: "abc", name: "Lightning Bolt", scryfall_json: null },
+      ])
     );
     // Drafts with card
     mockClient.execute.mockResolvedValueOnce(
@@ -1371,7 +1387,7 @@ describe("getCardPickStats", () => {
     // Deck cards (no decklist data)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    const result = await getCardPickStats(mockClient as never, { card_name:"Lightning Bolt" });
+    const result = await getCardPickStats(mockClient as never, { card_name: "Lightning Bolt" });
 
     expect(result?.drafts_seen).toBe(1);
     expect(result?.times_picked).toBe(1);
@@ -1419,7 +1435,7 @@ describe("getCardPickStats", () => {
     // Deck cards (no decklist data)
     mockClient.execute.mockResolvedValueOnce(createQueryResult([]));
 
-    const result = await getCardPickStats(mockClient as never, { card_name:"Test Card" });
+    const result = await getCardPickStats(mockClient as never, { card_name: "Test Card" });
 
     expect(result?.times_picked).toBe(3);
     expect(result?.median_pick_n).toBe(10); // Middle value of [5, 10, 20]
@@ -1465,7 +1481,7 @@ describe("getCardPickStats", () => {
       ])
     );
 
-    const result = await getCardPickStats(mockClient as never, { card_name:"Test Card" });
+    const result = await getCardPickStats(mockClient as never, { card_name: "Test Card" });
 
     expect(result?.times_in_pool_with_decklist).toBe(2);
     expect(result?.times_maindecked).toBe(1);
@@ -1743,7 +1759,6 @@ describe("getDraftPool", () => {
     expect(shown!.cards![0].drafted_by_seat).toBe(1);
     expect(shown!.cards![0].drafted_pick_n).toBe(5);
   });
-
 });
 
 // ============================================================================
@@ -1767,9 +1782,7 @@ describe("rankAvailableCards", () => {
     pickedCardIds: { card_id: number; pick_count: number }[] = []
   ) {
     // 1. Draft lookup
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult([{ cube_snapshot_id: 100 }])
-    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult([{ cube_snapshot_id: 100 }]));
     // 2. Cube cards
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult(
@@ -1782,9 +1795,7 @@ describe("rankAvailableCards", () => {
       )
     );
     // 3. Picks before N
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult(pickedCardIds)
-    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult(pickedCardIds));
   }
 
   /**
@@ -1797,43 +1808,38 @@ describe("rankAvailableCards", () => {
     picksOfCard?: { card_id: number; draft_id: string; pick_n: number }[];
     cubeSizes?: { cube_snapshot_id: number; total_cards: number }[];
     playStats?: { card_id: number; draft_id: string; seat: number; zone: string }[];
-    winStats?: { card_id: number; draft_id: string; seat: number; game_wins: number; game_losses: number }[];
+    winStats?: {
+      card_id: number;
+      draft_id: string;
+      seat: number;
+      game_wins: number;
+      game_losses: number;
+    }[];
     /** Session-ordinal drafts (parallel query 4); defaults to one session per draftsWithCard draft_id. */
     allStatsDrafts?: { draft_id: string; draft_date: string }[];
   }) {
     // 4. Batch card ID resolution
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult(opts.cards)
-    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult(opts.cards));
     // 5. Drafts with card (parallel query 1)
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult(opts.draftsWithCard ?? [])
-    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult(opts.draftsWithCard ?? []));
     // 6. Picks of card (parallel query 2)
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult(opts.picksOfCard ?? [])
-    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult(opts.picksOfCard ?? []));
     // 7. Cube sizes (parallel query 3)
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult(opts.cubeSizes ?? [])
-    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult(opts.cubeSizes ?? []));
     // 7b. All stats-phase drafts, for session ordinals (parallel query 4)
     mockClient.execute.mockResolvedValueOnce(
       createQueryResult(
         opts.allStatsDrafts ??
-          [...new Set((opts.draftsWithCard ?? []).map((d) => d.draft_id))].map(
-            (draft_id) => ({ draft_id, draft_date: "2026-01-01" })
-          )
+          [...new Set((opts.draftsWithCard ?? []).map((d) => d.draft_id))].map((draft_id) => ({
+            draft_id,
+            draft_date: "2026-01-01",
+          }))
       )
     );
     // 8. Play stats (parallel query 5)
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult(opts.playStats ?? [])
-    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult(opts.playStats ?? []));
     // 9. Win stats (parallel query 6)
-    mockClient.execute.mockResolvedValueOnce(
-      createQueryResult(opts.winStats ?? [])
-    );
+    mockClient.execute.mockResolvedValueOnce(createQueryResult(opts.winStats ?? []));
   }
 
   it("should return empty result when no cards are available", async () => {
@@ -1970,18 +1976,12 @@ describe("rankAvailableCards", () => {
   });
 
   it("should return null win_rate and false low_sample when no win data exists", async () => {
-    mockGetAvailableCards([
-      { card_id: 1, name: "Lightning Bolt", qty: 1 },
-    ]);
+    mockGetAvailableCards([{ card_id: 1, name: "Lightning Bolt", qty: 1 }]);
 
     mockBatchStats({
       cards: [{ card_id: 1, name: "Lightning Bolt" }],
-      draftsWithCard: [
-        { draft_id: "d1", cube_snapshot_id: 100, card_id: 1 },
-      ],
-      picksOfCard: [
-        { card_id: 1, draft_id: "d1", pick_n: 5 },
-      ],
+      draftsWithCard: [{ draft_id: "d1", cube_snapshot_id: 100, card_id: 1 }],
+      picksOfCard: [{ card_id: 1, draft_id: "d1", pick_n: 5 }],
       cubeSizes: [{ cube_snapshot_id: 100, total_cards: 540 }],
       // No play stats or win stats
     });
@@ -2002,35 +2002,43 @@ describe("rankAvailableCards", () => {
   });
 
   it("should mark stats as filtered when deck_colors matches seats", async () => {
-    mockGetAvailableCards([
-      { card_id: 1, name: "Lightning Bolt", qty: 1 },
-    ]);
+    mockGetAvailableCards([{ card_id: 1, name: "Lightning Bolt", qty: 1 }]);
 
     mockBatchStats({
       cards: [{ card_id: 1, name: "Lightning Bolt" }],
-      draftsWithCard: [
-        { draft_id: "d1", cube_snapshot_id: 100, card_id: 1 },
-      ],
-      picksOfCard: [
-        { card_id: 1, draft_id: "d1", pick_n: 5 },
-      ],
+      draftsWithCard: [{ draft_id: "d1", cube_snapshot_id: 100, card_id: 1 }],
+      picksOfCard: [{ card_id: 1, draft_id: "d1", pick_n: 5 }],
       cubeSizes: [{ cube_snapshot_id: 100, total_cards: 540 }],
       // Seat 1 has play+win data and will match the color filter
-      playStats: [
-        { card_id: 1, draft_id: "d1", seat: 1, zone: "deck" },
-      ],
-      winStats: [
-        { card_id: 1, draft_id: "d1", seat: 1, game_wins: 7, game_losses: 3 },
-      ],
+      playStats: [{ card_id: 1, draft_id: "d1", seat: 1, zone: "deck" }],
+      winStats: [{ card_id: 1, draft_id: "d1", seat: 1, game_wins: 7, game_losses: 3 }],
     });
 
     // getSeatsMatchingColors: seat 1 is an RG deck (many R and G cards)
-    mockClient.execute.mockResolvedValueOnce(createQueryResult([
-      { draft_id: "d1", seat: 1, scryfall_json: JSON.stringify({ name: "Bolt", color_identity: ["R"] }) },
-      { draft_id: "d1", seat: 1, scryfall_json: JSON.stringify({ name: "Bolt2", color_identity: ["R"] }) },
-      { draft_id: "d1", seat: 1, scryfall_json: JSON.stringify({ name: "Growth", color_identity: ["G"] }) },
-      { draft_id: "d1", seat: 1, scryfall_json: JSON.stringify({ name: "Growth2", color_identity: ["G"] }) },
-    ]));
+    mockClient.execute.mockResolvedValueOnce(
+      createQueryResult([
+        {
+          draft_id: "d1",
+          seat: 1,
+          scryfall_json: JSON.stringify({ name: "Bolt", color_identity: ["R"] }),
+        },
+        {
+          draft_id: "d1",
+          seat: 1,
+          scryfall_json: JSON.stringify({ name: "Bolt2", color_identity: ["R"] }),
+        },
+        {
+          draft_id: "d1",
+          seat: 1,
+          scryfall_json: JSON.stringify({ name: "Growth", color_identity: ["G"] }),
+        },
+        {
+          draft_id: "d1",
+          seat: 1,
+          scryfall_json: JSON.stringify({ name: "Growth2", color_identity: ["G"] }),
+        },
+      ])
+    );
 
     const result = await rankAvailableCards({
       draft_id: "draft1",
@@ -2046,26 +2054,16 @@ describe("rankAvailableCards", () => {
   });
 
   it("should fall back to overall stats when deck_colors filter produces no data for a card", async () => {
-    mockGetAvailableCards([
-      { card_id: 1, name: "Lightning Bolt", qty: 1 },
-    ]);
+    mockGetAvailableCards([{ card_id: 1, name: "Lightning Bolt", qty: 1 }]);
 
     mockBatchStats({
       cards: [{ card_id: 1, name: "Lightning Bolt" }],
-      draftsWithCard: [
-        { draft_id: "d1", cube_snapshot_id: 100, card_id: 1 },
-      ],
-      picksOfCard: [
-        { card_id: 1, draft_id: "d1", pick_n: 5 },
-      ],
+      draftsWithCard: [{ draft_id: "d1", cube_snapshot_id: 100, card_id: 1 }],
+      picksOfCard: [{ card_id: 1, draft_id: "d1", pick_n: 5 }],
       cubeSizes: [{ cube_snapshot_id: 100, total_cards: 540 }],
       // Play/win data exists for seat 1, but color filter won't match seat 1
-      playStats: [
-        { card_id: 1, draft_id: "d1", seat: 1, zone: "deck" },
-      ],
-      winStats: [
-        { card_id: 1, draft_id: "d1", seat: 1, game_wins: 6, game_losses: 4 },
-      ],
+      playStats: [{ card_id: 1, draft_id: "d1", seat: 1, zone: "deck" }],
+      winStats: [{ card_id: 1, draft_id: "d1", seat: 1, game_wins: 6, game_losses: 4 }],
     });
 
     // getSeatsMatchingColors query — return empty (no seats match the color)
@@ -2085,4 +2083,3 @@ describe("rankAvailableCards", () => {
     expect(result.cards[0].win_rate_filtered).toBe(false);
   });
 });
-

@@ -6,7 +6,6 @@ import type { Client } from "@libsql/client";
 import { inferSeatColors, placeholders } from "./helpers";
 import { aggregateMatchRecords } from "./matches";
 
-
 export interface GetWinningDecksByColorParams {
   color_pair: string;
   draft_ids?: string[];

@@ -157,8 +157,8 @@ describe("DeckZone color sources", () => {
 
     expect(
       within(zoneHeader("deck")).getByTitle(
-        "2 of the 8 green sources Tarmogoyf wants to be castable on curve.",
-      ),
+        "2 of the 8 green sources Tarmogoyf wants to be castable on curve."
+      )
     ).toBeTruthy();
   });
 

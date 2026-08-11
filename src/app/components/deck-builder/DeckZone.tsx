@@ -28,12 +28,7 @@ const COLOR_NAMES: Record<ManaColor, string> = {
   G: "green",
 };
 
-function colorSourceTooltip({
-  color,
-  sources,
-  required,
-  requiredBy,
-}: ColorSourceSplit): string {
+function colorSourceTooltip({ color, sources, required, requiredBy }: ColorSourceSplit): string {
   const name = COLOR_NAMES[color];
   if (!requiredBy) {
     return `${sources} ${name} sources — no maindeck spell asks for ${name}.`;
@@ -87,10 +82,15 @@ export function DeckZone({
   const totalCards = countIn(columnKeysForZone(zone));
 
   const { creatureCount, spellCount, landCount } = useMemo(() => {
-    let creatures = 0, spells = 0, lands = 0;
+    let creatures = 0,
+      spells = 0,
+      lands = 0;
     for (const col of Object.values(columns)) {
       for (const name of col) {
-        if (BASIC_LAND_SET.has(name)) { lands++; continue; }
+        if (BASIC_LAND_SET.has(name)) {
+          lands++;
+          continue;
+        }
         const tl = scryfallData.get(name)?.typeLine ?? "";
         if (isLand(tl)) lands++;
         else if (isCreature(tl)) creatures++;
@@ -204,16 +204,20 @@ export function DeckZone({
         <span className="text-sm font-bold tracking-tight text-zinc-100">
           {zone === "deck" ? "Deck" : "Sideboard"}
         </span>
-        <span className="font-mono text-sm font-semibold text-zinc-400">
-          {totalCards}
-        </span>
+        <span className="font-mono text-sm font-semibold text-zinc-400">{totalCards}</span>
         <span className="text-[11px] text-zinc-500">
           {pickedCount} picked
           {floatedCount > 0 && (
-            <> · <span className="text-amber-500/80">{floatedCount} floated</span></>
+            <>
+              {" "}
+              · <span className="text-amber-500/80">{floatedCount} floated</span>
+            </>
           )}
           {queuedIndices.size > 0 && (
-            <> · <span className="text-orange-400/80">{queuedIndices.size} queued</span></>
+            <>
+              {" "}
+              · <span className="text-orange-400/80">{queuedIndices.size} queued</span>
+            </>
           )}
         </span>
         {totalCards > 0 && (
@@ -233,9 +237,7 @@ export function DeckZone({
                 <span className="font-mono">
                   <span
                     className={
-                      split.sources >= split.required
-                        ? "text-zinc-300"
-                        : "text-amber-500/90"
+                      split.sources >= split.required ? "text-zinc-300" : "text-amber-500/90"
                     }
                   >
                     {split.sources}
@@ -261,9 +263,7 @@ export function DeckZone({
               >
                 <div className="mb-2 flex items-baseline gap-1 px-1 text-[11px]">
                   <span className="font-semibold text-zinc-500">{row.label}</span>
-                  <span className="font-mono text-zinc-500/80">
-                    ({countIn(row.keys)})
-                  </span>
+                  <span className="font-mono text-zinc-500/80">({countIn(row.keys)})</span>
                 </div>
                 <div className="grid grid-cols-6 gap-2">
                   {row.keys.map((key) => renderColumn(key))}

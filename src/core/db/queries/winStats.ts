@@ -9,7 +9,6 @@ import { round3 } from "../../utils";
 import { wilsonInterval } from "../../wilsonInterval";
 import { cardNameKey } from "../../cardNames";
 
-
 export interface GetCardWinStatsParams {
   card_name: string;
   card_id?: number;
@@ -147,7 +146,8 @@ export type BulkWinStatsEntry = {
 // nor match_events. Both are rare manual maintenance script effects on a
 // dev-only metric; restarting the dev server clears them.
 let winStatsCache: { key: string; result: Map<string, BulkWinStatsEntry> } | null = null;
-let winStatsPending: { key: string; promise: Promise<Map<string, BulkWinStatsEntry>> } | null = null;
+let winStatsPending: { key: string; promise: Promise<Map<string, BulkWinStatsEntry>> } | null =
+  null;
 
 /** @public Test hook: clears the module-level bulk win-stats memo. */
 export function _resetWinStatsCache(): void {
@@ -169,9 +169,7 @@ async function computeWinStatsFingerprint(client: Client): Promise<string> {
       args: [],
     }),
   ]);
-  const decksPart = decks.rows
-    .map((r) => `${r.draft_id}:${r.seat}:${r.hash}`)
-    .join(",");
+  const decksPart = decks.rows.map((r) => `${r.draft_id}:${r.seat}:${r.hash}`).join(",");
   const m = matches.rows[0];
   return `${decksPart}|${m?.n ?? 0}:${m?.w1 ?? 0}:${m?.w2 ?? 0}`;
 }
@@ -180,9 +178,7 @@ async function computeWinStatsFingerprint(client: Client): Promise<string> {
  * Get win stats for all cards at once. Same logic as getCardWinStats but
  * aggregated across all cards in a single query.
  */
-async function computeAllCardWinStats(
-  client: Client,
-): Promise<Map<string, BulkWinStatsEntry>> {
+async function computeAllCardWinStats(client: Client): Promise<Map<string, BulkWinStatsEntry>> {
   const db = client;
 
   const result = await db.execute({
@@ -257,9 +253,7 @@ async function computeAllCardWinStats(
  * tables the result depends on. Concurrent cold callers share one in-flight
  * computation (the UI fetch and the MCP tool typically race on dev-server start).
  */
-export async function getAllCardWinStats(
-  client: Client,
-): Promise<Map<string, BulkWinStatsEntry>> {
+export async function getAllCardWinStats(client: Client): Promise<Map<string, BulkWinStatsEntry>> {
   const key = await computeWinStatsFingerprint(client);
   if (winStatsCache?.key === key) return winStatsCache.result;
   if (winStatsPending?.key === key) return winStatsPending.promise;

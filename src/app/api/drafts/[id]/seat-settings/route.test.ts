@@ -22,17 +22,14 @@ vi.mock("@/core/db/queries/seatTokens", () => ({
 }));
 
 function makeRequest(body: Record<string, unknown>, token = "test-token") {
-  return new NextRequest(
-    new URL("http://localhost:3000/api/drafts/test/seat-settings"),
-    {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { "X-Seat-Token": token } : {}),
-      },
-      body: JSON.stringify(body),
+  return new NextRequest(new URL("http://localhost:3000/api/drafts/test/seat-settings"), {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "X-Seat-Token": token } : {}),
     },
-  );
+    body: JSON.stringify(body),
+  });
 }
 
 describe("PUT /api/drafts/[id]/seat-settings", () => {
@@ -43,10 +40,9 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
     mockUpdateAutoPick.mockResolvedValueOnce(undefined);
     mockGetSeatSettings.mockResolvedValueOnce({ autoPick: true, displayName: "Bob" });
 
-    const res = await PUT(
-      makeRequest({ auto_pick: true }),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await PUT(makeRequest({ auto_pick: true }), {
+      params: Promise.resolve({ id: "test" }),
+    });
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -61,10 +57,9 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
     mockUpdateDisplayName.mockResolvedValueOnce(undefined);
     mockGetSeatSettings.mockResolvedValueOnce({ autoPick: false, displayName: "Alice" });
 
-    const res = await PUT(
-      makeRequest({ display_name: "Alice" }),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await PUT(makeRequest({ display_name: "Alice" }), {
+      params: Promise.resolve({ id: "test" }),
+    });
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -78,10 +73,9 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
     mockUpdateDisplayName.mockResolvedValueOnce(undefined);
     mockGetSeatSettings.mockResolvedValueOnce({ autoPick: false, displayName: null });
 
-    const res = await PUT(
-      makeRequest({ display_name: "" }),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await PUT(makeRequest({ display_name: "" }), {
+      params: Promise.resolve({ id: "test" }),
+    });
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -91,10 +85,9 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
   it("returns 401 without token", async () => {
     mockAuthenticateSeat.mockRejectedValueOnce(new AuthError("Missing seat token"));
 
-    const res = await PUT(
-      makeRequest({ auto_pick: true }, ""),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await PUT(makeRequest({ auto_pick: true }, ""), {
+      params: Promise.resolve({ id: "test" }),
+    });
 
     expect(res.status).toBe(401);
   });
@@ -102,10 +95,9 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
   it("returns 400 when display_name is not a string", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
 
-    const res = await PUT(
-      makeRequest({ display_name: 42 }),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await PUT(makeRequest({ display_name: 42 }), {
+      params: Promise.resolve({ id: "test" }),
+    });
     const body = await res.json();
 
     expect(res.status).toBe(400);
@@ -116,10 +108,9 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
   it("returns 400 when display_name exceeds 50 characters", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
 
-    const res = await PUT(
-      makeRequest({ display_name: "a".repeat(51) }),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await PUT(makeRequest({ display_name: "a".repeat(51) }), {
+      params: Promise.resolve({ id: "test" }),
+    });
     const body = await res.json();
 
     expect(res.status).toBe(400);
@@ -130,10 +121,9 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
   it("returns 400 when auto_pick is not a boolean", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
 
-    const res = await PUT(
-      makeRequest({ auto_pick: "yes" }),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await PUT(makeRequest({ auto_pick: "yes" }), {
+      params: Promise.resolve({ id: "test" }),
+    });
     const body = await res.json();
 
     expect(res.status).toBe(400);
@@ -147,10 +137,9 @@ describe("PUT /api/drafts/[id]/seat-settings", () => {
     mockUpdateDisplayName.mockResolvedValueOnce(undefined);
     mockGetSeatSettings.mockResolvedValueOnce({ autoPick: true, displayName: "Charlie" });
 
-    const res = await PUT(
-      makeRequest({ auto_pick: true, display_name: "Charlie" }),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await PUT(makeRequest({ auto_pick: true, display_name: "Charlie" }), {
+      params: Promise.resolve({ id: "test" }),
+    });
     const body = await res.json();
 
     expect(res.status).toBe(200);

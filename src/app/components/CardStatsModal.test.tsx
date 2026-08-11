@@ -9,40 +9,49 @@ import { useLiveStore } from "@/app/stores/liveStore";
 
 // Mock the Zustand stores
 vi.mock("@/app/stores/cardStore", () => {
-  const store: ReturnType<typeof vi.fn> & { getState: ReturnType<typeof vi.fn> } = Object.assign(vi.fn(), {
-    getState: vi.fn(() => ({
-      scryfallDataMap: new Map(),
-      seatCardNames: new Set(),
-      takenCardNamesSet: new Set(),
-    })),
-  });
+  const store: ReturnType<typeof vi.fn> & { getState: ReturnType<typeof vi.fn> } = Object.assign(
+    vi.fn(),
+    {
+      getState: vi.fn(() => ({
+        scryfallDataMap: new Map(),
+        seatCardNames: new Set(),
+        takenCardNamesSet: new Set(),
+      })),
+    }
+  );
   return { useCardStore: store };
 });
 
 vi.mock("@/app/stores/draftStore", () => {
-  const store: ReturnType<typeof vi.fn> & { getState: ReturnType<typeof vi.fn> } = Object.assign(vi.fn(), {
-    getState: vi.fn(() => ({
-      selectedSeat: null,
-    })),
-  });
+  const store: ReturnType<typeof vi.fn> & { getState: ReturnType<typeof vi.fn> } = Object.assign(
+    vi.fn(),
+    {
+      getState: vi.fn(() => ({
+        selectedSeat: null,
+      })),
+    }
+  );
   return { useDraftStore: store };
 });
 
 vi.mock("@/app/stores/liveStore", () => {
-  const store: ReturnType<typeof vi.fn> & { getState: ReturnType<typeof vi.fn> } = Object.assign(vi.fn(), {
-    getState: vi.fn(() => ({
-      mySeat: null,
-      queuedCardCounts: new Map(),
-      floatedCardsSet: new Set(),
-    })),
-  });
+  const store: ReturnType<typeof vi.fn> & { getState: ReturnType<typeof vi.fn> } = Object.assign(
+    vi.fn(),
+    {
+      getState: vi.fn(() => ({
+        mySeat: null,
+        queuedCardCounts: new Map(),
+        floatedCardsSet: new Set(),
+      })),
+    }
+  );
   return { useLiveStore: store };
 });
 
 vi.mock("@/app/stores/selectors", () => ({
   useCardStatus: vi.fn(() => ({ status: "none" as const })),
   getImageUrl: vi.fn((name: string | null) =>
-    name ? "https://cards.scryfall.io/normal/front/bolt.jpg" : undefined,
+    name ? "https://cards.scryfall.io/normal/front/bolt.jpg" : undefined
   ),
   useIsAuthed: vi.fn(() => false),
   useLocalDeckMode: vi.fn(() => false),
@@ -80,17 +89,19 @@ const mockWorthCard: WorthCard = {
   act_by: 17,
 };
 
-function setupStoreMocks(overrides: {
-  selectedCard?: string | null;
-  isOpen?: boolean;
-  activeDraft?: string | null;
-  liveDraftPhase?: string | null;
-  mySeat?: number | null;
-  selectedSeat?: number | null;
-  isMyTurn?: boolean;
-  worthCard?: WorthCard;
-  worthModel?: { tau0: number; sigma: number; kappa: number } | null;
-} = {}) {
+function setupStoreMocks(
+  overrides: {
+    selectedCard?: string | null;
+    isOpen?: boolean;
+    activeDraft?: string | null;
+    liveDraftPhase?: string | null;
+    mySeat?: number | null;
+    selectedSeat?: number | null;
+    isMyTurn?: boolean;
+    worthCard?: WorthCard;
+    worthModel?: { tau0: number; sigma: number; kappa: number } | null;
+  } = {}
+) {
   const cardState: Record<string, unknown> = {
     selectedCard: overrides.selectedCard ?? "Lightning Bolt",
     clearSelectedCard: vi.fn(),
@@ -122,13 +133,13 @@ function setupStoreMocks(overrides: {
   };
 
   (useCardStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-    (selector: (state: Record<string, unknown>) => unknown) => selector(cardState),
+    (selector: (state: Record<string, unknown>) => unknown) => selector(cardState)
   );
   (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-    (selector: (state: Record<string, unknown>) => unknown) => selector(draftState),
+    (selector: (state: Record<string, unknown>) => unknown) => selector(draftState)
   );
   (useLiveStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
-    (selector: (state: Record<string, unknown>) => unknown) => selector(liveState),
+    (selector: (state: Record<string, unknown>) => unknown) => selector(liveState)
   );
 }
 
@@ -170,19 +181,25 @@ describe("CardStatsModal", () => {
           selectCard: vi.fn(),
           worthCards: new Map(),
           worthModel: null,
-        }),
+        })
     );
     (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
       (selector: (state: Record<string, unknown>) => unknown) =>
-        selector({ activeDraft: null, liveDraftStatus: null, selectedSeat: null }),
+        selector({ activeDraft: null, liveDraftStatus: null, selectedSeat: null })
     );
     (useLiveStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
       (selector: (state: Record<string, unknown>) => unknown) =>
         selector({
-          mySeat: null, isMyTurn: false, queue: [], autoPick: false,
-          handlePick: vi.fn(), addToQueue: vi.fn(), removeFromQueue: vi.fn(),
-          addFloat: vi.fn(), removeFloat: vi.fn(),
-        }),
+          mySeat: null,
+          isMyTurn: false,
+          queue: [],
+          autoPick: false,
+          handlePick: vi.fn(),
+          addToQueue: vi.fn(),
+          removeFromQueue: vi.fn(),
+          addFloat: vi.fn(),
+          removeFloat: vi.fn(),
+        })
     );
     const { container } = render(<CardStatsModal />);
     expect(container.children.length).toBe(0);
@@ -233,11 +250,11 @@ describe("CardStatsModal", () => {
             selectCard: vi.fn(),
             worthCards: new Map(),
             worthModel: null,
-          }),
+          })
       );
       (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
         (selector: (state: Record<string, unknown>) => unknown) =>
-          selector({ activeDraft: "test-draft", board: { phase: "drafting" }, selectedSeat: 1 }),
+          selector({ activeDraft: "test-draft", board: { phase: "drafting" }, selectedSeat: 1 })
       );
       (useLiveStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
         (selector: (state: Record<string, unknown>) => unknown) =>
@@ -251,7 +268,7 @@ describe("CardStatsModal", () => {
             removeFromQueue: vi.fn(),
             addFloat,
             removeFloat: vi.fn(),
-          }),
+          })
       );
       return { addToQueue, addFloat, handlePick, clearSelectedCard };
     }
@@ -316,19 +333,25 @@ describe("CardStatsModal", () => {
             selectCard: vi.fn(),
             worthCards: new Map(),
             worthModel: null,
-          }),
+          })
       );
       (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
         (selector: (state: Record<string, unknown>) => unknown) =>
-          selector({ activeDraft: null, board: null, selectedSeat: null }),
+          selector({ activeDraft: null, board: null, selectedSeat: null })
       );
       (useLiveStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
         (selector: (state: Record<string, unknown>) => unknown) =>
           selector({
-            mySeat: null, isMyTurn: false, queue: [], autoPick: false,
-            handlePick: vi.fn(), addToQueue: vi.fn(), removeFromQueue: vi.fn(),
-            addFloat: vi.fn(), removeFloat: vi.fn(),
-          }),
+            mySeat: null,
+            isMyTurn: false,
+            queue: [],
+            autoPick: false,
+            handlePick: vi.fn(),
+            addToQueue: vi.fn(),
+            removeFromQueue: vi.fn(),
+            addFloat: vi.fn(),
+            removeFloat: vi.fn(),
+          })
       );
 
       render(<CardStatsModal />);
@@ -350,19 +373,25 @@ describe("CardStatsModal", () => {
             selectCard: vi.fn(),
             worthCards: new Map(),
             worthModel: null,
-          }),
+          })
       );
       (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
         (selector: (state: Record<string, unknown>) => unknown) =>
-          selector({ activeDraft: null, board: null, selectedSeat: null }),
+          selector({ activeDraft: null, board: null, selectedSeat: null })
       );
       (useLiveStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
         (selector: (state: Record<string, unknown>) => unknown) =>
           selector({
-            mySeat: null, isMyTurn: false, queue: [], autoPick: false,
-            handlePick: vi.fn(), addToQueue: vi.fn(), removeFromQueue: vi.fn(),
-            addFloat: vi.fn(), removeFloat: vi.fn(),
-          }),
+            mySeat: null,
+            isMyTurn: false,
+            queue: [],
+            autoPick: false,
+            handlePick: vi.fn(),
+            addToQueue: vi.fn(),
+            removeFromQueue: vi.fn(),
+            addFloat: vi.fn(),
+            removeFloat: vi.fn(),
+          })
       );
 
       const { container } = render(<CardStatsModal />);
@@ -387,19 +416,25 @@ describe("CardStatsModal", () => {
             selectCard: vi.fn(),
             worthCards: new Map(),
             worthModel: null,
-          }),
+          })
       );
       (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
         (selector: (state: Record<string, unknown>) => unknown) =>
-          selector({ activeDraft: null, board: null, selectedSeat: null }),
+          selector({ activeDraft: null, board: null, selectedSeat: null })
       );
       (useLiveStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
         (selector: (state: Record<string, unknown>) => unknown) =>
           selector({
-            mySeat: null, isMyTurn: false, queue: [], autoPick: false,
-            handlePick: vi.fn(), addToQueue: vi.fn(), removeFromQueue: vi.fn(),
-            addFloat: vi.fn(), removeFloat: vi.fn(),
-          }),
+            mySeat: null,
+            isMyTurn: false,
+            queue: [],
+            autoPick: false,
+            handlePick: vi.fn(),
+            addToQueue: vi.fn(),
+            removeFromQueue: vi.fn(),
+            addFloat: vi.fn(),
+            removeFloat: vi.fn(),
+          })
       );
 
       render(<CardStatsModal />);
@@ -449,7 +484,9 @@ describe("CardStatsModal", () => {
       // Tooltip bodies are in the DOM (hover-revealed); spot-check each definition.
       expect(screen.getByText(/shrunk toward zero in proportion to sample noise/)).toBeTruthy();
       expect(screen.getByText(/the odds you don't get another look/)).toBeTruthy();
-      expect(screen.getByText(/how far results diverge from what the card's price predicts/)).toBeTruthy();
+      expect(
+        screen.getByText(/how far results diverge from what the card's price predicts/)
+      ).toBeTruthy();
       expect(screen.getByText(/the sample behind Worth and PVI/)).toBeTruthy();
     });
 
@@ -473,7 +510,7 @@ describe("CardStatsModal", () => {
             worthCards: new Map([[mockWorthCard.card_name, mockWorthCard]]),
             worthModel: mockWorthModel,
             desirePickOverride: null,
-          }),
+          })
       );
       (useDraftStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
         (selector: (state: Record<string, unknown>) => unknown) =>
@@ -493,15 +530,21 @@ describe("CardStatsModal", () => {
               totalMatches: 0,
             },
             selectedSeat: 1,
-          }),
+          })
       );
       (useLiveStore as unknown as ReturnType<typeof vi.fn>).mockImplementation(
         (selector: (state: Record<string, unknown>) => unknown) =>
           selector({
-            mySeat: 1, isMyTurn: false, queue: [], autoPick: false,
-            handlePick: vi.fn(), addToQueue: vi.fn(), removeFromQueue: vi.fn(),
-            addFloat: vi.fn(), removeFloat: vi.fn(),
-          }),
+            mySeat: 1,
+            isMyTurn: false,
+            queue: [],
+            autoPick: false,
+            handlePick: vi.fn(),
+            addToQueue: vi.fn(),
+            removeFromQueue: vi.fn(),
+            addFloat: vi.fn(),
+            removeFloat: vi.fn(),
+          })
       );
 
       render(<CardStatsModal />);

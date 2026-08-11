@@ -27,10 +27,7 @@ import { hashPicks, updateDomainHashes } from "./domains";
  * back-fills a skipped pick in the sheet after later picks have synced leaves
  * a gap below the max, and those picks must still be inserted.
  */
-export function detectNewPicks(
-  allPicks: CardPick[],
-  dbPositions: ReadonlySet<number>,
-): CardPick[] {
+export function detectNewPicks(allPicks: CardPick[], dbPositions: ReadonlySet<number>): CardPick[] {
   return allPicks.filter((pick) => !dbPositions.has(pick.pickPosition));
 }
 
@@ -46,10 +43,7 @@ interface DbPick {
  * canonical card name so reconciliation can compare against sheet names
  * without resolving every position.
  */
-export async function getDbPicks(
-  client: Client,
-  draftId: string,
-): Promise<Map<number, DbPick>> {
+export async function getDbPicks(client: Client, draftId: string): Promise<Map<number, DbPick>> {
   const result = await client.execute({
     sql: `SELECT pe.pick_n, pe.seat, pe.card_id, c.name
           FROM pick_events pe JOIN cards c ON c.card_id = pe.card_id
@@ -64,7 +58,7 @@ export async function getDbPicks(
         cardId: row.card_id as number,
         cardName: row.name as string,
       },
-    ]),
+    ])
   );
 }
 
@@ -75,7 +69,7 @@ export async function getDbPicks(
  */
 export function detectRemovedPicks(
   csvPositions: ReadonlySet<number>,
-  dbPositions: Iterable<number>,
+  dbPositions: Iterable<number>
 ): number[] {
   return [...dbPositions].filter((n) => !csvPositions.has(n));
 }
@@ -105,7 +99,7 @@ interface PickChange {
  */
 export function detectChangedPicks(
   sheetPicks: CardPick[],
-  dbPicks: ReadonlyMap<number, DbPick>,
+  dbPicks: ReadonlyMap<number, DbPick>
 ): PickChange[] {
   const changes: PickChange[] = [];
   for (const pick of sheetPicks) {
@@ -126,7 +120,7 @@ export function detectChangedPicks(
 export async function applyChangedPicks(
   client: Client,
   draftId: string,
-  changes: PickChange[],
+  changes: PickChange[]
 ): Promise<{ updated: number; unresolved: number }> {
   let updated = 0;
   let unresolved = 0;
@@ -134,7 +128,7 @@ export async function applyChangedPicks(
     const cardId = await resolveCardNameToId(client, pick.cardName);
     if (cardId === null) {
       console.warn(
-        `[sync] Cannot resolve changed pick "${pick.cardName}" at position ${pick.pickPosition} for draft ${draftId}`,
+        `[sync] Cannot resolve changed pick "${pick.cardName}" at position ${pick.pickPosition} for draft ${draftId}`
       );
       unresolved++;
       continue;
@@ -146,7 +140,7 @@ export async function applyChangedPicks(
       args: [cardId, seat, draftId, pick.pickPosition],
     });
     console.log(
-      `[sync] Pick ${pick.pickPosition} in ${draftId} changed: card_id ${dbCardId} → ${cardId} ("${pick.cardName}")`,
+      `[sync] Pick ${pick.pickPosition} in ${draftId} changed: card_id ${dbCardId} → ${cardId} ("${pick.cardName}")`
     );
     updated++;
   }
@@ -186,7 +180,7 @@ export async function applyChangedPicks(
 export async function resolveCardNameToId(
   client: Client,
   cardName: string,
-  persistAlias: boolean = true,
+  persistAlias: boolean = true
 ): Promise<number | null> {
   const normalized = normalizeCardName(cardName);
 
@@ -228,11 +222,11 @@ const SCRYFALL_RATE_LIMIT_MS = 75;
 async function resolveViaScryfall(
   client: Client,
   cardName: string,
-  persistAlias: boolean,
+  persistAlias: boolean
 ): Promise<number | null> {
   await sleep(SCRYFALL_RATE_LIMIT_MS);
   // Try exact match first, then fuzzy (handles Omen Paths digital names)
-  const scryfallCard = await fetchCard(cardName) ?? await fetchCardFuzzy(cardName);
+  const scryfallCard = (await fetchCard(cardName)) ?? (await fetchCardFuzzy(cardName));
   if (!scryfallCard) return null;
 
   // Scryfall resolved the name — find the canonical card in our DB
@@ -273,14 +267,12 @@ async function resolveViaScryfall(
 export async function insertNewPicks(
   client: Client,
   draftId: string,
-  newPicks: CardPick[],
+  newPicks: CardPick[]
 ): Promise<{ inserted: number; unresolved: number }> {
   if (newPicks.length === 0) return { inserted: 0, unresolved: 0 };
 
   // Batch-resolve all card names in a single query
-  const uniqueNames = [
-    ...new Set(newPicks.map((p) => normalizeCardName(p.cardName))),
-  ];
+  const uniqueNames = [...new Set(newPicks.map((p) => normalizeCardName(p.cardName)))];
   const result = await client.execute({
     sql: `SELECT card_id, name FROM cards WHERE LOWER(name) IN (${placeholders(uniqueNames.length)})`,
     args: uniqueNames.map((n) => n.toLowerCase()),
@@ -299,7 +291,7 @@ export async function insertNewPicks(
       const fuzzy = await resolveCardNameToId(client, pick.cardName);
       if (fuzzy === null) {
         console.warn(
-          `[sync] Warning: Card "${pick.cardName}" not found for draft ${draftId}, skipping pick ${pick.pickPosition}`,
+          `[sync] Warning: Card "${pick.cardName}" not found for draft ${draftId}, skipping pick ${pick.pickPosition}`
         );
         unresolved++;
         continue;
@@ -328,7 +320,7 @@ export async function insertNewPicks(
 export async function setDraftPhase(
   client: Client,
   draftId: string,
-  phase: "drafting" | "playing" | "complete",
+  phase: "drafting" | "playing" | "complete"
 ): Promise<void> {
   await client.execute({
     sql: "UPDATE drafts SET phase = ? WHERE draft_id = ?",
@@ -351,7 +343,7 @@ export async function incrementalIngest(
   client: Client,
   draftId: string,
   parsedPicks: ParsedPicks,
-  storedPicksHash: string | null,
+  storedPicksHash: string | null
 ): Promise<{
   status: "no_change" | "updated" | "diverged";
   picksInserted: number;
@@ -373,7 +365,7 @@ export async function incrementalIngest(
   const removed = detectRemovedPicks(csvPositions, dbPicks.keys());
   if (removed.length > 0) {
     console.warn(
-      `[sync] Divergence detected for draft ${draftId}: DB positions [${removed.join(", ")}] are missing from the sheet. Skipping — run pnpm sync to resolve.`,
+      `[sync] Divergence detected for draft ${draftId}: DB positions [${removed.join(", ")}] are missing from the sheet. Skipping — run pnpm sync to resolve.`
     );
     return { status: "diverged", picksInserted: 0, picksUpdated: 0 };
   }
@@ -382,7 +374,7 @@ export async function incrementalIngest(
   const { inserted, unresolved: insertUnresolved } = await insertNewPicks(
     client,
     draftId,
-    newPicks,
+    newPicks
   );
   if (inserted > 0) {
     console.log(`[sync] Inserted ${inserted} new picks for draft ${draftId}`);
@@ -392,7 +384,7 @@ export async function incrementalIngest(
   const { updated, unresolved: changeUnresolved } = await applyChangedPicks(
     client,
     draftId,
-    changes,
+    changes
   );
 
   if (insertUnresolved === 0 && changeUnresolved === 0) {

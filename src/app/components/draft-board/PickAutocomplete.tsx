@@ -59,7 +59,9 @@ export function PickAutocomplete({ onPick, onCancel }: PickAutocompleteProps) {
     }
     if (e.key === "ArrowUp") {
       e.preventDefault();
-      setHighlightIndex((i) => (i - 1 + Math.max(filtered.length, 1)) % Math.max(filtered.length, 1));
+      setHighlightIndex(
+        (i) => (i - 1 + Math.max(filtered.length, 1)) % Math.max(filtered.length, 1)
+      );
       return;
     }
     if (e.key === "Enter") {
@@ -85,7 +87,10 @@ export function PickAutocomplete({ onPick, onCancel }: PickAutocompleteProps) {
         aria-activedescendant={filtered.length > 0 ? `pick-option-${highlightIndex}` : undefined}
         aria-autocomplete="list"
         value={query}
-        onChange={(e) => { setQuery(e.target.value); setHighlightIndex(0); }}
+        onChange={(e) => {
+          setQuery(e.target.value);
+          setHighlightIndex(0);
+        }}
         onKeyDown={handleKeyDown}
         placeholder="Type card name..."
         style={{

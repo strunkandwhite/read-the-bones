@@ -1,10 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  colorSourceSplits,
-  isLandSource,
-  isNotableColor,
-  sourcesNeeded,
-} from "./manaSources";
+import { colorSourceSplits, isLandSource, isNotableColor, sourcesNeeded } from "./manaSources";
 import type { ScryCard } from "./types";
 
 function card(fields: Partial<ScryCard> & { name: string }): ScryCard {
@@ -127,8 +122,8 @@ describe("isLandSource", () => {
     expect(
       isLandSource(
         "Sink into Stupor // Soporific Springs",
-        DATA.get("Sink into Stupor // Soporific Springs"),
-      ),
+        DATA.get("Sink into Stupor // Soporific Springs")
+      )
     ).toBe(true);
   });
 
@@ -136,8 +131,8 @@ describe("isLandSource", () => {
     expect(
       isLandSource(
         "Legion's Landing // Adanto, the First Fort",
-        DATA.get("Legion's Landing // Adanto, the First Fort"),
-      ),
+        DATA.get("Legion's Landing // Adanto, the First Fort")
+      )
     ).toBe(false);
   });
 
@@ -181,12 +176,7 @@ describe("colorSourceSplits sources", () => {
   });
 
   it("finds only basics with a fetchland that searches for a basic land card", () => {
-    const splits = splitFor([
-      "Prismatic Vista",
-      "Overgrown Tomb",
-      "Island",
-      "Tarmogoyf",
-    ]);
+    const splits = splitFor(["Prismatic Vista", "Overgrown Tomb", "Island", "Tarmogoyf"]);
 
     // Prismatic Vista reaches the Island but not the Overgrown Tomb.
     expect(splits.get("U")?.sources).toBe(2);
@@ -220,10 +210,7 @@ describe("colorSourceSplits sources", () => {
   });
 
   it("counts a modal double-faced land as a source, not as a spell to support", () => {
-    const splits = splitFor([
-      "Sink into Stupor // Soporific Springs",
-      "Tarmogoyf",
-    ]);
+    const splits = splitFor(["Sink into Stupor // Soporific Springs", "Tarmogoyf"]);
 
     expect(splits.get("U")?.sources).toBe(1);
     expect(splits.get("U")?.required ?? 0).toBe(0);
@@ -283,7 +270,9 @@ describe("colorSourceSplits requirements", () => {
 
 describe("isNotableColor", () => {
   const notable = (names: string[]) =>
-    colorSourceSplits(names, DATA).filter(isNotableColor).map((s) => s.color);
+    colorSourceSplits(names, DATA)
+      .filter(isNotableColor)
+      .map((s) => s.color);
 
   it("keeps a color the deck's spells ask for, however few sources it has", () => {
     expect(notable(["Tarmogoyf"])).toEqual(["G"]);
@@ -296,9 +285,7 @@ describe("isNotableColor", () => {
   it("drops the off-color half of a dual a fetchland happens to reach", () => {
     // Overgrown Tomb and the fetch make two black sources in a deck with no
     // black spells — incidental, not a splash.
-    expect(notable(["Wooded Foothills", "Overgrown Tomb", "Tarmogoyf"])).toEqual([
-      "G",
-    ]);
+    expect(notable(["Wooded Foothills", "Overgrown Tomb", "Tarmogoyf"])).toEqual(["G"]);
   });
 
   it("keeps a color the manabase deliberately produces", () => {

@@ -76,7 +76,13 @@ async function createSchema(client: Client): Promise<void> {
 async function insertDraft(
   client: Client,
   draftId: string,
-  opts: { numSeats?: number; phase?: string; poolHash?: string; picksHash?: string; matchesHash?: string } = {}
+  opts: {
+    numSeats?: number;
+    phase?: string;
+    poolHash?: string;
+    picksHash?: string;
+    matchesHash?: string;
+  } = {}
 ): Promise<void> {
   await client.execute({
     sql: `INSERT INTO drafts (draft_id, num_seats, phase, pool_hash, picks_hash, matches_hash)
@@ -259,7 +265,7 @@ describe("getDraftStats", () => {
 
     // Sorted by win rate descending
     expect(result.winRateByColor[0].winRate).toBeGreaterThanOrEqual(
-      result.winRateByColor[1].winRate,
+      result.winRateByColor[1].winRate
     );
   });
 

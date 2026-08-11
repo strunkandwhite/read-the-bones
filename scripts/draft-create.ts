@@ -32,8 +32,7 @@ function parseArgs(args: string[]) {
 
   if (!name) throw new Error("--name is required");
   if (!date) throw new Error("--date is required (YYYY-MM-DD)");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
-    throw new Error("--date must be in YYYY-MM-DD format");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("--date must be in YYYY-MM-DD format");
 
   return { name, date, sheetId: sheetId || null, bannedCards };
 }

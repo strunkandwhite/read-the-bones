@@ -41,9 +41,7 @@ describe("batchInsertPicks", () => {
 describe("batchInsertMatches", () => {
   it("builds batch statements for matches", async () => {
     const client = mockClient();
-    const matches = [
-      { draftId: "d1", seat1: 0, seat2: 1, seat1GamesWon: 2, seat2GamesWon: 1 },
-    ];
+    const matches = [{ draftId: "d1", seat1: 0, seat2: 1, seat1GamesWon: 2, seat2GamesWon: 1 }];
     await batchInsertMatches(client as any, matches);
     expect(client.batch).toHaveBeenCalledTimes(1);
     const stmts = client.batch.mock.calls[0][0];

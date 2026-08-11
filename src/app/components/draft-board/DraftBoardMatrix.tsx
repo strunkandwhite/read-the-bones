@@ -7,8 +7,16 @@ import { DraftBoardCell } from "./DraftBoardCell";
 import { InlineEditableName } from "./InlineEditableName";
 
 const SEAT_COLORS = [
-  "#e8c050", "#ff6050", "#60c0ff", "#70dd70", "#e080d0",
-  "#ff9050", "#50e0c0", "#c0a0ff", "#f0e070", "#ff7090",
+  "#e8c050",
+  "#ff6050",
+  "#60c0ff",
+  "#70dd70",
+  "#e080d0",
+  "#ff9050",
+  "#50e0c0",
+  "#c0a0ff",
+  "#f0e070",
+  "#ff7090",
 ];
 
 interface DraftBoardMatrixProps {
@@ -45,7 +53,7 @@ export function DraftBoardMatrix({
   const redactedSeats = board.redactedSeats ?? [];
   const matrix = useMemo(
     () => buildPickMatrix(board.numSeats, board.picksPerPlayer, board.doublePickAfterRound),
-    [board.numSeats, board.picksPerPlayer, board.doublePickAfterRound],
+    [board.numSeats, board.picksPerPlayer, board.doublePickAfterRound]
   );
 
   // Build a lookup: pickN -> pick data
@@ -112,20 +120,14 @@ export function DraftBoardMatrix({
         .pencil-icon { opacity: 0; transition: opacity 0.15s; }
         th:hover .pencil-icon { opacity: 0.5; }
       `}</style>
-      <table
-        className="border-collapse text-xs min-w-full w-max text-zinc-200"
-      >
+      <table className="w-max min-w-full border-collapse text-xs text-zinc-200">
         <thead>
-          <tr
-            className="sticky top-0 z-10 bg-zinc-900"
-          >
-            <th className="px-2 py-1 text-center text-zinc-500 text-[10px]">
-              #
-            </th>
+          <tr className="sticky top-0 z-10 bg-zinc-900">
+            <th className="px-2 py-1 text-center text-[10px] text-zinc-500">#</th>
             {seatOrder.map((seat) => (
               <th
                 key={seat}
-                className="px-1.5 py-1 text-center font-semibold text-[11px] min-w-[130px]"
+                className="min-w-[130px] px-1.5 py-1 text-center text-[11px] font-semibold"
                 style={{
                   color: SEAT_COLORS[(seat - 1) % SEAT_COLORS.length],
                   backgroundColor: mySeat === seat ? "rgba(59,130,246,0.1)" : undefined,
@@ -143,7 +145,8 @@ export function DraftBoardMatrix({
         </thead>
         <tbody>
           {(() => {
-            const rowLabelClassName = "px-1.5 py-0.5 text-center text-zinc-500 text-[10px] whitespace-nowrap border-r border-zinc-700";
+            const rowLabelClassName =
+              "px-1.5 py-0.5 text-center text-zinc-500 text-[10px] whitespace-nowrap border-r border-zinc-700";
             let displayRow = 0;
             // Boundary row before the double-pick region begins (drafts may also
             // end with a trailing single round, so search forward, not backward).
@@ -161,7 +164,14 @@ export function DraftBoardMatrix({
                   const pick = picksByN.get(pickN);
                   if (!seatPicks.has(seat)) seatPicks.set(seat, []);
                   seatPicks.get(seat)!.push(
-                    pick ?? { pickN, seat, cardName: "", oracleId: "", colorIdentity: [], manaCost: "" /* required by BoardData type */ },
+                    pick ?? {
+                      pickN,
+                      seat,
+                      cardName: "",
+                      oracleId: "",
+                      colorIdentity: [],
+                      manaCost: "" /* required by BoardData type */,
+                    }
                   );
                 }
               }
@@ -171,14 +181,20 @@ export function DraftBoardMatrix({
               return subRows.map((subRow) => {
                 displayRow++;
                 const rowNum = displayRow;
-                const isPhaseTransition = lastSinglePickIdx !== -1 && lastSinglePickIdx < matrix.length - 1 && idx === lastSinglePickIdx && subRow === subRows.length - 1;
+                const isPhaseTransition =
+                  lastSinglePickIdx !== -1 &&
+                  lastSinglePickIdx < matrix.length - 1 &&
+                  idx === lastSinglePickIdx &&
+                  subRow === subRows.length - 1;
                 return (
                   <tr
                     key={`${row.round}-${subRow}`}
                     ref={isCurrentRound && subRow === 0 ? currentRoundRef : undefined}
                     style={{
                       backgroundColor: isCurrentRound ? "rgba(59,130,246,0.05)" : undefined,
-                      borderBottom: isPhaseTransition ? "2px solid rgba(251,191,36,0.4)" : undefined,
+                      borderBottom: isPhaseTransition
+                        ? "2px solid rgba(251,191,36,0.4)"
+                        : undefined,
                     }}
                   >
                     <td className={rowLabelClassName}>

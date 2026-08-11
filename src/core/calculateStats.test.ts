@@ -129,7 +129,10 @@ describe("calculateCardStats", () => {
 
       const stats = calculateCardStats(
         picks,
-        new Map([["recent", 0], ["older", 4]]),
+        new Map([
+          ["recent", 0],
+          ["older", 4],
+        ])
       );
 
       expect(stats[0].weightedGeomean).toBeCloseTo(21.5, 1);
@@ -249,34 +252,34 @@ describe("calculateCardStats", () => {
           cardName: "Card A",
           pickPosition: 1,
           draftId: "d1",
-                  }),
+        }),
         createPick({
           cardName: "Card A",
           pickPosition: 2,
           draftId: "d2",
-                  }),
+        }),
         // Card B - picked late
         createPick({
           cardName: "Card B",
           pickPosition: 100,
           draftId: "d1",
-                  }),
+        }),
         createPick({
           cardName: "Card B",
           pickPosition: 150,
           draftId: "d2",
-                  }),
+        }),
         // Card C - mixed
         createPick({
           cardName: "Card C",
           pickPosition: 50,
           draftId: "d1",
-                  }),
+        }),
         createPick({
           cardName: "Card C",
           pickPosition: 50,
           draftId: "d2",
-                  }),
+        }),
       ];
 
       const stats = calculateCardStats(picks, oneSession(picks));
@@ -369,8 +372,20 @@ describe("calculateCardStats", () => {
     it("scores a draft that took no copy at pool size, at half weight", () => {
       // exp((1*ln(10) + 0.5*ln(80)) / 1.5) = 20.00
       const picks: CardPick[] = [
-        createPick({ cardName: "Test", pickPosition: 10, copyNumber: 1, wasPicked: true, draftId: "d1" }),
-        createPick({ cardName: "Test", pickPosition: 80, copyNumber: 1, wasPicked: false, draftId: "d2" }),
+        createPick({
+          cardName: "Test",
+          pickPosition: 10,
+          copyNumber: 1,
+          wasPicked: true,
+          draftId: "d1",
+        }),
+        createPick({
+          cardName: "Test",
+          pickPosition: 80,
+          copyNumber: 1,
+          wasPicked: false,
+          draftId: "d2",
+        }),
       ];
 
       const stats = calculateCardStats(picks, oneSession(picks));
@@ -436,5 +451,4 @@ describe("calculateCardStats", () => {
       expect(stats[0].weightedGeomean).toBe(0);
     });
   });
-
 });

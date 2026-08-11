@@ -168,7 +168,6 @@ describe("updateAutoPick", () => {
   });
 });
 
-
 describe("getSeatDisplayNames", () => {
   beforeEach(() => vi.clearAllMocks());
 
@@ -229,7 +228,9 @@ describe("getAllSeatSettings", () => {
     expect(result.get(3)).toEqual({ autoPick: true, displayName: "Charlie" });
     expect(mockClient.execute).toHaveBeenCalledWith(
       expect.objectContaining({
-        sql: expect.stringContaining("SELECT seat, auto_pick, display_name FROM seat_tokens WHERE draft_id = ?"),
+        sql: expect.stringContaining(
+          "SELECT seat, auto_pick, display_name FROM seat_tokens WHERE draft_id = ?"
+        ),
         args: ["draft-1"],
       })
     );
@@ -243,7 +244,6 @@ describe("getAllSeatSettings", () => {
 
     expect(result.size).toBe(0);
   });
-
 });
 
 describe("getSeatSettings", () => {

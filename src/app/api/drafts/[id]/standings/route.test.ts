@@ -13,12 +13,16 @@ describe("GET /api/drafts/[id]/standings", () => {
 
   it("returns standings for a draft", async () => {
     vi.mocked(queries.getDraft).mockResolvedValue({
-      draft_id: "tarkir", draft_name: "Tarkir", draft_date: "2026-01-15", num_seats: 10, banned_cards: null,
+      draft_id: "tarkir",
+      draft_name: "Tarkir",
+      draft_date: "2026-01-15",
+      num_seats: 10,
+      banned_cards: null,
     });
     vi.mocked(queries.getStandings).mockResolvedValue({ standings: [], matches: [] });
     const res = await GET(
       new NextRequest(new URL("http://localhost:3000/api/drafts/tarkir/standings")),
-      { params: Promise.resolve({ id: "tarkir" }) },
+      { params: Promise.resolve({ id: "tarkir" }) }
     );
     expect(res.status).toBe(200);
     expect(queries.getStandings).toHaveBeenCalledWith(expect.anything(), "tarkir", 10);
@@ -29,12 +33,16 @@ describe("GET /api/drafts/[id]/standings", () => {
 
   it("is not CDN-cacheable (stale standings would hide freshly reported matches)", async () => {
     vi.mocked(queries.getDraft).mockResolvedValue({
-      draft_id: "tarkir", draft_name: "Tarkir", draft_date: "2026-01-15", num_seats: 10, banned_cards: null,
+      draft_id: "tarkir",
+      draft_name: "Tarkir",
+      draft_date: "2026-01-15",
+      num_seats: 10,
+      banned_cards: null,
     });
     vi.mocked(queries.getStandings).mockResolvedValue({ standings: [], matches: [] });
     const res = await GET(
       new NextRequest(new URL("http://localhost:3000/api/drafts/tarkir/standings")),
-      { params: Promise.resolve({ id: "tarkir" }) },
+      { params: Promise.resolve({ id: "tarkir" }) }
     );
     expect(res.headers.get("Cache-Control")).toBe("no-cache");
   });
@@ -44,7 +52,7 @@ describe("GET /api/drafts/[id]/standings", () => {
     vi.mocked(queries.getStandings).mockRejectedValueOnce(new Error("DB error"));
     const res = await GET(
       new NextRequest(new URL("http://localhost:3000/api/drafts/tarkir/standings")),
-      { params: Promise.resolve({ id: "tarkir" }) },
+      { params: Promise.resolve({ id: "tarkir" }) }
     );
     expect(res.status).toBe(500);
     const body = await res.json();

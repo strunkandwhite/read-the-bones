@@ -151,13 +151,19 @@ describe("validateDeckState", () => {
   it("rejects negative basicLand counts", () => {
     const deck = { ...validDeck(), basicLands: { Plains: -1 } };
     const result = validateDeckState(deck);
-    expect(result).toEqual({ valid: false, reason: "basicLands.Plains must be a non-negative integer" });
+    expect(result).toEqual({
+      valid: false,
+      reason: "basicLands.Plains must be a non-negative integer",
+    });
   });
 
   it("rejects non-integer basicLand counts", () => {
     const deck = { ...validDeck(), basicLands: { Island: 2.5 } };
     const result = validateDeckState(deck);
-    expect(result).toEqual({ valid: false, reason: "basicLands.Island must be a non-negative integer" });
+    expect(result).toEqual({
+      valid: false,
+      reason: "basicLands.Island must be a non-negative integer",
+    });
   });
 
   it("rejects non-object basicLands", () => {

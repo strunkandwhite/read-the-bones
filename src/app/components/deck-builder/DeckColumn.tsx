@@ -1,10 +1,7 @@
 "use client";
 
 import { useDroppable } from "@dnd-kit/core";
-import {
-  SortableContext,
-  verticalListSortingStrategy,
-} from "@dnd-kit/sortable";
+import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { DeckCard } from "./DeckCard";
 import type { ScryCard, CardStats } from "@/core/types";
 import type { WorthCard } from "@/core/worthModel";
@@ -45,19 +42,13 @@ export function DeckColumn({
   const droppableId = `${zone}:${columnKey}`;
   const { setNodeRef, isOver } = useDroppable({ id: droppableId });
 
-  const sortableIds = cardNames.map(
-    (name, idx) => `${zone}:${columnKey}:${idx}:${name}`
-  );
+  const sortableIds = cardNames.map((name, idx) => `${zone}:${columnKey}:${idx}:${name}`);
 
   return (
     <div className={`flex flex-col ${fillHeight ? "flex-1" : ""}`}>
       <div className="mb-1.5 flex items-baseline justify-center gap-1 text-[11px]">
-        <span className="font-semibold text-zinc-400">
-          {label}
-        </span>
-        <span className="font-mono text-zinc-500/80">
-          ({cardNames.length})
-        </span>
+        <span className="font-semibold text-zinc-400">{label}</span>
+        <span className="font-mono text-zinc-500/80">({cardNames.length})</span>
       </div>
       <div
         ref={setNodeRef}
@@ -69,10 +60,7 @@ export function DeckColumn({
             : "bg-zinc-800/40 ring-1 ring-zinc-800/60"
         }`}
       >
-        <SortableContext
-          items={sortableIds}
-          strategy={verticalListSortingStrategy}
-        >
+        <SortableContext items={sortableIds} strategy={verticalListSortingStrategy}>
           {cardNames.map((name, idx) => {
             const scryfall = scryfallData.get(name);
             const imageUri = scryfall?.imageUri ?? BASIC_LAND_IMAGES[name];
@@ -93,7 +81,7 @@ export function DeckColumn({
                 pickScore={stats?.weightedGeomean}
                 gpwr={stats?.gpwr}
                 gpwrCi={stats?.gpwrCi}
-                worth={showWorth ? worthCard.worth ?? undefined : undefined}
+                worth={showWorth ? (worthCard.worth ?? undefined) : undefined}
               />
             );
           })}

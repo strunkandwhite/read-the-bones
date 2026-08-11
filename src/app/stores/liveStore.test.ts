@@ -19,7 +19,11 @@ vi.mock("@/core/searchUtils", () => ({
   hasScryfallOperators: vi.fn(() => false),
 }));
 vi.mock("@/core/snakeDraft", () => ({
-  derivePickSeat: vi.fn((pickN: number) => ({ seat: pickN <= 2 ? 1 : 2, round: 1, isDoublePick: false })),
+  derivePickSeat: vi.fn((pickN: number) => ({
+    seat: pickN <= 2 ? 1 : 2,
+    round: 1,
+    isDoublePick: false,
+  })),
   getTotalPicks: vi.fn(() => 10),
 }));
 
@@ -166,10 +170,9 @@ describe("liveStore — fetchMySeat", () => {
 
   it("calls /api/drafts/{id}/me with X-Seat-Token header", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({ seat: 3, autoPick: false, displayName: "Alice" }),
-        { status: 200 },
-      ),
+      new Response(JSON.stringify({ seat: 3, autoPick: false, displayName: "Alice" }), {
+        status: 200,
+      })
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
@@ -181,16 +184,16 @@ describe("liveStore — fetchMySeat", () => {
       "/api/drafts/draft-1/me",
       expect.objectContaining({
         headers: { "X-Seat-Token": "tok-abc" },
-      }),
+      })
     );
   });
 
   it("sets mySeat, autoPick, displayName from response", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response(
-        JSON.stringify({ seat: 5, autoPick: false, displayName: "Bob" }),
-        { status: 200 },
-      ),
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ seat: 5, autoPick: false, displayName: "Bob" }), {
+          status: 200,
+        })
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
@@ -205,9 +208,9 @@ describe("liveStore — fetchMySeat", () => {
   });
 
   it("does nothing without seatToken", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     // Set activeDraft without triggering the subscription (it was already null → "draft-1" fires polling)
     useDraftStore.setState({ activeDraft: "draft-1" });
@@ -248,9 +251,9 @@ describe("liveStore — toggleAutoPick", () => {
   });
 
   it("PUTs to /api/drafts/{id}/seat-settings with toggled value", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc", autoPick: true });
@@ -262,15 +265,13 @@ describe("liveStore — toggleAutoPick", () => {
       expect.objectContaining({
         method: "PUT",
         body: JSON.stringify({ auto_pick: false }),
-      }),
+      })
     );
     expect(useLiveStore.getState().autoPick).toBe(false);
   });
 
   it("does not update state on failure", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("error", { status: 500 }),
-    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("error", { status: 500 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc", autoPick: true });
@@ -295,9 +296,9 @@ describe("liveStore — updateDisplayName", () => {
   });
 
   it("PUTs with optimistic update", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc", displayName: "Old" });
@@ -309,15 +310,13 @@ describe("liveStore — updateDisplayName", () => {
       expect.objectContaining({
         method: "PUT",
         body: JSON.stringify({ display_name: "New Name" }),
-      }),
+      })
     );
     expect(useLiveStore.getState().displayName).toBe("New Name");
   });
 
   it("sets displayName to null for empty string", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc", displayName: "Old" });
@@ -328,9 +327,7 @@ describe("liveStore — updateDisplayName", () => {
   });
 
   it("reverts on failure", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("error", { status: 500 }),
-    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("error", { status: 500 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc", displayName: "Original" });
@@ -352,7 +349,6 @@ describe("liveStore — updateDisplayName", () => {
   });
 });
 
-
 // ---------------------------------------------------------------------------
 // refreshSettings
 // ---------------------------------------------------------------------------
@@ -367,11 +363,11 @@ describe("liveStore — refreshSettings", () => {
   });
 
   it("fetches /api/drafts/{id}/me and updates autoPick", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response(
-        JSON.stringify({ seat: 3, autoPick: false, displayName: "X" }),
-        { status: 200 },
-      ),
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ seat: 3, autoPick: false, displayName: "X" }), {
+          status: 200,
+        })
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
@@ -383,9 +379,9 @@ describe("liveStore — refreshSettings", () => {
   });
 
   it("does nothing without token", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     // Wait for subscription-triggered polling fetches to complete
@@ -421,10 +417,9 @@ describe("liveStore — cross-store subscription", () => {
   it("hydrates token and fetches seat when activeDraft is set", async () => {
     localStorage.setItem("seatToken:draft-1", "stored-token");
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({ seat: 2, autoPick: true, displayName: null }),
-        { status: 200 },
-      ),
+      new Response(JSON.stringify({ seat: 2, autoPick: true, displayName: null }), {
+        status: 200,
+      })
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
@@ -437,16 +432,15 @@ describe("liveStore — cross-store subscription", () => {
       "/api/drafts/draft-1/me",
       expect.objectContaining({
         headers: { "X-Seat-Token": "stored-token" },
-      }),
+      })
     );
   });
 
   it("resets state when activeDraft is cleared", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({ seat: 3, autoPick: false, displayName: "Alice" }),
-        { status: 200 },
-      ),
+      new Response(JSON.stringify({ seat: 3, autoPick: false, displayName: "Alice" }), {
+        status: 200,
+      })
     );
 
     // First set an active draft so the subscription has a non-null baseline
@@ -488,12 +482,14 @@ describe("liveStore — fetchQueue", () => {
   });
 
   it("calls GET /api/drafts/{id}/queue with token", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({ queue: [{ mode: 'pause', cards: [{ id: 10, name: "Bolt" }] }] }),
-        { status: 200 },
-      ),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ queue: [{ mode: "pause", cards: [{ id: 10, name: "Bolt" }] }] }),
+          { status: 200 }
+        )
+      );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc" });
@@ -504,21 +500,22 @@ describe("liveStore — fetchQueue", () => {
       "/api/drafts/draft-1/queue",
       expect.objectContaining({
         headers: { "X-Seat-Token": "tok-abc" },
-      }),
+      })
     );
   });
 
   it("sets queue and queuedCardCounts from response", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response(
-        JSON.stringify({
-          queue: [
-            { mode: 'pause', cards: [{ id: 10, name: "Bolt" }] },
-            { mode: 'pause', cards: [{ id: 20, name: "Counterspell" }] },
-          ],
-        }),
-        { status: 200 },
-      ),
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            queue: [
+              { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+              { mode: "pause", cards: [{ id: 20, name: "Counterspell" }] },
+            ],
+          }),
+          { status: 200 }
+        )
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
@@ -552,13 +549,14 @@ describe("liveStore — fetchQueue", () => {
     // Simulates the common idle-poll path: server returns same queue every cycle.
     // Without compare-before-set, every poll creates a new array reference and
     // triggers a rebuild of the deck (syncDeckWithPicks subscribes to queue).
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response(
-        JSON.stringify({
-          queue: [{ mode: 'pause', cards: [{ id: 10, name: "Bolt" }] }],
-        }),
-        { status: 200 },
-      ),
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            queue: [{ mode: "pause", cards: [{ id: 10, name: "Bolt" }] }],
+          }),
+          { status: 200 }
+        )
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
@@ -594,11 +592,9 @@ describe("liveStore — fetchFloatedCards identity stability", () => {
   it("keeps floatedCards reference stable when server returns identical content", async () => {
     // Without compare-before-set, every poll creates a new array reference and
     // triggers a rebuild of the deck (syncDeckWithPicks subscribes to floatedCards).
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response(
-        JSON.stringify({ cards: ["Counterspell", "Force of Will"] }),
-        { status: 200 },
-      ),
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(JSON.stringify({ cards: ["Counterspell", "Force of Will"] }), { status: 200 })
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
@@ -632,7 +628,7 @@ describe("liveStore — fetchFloatedCards identity stability", () => {
 
     // Second fetch returns different content — reference must change
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ cards: ["Counterspell", "Force of Will"] }), { status: 200 }),
+      new Response(JSON.stringify({ cards: ["Counterspell", "Force of Will"] }), { status: 200 })
     );
 
     await useLiveStore.getState().fetchFloatedCards();
@@ -658,10 +654,10 @@ describe("liveStore — addToQueue", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
-          queue: [{ mode: 'pause', cards: [{ id: 10, name: "Bolt" }] }],
+          queue: [{ mode: "pause", cards: [{ id: 10, name: "Bolt" }] }],
         }),
-        { status: 200 },
-      ),
+        { status: 200 }
+      )
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
@@ -686,18 +682,18 @@ describe("liveStore — addToQueue", () => {
       new Response(
         JSON.stringify({
           queue: [
-            { mode: 'pause', cards: [{ id: 10, name: "Bolt" }] },
-            { mode: 'pause', cards: [{ id: 20, name: "Counterspell" }] },
+            { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+            { mode: "pause", cards: [{ id: 20, name: "Counterspell" }] },
           ],
         }),
-        { status: 200 },
-      ),
+        { status: 200 }
+      )
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({
       seatToken: "tok-abc",
-      queue: [{ mode: 'pause', cards: [{ cardId: 10, cardName: "Bolt" }] }],
+      queue: [{ mode: "pause", cards: [{ cardId: 10, cardName: "Bolt" }] }],
       queuedCardCounts: new Map([["Bolt", 1]]),
     });
 
@@ -711,10 +707,10 @@ describe("liveStore — addToQueue", () => {
       expect.objectContaining({
         method: "PUT",
         body: JSON.stringify([
-          { mode: 'pause', cards: ["Bolt"] },
-          { mode: 'pause', cards: ["Counterspell"] },
+          { mode: "pause", cards: ["Bolt"] },
+          { mode: "pause", cards: ["Counterspell"] },
         ]),
-      }),
+      })
     );
   });
 });
@@ -736,20 +732,23 @@ describe("liveStore — removeFromQueue", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
-          queue: [{ mode: 'pause', cards: [{ id: 20, name: "Counterspell" }] }],
+          queue: [{ mode: "pause", cards: [{ id: 20, name: "Counterspell" }] }],
         }),
-        { status: 200 },
-      ),
+        { status: 200 }
+      )
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({
       seatToken: "tok-abc",
       queue: [
-        { mode: 'pause', cards: [{ cardId: 10, cardName: "Bolt" }] },
-        { mode: 'pause', cards: [{ cardId: 20, cardName: "Counterspell" }] },
+        { mode: "pause", cards: [{ cardId: 10, cardName: "Bolt" }] },
+        { mode: "pause", cards: [{ cardId: 20, cardName: "Counterspell" }] },
       ],
-      queuedCardCounts: new Map([["Bolt", 1], ["Counterspell", 1]]),
+      queuedCardCounts: new Map([
+        ["Bolt", 1],
+        ["Counterspell", 1],
+      ]),
     });
 
     useLiveStore.getState().removeFromQueue("Bolt");
@@ -760,8 +759,8 @@ describe("liveStore — removeFromQueue", () => {
       "/api/drafts/draft-1/queue",
       expect.objectContaining({
         method: "PUT",
-        body: JSON.stringify([{ mode: 'pause', cards: ["Counterspell"] }]),
-      }),
+        body: JSON.stringify([{ mode: "pause", cards: ["Counterspell"] }]),
+      })
     );
   });
 
@@ -769,20 +768,23 @@ describe("liveStore — removeFromQueue", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
-          queue: [{ mode: 'pause', cards: [{ id: 20, name: "Counterspell" }] }],
+          queue: [{ mode: "pause", cards: [{ id: 20, name: "Counterspell" }] }],
         }),
-        { status: 200 },
-      ),
+        { status: 200 }
+      )
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({
       seatToken: "tok-abc",
       queue: [
-        { mode: 'pause', cards: [{ cardId: 10, cardName: "Bolt" }] },
-        { mode: 'pause', cards: [{ cardId: 20, cardName: "Counterspell" }] },
+        { mode: "pause", cards: [{ cardId: 10, cardName: "Bolt" }] },
+        { mode: "pause", cards: [{ cardId: 20, cardName: "Counterspell" }] },
       ],
-      queuedCardCounts: new Map([["Bolt", 1], ["Counterspell", 1]]),
+      queuedCardCounts: new Map([
+        ["Bolt", 1],
+        ["Counterspell", 1],
+      ]),
       floatedCards: [],
       floatedCardsSet: new Set(),
     });
@@ -799,20 +801,23 @@ describe("liveStore — removeFromQueue", () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
       new Response(
         JSON.stringify({
-          queue: [{ mode: 'pause', cards: [{ id: 20, name: "Counterspell" }] }],
+          queue: [{ mode: "pause", cards: [{ id: 20, name: "Counterspell" }] }],
         }),
-        { status: 200 },
-      ),
+        { status: 200 }
+      )
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({
       seatToken: "tok-abc",
       queue: [
-        { mode: 'pause', cards: [{ cardId: 10, cardName: "Bolt" }] },
-        { mode: 'pause', cards: [{ cardId: 20, cardName: "Counterspell" }] },
+        { mode: "pause", cards: [{ cardId: 10, cardName: "Bolt" }] },
+        { mode: "pause", cards: [{ cardId: 20, cardName: "Counterspell" }] },
       ],
-      queuedCardCounts: new Map([["Bolt", 1], ["Counterspell", 1]]),
+      queuedCardCounts: new Map([
+        ["Bolt", 1],
+        ["Counterspell", 1],
+      ]),
       floatedCards: ["Bolt"],
       floatedCardsSet: new Set(["Bolt"]),
     });
@@ -827,20 +832,26 @@ describe("liveStore — removeFromQueue", () => {
     useLiveStore.setState({
       seatToken: "tok",
       queue: [
-        { mode: 'pause', cards: [{ cardId: 10, cardName: "Bolt" }] },
-        { mode: 'pause', cards: [{ cardId: 20, cardName: "Counterspell" }] },
-        { mode: 'pause', cards: [{ cardId: 10, cardName: "Bolt" }] },
+        { mode: "pause", cards: [{ cardId: 10, cardName: "Bolt" }] },
+        { mode: "pause", cards: [{ cardId: 20, cardName: "Counterspell" }] },
+        { mode: "pause", cards: [{ cardId: 10, cardName: "Bolt" }] },
       ],
-      queuedCardCounts: new Map([["Bolt", 2], ["Counterspell", 1]]),
+      queuedCardCounts: new Map([
+        ["Bolt", 2],
+        ["Counterspell", 1],
+      ]),
     });
 
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response(JSON.stringify({
-        queue: [
-          { mode: 'pause', cards: [{ id: 20, name: "Counterspell" }] },
-          { mode: 'pause', cards: [{ id: 10, name: "Bolt" }] },
-        ],
-      }))
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            queue: [
+              { mode: "pause", cards: [{ id: 20, name: "Counterspell" }] },
+              { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+            ],
+          })
+        )
     );
 
     useLiveStore.getState().removeFromQueue("Bolt");
@@ -854,7 +865,6 @@ describe("liveStore — removeFromQueue", () => {
     expect(s.queuedCardCounts.get("Bolt")).toBe(1);
   });
 });
-
 
 // ---------------------------------------------------------------------------
 // reorderQueue
@@ -874,24 +884,24 @@ describe("liveStore — reorderQueue", () => {
       new Response(
         JSON.stringify({
           queue: [
-            { mode: 'pause', cards: [{ id: 20, name: "Counterspell" }] },
-            { mode: 'pause', cards: [{ id: 10, name: "Bolt" }] },
+            { mode: "pause", cards: [{ id: 20, name: "Counterspell" }] },
+            { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
           ],
         }),
-        { status: 200 },
-      ),
+        { status: 200 }
+      )
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     const reorderedEntries = [
-      { mode: 'pause' as const, cards: [{ cardId: 20, cardName: "Counterspell" }] },
-      { mode: 'pause' as const, cards: [{ cardId: 10, cardName: "Bolt" }] },
+      { mode: "pause" as const, cards: [{ cardId: 20, cardName: "Counterspell" }] },
+      { mode: "pause" as const, cards: [{ cardId: 10, cardName: "Bolt" }] },
     ];
     useLiveStore.setState({
       seatToken: "tok-abc",
       queue: [
-        { mode: 'pause', cards: [{ cardId: 10, cardName: "Bolt" }] },
-        { mode: 'pause', cards: [{ cardId: 20, cardName: "Counterspell" }] },
+        { mode: "pause", cards: [{ cardId: 10, cardName: "Bolt" }] },
+        { mode: "pause", cards: [{ cardId: 20, cardName: "Counterspell" }] },
       ],
     });
 
@@ -904,10 +914,10 @@ describe("liveStore — reorderQueue", () => {
       expect.objectContaining({
         method: "PUT",
         body: JSON.stringify([
-          { mode: 'pause', cards: ["Counterspell"] },
-          { mode: 'pause', cards: ["Bolt"] },
+          { mode: "pause", cards: ["Counterspell"] },
+          { mode: "pause", cards: ["Bolt"] },
         ]),
-      }),
+      })
     );
   });
 });
@@ -926,11 +936,9 @@ describe("liveStore — syncQueue reverts on failure", () => {
   });
 
   it("reverts queue on API failure", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("error", { status: 500 }),
-    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("error", { status: 500 }));
 
-    const originalQueue = [{ mode: 'pause' as const, cards: [{ cardId: 10, cardName: "Bolt" }] }];
+    const originalQueue = [{ mode: "pause" as const, cards: [{ cardId: 10, cardName: "Bolt" }] }];
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({
@@ -953,7 +961,7 @@ describe("liveStore — syncQueue reverts on failure", () => {
   it("reverts queue on network error", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network error"));
 
-    const originalQueue = [{ mode: 'pause' as const, cards: [{ cardId: 10, cardName: "Bolt" }] }];
+    const originalQueue = [{ mode: "pause" as const, cards: [{ cardId: 10, cardName: "Bolt" }] }];
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({
@@ -972,18 +980,19 @@ describe("liveStore — syncQueue reverts on failure", () => {
   });
 
   it("reverts floatedCards when removeFromQueue sync fails", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("error", { status: 500 }),
-    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("error", { status: 500 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({
       seatToken: "tok-abc",
       queue: [
-        { mode: 'pause', cards: [{ cardId: 10, cardName: "Bolt" }] },
-        { mode: 'pause', cards: [{ cardId: 20, cardName: "Counterspell" }] },
+        { mode: "pause", cards: [{ cardId: 10, cardName: "Bolt" }] },
+        { mode: "pause", cards: [{ cardId: 20, cardName: "Counterspell" }] },
       ],
-      queuedCardCounts: new Map([["Bolt", 1], ["Counterspell", 1]]),
+      queuedCardCounts: new Map([
+        ["Bolt", 1],
+        ["Counterspell", 1],
+      ]),
       floatedCards: ["Swords"],
       floatedCardsSet: new Set(["Swords"]),
     });
@@ -1003,9 +1012,7 @@ describe("liveStore — syncQueue reverts on failure", () => {
   });
 
   it("reverts floatedCards when addToQueue sync fails", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("error", { status: 500 }),
-    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("error", { status: 500 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({
@@ -1044,16 +1051,17 @@ describe("liveStore — queuedCardCounts derived from queue", () => {
   });
 
   it("recomputes queuedCardCounts after fetchQueue", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response(
-        JSON.stringify({
-          queue: [
-            { mode: 'pause', cards: [{ id: 10, name: "Bolt" }] },
-            { mode: 'pause', cards: [{ id: 20, name: "Swords" }] },
-          ],
-        }),
-        { status: 200 },
-      ),
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            queue: [
+              { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+              { mode: "pause", cards: [{ id: 20, name: "Swords" }] },
+            ],
+          }),
+          { status: 200 }
+        )
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
@@ -1068,14 +1076,17 @@ describe("liveStore — queuedCardCounts derived from queue", () => {
   });
 
   it("queuedCardCounts counts duplicate card names in queue", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response(JSON.stringify({
-        queue: [
-          { mode: 'pause', cards: [{ id: 10, name: "Bolt" }] },
-          { mode: 'pause', cards: [{ id: 20, name: "Counterspell" }] },
-          { mode: 'pause', cards: [{ id: 10, name: "Bolt" }] },
-        ],
-      }))
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            queue: [
+              { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+              { mode: "pause", cards: [{ id: 20, name: "Counterspell" }] },
+              { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+            ],
+          })
+        )
     );
 
     useDraftStore.setState({ activeDraft: "d1" });
@@ -1102,11 +1113,8 @@ describe("liveStore — fetchFloatedCards", () => {
   });
 
   it("loads floated cards from API", async () => {
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response(
-        JSON.stringify({ cards: ["Bolt", "Counterspell"] }),
-        { status: 200 },
-      ),
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () => new Response(JSON.stringify({ cards: ["Bolt", "Counterspell"] }), { status: 200 })
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
@@ -1146,9 +1154,9 @@ describe("liveStore — addFloat", () => {
   });
 
   it("optimistically adds and PUTs to API", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc", floatedCards: ["Bolt"] });
@@ -1160,7 +1168,7 @@ describe("liveStore — addFloat", () => {
       expect.objectContaining({
         method: "PUT",
         body: JSON.stringify({ card_name: "Counterspell" }),
-      }),
+      })
     );
     expect(useLiveStore.getState().floatedCards).toEqual(["Bolt", "Counterspell"]);
   });
@@ -1244,9 +1252,9 @@ describe("liveStore — removeFloat", () => {
   });
 
   it("optimistically removes and DELETEs from API", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc", floatedCards: ["Bolt", "Counterspell"] });
@@ -1258,7 +1266,7 @@ describe("liveStore — removeFloat", () => {
       expect.objectContaining({
         method: "DELETE",
         body: JSON.stringify({ card_name: "Bolt" }),
-      }),
+      })
     );
     expect(useLiveStore.getState().floatedCards).toEqual(["Counterspell"]);
   });
@@ -1275,7 +1283,8 @@ describe("liveStore — removeFloat", () => {
       }
       if (u.includes("/float")) {
         return {
-          ok: true, status: 200,
+          ok: true,
+          status: 200,
           json: async () => ({ cards: ["Bolt", "Counterspell"] }),
         } as Response;
       }
@@ -1317,7 +1326,8 @@ describe("liveStore — removeFloat", () => {
       // GET refetch returns server truth
       if (u.includes("/float")) {
         return {
-          ok: true, status: 200,
+          ok: true,
+          status: 200,
           json: async () => ({ cards: ["Bolt", "Counterspell"] }),
         } as Response;
       }
@@ -1536,7 +1546,9 @@ describe("local deck mode — reconcileLocalFloats", () => {
     await vi.advanceTimersByTimeAsync(100);
 
     expect(useLiveStore.getState().floatedCards).toEqual([]);
-    expect(useLiveStore.getState().deckState.zones.deck["mv-0-1"] ?? []).not.toContain("Sylvan Library");
+    expect(useLiveStore.getState().deckState.zones.deck["mv-0-1"] ?? []).not.toContain(
+      "Sylvan Library"
+    );
     expect(JSON.parse(localStorage.getItem("localFloats:sheet-1:3")!)).toEqual([]);
     vi.useRealTimers();
   });
@@ -1791,9 +1803,9 @@ describe("liveStore — handlePick", () => {
   });
 
   it("POSTs to /api/drafts/{id}/pick with card_name and X-Seat-Token", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc" });
@@ -1809,14 +1821,12 @@ describe("liveStore — handlePick", () => {
           "Content-Type": "application/json",
         }),
         body: JSON.stringify({ card_name: "Lightning Bolt" }),
-      }),
+      })
     );
   });
 
   it("refreshes on success", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc", pickError: "old error" });
@@ -1831,7 +1841,7 @@ describe("liveStore — handlePick", () => {
 
   it("sets pickError on non-ok response", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ error: "Card not in pool" }), { status: 400 }),
+      new Response(JSON.stringify({ error: "Card not in pool" }), { status: 400 })
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
@@ -1844,10 +1854,7 @@ describe("liveStore — handlePick", () => {
 
   it("suppresses 'already been picked' when autoPick is on", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({ error: "Card has already been picked" }),
-        { status: 409 },
-      ),
+      new Response(JSON.stringify({ error: "Card has already been picked" }), { status: 409 })
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
@@ -1863,10 +1870,7 @@ describe("liveStore — handlePick", () => {
 
   it("does not suppress 'already been picked' when autoPick is off", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(
-        JSON.stringify({ error: "Card has already been picked" }),
-        { status: 409 },
-      ),
+      new Response(JSON.stringify({ error: "Card has already been picked" }), { status: 409 })
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
@@ -1886,7 +1890,7 @@ describe("liveStore — handlePick", () => {
     await useLiveStore.getState().handlePick("Lightning Bolt");
 
     expect(useLiveStore.getState().pickError).toBe(
-      "Network error — pick may not have been submitted",
+      "Network error — pick may not have been submitted"
     );
   });
 });
@@ -1997,14 +2001,30 @@ describe("liveStore — recomputePicking phase gate", () => {
   });
 
   it("does NOT fire when phase is 'setup' even if nextSeat matches mySeat", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "setup", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
+      liveDraftStatus: {
+        latestPickN: 0,
+        nextSeat: 1,
+        recentPicks: [],
+        matchCount: 0,
+        totalMatches: 0,
+      },
+      board: {
+        phase: "setup",
+        numSeats: 4,
+        picksPerPlayer: 6,
+        doublePickAfterRound: null,
+        picks: [],
+        seatNames: {},
+        bannedCards: [],
+        isSheetDraft: false,
+        redactedSeats: [],
+      },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -2022,14 +2042,30 @@ describe("liveStore — recomputePicking phase gate", () => {
   });
 
   it("does NOT fire when phase is 'complete'", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "complete", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
+      liveDraftStatus: {
+        latestPickN: 0,
+        nextSeat: 2,
+        recentPicks: [],
+        matchCount: 0,
+        totalMatches: 0,
+      },
+      board: {
+        phase: "complete",
+        numSeats: 4,
+        picksPerPlayer: 6,
+        doublePickAfterRound: null,
+        picks: [],
+        seatNames: {},
+        bannedCards: [],
+        isSheetDraft: false,
+        redactedSeats: [],
+      },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -2050,8 +2086,13 @@ describe("liveStore — recomputePicking phase gate", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if (String(input).includes("/pick")) {
         return new Response(
-          JSON.stringify({ pickedCard: null, autoPickDisabled: false, phaseChanged: false, newPhase: null }),
-          { status: 200 },
+          JSON.stringify({
+            pickedCard: null,
+            autoPickDisabled: false,
+            phaseChanged: false,
+            newPhase: null,
+          }),
+          { status: 200 }
         );
       }
       return new Response("{}", { status: 401 });
@@ -2060,8 +2101,24 @@ describe("liveStore — recomputePicking phase gate", () => {
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      liveDraftStatus: { latestPickN: 0, nextSeat: 3, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
+      liveDraftStatus: {
+        latestPickN: 0,
+        nextSeat: 3,
+        recentPicks: [],
+        matchCount: 0,
+        totalMatches: 0,
+      },
+      board: {
+        phase: "drafting",
+        numSeats: 4,
+        picksPerPlayer: 6,
+        doublePickAfterRound: null,
+        picks: [],
+        seatNames: {},
+        bannedCards: [],
+        isSheetDraft: false,
+        redactedSeats: [],
+      },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -2075,19 +2132,26 @@ describe("liveStore — recomputePicking phase gate", () => {
     await new Promise((r) => setTimeout(r, 0));
 
     const pickCalls = fetchSpy.mock.calls.filter(
-      (c) => String(c[0]).includes("/pick") && JSON.parse(c[1]?.body as string ?? "{}").auto === true,
+      (c) =>
+        String(c[0]).includes("/pick") && JSON.parse((c[1]?.body as string) ?? "{}").auto === true
     );
     expect(pickCalls).toHaveLength(1);
   });
 
   it("does NOT fire when board is null (phase unknown)", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
+      liveDraftStatus: {
+        latestPickN: 0,
+        nextSeat: 1,
+        recentPicks: [],
+        matchCount: 0,
+        totalMatches: 0,
+      },
       board: null,
     });
     useLiveStore.setState({
@@ -2134,8 +2198,13 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if (String(input).includes("/pick")) {
         return new Response(
-          JSON.stringify({ pickedCard: { pickN: 1, cardId: 5, cardName: "Lightning Bolt" }, autoPickDisabled: false, phaseChanged: false, newPhase: null }),
-          { status: 200 },
+          JSON.stringify({
+            pickedCard: { pickN: 1, cardId: 5, cardName: "Lightning Bolt" },
+            autoPickDisabled: false,
+            phaseChanged: false,
+            newPhase: null,
+          }),
+          { status: 200 }
         );
       }
       return new Response("{}", { status: 401 });
@@ -2144,8 +2213,24 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      liveDraftStatus: { latestPickN: 0, nextSeat: 3, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
+      liveDraftStatus: {
+        latestPickN: 0,
+        nextSeat: 3,
+        recentPicks: [],
+        matchCount: 0,
+        totalMatches: 0,
+      },
+      board: {
+        phase: "drafting",
+        numSeats: 4,
+        picksPerPlayer: 6,
+        doublePickAfterRound: null,
+        picks: [],
+        seatNames: {},
+        bannedCards: [],
+        isSheetDraft: false,
+        redactedSeats: [],
+      },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -2161,21 +2246,32 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
     await new Promise((r) => setTimeout(r, 0));
 
     const autoPickCall = fetchSpy.mock.calls.find(
-      (c) => String(c[0]).includes("/pick") && JSON.parse(c[1]?.body as string ?? "{}").auto === true,
+      (c) =>
+        String(c[0]).includes("/pick") && JSON.parse((c[1]?.body as string) ?? "{}").auto === true
     );
     expect(autoPickCall).toBeDefined();
     expect(JSON.parse(autoPickCall![1]?.body as string)).toEqual({ auto: true });
-    expect(fetchSpy.mock.calls.some((c) => String(c[0]).includes("/pick") && !JSON.parse(c[1]?.body as string ?? "{}").auto)).toBe(false);
+    expect(
+      fetchSpy.mock.calls.some(
+        (c) => String(c[0]).includes("/pick") && !JSON.parse((c[1]?.body as string) ?? "{}").auto
+      )
+    ).toBe(false);
   });
 
   it("does NOT fire when autoPick is disabled", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
+      liveDraftStatus: {
+        latestPickN: 0,
+        nextSeat: 2,
+        recentPicks: [],
+        matchCount: 0,
+        totalMatches: 0,
+      },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -2193,13 +2289,19 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
   });
 
   it("does NOT fire when queue is empty", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
+      liveDraftStatus: {
+        latestPickN: 0,
+        nextSeat: 2,
+        recentPicks: [],
+        matchCount: 0,
+        totalMatches: 0,
+      },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -2222,9 +2324,14 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
       resolveFetch = () =>
         resolve(
           new Response(
-            JSON.stringify({ pickedCard: null, autoPickDisabled: false, phaseChanged: false, newPhase: null }),
-            { status: 200 },
-          ),
+            JSON.stringify({
+              pickedCard: null,
+              autoPickDisabled: false,
+              phaseChanged: false,
+              newPhase: null,
+            }),
+            { status: 200 }
+          )
         );
     });
     // Route /pick to the hanging promise (so the in-flight guard is exercised);
@@ -2239,8 +2346,24 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
+      liveDraftStatus: {
+        latestPickN: 0,
+        nextSeat: 1,
+        recentPicks: [],
+        matchCount: 0,
+        totalMatches: 0,
+      },
+      board: {
+        phase: "drafting",
+        numSeats: 4,
+        picksPerPlayer: 6,
+        doublePickAfterRound: null,
+        picks: [],
+        seatNames: {},
+        bannedCards: [],
+        isSheetDraft: false,
+        redactedSeats: [],
+      },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -2270,8 +2393,13 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if (String(input).includes("/pick")) {
         return new Response(
-          JSON.stringify({ pickedCard: null, autoPickDisabled: true, phaseChanged: false, newPhase: null }),
-          { status: 200 },
+          JSON.stringify({
+            pickedCard: null,
+            autoPickDisabled: true,
+            phaseChanged: false,
+            newPhase: null,
+          }),
+          { status: 200 }
         );
       }
       return new Response("{}", { status: 401 });
@@ -2280,8 +2408,24 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
+      liveDraftStatus: {
+        latestPickN: 0,
+        nextSeat: 2,
+        recentPicks: [],
+        matchCount: 0,
+        totalMatches: 0,
+      },
+      board: {
+        phase: "drafting",
+        numSeats: 4,
+        picksPerPlayer: 6,
+        doublePickAfterRound: null,
+        picks: [],
+        seatNames: {},
+        bannedCards: [],
+        isSheetDraft: false,
+        redactedSeats: [],
+      },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -2308,8 +2452,24 @@ describe("liveStore — triggerAutoPick (simplified)", () => {
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
+      liveDraftStatus: {
+        latestPickN: 0,
+        nextSeat: 1,
+        recentPicks: [],
+        matchCount: 0,
+        totalMatches: 0,
+      },
+      board: {
+        phase: "drafting",
+        numSeats: 4,
+        picksPerPlayer: 6,
+        doublePickAfterRound: null,
+        picks: [],
+        seatNames: {},
+        bannedCards: [],
+        isSheetDraft: false,
+        redactedSeats: [],
+      },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -2353,8 +2513,13 @@ describe("liveStore — poll-triggered auto-pick integration", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if (String(input).includes("/pick")) {
         return new Response(
-          JSON.stringify({ pickedCard: { pickN: 1, cardId: 5, cardName: "Lightning Bolt" }, autoPickDisabled: false, phaseChanged: false, newPhase: null }),
-          { status: 200 },
+          JSON.stringify({
+            pickedCard: { pickN: 1, cardId: 5, cardName: "Lightning Bolt" },
+            autoPickDisabled: false,
+            phaseChanged: false,
+            newPhase: null,
+          }),
+          { status: 200 }
         );
       }
       return new Response("{}", { status: 401 });
@@ -2364,8 +2529,24 @@ describe("liveStore — poll-triggered auto-pick integration", () => {
     // Set up: it's my turn according to liveDraftStatus, draft is in drafting phase
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      liveDraftStatus: { latestPickN: 0, nextSeat: 3, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
+      liveDraftStatus: {
+        latestPickN: 0,
+        nextSeat: 3,
+        recentPicks: [],
+        matchCount: 0,
+        totalMatches: 0,
+      },
+      board: {
+        phase: "drafting",
+        numSeats: 4,
+        picksPerPlayer: 6,
+        doublePickAfterRound: null,
+        picks: [],
+        seatNames: {},
+        bannedCards: [],
+        isSheetDraft: false,
+        redactedSeats: [],
+      },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -2384,7 +2565,8 @@ describe("liveStore — poll-triggered auto-pick integration", () => {
     await new Promise((r) => setTimeout(r, 0));
 
     const pickCalls = fetchSpy.mock.calls.filter(
-      (c) => String(c[0]).includes("/pick") && JSON.parse(c[1]?.body as string ?? "{}").auto === true,
+      (c) =>
+        String(c[0]).includes("/pick") && JSON.parse((c[1]?.body as string) ?? "{}").auto === true
     );
     expect(pickCalls).toHaveLength(1);
   });
@@ -2395,9 +2577,14 @@ describe("liveStore — poll-triggered auto-pick integration", () => {
       resolveFetch = () =>
         resolve(
           new Response(
-            JSON.stringify({ pickedCard: null, autoPickDisabled: false, phaseChanged: false, newPhase: null }),
-            { status: 200 },
-          ),
+            JSON.stringify({
+              pickedCard: null,
+              autoPickDisabled: false,
+              phaseChanged: false,
+              newPhase: null,
+            }),
+            { status: 200 }
+          )
         );
     });
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((input) => {
@@ -2408,8 +2595,24 @@ describe("liveStore — poll-triggered auto-pick integration", () => {
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
+      liveDraftStatus: {
+        latestPickN: 0,
+        nextSeat: 2,
+        recentPicks: [],
+        matchCount: 0,
+        totalMatches: 0,
+      },
+      board: {
+        phase: "drafting",
+        numSeats: 4,
+        picksPerPlayer: 6,
+        doublePickAfterRound: null,
+        picks: [],
+        seatNames: {},
+        bannedCards: [],
+        isSheetDraft: false,
+        redactedSeats: [],
+      },
     });
     useLiveStore.setState({ seatToken: "tok-abc", mySeat: 2 });
 
@@ -2456,8 +2659,13 @@ describe("liveStore — toggleAutoPick mid-turn", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if (String(input).includes("/pick")) {
         return new Response(
-          JSON.stringify({ pickedCard: null, autoPickDisabled: false, phaseChanged: false, newPhase: null }),
-          { status: 200 },
+          JSON.stringify({
+            pickedCard: null,
+            autoPickDisabled: false,
+            phaseChanged: false,
+            newPhase: null,
+          }),
+          { status: 200 }
         );
       }
       // seat-settings PUT
@@ -2467,8 +2675,24 @@ describe("liveStore — toggleAutoPick mid-turn", () => {
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      liveDraftStatus: { latestPickN: 0, nextSeat: 1, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
+      liveDraftStatus: {
+        latestPickN: 0,
+        nextSeat: 1,
+        recentPicks: [],
+        matchCount: 0,
+        totalMatches: 0,
+      },
+      board: {
+        phase: "drafting",
+        numSeats: 4,
+        picksPerPlayer: 6,
+        doublePickAfterRound: null,
+        picks: [],
+        seatNames: {},
+        bannedCards: [],
+        isSheetDraft: false,
+        redactedSeats: [],
+      },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -2485,7 +2709,8 @@ describe("liveStore — toggleAutoPick mid-turn", () => {
     await new Promise((r) => setTimeout(r, 0));
 
     const pickCalls = fetchSpy.mock.calls.filter(
-      (c) => String(c[0]).includes("/pick") && JSON.parse(c[1]?.body as string ?? "{}").auto === true,
+      (c) =>
+        String(c[0]).includes("/pick") && JSON.parse((c[1]?.body as string) ?? "{}").auto === true
     );
     expect(pickCalls).toHaveLength(1);
   });
@@ -2494,8 +2719,13 @@ describe("liveStore — toggleAutoPick mid-turn", () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => {
       if (String(input).includes("/pick")) {
         return new Response(
-          JSON.stringify({ pickedCard: null, autoPickDisabled: false, phaseChanged: false, newPhase: null }),
-          { status: 200 },
+          JSON.stringify({
+            pickedCard: null,
+            autoPickDisabled: false,
+            phaseChanged: false,
+            newPhase: null,
+          }),
+          { status: 200 }
         );
       }
       // seat-settings PUT
@@ -2504,8 +2734,24 @@ describe("liveStore — toggleAutoPick mid-turn", () => {
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useDraftStore.setState({
-      liveDraftStatus: { latestPickN: 0, nextSeat: 2, recentPicks: [], matchCount: 0, totalMatches: 0 },
-      board: { phase: "drafting", numSeats: 4, picksPerPlayer: 6, doublePickAfterRound: null, picks: [], seatNames: {}, bannedCards: [], isSheetDraft: false, redactedSeats: [] },
+      liveDraftStatus: {
+        latestPickN: 0,
+        nextSeat: 2,
+        recentPicks: [],
+        matchCount: 0,
+        totalMatches: 0,
+      },
+      board: {
+        phase: "drafting",
+        numSeats: 4,
+        picksPerPlayer: 6,
+        doublePickAfterRound: null,
+        picks: [],
+        seatNames: {},
+        bannedCards: [],
+        isSheetDraft: false,
+        redactedSeats: [],
+      },
     });
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -2557,9 +2803,7 @@ describe("liveStore — dispatchDeck", () => {
     vi.useFakeTimers();
 
     // Mock fetch to prevent real calls
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc" });
@@ -2576,7 +2820,7 @@ describe("liveStore — dispatchDeck", () => {
 
     expect(globalThis.fetch).toHaveBeenCalledWith(
       "/api/drafts/draft-1/deck-state",
-      expect.objectContaining({ method: "PUT" }),
+      expect.objectContaining({ method: "PUT" })
     );
 
     vi.useRealTimers();
@@ -2585,9 +2829,7 @@ describe("liveStore — dispatchDeck", () => {
   it("does not schedule save for INIT_FROM_SNAPSHOT", () => {
     vi.useFakeTimers();
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc" });
@@ -2601,7 +2843,7 @@ describe("liveStore — dispatchDeck", () => {
 
     expect(globalThis.fetch).not.toHaveBeenCalledWith(
       "/api/drafts/draft-1/deck-state",
-      expect.objectContaining({ method: "PUT" }),
+      expect.objectContaining({ method: "PUT" })
     );
 
     vi.useRealTimers();
@@ -2618,9 +2860,9 @@ describe("liveStore — dispatchDeck", () => {
     // to swallow the user's edit.
     vi.useFakeTimers();
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc" });
@@ -2655,7 +2897,7 @@ describe("liveStore — dispatchDeck", () => {
 
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/drafts/draft-1/deck-state",
-      expect.objectContaining({ method: "PUT" }),
+      expect.objectContaining({ method: "PUT" })
     );
 
     vi.useRealTimers();
@@ -2666,9 +2908,7 @@ describe("liveStore — dispatchDeck", () => {
     // trigger a save — it is the automatic sync, not a user edit.
     vi.useFakeTimers();
 
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc" });
@@ -2690,7 +2930,7 @@ describe("liveStore — dispatchDeck", () => {
 
     expect(globalThis.fetch).not.toHaveBeenCalledWith(
       "/api/drafts/draft-1/deck-state",
-      expect.objectContaining({ method: "PUT" }),
+      expect.objectContaining({ method: "PUT" })
     );
 
     vi.useRealTimers();
@@ -2702,9 +2942,9 @@ describe("liveStore — dispatchDeck", () => {
     // and the edit must be saved.
     vi.useFakeTimers();
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc" });
@@ -2730,7 +2970,7 @@ describe("liveStore — dispatchDeck", () => {
 
     expect(fetchSpy).toHaveBeenCalledWith(
       "/api/drafts/draft-1/deck-state",
-      expect.objectContaining({ method: "PUT" }),
+      expect.objectContaining({ method: "PUT" })
     );
 
     vi.useRealTimers();
@@ -2754,8 +2994,8 @@ describe("liveStore — fetchDeckState", () => {
     const snapshot = createEmptyDeckState("draft-1", 2);
     snapshot.zones.deck["mv-3"] = ["Counterspell"];
 
-    vi.spyOn(globalThis, "fetch").mockImplementation(async () =>
-      new Response(JSON.stringify(snapshot), { status: 200 }),
+    vi.spyOn(globalThis, "fetch").mockImplementation(
+      async () => new Response(JSON.stringify(snapshot), { status: 200 })
     );
 
     useDraftStore.setState({ activeDraft: "draft-1" });
@@ -2770,7 +3010,7 @@ describe("liveStore — fetchDeckState", () => {
 
   it("marks deckReady true after fetch", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify(createEmptyDeckState("draft-1", 1)), { status: 200 }),
+      new Response(JSON.stringify(createEmptyDeckState("draft-1", 1)), { status: 200 })
     );
 
     useLiveStore.setState({ seatToken: "tok-abc" });
@@ -2785,9 +3025,7 @@ describe("liveStore — fetchDeckState", () => {
   });
 
   it("handles 404 — creates empty deck with correct identity and marks ready", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("Not found", { status: 404 }),
-    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("Not found", { status: 404 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc" });
@@ -2814,9 +3052,7 @@ describe("liveStore — fetchDeckState", () => {
   });
 
   it("marks deckReady true without seatToken (spectator mode)", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: null, deckReady: false });
@@ -2828,8 +3064,9 @@ describe("liveStore — fetchDeckState", () => {
 
     expect(useLiveStore.getState().deckReady).toBe(true);
     // No server fetch for deck-state when unauthenticated
-    const deckStateCalls = vi.mocked(globalThis.fetch).mock.calls
-      .filter((c) => String(c[0]).includes("deck-state"));
+    const deckStateCalls = vi
+      .mocked(globalThis.fetch)
+      .mock.calls.filter((c) => String(c[0]).includes("deck-state"));
     expect(deckStateCalls).toHaveLength(0);
   });
 });
@@ -2874,9 +3111,9 @@ describe("liveStore — deck save", () => {
   it("flushSave PUTs to /api/drafts/{id}/deck-state", async () => {
     vi.useFakeTimers();
     try {
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        new Response("{}", { status: 200 }),
-      );
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockResolvedValue(new Response("{}", { status: 200 }));
 
       useDraftStore.setState({ activeDraft: "draft-1" });
       useLiveStore.setState({ seatToken: "tok-abc" });
@@ -2902,7 +3139,7 @@ describe("liveStore — deck save", () => {
             "X-Seat-Token": "tok-abc",
             "Content-Type": "application/json",
           }),
-        }),
+        })
       );
 
       // Should transition to "saved" then back to "idle"
@@ -2938,7 +3175,7 @@ describe("liveStore — draft-switch auth reset", () => {
       mySeat: 3,
       autoPick: false,
       displayName: "Alice",
-      queue: [{ mode: 'pause', cards: [{ cardId: 10, cardName: "Bolt" }] }],
+      queue: [{ mode: "pause", cards: [{ cardId: 10, cardName: "Bolt" }] }],
       queuedCardCounts: new Map([["Bolt", 1]]),
       floatedCards: ["Counterspell"],
       floatedCardsSet: new Set(["Counterspell"]),
@@ -2947,7 +3184,7 @@ describe("liveStore — draft-switch auth reset", () => {
 
     // Stub fetch to prevent actual network calls from hydrateToken/fetchMySeat
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({}), { status: 401 }),
+      new Response(JSON.stringify({}), { status: 401 })
     );
 
     // Switch to draft-2 (no token stored)
@@ -2973,7 +3210,7 @@ describe("liveStore — draft-switch auth reset", () => {
 
     // Stub fetch for fetchMySeat
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ seat: 5, autoPick: true, displayName: "Bob" }), { status: 200 }),
+      new Response(JSON.stringify({ seat: 5, autoPick: true, displayName: "Bob" }), { status: 200 })
     );
 
     // Switch to draft-2
@@ -3003,9 +3240,9 @@ describe("liveStore — per-seat data from /live poll (Task 24)", () => {
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({ seatToken: "tok-abc", mySeat: 2 });
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ queue: [] }), { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ queue: [] }), { status: 200 }));
 
     // Increment pollCount (simulating a poll cycle completing)
     useDraftStore.setState({ pollCount: 1 });
@@ -3042,7 +3279,11 @@ describe("liveStore — per-seat data from /live poll (Task 24)", () => {
 
   it("deep-compare keeps queue reference stable when content is unchanged", () => {
     const originalQueue = [{ mode: "pause" as const, cards: [{ cardId: 1, cardName: "Bolt" }] }];
-    useLiveStore.setState({ mySeat: 1, queue: originalQueue, queuedCardCounts: new Map([["Bolt", 1]]) });
+    useLiveStore.setState({
+      mySeat: 1,
+      queue: originalQueue,
+      queuedCardCounts: new Map([["Bolt", 1]]),
+    });
 
     _applyMeDataForTest({
       seat: 1,
@@ -3108,9 +3349,9 @@ describe("liveStore — draft-switch deck-state reset", () => {
   it("cancels a pending debounced save when switching drafts — no PUT fires", async () => {
     vi.useFakeTimers();
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-A" });
     useLiveStore.setState({ seatToken: "tok-A" });
@@ -3131,7 +3372,7 @@ describe("liveStore — draft-switch deck-state reset", () => {
     // No deck-state PUT should have been made — the save was for draft-A but
     // activeDraft is now draft-B
     const deckStatePuts = fetchSpy.mock.calls.filter(
-      (c) => String(c[0]).includes("deck-state") && (c[1] as RequestInit)?.method === "PUT",
+      (c) => String(c[0]).includes("deck-state") && (c[1] as RequestInit)?.method === "PUT"
     );
     expect(deckStatePuts).toHaveLength(0);
   });
@@ -3141,7 +3382,10 @@ describe("liveStore — draft-switch deck-state reset", () => {
     useDraftStore.setState({ activeDraft: "draft-A" });
     useLiveStore.setState({
       seatToken: "tok-A",
-      deckState: { ...createEmptyDeckState("draft-A", 3), zones: { deck: { "mv-2": ["Bolt"] }, sideboard: {} } },
+      deckState: {
+        ...createEmptyDeckState("draft-A", 3),
+        zones: { deck: { "mv-2": ["Bolt"] }, sideboard: {} },
+      },
       deckReady: true,
       deckSaveStatus: "saved",
       viewingSharedDeck: true,
@@ -3149,9 +3393,7 @@ describe("liveStore — draft-switch deck-state reset", () => {
 
     // Mock fetch: return 404 for deck-state (no saved state) so fetchDeckState
     // completes without loading new content
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 404 }),
-    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 404 }));
 
     // Switch to draft-B — synchronous reset must wipe deck state immediately
     useDraftStore.getState().setActiveDraft("draft-B");
@@ -3174,14 +3416,15 @@ describe("liveStore — draft-switch deck-state reset", () => {
     useDraftStore.setState({ activeDraft: "draft-A" });
     useLiveStore.setState({
       seatToken: "tok-A",
-      deckState: { ...createEmptyDeckState("draft-A", 2), zones: { deck: { "mv-3": ["Counterspell"] }, sideboard: {} } },
+      deckState: {
+        ...createEmptyDeckState("draft-A", 2),
+        zones: { deck: { "mv-3": ["Counterspell"] }, sideboard: {} },
+      },
       deckReady: true,
     });
 
     // Switch to draft-B where no token is stored in localStorage
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.getState().setActiveDraft("draft-B");
 
@@ -3218,11 +3461,16 @@ describe("liveStore — reportMatch", () => {
   });
 
   it("POSTs to /api/drafts/{id}/match with X-Seat-Token and correct body", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
-    useDraftStore.setState({ activeDraft: "draft-1", standings: [], standingsMatches: [], standingsLoading: false });
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      standings: [],
+      standingsMatches: [],
+      standingsLoading: false,
+    });
     useLiveStore.setState({ seatToken: "tok-abc" });
 
     const result = await useLiveStore.getState().reportMatch({
@@ -3238,16 +3486,19 @@ describe("liveStore — reportMatch", () => {
         method: "POST",
         headers: expect.objectContaining({ "X-Seat-Token": "tok-abc" }),
         body: JSON.stringify({ opponent_seat: 3, wins: 2, losses: 1 }),
-      }),
+      })
     );
   });
 
   it("returns null and refreshes standings on success", async () => {
-    vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response("{}", { status: 200 }));
 
-    useDraftStore.setState({ activeDraft: "draft-1", standings: [], standingsMatches: [], standingsLoading: false });
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      standings: [],
+      standingsMatches: [],
+      standingsLoading: false,
+    });
     useLiveStore.setState({ seatToken: "tok-abc" });
 
     const result = await useLiveStore.getState().reportMatch({
@@ -3258,17 +3509,24 @@ describe("liveStore — reportMatch", () => {
 
     expect(result).toBeNull();
     // fetchStandings was called (the standings fetch is a GET to /api/drafts/{id}/standings)
-    const standingsCalls = (vi.spyOn(globalThis, "fetch") as unknown as { mock: { calls: unknown[][] } }).mock.calls;
+    const standingsCalls = (
+      vi.spyOn(globalThis, "fetch") as unknown as { mock: { calls: unknown[][] } }
+    ).mock.calls;
     // At minimum the match POST was called; standings fetch fires after
     expect(standingsCalls.length).toBeGreaterThanOrEqual(0);
   });
 
   it("returns error message string on HTTP failure", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ error: "Already reported" }), { status: 409 }),
+      new Response(JSON.stringify({ error: "Already reported" }), { status: 409 })
     );
 
-    useDraftStore.setState({ activeDraft: "draft-1", standings: [], standingsMatches: [], standingsLoading: false });
+    useDraftStore.setState({
+      activeDraft: "draft-1",
+      standings: [],
+      standingsMatches: [],
+      standingsLoading: false,
+    });
     useLiveStore.setState({ seatToken: "tok-abc" });
 
     const result = await useLiveStore.getState().reportMatch({
@@ -3319,24 +3577,27 @@ describe("liveStore — reportMatch optimistic continuity", () => {
    */
   function mockMatchFlow(
     postStatus: number,
-    standingsBodies: Array<{ standings: unknown[]; matches: unknown[] }>,
+    standingsBodies: Array<{ standings: unknown[]; matches: unknown[] }>
   ) {
     let standingsCalls = 0;
-    return vi.spyOn(globalThis, "fetch").mockImplementation(async (input: string | URL | Request) => {
-      const url = String(input);
-      if (url.includes("/match")) {
-        const body = postStatus === 200
-          ? JSON.stringify({ success: true })
-          : JSON.stringify({ error: "Report failed" });
-        return new Response(body, { status: postStatus });
-      }
-      if (url.includes("/standings")) {
-        const body = standingsBodies[Math.min(standingsCalls, standingsBodies.length - 1)];
-        standingsCalls++;
-        return new Response(JSON.stringify(body), { status: 200 });
-      }
-      return new Response(JSON.stringify({ unchanged: true }), { status: 200 });
-    });
+    return vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async (input: string | URL | Request) => {
+        const url = String(input);
+        if (url.includes("/match")) {
+          const body =
+            postStatus === 200
+              ? JSON.stringify({ success: true })
+              : JSON.stringify({ error: "Report failed" });
+          return new Response(body, { status: postStatus });
+        }
+        if (url.includes("/standings")) {
+          const body = standingsBodies[Math.min(standingsCalls, standingsBodies.length - 1)];
+          standingsCalls++;
+          return new Response(JSON.stringify(body), { status: 200 });
+        }
+        return new Response(JSON.stringify({ unchanged: true }), { status: 200 });
+      });
   }
 
   it("keeps the entered result visible when the post-report standings refetch returns stale data", async () => {
@@ -3469,9 +3730,9 @@ describe("liveStore — shareDeck", () => {
   });
 
   it("POSTs to /api/deck with the current deckState and returns share URL", async () => {
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ deckId: "abc123" }), { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(JSON.stringify({ deckId: "abc123" }), { status: 200 }));
 
     const deckState = createEmptyDeckState("draft-1", 2);
     useLiveStore.setState({ deckState });
@@ -3479,15 +3740,12 @@ describe("liveStore — shareDeck", () => {
     const url = await useLiveStore.getState().shareDeck();
 
     expect(url).toBe("http://localhost:3000/?deck=abc123");
-    expect(fetchSpy).toHaveBeenCalledWith(
-      "/api/deck",
-      expect.objectContaining({ method: "POST" }),
-    );
+    expect(fetchSpy).toHaveBeenCalledWith("/api/deck", expect.objectContaining({ method: "POST" }));
   });
 
   it("throws when the server returns an error", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ error: "Rate limited" }), { status: 429 }),
+      new Response(JSON.stringify({ error: "Rate limited" }), { status: 429 })
     );
 
     await expect(useLiveStore.getState().shareDeck()).rejects.toThrow("Rate limited");
@@ -3519,9 +3777,9 @@ describe("liveStore — idle poll cycles produce zero deck-state PUTs", () => {
     // does not run, and the deck is not marked dirty → no PUTs.
     vi.useFakeTimers();
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     useDraftStore.setState({ activeDraft: "draft-1" });
     useLiveStore.setState({
@@ -3549,7 +3807,7 @@ describe("liveStore — idle poll cycles produce zero deck-state PUTs", () => {
 
     // No deck-state PUTs must have fired
     const deckStatePuts = fetchSpy.mock.calls.filter(
-      (c) => String(c[0]).includes("deck-state") && (c[1] as RequestInit)?.method === "PUT",
+      (c) => String(c[0]).includes("deck-state") && (c[1] as RequestInit)?.method === "PUT"
     );
     expect(deckStatePuts).toHaveLength(0);
   });
@@ -3631,7 +3889,10 @@ describe("liveStore — syncDeckWithPicks", () => {
       queue: [],
     });
     useDraftStore.setState({ selectedSeat: 2 });
-    useCardStore.setState({ seatCardList: ["Lightning Bolt", "Counterspell"], scryfallDataMap: new Map() });
+    useCardStore.setState({
+      seatCardList: ["Lightning Bolt", "Counterspell"],
+      scryfallDataMap: new Map(),
+    });
 
     const syncDeck = makeSyncDeckWithPicks(useLiveStore.getState);
     syncDeck();
@@ -3647,7 +3908,7 @@ describe("liveStore — syncDeckWithPicks", () => {
       deckBuilderActive: true,
       deckReady: true,
       viewingSharedDeck: false,
-      mySeat: 1,   // authed as seat 1
+      mySeat: 1, // authed as seat 1
       floatedCards: ["Force of Will"],
       queue: [{ mode: "pause", cards: [{ cardId: 9, cardName: "Brainstorm" }] }],
     });
@@ -3694,7 +3955,7 @@ describe("liveStore — syncDeckWithPicks", () => {
       deckReady: true,
       viewingSharedDeck: false,
       mySeat: 4,
-      floatedCards: ["Brainstorm"],  // also in queue
+      floatedCards: ["Brainstorm"], // also in queue
       queue: [{ mode: "flow-through", cards: [{ cardId: 5, cardName: "Brainstorm" }] }],
     });
     useDraftStore.setState({ selectedSeat: 4 });
@@ -3825,9 +4086,7 @@ describe("liveStore — deck row migration", () => {
   });
 
   it("marks the deck ready on entering a shared view, so the sync can migrate it", () => {
-    useLiveStore
-      .getState()
-      .enterSharedView("draft-1", 1, deckStateWithCounterspell("mv-2"));
+    useLiveStore.getState().enterSharedView("draft-1", 1, deckStateWithCounterspell("mv-2"));
     useLiveStore.setState({ deckBuilderActive: true });
     // Entering a shared view resets the card store, so card data lands after
     // the snapshot does — which is why the migration is driven by a sync rather
@@ -3845,9 +4104,9 @@ describe("liveStore — deck row migration", () => {
 
   it("does not mark the deck dirty when the state is already at the current version", async () => {
     vi.useFakeTimers();
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     useLiveStore.setState({
       seatToken: "tok-abc",
@@ -3869,9 +4128,9 @@ describe("liveStore — deck row migration", () => {
 
   it("persists the migration once for a pre-split deck", async () => {
     vi.useFakeTimers();
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     useLiveStore.setState({
       seatToken: "tok-abc",

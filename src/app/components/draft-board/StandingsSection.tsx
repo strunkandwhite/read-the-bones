@@ -35,20 +35,18 @@ function DraftProgress({
   const isMyPick = mySeat !== null && status.nextSeat === mySeat;
   const nextSeatName =
     status.nextSeat !== null
-      ? board.seatNames[String(status.nextSeat)] ?? `Seat ${status.nextSeat}`
+      ? (board.seatNames[String(status.nextSeat)] ?? `Seat ${status.nextSeat}`)
       : null;
 
   return (
     <div className="py-2 text-xs text-zinc-500">
       {isMyPick ? (
         <span>
-          <span className="text-emerald-400">Your pick</span>{" "}
-          (Pick #{nextPickNumber})
+          <span className="text-emerald-400">Your pick</span> (Pick #{nextPickNumber})
         </span>
       ) : nextSeatName ? (
         <span>
-          Next pick: <span className="text-zinc-200">{nextSeatName}</span>{" "}
-          (Pick #{nextPickNumber})
+          Next pick: <span className="text-zinc-200">{nextSeatName}</span> (Pick #{nextPickNumber})
         </span>
       ) : null}
     </div>
@@ -119,11 +117,14 @@ function StandingsTable({
     if (status) void fetchStandings();
   }, [status?.matchCount, fetchStandings]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleMatchReported = useCallback((_data: MatchReportData) => {
-    // Show a pending state immediately; standings will refresh after the action completes.
-    setReportPending(true);
-    onMatchReported();
-  }, [onMatchReported]);
+  const handleMatchReported = useCallback(
+    (_data: MatchReportData) => {
+      // Show a pending state immediately; standings will refresh after the action completes.
+      setReportPending(true);
+      onMatchReported();
+    },
+    [onMatchReported]
+  );
 
   const handleMatchReverted = useCallback(async () => {
     await fetchStandings();
@@ -135,46 +136,47 @@ function StandingsTable({
       setReportPending(false);
       return err;
     },
-    [reportMatch],
+    [reportMatch]
   );
 
   if (standingsLoading && standings.length === 0) {
-    return (
-      <div className="py-3 text-zinc-500 text-xs">
-        Loading standings...
-      </div>
-    );
+    return <div className="py-3 text-xs text-zinc-500">Loading standings...</div>;
   }
 
   return (
     <div className="py-3">
-      <div className="flex gap-6 flex-wrap items-start">
-        <div className="flex-1 basis-[calc(50%-0.75rem)] min-w-[480px]">
-          <h3 className="text-[13px] font-semibold text-zinc-200 mb-2">
+      <div className="flex flex-wrap items-start gap-6">
+        <div className="min-w-[480px] flex-1 basis-[calc(50%-0.75rem)]">
+          <h3 className="mb-2 text-[13px] font-semibold text-zinc-200">
             Standings
             {reportPending && (
-              <span className="ml-2 text-xs font-normal text-zinc-500">
-                Updating...
-              </span>
+              <span className="ml-2 text-xs font-normal text-zinc-500">Updating...</span>
             )}
           </h3>
           {standings.length > 0 ? (
-            <table className="border-collapse table-fixed text-sm w-full text-zinc-300">
+            <table className="w-full table-fixed border-collapse text-sm text-zinc-300">
               <thead>
                 <tr className="border-b border-zinc-700">
-                  <th className="px-1.5 py-1 text-left text-zinc-500 font-normal whitespace-nowrap">Player</th>
-                  <th className="px-1.5 py-1 text-center text-zinc-500 font-normal whitespace-nowrap">Match W-L</th>
-                  <th className="px-1.5 py-1 text-center text-zinc-500 font-normal whitespace-nowrap">Game W-L</th>
-                  <th className="px-1.5 py-1 text-center text-zinc-500 font-normal whitespace-nowrap">OMW%</th>
-                  <th className="px-1.5 py-1 text-center text-zinc-500 font-normal whitespace-nowrap">OGW%</th>
+                  <th className="px-1.5 py-1 text-left font-normal whitespace-nowrap text-zinc-500">
+                    Player
+                  </th>
+                  <th className="px-1.5 py-1 text-center font-normal whitespace-nowrap text-zinc-500">
+                    Match W-L
+                  </th>
+                  <th className="px-1.5 py-1 text-center font-normal whitespace-nowrap text-zinc-500">
+                    Game W-L
+                  </th>
+                  <th className="px-1.5 py-1 text-center font-normal whitespace-nowrap text-zinc-500">
+                    OMW%
+                  </th>
+                  <th className="px-1.5 py-1 text-center font-normal whitespace-nowrap text-zinc-500">
+                    OGW%
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {standings.map((row) => (
-                  <tr
-                    key={row.seat}
-                    className={row.seat === mySeat ? "bg-blue-500/10" : ""}
-                  >
+                  <tr key={row.seat} className={row.seat === mySeat ? "bg-blue-500/10" : ""}>
                     <td className="px-1.5 py-1 whitespace-nowrap">
                       {board.seatNames[String(row.seat)] || `Seat ${row.seat}`}
                     </td>
@@ -184,10 +186,10 @@ function StandingsTable({
                     <td className="px-1.5 py-1 text-center whitespace-nowrap">
                       {row.gameWins}-{row.gameLosses}
                     </td>
-                    <td className="px-1.5 py-1 text-center text-zinc-400 whitespace-nowrap">
+                    <td className="px-1.5 py-1 text-center whitespace-nowrap text-zinc-400">
                       {row.omwPct !== null ? (row.omwPct * 100).toFixed(1) + "%" : "—"}
                     </td>
-                    <td className="px-1.5 py-1 text-center text-zinc-400 whitespace-nowrap">
+                    <td className="px-1.5 py-1 text-center whitespace-nowrap text-zinc-400">
                       {row.ogwPct !== null ? (row.ogwPct * 100).toFixed(1) + "%" : "—"}
                     </td>
                   </tr>
@@ -198,11 +200,11 @@ function StandingsTable({
             <p className="text-xs text-zinc-500">No match results yet.</p>
           )}
         </div>
-        <div className="flex-1 basis-[calc(50%-0.75rem)] min-w-[480px]">
-          <h3 className="text-[13px] font-semibold text-zinc-200 mb-2">
+        <div className="min-w-[480px] flex-1 basis-[calc(50%-0.75rem)]">
+          <h3 className="mb-2 text-[13px] font-semibold text-zinc-200">
             Match Results
             <span
-              className="ml-1.5 text-zinc-500 cursor-help"
+              className="ml-1.5 cursor-help text-zinc-500"
               title="Read left to right: each row shows that player's result against the column player"
             >
               ?

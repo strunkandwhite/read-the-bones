@@ -1,12 +1,17 @@
-import type { Client } from '@libsql/client';
-import { getNextPick, getTotalPicks } from './snakeDraft';
-import { removeCardFromAllQueues, trimExcessQueueEntries, getAutoPickCandidate, fulfillGroupEntry } from './db/queries/pickQueue';
-import { addFloatedCard, removeFloatedCardByCardId } from './db/queries/floatedCards';
-import { getAllSeatSettings, updateAutoPick } from './db/queries/seatTokens';
-import { getDraftMeta } from './db/queries/drafts';
-import { getLatestPickNumber } from './db/queries/picks';
-import { NotFoundError, ValidationError, ConflictError } from './errors';
-import type { PickSource } from './pickSource';
+import type { Client } from "@libsql/client";
+import { getNextPick, getTotalPicks } from "./snakeDraft";
+import {
+  removeCardFromAllQueues,
+  trimExcessQueueEntries,
+  getAutoPickCandidate,
+  fulfillGroupEntry,
+} from "./db/queries/pickQueue";
+import { addFloatedCard, removeFloatedCardByCardId } from "./db/queries/floatedCards";
+import { getAllSeatSettings, updateAutoPick } from "./db/queries/seatTokens";
+import { getDraftMeta } from "./db/queries/drafts";
+import { getLatestPickNumber } from "./db/queries/picks";
+import { NotFoundError, ValidationError, ConflictError } from "./errors";
+import type { PickSource } from "./pickSource";
 
 export interface ProcessPickResult {
   picks: { pickN: number; seat: number; cardId: number; cardName: string }[];
@@ -65,7 +70,7 @@ async function getRemainingCopiesForPick(
   client: Client,
   draftId: string,
   cardId: number,
-  cardName: string,
+  cardName: string
 ): Promise<CopyInfo> {
   const result = await client.execute({
     sql: `SELECT COUNT(pe.pick_n) as picked_count, csc.qty
@@ -95,7 +100,7 @@ async function insertPickEvent(
   pickN: number,
   seat: number,
   cardId: number,
-  source: PickSource,
+  source: PickSource
 ): Promise<number> {
   const result = await client.execute({
     sql: `INSERT INTO pick_events (draft_id, pick_n, seat, card_id, created_at, source)
@@ -109,13 +114,13 @@ async function insertPickEvent(
 }
 
 type AutoPickAdvance =
-  | { kind: 'candidate'; seat: number; cardId: number; cardName: string; entryIndex: number }
-  | { kind: 'none' };
+  | { kind: "candidate"; seat: number; cardId: number; cardName: string; entryIndex: number }
+  | { kind: "none" };
 
 type SeatCandidateResult =
-  | { kind: 'candidate'; cardId: number; cardName: string; entryIndex: number }
-  | { kind: 'paused' }
-  | { kind: 'none' };
+  | { kind: "candidate"; cardId: number; cardName: string; entryIndex: number }
+  | { kind: "paused" }
+  | { kind: "none" };
 
 /**
  * Single source of truth for auto-pick candidate selection for a given seat.
@@ -146,7 +151,7 @@ async function selectAutoPickCandidateForSeat(
   draftId: string,
   seat: number,
   seatSettings: { autoPick: boolean; displayName: string | null },
-  allSeatSettings: Map<number, { autoPick: boolean; displayName: string | null }>,
+  allSeatSettings: Map<number, { autoPick: boolean; displayName: string | null }>
 ): Promise<SeatCandidateResult> {
   // Collect available card_ids (quantity-aware)
   const available = await client.execute({
@@ -166,13 +171,13 @@ async function selectAutoPickCandidateForSeat(
 
   const autoPickResult = await getAutoPickCandidate(client, draftId, seat, availableSet);
 
-  if (autoPickResult.kind !== 'candidate') {
-    if (autoPickResult.kind === 'paused') {
+  if (autoPickResult.kind !== "candidate") {
+    if (autoPickResult.kind === "paused") {
       await updateAutoPick(client, draftId, seat, false);
       allSeatSettings.set(seat, { ...seatSettings, autoPick: false });
-      return { kind: 'paused' };
+      return { kind: "paused" };
     }
-    return { kind: 'none' };
+    return { kind: "none" };
   }
 
   // Resolve the card name from the DB
@@ -180,10 +185,10 @@ async function selectAutoPickCandidateForSeat(
     sql: `SELECT name FROM cards WHERE card_id = ?`,
     args: [autoPickResult.cardId],
   });
-  if (cardRow.rows.length === 0) return { kind: 'none' };
+  if (cardRow.rows.length === 0) return { kind: "none" };
 
   return {
-    kind: 'candidate',
+    kind: "candidate",
     cardId: autoPickResult.cardId,
     cardName: cardRow.rows[0].name as string,
     entryIndex: autoPickResult.entryIndex,
@@ -206,28 +211,32 @@ async function advanceAutoPick(
   numSeats: number,
   picksPerPlayer: number,
   doublePickAfterRound: number | null,
-  allSeatSettings: Map<number, { autoPick: boolean; displayName: string | null }>,
+  allSeatSettings: Map<number, { autoPick: boolean; displayName: string | null }>
 ): Promise<AutoPickAdvance> {
   const nextAfter = getNextPick(totalPicksSoFar, numSeats, picksPerPlayer, doublePickAfterRound);
-  if (!nextAfter) return { kind: 'none' };
+  if (!nextAfter) return { kind: "none" };
 
   const nextSettings = allSeatSettings.get(nextAfter.seat);
-  if (!nextSettings?.autoPick) return { kind: 'none' };
+  if (!nextSettings?.autoPick) return { kind: "none" };
 
   const result = await selectAutoPickCandidateForSeat(
-    client, draftId, nextAfter.seat, nextSettings, allSeatSettings,
+    client,
+    draftId,
+    nextAfter.seat,
+    nextSettings,
+    allSeatSettings
   );
 
-  if (result.kind === 'candidate') {
+  if (result.kind === "candidate") {
     return {
-      kind: 'candidate',
+      kind: "candidate",
       seat: nextAfter.seat,
       cardId: result.cardId,
       cardName: result.cardName,
       entryIndex: result.entryIndex,
     };
   }
-  return { kind: 'none' };
+  return { kind: "none" };
 }
 
 // ============================================================================
@@ -255,14 +264,14 @@ async function advanceAutoPick(
 export async function triggerAutoPickOnDemand(
   client: Client,
   draftId: string,
-  seat: number,
+  seat: number
 ): Promise<AutoPickOnDemandResult> {
   // 1. Load draft metadata
   const meta = await getDraftMeta(client, draftId);
-  if (!meta) throw new NotFoundError('Draft not found');
+  if (!meta) throw new NotFoundError("Draft not found");
   const { phase, numSeats, picksPerPlayer, doublePickAfterRound } = meta;
 
-  if (phase !== 'drafting') {
+  if (phase !== "drafting") {
     throw new ValidationError(`Draft is in '${phase}' phase, not 'drafting'`);
   }
 
@@ -273,7 +282,7 @@ export async function triggerAutoPickOnDemand(
   // forever. The board and the live route derive the turn the same way.
   const latestPickN = await getLatestPickNumber(client, draftId);
   const next = getNextPick(latestPickN, numSeats, picksPerPlayer, doublePickAfterRound);
-  if (!next) throw new ValidationError('All picks are made');
+  if (!next) throw new ValidationError("All picks are made");
   if (next.seat !== seat) {
     throw new ValidationError(`It's seat ${next.seat}'s turn, not seat ${seat}'s`);
   }
@@ -287,20 +296,42 @@ export async function triggerAutoPickOnDemand(
   // own seat, so trusting the request alone would let it pick while the seat has
   // auto-pick disabled server-side. Reporting autoPickDisabled corrects the client.
   if (!seatSettings.autoPick) {
-    return { pickedCard: null, picks: [], autoPickDisabled: true, phaseChanged: false, newPhase: null };
+    return {
+      pickedCard: null,
+      picks: [],
+      autoPickDisabled: true,
+      phaseChanged: false,
+      newPhase: null,
+    };
   }
 
   const candidateResult = await selectAutoPickCandidateForSeat(
-    client, draftId, seat, seatSettings, allSeatSettings,
+    client,
+    draftId,
+    seat,
+    seatSettings,
+    allSeatSettings
   );
 
-  if (candidateResult.kind === 'paused') {
+  if (candidateResult.kind === "paused") {
     // Pause-mode exhaustion: auto-pick already disabled in selectAutoPickCandidateForSeat
-    return { pickedCard: null, picks: [], autoPickDisabled: true, phaseChanged: false, newPhase: null };
+    return {
+      pickedCard: null,
+      picks: [],
+      autoPickDisabled: true,
+      phaseChanged: false,
+      newPhase: null,
+    };
   }
-  if (candidateResult.kind === 'none') {
+  if (candidateResult.kind === "none") {
     // Queue empty (flow-through exhausted or no entries)
-    return { pickedCard: null, picks: [], autoPickDisabled: false, phaseChanged: false, newPhase: null };
+    return {
+      pickedCard: null,
+      picks: [],
+      autoPickDisabled: false,
+      phaseChanged: false,
+      newPhase: null,
+    };
   }
 
   const { cardId, cardName } = candidateResult;
@@ -312,12 +343,14 @@ export async function triggerAutoPickOnDemand(
     latestPickN,
     { numSeats, picksPerPlayer, doublePickAfterRound },
     allSeatSettings,
-    'ondemand',
+    "ondemand"
   );
 
   const first = outcome.picks[0];
   return {
-    pickedCard: first ? { pickN: first.pickN, cardId: first.cardId, cardName: first.cardName } : null,
+    pickedCard: first
+      ? { pickN: first.pickN, cardId: first.cardId, cardName: first.cardName }
+      : null,
     picks: outcome.picks,
     autoPickDisabled: false,
     phaseChanged: outcome.phaseChanged,
@@ -339,7 +372,7 @@ async function commitQueueEntryForPick(
   draftId: string,
   seat: number,
   entryIndex: number,
-  pickedCardId: number,
+  pickedCardId: number
 ): Promise<void> {
   const fulfilled = await fulfillGroupEntry(client, draftId, seat, entryIndex, pickedCardId);
   if (!fulfilled) return;
@@ -368,10 +401,10 @@ async function insertPickAndCascade(
   latestPickN: number,
   meta: { numSeats: number; picksPerPlayer: number; doublePickAfterRound: number | null },
   allSeatSettings: Map<number, { autoPick: boolean; displayName: string | null }>,
-  firstSource: PickSource,
+  firstSource: PickSource
 ): Promise<CascadeOutcome> {
   const { numSeats, picksPerPlayer, doublePickAfterRound } = meta;
-  const picks: CascadeOutcome['picks'] = [];
+  const picks: CascadeOutcome["picks"] = [];
   const maxCascade = numSeats * 2;
 
   let currentSeat = firstPick.seat;
@@ -384,11 +417,15 @@ async function insertPickAndCascade(
     const pickN = latestPickN + picks.length + 1;
 
     const rowsAffected = await insertPickEvent(
-      client, draftId, pickN, currentSeat, currentCardId,
-      cascadeDepth === 0 ? firstSource : 'cascade',
+      client,
+      draftId,
+      pickN,
+      currentSeat,
+      currentCardId,
+      cascadeDepth === 0 ? firstSource : "cascade"
     );
     if (rowsAffected === 0) {
-      throw new ConflictError('Conflict: pick_n already exists — retry');
+      throw new ConflictError("Conflict: pick_n already exists — retry");
     }
 
     picks.push({ pickN, seat: currentSeat, cardId: currentCardId, cardName: currentCardName });
@@ -396,14 +433,15 @@ async function insertPickAndCascade(
     // Before removeCardFromAllQueues / trimExcessQueueEntries, both of which
     // rewrite queue_json and would invalidate the entry index.
     if (currentEntryIndex !== null) {
-      await commitQueueEntryForPick(
-        client, draftId, currentSeat, currentEntryIndex, currentCardId,
-      );
+      await commitQueueEntryForPick(client, draftId, currentSeat, currentEntryIndex, currentCardId);
     }
 
     // Re-query after the insert, so pickedCount already includes the pick just made.
     const copyInfo = await getRemainingCopiesForPick(
-      client, draftId, currentCardId, currentCardName,
+      client,
+      draftId,
+      currentCardId,
+      currentCardName
     );
     const isLastCopy = copyInfo.pickedCount >= copyInfo.qty;
     const remainingAfterPick = copyInfo.qty - copyInfo.pickedCount;
@@ -435,13 +473,19 @@ async function insertPickAndCascade(
         sql: `UPDATE seat_tokens SET queue_json = '[]' WHERE draft_id = ?`,
         args: [draftId],
       });
-      return { picks, phaseChanged: true, newPhase: 'playing' };
+      return { picks, phaseChanged: true, newPhase: "playing" };
     }
 
     const advance = await advanceAutoPick(
-      client, draftId, totalAfter, numSeats, picksPerPlayer, doublePickAfterRound, allSeatSettings,
+      client,
+      draftId,
+      totalAfter,
+      numSeats,
+      picksPerPlayer,
+      doublePickAfterRound,
+      allSeatSettings
     );
-    if (advance.kind !== 'candidate') break;
+    if (advance.kind !== "candidate") break;
 
     currentSeat = advance.seat;
     currentCardId = advance.cardId;
@@ -468,14 +512,14 @@ async function insertPickAndCascade(
  */
 export async function resumeAutoPickForCurrentSeat(
   client: Client,
-  draftId: string,
+  draftId: string
 ): Promise<CascadeOutcome> {
   const empty: CascadeOutcome = { picks: [], phaseChanged: false, newPhase: null };
 
   const meta = await getDraftMeta(client, draftId);
   if (!meta) return empty;
   const { phase, numSeats, picksPerPlayer, doublePickAfterRound } = meta;
-  if (phase !== 'drafting') return empty;
+  if (phase !== "drafting") return empty;
 
   // The highest pick taken, not how many rows exist: redaction and
   // undo-pick both leave gaps in pick_n, and a count would then name an
@@ -491,9 +535,13 @@ export async function resumeAutoPickForCurrentSeat(
   if (!seatSettings?.autoPick) return empty;
 
   const candidateResult = await selectAutoPickCandidateForSeat(
-    client, draftId, next.seat, seatSettings, allSeatSettings,
+    client,
+    draftId,
+    next.seat,
+    seatSettings,
+    allSeatSettings
   );
-  if (candidateResult.kind !== 'candidate') return empty;
+  if (candidateResult.kind !== "candidate") return empty;
 
   return insertPickAndCascade(
     client,
@@ -507,7 +555,7 @@ export async function resumeAutoPickForCurrentSeat(
     latestPickN,
     { numSeats, picksPerPlayer, doublePickAfterRound },
     allSeatSettings,
-    'resume',
+    "resume"
   );
 }
 
@@ -517,14 +565,14 @@ export async function resumeAutoPickForCurrentSeat(
 
 export async function processPick(
   client: Client,
-  input: ProcessPickInput,
+  input: ProcessPickInput
 ): Promise<ProcessPickResult> {
   // 1. Load draft metadata
   const meta = await getDraftMeta(client, input.draftId);
-  if (!meta) throw new NotFoundError('Draft not found');
+  if (!meta) throw new NotFoundError("Draft not found");
   const { phase, numSeats, picksPerPlayer, bannedCards, doublePickAfterRound } = meta;
 
-  if (phase !== 'drafting') {
+  if (phase !== "drafting") {
     throw new ValidationError(`Draft is in '${phase}' phase, not 'drafting'`);
   }
 
@@ -535,7 +583,7 @@ export async function processPick(
   // forever. The board and the live route derive the turn the same way.
   const latestPickN = await getLatestPickNumber(client, input.draftId);
   const next = getNextPick(latestPickN, numSeats, picksPerPlayer, doublePickAfterRound);
-  if (!next) throw new ValidationError('All picks are made');
+  if (!next) throw new ValidationError("All picks are made");
   if (next.seat !== input.seat) {
     throw new ValidationError(`It's seat ${next.seat}'s turn, not seat ${input.seat}'s`);
   }
@@ -545,7 +593,10 @@ export async function processPick(
     throw new ValidationError(`${input.cardName} is banned`);
   }
   const availCheck = await getRemainingCopiesForPick(
-    client, input.draftId, input.cardId, input.cardName,
+    client,
+    input.draftId,
+    input.cardId,
+    input.cardName
   );
   if (availCheck.pickedCount >= availCheck.qty) {
     throw new ValidationError(`${input.cardName} has already been picked`);
@@ -561,6 +612,6 @@ export async function processPick(
     latestPickN,
     { numSeats, picksPerPlayer, doublePickAfterRound },
     allSeatSettings,
-    'manual',
+    "manual"
   );
 }

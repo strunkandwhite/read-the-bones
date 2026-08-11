@@ -12,24 +12,18 @@ import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 const QUEUE_CARD_CAP = 500;
 
 export const GET = withApiErrors(
-  async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) => {
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { id: draftId } = await params;
     const client = await getClient();
     const { seat } = await authenticateSeat(client, request, draftId);
     const queue = await getQueue(client, draftId, seat);
     return NextResponse.json({ queue });
   },
-  "[/api/drafts/[id]/queue] GET Error:",
+  "[/api/drafts/[id]/queue] GET Error:"
 );
 
 export const PUT = withApiErrors(
-  async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) => {
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { id: draftId } = await params;
     const client = await getClient();
     const { seat } = await authenticateSeat(client, request, draftId);
@@ -39,18 +33,22 @@ export const PUT = withApiErrors(
     }
 
     // Validate and normalize each entry
-    const validModes = new Set(['pause', 'flow-through']);
-    const normalizedEntries: Array<{ mode: 'pause' | 'flow-through'; cardNames: string[] }> = [];
+    const validModes = new Set(["pause", "flow-through"]);
+    const normalizedEntries: Array<{ mode: "pause" | "flow-through"; cardNames: string[] }> = [];
     for (const entry of body) {
       if (!entry || !Array.isArray(entry.cards) || entry.cards.length === 0) {
-        return NextResponse.json({ error: "Each entry must have a non-empty cards array" }, { status: 400 });
+        return NextResponse.json(
+          { error: "Each entry must have a non-empty cards array" },
+          { status: 400 }
+        );
       }
-      const mode: 'pause' | 'flow-through' = entry.mode === 'flow-through' ? 'flow-through' : 'pause';
+      const mode: "pause" | "flow-through" =
+        entry.mode === "flow-through" ? "flow-through" : "pause";
       if (entry.mode !== undefined && !validModes.has(entry.mode)) {
         return NextResponse.json({ error: `Invalid mode: ${entry.mode}` }, { status: 400 });
       }
       const cardNames: string[] = entry.cards.map((c: string | { cardName: string }) =>
-        typeof c === 'string' ? c : c.cardName
+        typeof c === "string" ? c : c.cardName
       );
       normalizedEntries.push({ mode, cardNames });
     }
@@ -58,7 +56,10 @@ export const PUT = withApiErrors(
     // Flatten card names for total count check
     const allCardNames = normalizedEntries.flatMap((e) => e.cardNames);
     if (allCardNames.length > QUEUE_CARD_CAP) {
-      return NextResponse.json({ error: `Queue cannot exceed ${QUEUE_CARD_CAP} cards` }, { status: 400 });
+      return NextResponse.json(
+        { error: `Queue cannot exceed ${QUEUE_CARD_CAP} cards` },
+        { status: 400 }
+      );
     }
 
     // Batch resolve card names to IDs
@@ -95,7 +96,7 @@ export const PUT = withApiErrors(
           const name = [...nameToId.entries()].find(([, id]) => id === cardId)?.[0] ?? "unknown";
           return NextResponse.json(
             { error: `Cannot queue ${name} ${count}x — only ${avail} remaining` },
-            { status: 400 },
+            { status: 400 }
           );
         }
       }
@@ -120,5 +121,5 @@ export const PUT = withApiErrors(
     const queue = await getQueue(client, draftId, seat);
     return NextResponse.json({ queue });
   },
-  "[/api/drafts/[id]/queue] PUT Error:",
+  "[/api/drafts/[id]/queue] PUT Error:"
 );

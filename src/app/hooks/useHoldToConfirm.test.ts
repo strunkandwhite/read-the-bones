@@ -14,9 +14,7 @@ describe("useHoldToConfirm", () => {
 
   it("calls onConfirm after holding for the full duration", async () => {
     const onConfirm = vi.fn();
-    const { result } = renderHook(() =>
-      useHoldToConfirm({ onConfirm, duration: 1500 }),
-    );
+    const { result } = renderHook(() => useHoldToConfirm({ onConfirm, duration: 1500 }));
 
     await act(async () => {
       result.current.handlers.onPointerDown({} as PointerEvent);
@@ -31,9 +29,7 @@ describe("useHoldToConfirm", () => {
 
   it("resets on early release", async () => {
     const onConfirm = vi.fn();
-    const { result } = renderHook(() =>
-      useHoldToConfirm({ onConfirm, duration: 1500 }),
-    );
+    const { result } = renderHook(() => useHoldToConfirm({ onConfirm, duration: 1500 }));
 
     await act(async () => {
       result.current.handlers.onPointerDown({} as PointerEvent);
@@ -51,9 +47,7 @@ describe("useHoldToConfirm", () => {
 
   it("exposes progress advancing from 0 toward 1 while holding", async () => {
     const onConfirm = vi.fn();
-    const { result } = renderHook(() =>
-      useHoldToConfirm({ onConfirm, duration: 1500 }),
-    );
+    const { result } = renderHook(() => useHoldToConfirm({ onConfirm, duration: 1500 }));
 
     await act(async () => {
       result.current.handlers.onPointerDown({} as PointerEvent);

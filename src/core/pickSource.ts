@@ -10,4 +10,4 @@
  *
  * Picks made before this column existed are NULL.
  */
-export type PickSource = 'manual' | 'ondemand' | 'resume' | 'cascade' | 'sheet';
+export type PickSource = "manual" | "ondemand" | "resume" | "cascade" | "sheet";

@@ -13,20 +13,14 @@ export function hashPool(cardNames: string[]): string {
 }
 
 export function hashPicks(picks: CardPick[]): string {
-  const sorted = [...picks].sort(
-    (a, b) => a.pickPosition - b.pickPosition || a.seat - b.seat,
-  );
+  const sorted = [...picks].sort((a, b) => a.pickPosition - b.pickPosition || a.seat - b.seat);
   const lines = sorted.map((p) => `${p.pickPosition}:${p.seat}:${p.cardName}`);
   return sha256Short(lines.join("\n"));
 }
 
 export function hashMatches(matches: MatchResult[]): string {
-  const sorted = [...matches].sort(
-    (a, b) => a.seat1 - b.seat1 || a.seat2 - b.seat2,
-  );
-  const lines = sorted.map(
-    (m) => `${m.seat1}:${m.seat2}:${m.seat1GamesWon}:${m.seat2GamesWon}`,
-  );
+  const sorted = [...matches].sort((a, b) => a.seat1 - b.seat1 || a.seat2 - b.seat2);
+  const lines = sorted.map((m) => `${m.seat1}:${m.seat2}:${m.seat1GamesWon}:${m.seat2GamesWon}`);
   return sha256Short(lines.join("\n"));
 }
 
@@ -54,10 +48,7 @@ export function computeIngestionHash(
   return sha256Short(combined);
 }
 
-export function compareDomainHash(
-  newHash: string,
-  storedHash: string | null,
-): "skip" | "replace" {
+export function compareDomainHash(newHash: string, storedHash: string | null): "skip" | "replace" {
   return newHash === storedHash ? "skip" : "replace";
 }
 
@@ -71,7 +62,7 @@ export interface DomainHashes {
 
 export async function getDomainHashes(
   client: Client,
-  draftId: string,
+  draftId: string
 ): Promise<DomainHashes | null> {
   const result = await client.execute({
     sql: "SELECT pool_hash, picks_hash, matches_hash, phase FROM drafts WHERE draft_id = ?",
@@ -90,7 +81,7 @@ export async function getDomainHashes(
 export async function updateDomainHashes(
   client: Client,
   draftId: string,
-  hashes: Partial<DomainHashes>,
+  hashes: Partial<DomainHashes>
 ): Promise<void> {
   const sets: string[] = [];
   const args: (string | null)[] = [];

@@ -96,9 +96,7 @@ function buildWinsResult(
  * Combines lookupCard, getCardPickStats, and getCardWinStats into a single call.
  * @public Used by API routes
  */
-export async function getCardStats(
-  params: GetCardStatsParams
-): Promise<CardStatsResult | null> {
+export async function getCardStats(params: GetCardStatsParams): Promise<CardStatsResult | null> {
   const client = await getClient();
 
   // Resolve card once — all sub-functions reuse the resolved card_id

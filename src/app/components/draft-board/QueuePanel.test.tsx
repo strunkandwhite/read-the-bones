@@ -97,23 +97,13 @@ describe("QueuePanel", () => {
   });
 
   it("renders taken cards with strike-through", () => {
-    render(
-      <QueuePanel
-        {...defaultProps}
-        takenCards={new Set(["Lightning Bolt"])}
-      />
-    );
+    render(<QueuePanel {...defaultProps} takenCards={new Set(["Lightning Bolt"])} />);
     const bolt = screen.getByText("Lightning Bolt");
     expect(bolt.className).toContain("line-through");
   });
 
   it("does not apply strike-through to non-taken cards", () => {
-    render(
-      <QueuePanel
-        {...defaultProps}
-        takenCards={new Set(["Lightning Bolt"])}
-      />
-    );
+    render(<QueuePanel {...defaultProps} takenCards={new Set(["Lightning Bolt"])} />);
     const counterspell = screen.getByText("Counterspell");
     expect(counterspell.className).not.toContain("line-through");
   });
@@ -241,9 +231,7 @@ describe("QueuePanel", () => {
 
   it("labels the group handle with the group size", () => {
     render(<QueuePanel {...defaultProps} queue={groupEntryQueue} />);
-    expect(
-      screen.getByRole("button", { name: "Reorder group of 3 cards" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Reorder group of 3 cards" })).toBeTruthy();
   });
 });
 

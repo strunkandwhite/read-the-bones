@@ -14,9 +14,7 @@
  * - All colorless cards → "C"
  */
 export function inferDeckColor(colorCounts: Map<string, number>): string {
-  const sorted = [...colorCounts.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .map(([color]) => color);
+  const sorted = [...colorCounts.entries()].sort((a, b) => b[1] - a[1]).map(([color]) => color);
 
   if (sorted.length === 0) return "C";
 

@@ -190,8 +190,7 @@ describe("getWorthTable", () => {
     expect(nullstone.pvi!).toBeGreaterThan(0);
     // Zero-prior shrinkage: worth = w·delta with w from tau0 and the card's
     // se — the price curve plays no part in a data-driven worth.
-    const zeroPriorWeight =
-      result.model.tau0 ** 2 / (result.model.tau0 ** 2 + nullstone.se! ** 2);
+    const zeroPriorWeight = result.model.tau0 ** 2 / (result.model.tau0 ** 2 + nullstone.se! ** 2);
     expect(nullstone.worth!).toBeCloseTo(zeroPriorWeight * nullstone.delta!, 10);
     // Not in the current cube → no act_by even though it has a geomean.
     expect(nullstone.act_by).toBeNull();

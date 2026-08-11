@@ -67,8 +67,7 @@ const deathriteShamam = createCard({
   typeLine: "Creature - Elf Shaman",
   colors: ["B", "G"],
   colorIdentity: ["B", "G"],
-  oracleText:
-    "{T}: Exile target land card from a graveyard. Add one mana of any color.",
+  oracleText: "{T}: Exile target land card from a graveyard. Add one mana of any color.",
 });
 
 const solRing = createCard({
@@ -374,10 +373,7 @@ describe("searchLocalCards", () => {
       const result = searchLocalCards("t:creature c:r", testCards);
       expect(result.length).toBeGreaterThan(0);
       expect(
-        result.every(
-          (c) =>
-            c.typeLine.toLowerCase().includes("creature") && c.colors.includes("R")
-        )
+        result.every((c) => c.typeLine.toLowerCase().includes("creature") && c.colors.includes("R"))
       ).toBe(true);
     });
 
@@ -466,10 +462,7 @@ describe("searchLocalCards", () => {
     it("should find blue flying creatures", () => {
       const result = searchLocalCards("t:creature c:u o:flying", testCards);
       expect(result).toHaveLength(2); // Storm Crow and Nicol Bolas (both blue creatures with flying)
-      expect(result.map((c) => c.name).sort()).toEqual([
-        "Nicol Bolas, the Ravager",
-        "Storm Crow",
-      ]);
+      expect(result.map((c) => c.name).sort()).toEqual(["Nicol Bolas, the Ravager", "Storm Crow"]);
     });
 
     it("should find colorless creatures", () => {
@@ -528,24 +521,15 @@ describe("searchLocalCards", () => {
     });
 
     it('should match quoted phrase with "enters the battlefield"', () => {
-      const result = searchLocalCards(
-        'o:"enters the battlefield"',
-        quotedTestCards
-      );
+      const result = searchLocalCards('o:"enters the battlefield"', quotedTestCards);
       expect(result).toHaveLength(1);
       expect(result[0].name).toBe("Snapcaster Mage");
     });
 
     it("should combine quoted oracle with other operators", () => {
-      const result = searchLocalCards(
-        't:instant o:"draw"',
-        quotedTestCards
-      );
+      const result = searchLocalCards('t:instant o:"draw"', quotedTestCards);
       expect(result).toHaveLength(2);
-      expect(result.map((c) => c.name).sort()).toEqual([
-        "Ancestral Recall",
-        "Opt",
-      ]);
+      expect(result.map((c) => c.name).sort()).toEqual(["Ancestral Recall", "Opt"]);
     });
 
     it('should match quoted type with t:"human wizard"', () => {
@@ -601,8 +585,7 @@ describe("searchLocalCards", () => {
       typeLine: "Legendary Planeswalker — Bolas",
       colors: ["U", "B", "R"],
       colorIdentity: ["U", "B", "R"],
-      oracleText:
-        "+3: Destroy target noncreature permanent.\n-2: Gain control of target creature.",
+      oracleText: "+3: Destroy target noncreature permanent.\n-2: Gain control of target creature.",
     });
 
     const sol = createCard({
@@ -632,8 +615,7 @@ describe("searchLocalCards", () => {
       typeLine: "Instant",
       colors: ["R"],
       colorIdentity: ["R"],
-      oracleText:
-        "Fire deals 2 damage divided as you choose among one or two targets.",
+      oracleText: "Fire deals 2 damage divided as you choose among one or two targets.",
     });
 
     const advCards = [bolt, counter, goyf, nicol, sol, azorius, fire];
@@ -662,9 +644,7 @@ describe("searchLocalCards", () => {
       });
 
       it("combines negation with positive terms", () => {
-        expect(names(searchLocalCards("t:instant -c:r", advCards))).toEqual([
-          "Counterspell",
-        ]);
+        expect(names(searchLocalCards("t:instant -c:r", advCards))).toEqual(["Counterspell"]);
       });
 
       it("negates mana value", () => {
@@ -678,42 +658,38 @@ describe("searchLocalCards", () => {
 
     describe("OR logic", () => {
       it("basic OR between two terms", () => {
-        expect(
-          names(searchLocalCards("t:creature or t:artifact", advCards)),
-        ).toEqual(["Azorius Signet", "Sol Ring", "Tarmogoyf"]);
+        expect(names(searchLocalCards("t:creature or t:artifact", advCards))).toEqual([
+          "Azorius Signet",
+          "Sol Ring",
+          "Tarmogoyf",
+        ]);
       });
 
       it("OR with three terms", () => {
-        expect(
-          names(
-            searchLocalCards("bolt or counterspell or tarmogoyf", advCards),
-          ),
-        ).toEqual(["Counterspell", "Lightning Bolt", "Tarmogoyf"]);
+        expect(names(searchLocalCards("bolt or counterspell or tarmogoyf", advCards))).toEqual([
+          "Counterspell",
+          "Lightning Bolt",
+          "Tarmogoyf",
+        ]);
       });
     });
 
     describe("parentheses grouping", () => {
       it("groups OR with AND", () => {
-        expect(
-          names(searchLocalCards("(t:instant or t:sorcery) c:r", advCards)),
-        ).toEqual(["Fire", "Lightning Bolt"]);
+        expect(names(searchLocalCards("(t:instant or t:sorcery) c:r", advCards))).toEqual([
+          "Fire",
+          "Lightning Bolt",
+        ]);
       });
 
       it("nested groups", () => {
-        expect(
-          names(
-            searchLocalCards(
-              "(t:instant or t:creature) (c:r or c:g)",
-              advCards,
-            ),
-          ),
-        ).toEqual(["Fire", "Lightning Bolt", "Tarmogoyf"]);
+        expect(names(searchLocalCards("(t:instant or t:creature) (c:r or c:g)", advCards))).toEqual(
+          ["Fire", "Lightning Bolt", "Tarmogoyf"]
+        );
       });
 
       it("negated group with De Morgan's", () => {
-        expect(
-          names(searchLocalCards("-(t:instant or t:creature)", advCards)),
-        ).toEqual([
+        expect(names(searchLocalCards("-(t:instant or t:creature)", advCards))).toEqual([
           "Azorius Signet",
           "Nicol Bolas, Planeswalker",
           "Sol Ring",
@@ -735,43 +711,31 @@ describe("searchLocalCards", () => {
       });
 
       it("works with quoted exact name", () => {
-        expect(
-          names(searchLocalCards('!"Lightning Bolt"', advCards)),
-        ).toEqual(["Lightning Bolt"]);
+        expect(names(searchLocalCards('!"Lightning Bolt"', advCards))).toEqual(["Lightning Bolt"]);
       });
     });
 
     describe("color identity (id:)", () => {
       it("matches color identity", () => {
-        expect(names(searchLocalCards("id:wu", advCards))).toEqual([
-          "Azorius Signet",
-        ]);
+        expect(names(searchLocalCards("id:wu", advCards))).toEqual(["Azorius Signet"]);
       });
 
       it("matches identity superset", () => {
-        expect(names(searchLocalCards("id:ub", advCards))).toEqual([
-          "Nicol Bolas, Planeswalker",
-        ]);
+        expect(names(searchLocalCards("id:ub", advCards))).toEqual(["Nicol Bolas, Planeswalker"]);
       });
 
       it("matches exact identity", () => {
-        expect(names(searchLocalCards("id=wu", advCards))).toEqual([
-          "Azorius Signet",
-        ]);
+        expect(names(searchLocalCards("id=wu", advCards))).toEqual(["Azorius Signet"]);
       });
     });
 
     describe("mana cost (m:)", () => {
       it("matches mana symbol shorthand", () => {
-        expect(names(searchLocalCards("m:uu", advCards))).toEqual([
-          "Counterspell",
-        ]);
+        expect(names(searchLocalCards("m:uu", advCards))).toEqual(["Counterspell"]);
       });
 
       it("matches with brace notation", () => {
-        expect(names(searchLocalCards("m:{U}{U}", advCards))).toEqual([
-          "Counterspell",
-        ]);
+        expect(names(searchLocalCards("m:{U}{U}", advCards))).toEqual(["Counterspell"]);
       });
 
       it("matches single symbol", () => {
@@ -785,22 +749,15 @@ describe("searchLocalCards", () => {
 
     describe("color comparisons", () => {
       it("c:m finds multicolor cards", () => {
-        expect(names(searchLocalCards("c:m", advCards))).toEqual([
-          "Nicol Bolas, Planeswalker",
-        ]);
+        expect(names(searchLocalCards("c:m", advCards))).toEqual(["Nicol Bolas, Planeswalker"]);
       });
 
       it("c=r finds exactly mono-red", () => {
-        expect(names(searchLocalCards("c=r", advCards))).toEqual([
-          "Fire",
-          "Lightning Bolt",
-        ]);
+        expect(names(searchLocalCards("c=r", advCards))).toEqual(["Fire", "Lightning Bolt"]);
       });
 
       it("c>=ub finds cards with at least U and B", () => {
-        expect(names(searchLocalCards("c>=ub", advCards))).toEqual([
-          "Nicol Bolas, Planeswalker",
-        ]);
+        expect(names(searchLocalCards("c>=ub", advCards))).toEqual(["Nicol Bolas, Planeswalker"]);
       });
 
       it("c<=r finds cards that are subset of red (colorless or mono-red)", () => {

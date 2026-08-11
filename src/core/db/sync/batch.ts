@@ -31,7 +31,7 @@ export async function batchInsertPicks(client: Client, picks: PickInsert[]): Pro
     picks.map((p) => ({
       sql: "INSERT INTO pick_events (draft_id, pick_n, seat, card_id, source, created_at) VALUES (?, ?, ?, ?, ?, datetime('now'))",
       args: [p.draftId, p.pickN, p.seat, p.cardId, "sheet"],
-    })),
+    }))
   );
 }
 
@@ -41,7 +41,7 @@ export async function batchInsertMatches(client: Client, matches: MatchInsert[])
     matches.map((m) => ({
       sql: "INSERT INTO match_events (draft_id, seat1, seat2, seat1_wins, seat2_wins) VALUES (?, ?, ?, ?, ?)",
       args: [m.draftId, m.seat1, m.seat2, m.seat1GamesWon, m.seat2GamesWon],
-    })),
+    }))
   );
 }
 
@@ -55,7 +55,7 @@ export async function batchInsertMatches(client: Client, matches: MatchInsert[])
  * gap is unrecoverable.
  */
 export function deckCardInsertStatements(
-  cards: DeckCardInsert[],
+  cards: DeckCardInsert[]
 ): Array<{ sql: string; args: InArgs }> {
   return cards.map((c) => ({
     sql: "INSERT INTO deck_cards (draft_id, seat, card_id, zone, qty) VALUES (?, ?, ?, ?, ?)",
@@ -66,14 +66,14 @@ export function deckCardInsertStatements(
 export async function batchInsertCubeSnapshotCards(
   client: Client,
   snapshotId: number,
-  cardEntries: Array<{ cardId: number; qty: number }>,
+  cardEntries: Array<{ cardId: number; qty: number }>
 ): Promise<void> {
   if (cardEntries.length === 0) return;
   await client.batch(
     cardEntries.map((c) => ({
       sql: "INSERT INTO cube_snapshot_cards (cube_snapshot_id, card_id, qty) VALUES (?, ?, ?)",
       args: [snapshotId, c.cardId, c.qty],
-    })),
+    }))
   );
 }
 
@@ -98,7 +98,7 @@ export function buildMatchInserts(draftId: string, matches: MatchResult[]): Matc
 export async function deleteDomainData(
   client: Client,
   draftId: string,
-  domain: "picks" | "matches" | "decklists",
+  domain: "picks" | "matches" | "decklists"
 ): Promise<void> {
   const table = {
     picks: "pick_events",

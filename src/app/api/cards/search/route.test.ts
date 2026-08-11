@@ -56,14 +56,18 @@ describe("GET /api/cards/search", () => {
   });
 
   it("returns 400 when before_pick_n set without available_only", async () => {
-    const res = await GET(makeRequest({ q: "t:creature", draft_id: "tarkir", before_pick_n: "50" }));
+    const res = await GET(
+      makeRequest({ q: "t:creature", draft_id: "tarkir", before_pick_n: "50" })
+    );
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toContain("before_pick_n requires available_only");
   });
 
   it("returns 400 when available_only set without before_pick_n", async () => {
-    const res = await GET(makeRequest({ q: "t:creature", draft_id: "tarkir", available_only: "true" }));
+    const res = await GET(
+      makeRequest({ q: "t:creature", draft_id: "tarkir", available_only: "true" })
+    );
     expect(res.status).toBe(400);
     const body = await res.json();
     expect(body.error).toContain("before_pick_n is required");
@@ -116,7 +120,9 @@ describe("GET /api/cards/search", () => {
     const body = await res.json();
 
     expect(body.draft_id).toBe("tarkir");
-    expect(queries.getSearchableCards).toHaveBeenCalledWith(expect.anything(), { draftId: "tarkir" });
+    expect(queries.getSearchableCards).toHaveBeenCalledWith(expect.anything(), {
+      draftId: "tarkir",
+    });
   });
 
   it("performs available-only search with remaining_qty", async () => {
@@ -125,12 +131,14 @@ describe("GET /api/cards/search", () => {
     ]);
     vi.mocked(localSearch.searchLocalCards).mockReturnValueOnce([BOLT_SCRYCARD]);
 
-    const res = await GET(makeRequest({
-      q: "t:instant",
-      draft_id: "tarkir",
-      available_only: "true",
-      before_pick_n: "50",
-    }));
+    const res = await GET(
+      makeRequest({
+        q: "t:instant",
+        draft_id: "tarkir",
+        available_only: "true",
+        before_pick_n: "50",
+      })
+    );
     expect(res.status).toBe(200);
     const body = await res.json();
 

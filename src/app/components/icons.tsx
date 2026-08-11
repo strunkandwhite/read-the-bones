@@ -18,7 +18,13 @@ export function PodViewIcon({ className }: { className?: string }) {
 /** Deck builder — stacked rows. */
 export function DeckBuilderIcon({ className }: { className?: string }) {
   return (
-    <svg xmlns="http://www.w3.org/2000/svg" fill="currentColor" viewBox="0 0 24 24" stroke="none" className={className}>
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      fill="currentColor"
+      viewBox="0 0 24 24"
+      stroke="none"
+      className={className}
+    >
       <rect x="3" y="3" width="18" height="3" rx="0.75" />
       <rect x="3.5" y="7.75" width="18" height="3" rx="0.75" />
       <rect x="4" y="12.5" width="18" height="3" rx="0.75" />

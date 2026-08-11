@@ -5,7 +5,12 @@ import { PageClient, type PageClientProps } from "./PageClient";
 import type { CardStatsResponse } from "@/core/getCards";
 import type { DraftStatsResponse } from "@/core/getDraftStats";
 import { useDraftStore, _resetPollingState } from "../stores/draftStore";
-import { useCardStore, EMPTY_CARD_DATA, EMPTY_DRAFT_STATS, _resetSearchState } from "../stores/cardStore";
+import {
+  useCardStore,
+  EMPTY_CARD_DATA,
+  EMPTY_DRAFT_STATS,
+  _resetSearchState,
+} from "../stores/cardStore";
 import { useLiveStore, _resetDeckState } from "../stores/liveStore";
 import { createEmptyDeckState } from "@/core/deckBuilder";
 
@@ -99,7 +104,12 @@ describe("PageClient", () => {
       ingestionHash: "default",
     });
     vi.spyOn(globalThis, "fetch").mockImplementation(() =>
-      Promise.resolve(new Response(emptyCardData, { status: 200, headers: { "Content-Type": "application/json" } })),
+      Promise.resolve(
+        new Response(emptyCardData, {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
     );
 
     // Reset store state between tests
@@ -175,7 +185,9 @@ describe("PageClient", () => {
     // to return real card data so the card table renders.
     const data = JSON.stringify(makeTestProps().initialCardData);
     vi.spyOn(globalThis, "fetch").mockImplementation(() =>
-      Promise.resolve(new Response(data, { status: 200, headers: { "Content-Type": "application/json" } })),
+      Promise.resolve(
+        new Response(data, { status: 200, headers: { "Content-Type": "application/json" } })
+      )
     );
 
     await act(async () => {
@@ -197,7 +209,12 @@ describe("PageClient", () => {
 
     const mockResponseJson = JSON.stringify(mockResponse);
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(() =>
-      Promise.resolve(new Response(mockResponseJson, { status: 200, headers: { "Content-Type": "application/json" } })),
+      Promise.resolve(
+        new Response(mockResponseJson, {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
     );
 
     render(<PageClient {...makeTestProps()} />);
@@ -227,17 +244,12 @@ describe("PageClient", () => {
       await changeDraftSelection(new Set(["draft-a"]));
     });
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      "Failed to fetch card data:",
-      expect.any(Error)
-    );
+    expect(consoleSpy).toHaveBeenCalledWith("Failed to fetch card data:", expect.any(Error));
     consoleSpy.mockRestore();
   });
 
   it("shows 'No card data available.' when initialCards is empty", () => {
-    render(
-      <PageClient {...makeTestProps({ cards: [], draftCount: 0 })} />
-    );
+    render(<PageClient {...makeTestProps({ cards: [], draftCount: 0 })} />);
     const matches = screen.getAllByText("No card data available.");
     expect(matches.length).toBeGreaterThan(0);
   });
@@ -246,7 +258,9 @@ describe("PageClient", () => {
     // Override the default spy to return card data so the initial render succeeds
     const data = JSON.stringify(makeTestProps().initialCardData);
     vi.spyOn(globalThis, "fetch").mockImplementation(() =>
-      Promise.resolve(new Response(data, { status: 200, headers: { "Content-Type": "application/json" } })),
+      Promise.resolve(
+        new Response(data, { status: 200, headers: { "Content-Type": "application/json" } })
+      )
     );
 
     await act(async () => {
@@ -277,7 +291,12 @@ describe("PageClient", () => {
     // Now set up a successful response for returning to default
     const successResponseJson = JSON.stringify(makeTestProps().initialCardData);
     vi.spyOn(globalThis, "fetch").mockImplementation(() =>
-      Promise.resolve(new Response(successResponseJson, { status: 200, headers: { "Content-Type": "application/json" } })),
+      Promise.resolve(
+        new Response(successResponseJson, {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        })
+      )
     );
 
     // Return to default selection (all completed drafts)
@@ -304,7 +323,9 @@ describe("PageClient", () => {
     // the activeDraft subscription triggers fetchCardData
     const propsJson = JSON.stringify(props.initialCardData);
     vi.spyOn(globalThis, "fetch").mockImplementation(() =>
-      Promise.resolve(new Response(propsJson, { status: 200, headers: { "Content-Type": "application/json" } })),
+      Promise.resolve(
+        new Response(propsJson, { status: 200, headers: { "Content-Type": "application/json" } })
+      )
     );
 
     await act(async () => {

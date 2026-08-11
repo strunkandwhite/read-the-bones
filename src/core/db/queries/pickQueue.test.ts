@@ -19,12 +19,20 @@ function createMockClient() {
 
 describe("getQueue", () => {
   let client: ReturnType<typeof createMockClient>;
-  beforeEach(() => { client = createMockClient(); });
+  beforeEach(() => {
+    client = createMockClient();
+  });
 
   it("returns parsed queue entries from queue_json", async () => {
     const queueJson: QueueEntry[] = [
       { mode: "pause", cards: [{ id: 10, name: "Lightning Bolt" }] },
-      { mode: "flow-through", cards: [{ id: 20, name: "Counterspell" }, { id: 30, name: "Mana Drain" }] },
+      {
+        mode: "flow-through",
+        cards: [
+          { id: 20, name: "Counterspell" },
+          { id: 30, name: "Mana Drain" },
+        ],
+      },
     ];
     client.execute.mockResolvedValueOnce({
       rows: [{ queue_json: JSON.stringify(queueJson) }],
@@ -53,7 +61,9 @@ describe("getQueue", () => {
 
 describe("setQueue", () => {
   let client: ReturnType<typeof createMockClient>;
-  beforeEach(() => { client = createMockClient(); });
+  beforeEach(() => {
+    client = createMockClient();
+  });
 
   it("writes queue entries as JSON to seat_tokens", async () => {
     const entries: QueueEntry[] = [
@@ -80,7 +90,9 @@ describe("setQueue", () => {
 
 describe("removeCardFromAllQueues", () => {
   let client: ReturnType<typeof createMockClient>;
-  beforeEach(() => { client = createMockClient(); });
+  beforeEach(() => {
+    client = createMockClient();
+  });
 
   it("removes card from single-card entries across all seats", async () => {
     client.execute.mockResolvedValueOnce({
@@ -94,9 +106,7 @@ describe("removeCardFromAllQueues", () => {
         },
         {
           seat: 2,
-          queue_json: JSON.stringify([
-            { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
-          ]),
+          queue_json: JSON.stringify([{ mode: "pause", cards: [{ id: 10, name: "Bolt" }] }]),
         },
       ],
     });
@@ -122,33 +132,41 @@ describe("removeCardFromAllQueues", () => {
 
   it("removes card from within a group without removing the group", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        seat: 1,
-        queue_json: JSON.stringify([
-          { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }] },
-        ]),
-      }],
+      rows: [
+        {
+          seat: 1,
+          queue_json: JSON.stringify([
+            {
+              mode: "flow-through",
+              cards: [
+                { id: 10, name: "Bolt" },
+                { id: 20, name: "Chain" },
+              ],
+            },
+          ]),
+        },
+      ],
     });
 
     const result = await removeCardFromAllQueues(client, "draft-1", 10);
 
     const statements = client.batch.mock.calls[0][0];
     const json = JSON.parse(statements[0].args[0] as string);
-    expect(json).toEqual([
-      { mode: "flow-through", cards: [{ id: 20, name: "Chain" }] },
-    ]);
+    expect(json).toEqual([{ mode: "flow-through", cards: [{ id: 20, name: "Chain" }] }]);
     expect(result).toEqual({ pauseSeats: [] });
   });
 
   it("triggers pause when first entry top card removed and mode is pause", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        seat: 1,
-        queue_json: JSON.stringify([
-          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
-          { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
-        ]),
-      }],
+      rows: [
+        {
+          seat: 1,
+          queue_json: JSON.stringify([
+            { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+            { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
+          ]),
+        },
+      ],
     });
 
     const result = await removeCardFromAllQueues(client, "draft-1", 10);
@@ -157,13 +175,15 @@ describe("removeCardFromAllQueues", () => {
 
   it("does not trigger pause when removed card is not in first entry", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        seat: 1,
-        queue_json: JSON.stringify([
-          { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
-          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
-        ]),
-      }],
+      rows: [
+        {
+          seat: 1,
+          queue_json: JSON.stringify([
+            { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
+            { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+          ]),
+        },
+      ],
     });
 
     const result = await removeCardFromAllQueues(client, "draft-1", 10);
@@ -172,12 +192,20 @@ describe("removeCardFromAllQueues", () => {
 
   it("does not trigger pause when first entry group still has cards", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        seat: 1,
-        queue_json: JSON.stringify([
-          { mode: "pause", cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }] },
-        ]),
-      }],
+      rows: [
+        {
+          seat: 1,
+          queue_json: JSON.stringify([
+            {
+              mode: "pause",
+              cards: [
+                { id: 10, name: "Bolt" },
+                { id: 20, name: "Chain" },
+              ],
+            },
+          ]),
+        },
+      ],
     });
 
     const result = await removeCardFromAllQueues(client, "draft-1", 10);
@@ -187,12 +215,12 @@ describe("removeCardFromAllQueues", () => {
 
   it("does not pause when first entry mode is flow-through", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        seat: 1,
-        queue_json: JSON.stringify([
-          { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }] },
-        ]),
-      }],
+      rows: [
+        {
+          seat: 1,
+          queue_json: JSON.stringify([{ mode: "flow-through", cards: [{ id: 10, name: "Bolt" }] }]),
+        },
+      ],
     });
 
     const result = await removeCardFromAllQueues(client, "draft-1", 10);
@@ -202,8 +230,14 @@ describe("removeCardFromAllQueues", () => {
   it("skips seats without the card in their queue", async () => {
     client.execute.mockResolvedValueOnce({
       rows: [
-        { seat: 1, queue_json: JSON.stringify([{ mode: "pause", cards: [{ id: 99, name: "Other" }] }]) },
-        { seat: 2, queue_json: JSON.stringify([{ mode: "pause", cards: [{ id: 10, name: "Bolt" }] }]) },
+        {
+          seat: 1,
+          queue_json: JSON.stringify([{ mode: "pause", cards: [{ id: 99, name: "Other" }] }]),
+        },
+        {
+          seat: 2,
+          queue_json: JSON.stringify([{ mode: "pause", cards: [{ id: 10, name: "Bolt" }] }]),
+        },
       ],
     });
 
@@ -220,15 +254,25 @@ describe("removeCardFromAllQueues", () => {
 
 describe("getAutoPickCandidate", () => {
   let client: ReturnType<typeof createMockClient>;
-  beforeEach(() => { client = createMockClient(); });
+  beforeEach(() => {
+    client = createMockClient();
+  });
 
   it("returns first available card from first entry", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        queue_json: JSON.stringify([
-          { mode: "pause", cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }] },
-        ]),
-      }],
+      rows: [
+        {
+          queue_json: JSON.stringify([
+            {
+              mode: "pause",
+              cards: [
+                { id: 10, name: "Bolt" },
+                { id: 20, name: "Chain" },
+              ],
+            },
+          ]),
+        },
+      ],
     });
 
     const result = await getAutoPickCandidate(client, "draft-1", 1, new Set([10, 20]));
@@ -237,11 +281,19 @@ describe("getAutoPickCandidate", () => {
 
   it("skips unavailable cards within an entry", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        queue_json: JSON.stringify([
-          { mode: "pause", cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }] },
-        ]),
-      }],
+      rows: [
+        {
+          queue_json: JSON.stringify([
+            {
+              mode: "pause",
+              cards: [
+                { id: 10, name: "Bolt" },
+                { id: 20, name: "Chain" },
+              ],
+            },
+          ]),
+        },
+      ],
     });
 
     const result = await getAutoPickCandidate(client, "draft-1", 1, new Set([20]));
@@ -250,12 +302,14 @@ describe("getAutoPickCandidate", () => {
 
   it("skips exhausted flow-through entries and continues", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        queue_json: JSON.stringify([
-          { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }] },
-          { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
-        ]),
-      }],
+      rows: [
+        {
+          queue_json: JSON.stringify([
+            { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }] },
+            { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
+          ]),
+        },
+      ],
     });
 
     const result = await getAutoPickCandidate(client, "draft-1", 1, new Set([20]));
@@ -264,12 +318,14 @@ describe("getAutoPickCandidate", () => {
 
   it("returns paused when exhausted pause entry is reached", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        queue_json: JSON.stringify([
-          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
-          { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
-        ]),
-      }],
+      rows: [
+        {
+          queue_json: JSON.stringify([
+            { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+            { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
+          ]),
+        },
+      ],
     });
 
     const result = await getAutoPickCandidate(client, "draft-1", 1, new Set([20]));
@@ -278,11 +334,11 @@ describe("getAutoPickCandidate", () => {
 
   it("returns empty when all entries exhausted via flow-through", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        queue_json: JSON.stringify([
-          { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }] },
-        ]),
-      }],
+      rows: [
+        {
+          queue_json: JSON.stringify([{ mode: "flow-through", cards: [{ id: 10, name: "Bolt" }] }]),
+        },
+      ],
     });
 
     const result = await getAutoPickCandidate(client, "draft-1", 1, new Set([20]));
@@ -301,19 +357,23 @@ describe("getAutoPickCandidate", () => {
 
 describe("trimExcessQueueEntries", () => {
   let client: ReturnType<typeof createMockClient>;
-  beforeEach(() => { client = createMockClient(); });
+  beforeEach(() => {
+    client = createMockClient();
+  });
 
   it("removes excess card references from lowest-priority entries", async () => {
     // Seat 1 has the card in entries at index 0 and 2 (two refs), remaining=1
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        seat: 1,
-        queue_json: JSON.stringify([
-          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
-          { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
-          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
-        ]),
-      }],
+      rows: [
+        {
+          seat: 1,
+          queue_json: JSON.stringify([
+            { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+            { mode: "pause", cards: [{ id: 20, name: "Recall" }] },
+            { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+          ]),
+        },
+      ],
     });
 
     await trimExcessQueueEntries(client, "draft-1", 10, 1);
@@ -329,13 +389,21 @@ describe("trimExcessQueueEntries", () => {
 
   it("removes card from within a group at lowest priority", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        seat: 1,
-        queue_json: JSON.stringify([
-          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
-          { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }] },
-        ]),
-      }],
+      rows: [
+        {
+          seat: 1,
+          queue_json: JSON.stringify([
+            { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+            {
+              mode: "flow-through",
+              cards: [
+                { id: 10, name: "Bolt" },
+                { id: 20, name: "Chain" },
+              ],
+            },
+          ]),
+        },
+      ],
     });
 
     await trimExcessQueueEntries(client, "draft-1", 10, 1);
@@ -351,10 +419,12 @@ describe("trimExcessQueueEntries", () => {
   it("delegates to removeCardFromAllQueues when remainingCopies is 0 — removes the card via batch UPDATE", async () => {
     // removeCardFromAllQueues SELECT
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        seat: 1,
-        queue_json: JSON.stringify([{ mode: "pause", cards: [{ id: 10, name: "Bolt" }] }]),
-      }],
+      rows: [
+        {
+          seat: 1,
+          queue_json: JSON.stringify([{ mode: "pause", cards: [{ id: 10, name: "Bolt" }] }]),
+        },
+      ],
     });
 
     await trimExcessQueueEntries(client, "draft-1", 10, 0);
@@ -373,12 +443,20 @@ describe("trimExcessQueueEntries", () => {
   it("removes only toRemove refs when an entry contains the same card id twice (multi-copy)", async () => {
     // Single entry with two refs to card 10 — remainingCopies=1, so only 1 should be removed
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        seat: 1,
-        queue_json: JSON.stringify([
-          { mode: "pause", cards: [{ id: 10, name: "Bolt" }, { id: 10, name: "Bolt" }] },
-        ]),
-      }],
+      rows: [
+        {
+          seat: 1,
+          queue_json: JSON.stringify([
+            {
+              mode: "pause",
+              cards: [
+                { id: 10, name: "Bolt" },
+                { id: 10, name: "Bolt" },
+              ],
+            },
+          ]),
+        },
+      ],
     });
 
     await trimExcessQueueEntries(client, "draft-1", 10, 1);
@@ -386,19 +464,17 @@ describe("trimExcessQueueEntries", () => {
     // Entry should be kept with exactly one ref remaining, not dropped entirely
     const statements = client.batch.mock.calls[0][0];
     const json = JSON.parse(statements[0].args[0] as string);
-    expect(json).toEqual([
-      { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
-    ]);
+    expect(json).toEqual([{ mode: "pause", cards: [{ id: 10, name: "Bolt" }] }]);
   });
 
   it("does nothing when no seat has excess entries", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        seat: 1,
-        queue_json: JSON.stringify([
-          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
-        ]),
-      }],
+      rows: [
+        {
+          seat: 1,
+          queue_json: JSON.stringify([{ mode: "pause", cards: [{ id: 10, name: "Bolt" }] }]),
+        },
+      ],
     });
 
     await trimExcessQueueEntries(client, "draft-1", 10, 2);
@@ -408,13 +484,15 @@ describe("trimExcessQueueEntries", () => {
 
   it("never triggers a pause even if first entry is emptied", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        seat: 1,
-        queue_json: JSON.stringify([
-          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
-          { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
-        ]),
-      }],
+      rows: [
+        {
+          seat: 1,
+          queue_json: JSON.stringify([
+            { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+            { mode: "pause", cards: [{ id: 10, name: "Bolt" }] },
+          ]),
+        },
+      ],
     });
 
     // remainingCopies=1, so one Bolt ref stays, one gets trimmed. Bottom-up, so index 1 is trimmed.
@@ -428,10 +506,18 @@ describe("trimExcessQueueEntries", () => {
 
 describe("fulfillGroupEntry", () => {
   let client: ReturnType<typeof createMockClient>;
-  beforeEach(() => { client = createMockClient(); });
+  beforeEach(() => {
+    client = createMockClient();
+  });
 
   const QUEUE = JSON.stringify([
-    { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }] },
+    {
+      mode: "flow-through",
+      cards: [
+        { id: 10, name: "Bolt" },
+        { id: 20, name: "Chain" },
+      ],
+    },
     { mode: "pause", cards: [{ id: 30, name: "Recall" }] },
   ]);
 
@@ -442,7 +528,10 @@ describe("fulfillGroupEntry", () => {
 
     expect(removed).toEqual({
       mode: "flow-through",
-      cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }],
+      cards: [
+        { id: 10, name: "Bolt" },
+        { id: 20, name: "Chain" },
+      ],
     });
     const call = client.execute.mock.calls[1][0]; // second call is the UPDATE
     expect(JSON.parse(call.args[0] as string)).toEqual([
@@ -459,7 +548,13 @@ describe("fulfillGroupEntry", () => {
     expect(removed).toEqual({ mode: "pause", cards: [{ id: 30, name: "Recall" }] });
     const call = client.execute.mock.calls[1][0];
     expect(JSON.parse(call.args[0] as string)).toEqual([
-      { mode: "flow-through", cards: [{ id: 10, name: "Bolt" }, { id: 20, name: "Chain" }] },
+      {
+        mode: "flow-through",
+        cards: [
+          { id: 10, name: "Bolt" },
+          { id: 20, name: "Chain" },
+        ],
+      },
     ]);
   });
 

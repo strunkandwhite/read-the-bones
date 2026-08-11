@@ -1,6 +1,6 @@
-import type { Client } from '@libsql/client';
-import { resolveToken } from './db/queries/seatTokens';
-import { AuthError } from './errors';
+import type { Client } from "@libsql/client";
+import { resolveToken } from "./db/queries/seatTokens";
+import { AuthError } from "./errors";
 
 /**
  * Extract seat token from the Authorization header only.
@@ -10,18 +10,18 @@ import { AuthError } from './errors';
  * localStorage before any API call is made.
  */
 export function extractToken(request: Request): string | null {
-  return request.headers.get('X-Seat-Token');
+  return request.headers.get("X-Seat-Token");
 }
 
 export async function authenticateSeat(
   client: Client,
   request: Request,
-  draftId: string,
+  draftId: string
 ): Promise<{ seat: number; autoPick: boolean; displayName: string | null }> {
   const token = extractToken(request);
-  if (!token) throw new AuthError('Missing seat token');
+  if (!token) throw new AuthError("Missing seat token");
   const resolved = await resolveToken(client, token);
-  if (!resolved) throw new AuthError('Invalid seat token');
-  if (resolved.draftId !== draftId) throw new AuthError('Token does not match draft');
+  if (!resolved) throw new AuthError("Invalid seat token");
+  if (resolved.draftId !== draftId) throw new AuthError("Token does not match draft");
   return { seat: resolved.seat, autoPick: resolved.autoPick, displayName: resolved.displayName };
 }

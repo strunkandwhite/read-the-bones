@@ -140,9 +140,7 @@ async function setPhase(client: Client, draftId: string, args: string[]) {
         }
       }
     } catch (e) {
-      console.warn(
-        `  (auto-pick on resume skipped: ${e instanceof Error ? e.message : e})`,
-      );
+      console.warn(`  (auto-pick on resume skipped: ${e instanceof Error ? e.message : e})`);
     }
   }
 }
@@ -232,8 +230,10 @@ async function enterMatch(client: Client, draftId: string, args: string[]) {
   });
   if (draft.rows.length === 0) throw new Error(`Draft "${draftId}" not found`);
   const numSeats = draft.rows[0].num_seats as number;
-  if (rawSeat1 < 1 || rawSeat1 > numSeats) throw new Error(`Seat ${rawSeat1} out of range (1–${numSeats})`);
-  if (rawSeat2 < 1 || rawSeat2 > numSeats) throw new Error(`Seat ${rawSeat2} out of range (1–${numSeats})`);
+  if (rawSeat1 < 1 || rawSeat1 > numSeats)
+    throw new Error(`Seat ${rawSeat1} out of range (1–${numSeats})`);
+  if (rawSeat2 < 1 || rawSeat2 > numSeats)
+    throw new Error(`Seat ${rawSeat2} out of range (1–${numSeats})`);
 
   // Normalize seat order: seat1 < seat2, rearranging wins accordingly
   let [seat1, seat2] = seatParts;
@@ -252,7 +252,9 @@ async function enterMatch(client: Client, draftId: string, args: string[]) {
     args: [draftId, seat1, seat2, seat1Wins, seat2Wins, reportedBySeat],
   });
 
-  console.log(`Recorded match in draft "${draftId}": seat ${seat1} (${seat1Wins}W) vs seat ${seat2} (${seat2Wins}W)`);
+  console.log(
+    `Recorded match in draft "${draftId}": seat ${seat1} (${seat1Wins}W) vs seat ${seat2} (${seat2Wins}W)`
+  );
 }
 
 async function reorderSeats(client: Client, draftId: string, args: string[]) {

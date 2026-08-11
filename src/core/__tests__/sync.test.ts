@@ -137,7 +137,7 @@ describe("detectChangedPicks", () => {
   it("flags a position whose card name changed in the sheet", () => {
     const changes = detectChangedPicks(
       [pick("Fiery Islet", 342, 4)],
-      new Map([[342, db(5, 99, "Thundering Falls")]]),
+      new Map([[342, db(5, 99, "Thundering Falls")]])
     );
     expect(changes).toHaveLength(1);
     expect(changes[0].pick.cardName).toBe("Fiery Islet");
@@ -148,8 +148,8 @@ describe("detectChangedPicks", () => {
     expect(
       detectChangedPicks(
         [pick("lightning bolt", 1, 0)],
-        new Map([[1, db(1, 10, "Lightning Bolt")]]),
-      ),
+        new Map([[1, db(1, 10, "Lightning Bolt")]])
+      )
     ).toEqual([]);
   });
 
@@ -157,15 +157,15 @@ describe("detectChangedPicks", () => {
     expect(
       detectChangedPicks(
         [pick("Brazen Borrower", 1, 0)],
-        new Map([[1, db(1, 10, "Brazen Borrower // Petty Theft")]]),
-      ),
+        new Map([[1, db(1, 10, "Brazen Borrower // Petty Theft")]])
+      )
     ).toEqual([]);
   });
 
   it("flags a seat change even when the card matches", () => {
     const changes = detectChangedPicks(
       [pick("Lightning Bolt", 1, 3)], // sheet drafter index 3 → stored seat 4, DB has seat 1
-      new Map([[1, db(1, 10, "Lightning Bolt")]]),
+      new Map([[1, db(1, 10, "Lightning Bolt")]])
     );
     expect(changes).toHaveLength(1);
   });
@@ -190,7 +190,7 @@ describe("applyChangedPicks", () => {
     ]);
     expect(result).toEqual({ updated: 1, unresolved: 0 });
     const updateCall = client.execute.mock.calls.find(([p]: any[]) =>
-      p.sql.includes("UPDATE pick_events"),
+      p.sql.includes("UPDATE pick_events")
     );
     expect(updateCall![0].sql).toContain("SET card_id = ?, seat = ?");
     expect(updateCall![0].args).toEqual([55, 5, "draft-1", 342]);
@@ -210,7 +210,7 @@ describe("applyChangedPicks", () => {
     ]);
     expect(result).toEqual({ updated: 0, unresolved: 0 });
     const updateCall = client.execute.mock.calls.find(([p]: any[]) =>
-      p.sql.includes("UPDATE pick_events"),
+      p.sql.includes("UPDATE pick_events")
     );
     expect(updateCall).toBeUndefined();
   });
@@ -234,7 +234,8 @@ describe("resolveCardNameToId", () => {
 
   it("falls back to front-face DFC match", async () => {
     const client = {
-      execute: vi.fn()
+      execute: vi
+        .fn()
         .mockResolvedValueOnce({ rows: [] }) // exact match fails
         .mockResolvedValueOnce({ rows: [{ card_id: 456 }] }), // front-face DFC
     };
@@ -244,7 +245,8 @@ describe("resolveCardNameToId", () => {
 
   it("falls back to back-face DFC match", async () => {
     const client = {
-      execute: vi.fn()
+      execute: vi
+        .fn()
         .mockResolvedValueOnce({ rows: [] }) // exact match fails
         .mockResolvedValueOnce({ rows: [] }) // front-face DFC fails
         .mockResolvedValueOnce({ rows: [{ card_id: 789 }] }), // back-face DFC
@@ -255,7 +257,8 @@ describe("resolveCardNameToId", () => {
 
   it("falls back to alias table lookup", async () => {
     const client = {
-      execute: vi.fn()
+      execute: vi
+        .fn()
         .mockResolvedValueOnce({ rows: [] }) // exact match fails
         .mockResolvedValueOnce({ rows: [] }) // front-face DFC fails
         .mockResolvedValueOnce({ rows: [] }) // back-face DFC fails
@@ -281,7 +284,8 @@ describe("resolveCardNameToId", () => {
 
     it("persists the resolved alias by default", async () => {
       const client = {
-        execute: vi.fn()
+        execute: vi
+          .fn()
           .mockResolvedValueOnce({ rows: [] }) // exact match fails
           .mockResolvedValueOnce({ rows: [] }) // front-face DFC fails
           .mockResolvedValueOnce({ rows: [] }) // back-face DFC fails
@@ -298,7 +302,8 @@ describe("resolveCardNameToId", () => {
 
     it("does not persist the alias when persistAlias is false, e.g. under --dry-run", async () => {
       const client = {
-        execute: vi.fn()
+        execute: vi
+          .fn()
           .mockResolvedValueOnce({ rows: [] }) // exact match fails
           .mockResolvedValueOnce({ rows: [] }) // front-face DFC fails
           .mockResolvedValueOnce({ rows: [] }) // back-face DFC fails
@@ -349,10 +354,7 @@ describe("insertNewPicks", () => {
     // 2. batch() for inserting picks
     client.batch.mockResolvedValueOnce(undefined);
 
-    const picks: CardPick[] = [
-      pick("Lightning Bolt", 1, 0),
-      pick("Counterspell", 2, 1),
-    ];
+    const picks: CardPick[] = [pick("Lightning Bolt", 1, 0), pick("Counterspell", 2, 1)];
     const result = await insertNewPicks(client as any, "draft-1", picks);
 
     expect(result).toEqual({ inserted: 2, unresolved: 0 });
@@ -473,7 +475,7 @@ describe("incrementalIngest", () => {
       client as any,
       "test-draft",
       parsed(picks),
-      hashPicks(picks),
+      hashPicks(picks)
     );
     expect(result).toEqual({ status: "no_change", picksInserted: 0, picksUpdated: 0 });
     expect(client.execute).not.toHaveBeenCalled();
@@ -498,7 +500,7 @@ describe("incrementalIngest", () => {
       client as any,
       "test-draft",
       parsed([pick("Lightning Bolt", 1, 0)]),
-      null,
+      null
     );
     expect(result.status).toBe("diverged");
     expect(client.batch).not.toHaveBeenCalled();
@@ -513,12 +515,10 @@ describe("incrementalIngest", () => {
       client as any,
       "test-draft",
       parsed([pick("Lightning Bolt", 1, 0), pick("Counterspell", 2, 1)]),
-      "stale-hash",
+      "stale-hash"
     );
     expect(result).toEqual({ status: "updated", picksInserted: 1, picksUpdated: 0 });
-    const hashWrite = client.execute.mock.calls.find(([p]: any[]) =>
-      p.sql.includes("picks_hash"),
-    );
+    const hashWrite = client.execute.mock.calls.find(([p]: any[]) => p.sql.includes("picks_hash"));
     expect(hashWrite).toBeDefined();
   });
 
@@ -541,11 +541,11 @@ describe("incrementalIngest", () => {
       client as any,
       "test-draft",
       parsed([pick("Fiery Islet", 342, 4)]),
-      "stale-hash",
+      "stale-hash"
     );
     expect(result).toEqual({ status: "updated", picksInserted: 0, picksUpdated: 1 });
     const updateCall = client.execute.mock.calls.find(([p]: any[]) =>
-      p.sql.includes("UPDATE pick_events"),
+      p.sql.includes("UPDATE pick_events")
     );
     expect(updateCall![0].args).toEqual([55, 5, "test-draft", 342]);
   });
@@ -559,12 +559,10 @@ describe("incrementalIngest", () => {
       client as any,
       "test-draft",
       parsed([pick("Mystery Card", 1, 0)]),
-      "stale-hash",
+      "stale-hash"
     );
     expect(result.picksInserted).toBe(0);
-    const hashWrite = client.execute.mock.calls.find(([p]: any[]) =>
-      p.sql.includes("picks_hash"),
-    );
+    const hashWrite = client.execute.mock.calls.find(([p]: any[]) => p.sql.includes("picks_hash"));
     expect(hashWrite).toBeUndefined();
   });
 
@@ -580,11 +578,11 @@ describe("incrementalIngest", () => {
       client as any,
       "test-draft",
       parsed([pick("Lightning Bolt", 1, 0), pick("Counterspell", 2, 1)], true),
-      null,
+      null
     );
     expect(result.status).toBe("updated");
     const phaseCall = client.execute.mock.calls.find(([p]: any[]) =>
-      p.sql.includes("UPDATE drafts SET phase"),
+      p.sql.includes("UPDATE drafts SET phase")
     );
     expect(phaseCall).toBeUndefined();
   });

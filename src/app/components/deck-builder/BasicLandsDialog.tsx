@@ -34,11 +34,7 @@ interface BasicLandsDialogProps {
   onClose: () => void;
 }
 
-export function BasicLandsDialog({
-  basicLands,
-  onSave,
-  onClose,
-}: BasicLandsDialogProps) {
+export function BasicLandsDialog({ basicLands, onSave, onClose }: BasicLandsDialogProps) {
   const [counts, setCounts] = useState<BasicLandCounts>({ ...basicLands });
 
   const update = (land: keyof BasicLandCounts, delta: number) => {
@@ -52,9 +48,7 @@ export function BasicLandsDialog({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
       <div className="w-72 rounded-xl border border-zinc-700 bg-zinc-900 p-4 shadow-xl">
         <div className="mb-3 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-zinc-200">
-            Add Basic Lands
-          </h3>
+          <h3 className="text-sm font-bold text-zinc-200">Add Basic Lands</h3>
           <button
             type="button"
             onClick={onClose}
@@ -83,16 +77,16 @@ export function BasicLandsDialog({
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => update(land, -1)}
-                  className="cursor-pointer flex h-6 w-6 items-center justify-center rounded bg-zinc-800 text-sm text-zinc-300 hover:bg-zinc-700 transition-colors"
+                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-zinc-800 text-sm text-zinc-300 transition-colors hover:bg-zinc-700"
                 >
                   -
                 </button>
-                <span className="w-4 text-center text-sm font-mono text-zinc-200">
+                <span className="w-4 text-center font-mono text-sm text-zinc-200">
                   {counts[land]}
                 </span>
                 <button
                   onClick={() => update(land, 1)}
-                  className="cursor-pointer flex h-6 w-6 items-center justify-center rounded bg-zinc-800 text-sm text-zinc-300 hover:bg-zinc-700 transition-colors"
+                  className="flex h-6 w-6 cursor-pointer items-center justify-center rounded bg-zinc-800 text-sm text-zinc-300 transition-colors hover:bg-zinc-700"
                 >
                   +
                 </button>
@@ -103,7 +97,7 @@ export function BasicLandsDialog({
         <div className="mt-4 flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="cursor-pointer rounded-md bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 hover:bg-zinc-700 transition-colors"
+            className="cursor-pointer rounded-md bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 transition-colors hover:bg-zinc-700"
           >
             Cancel
           </button>
@@ -116,7 +110,7 @@ export function BasicLandsDialog({
               onSave(counts);
               onClose();
             }}
-            className="cursor-pointer rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-500 transition-colors"
+            className="cursor-pointer rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-blue-500"
           >
             Save
           </button>

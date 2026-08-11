@@ -23,7 +23,13 @@ interface DraftBoardCellProps {
   latestPickN?: number;
 }
 
-function CellContent({ cardName, colorIdentity }: { cardName: string | null; colorIdentity: string[] }) {
+function CellContent({
+  cardName,
+  colorIdentity,
+}: {
+  cardName: string | null;
+  colorIdentity: string[];
+}) {
   return (
     <div
       style={{
@@ -36,7 +42,15 @@ function CellContent({ cardName, colorIdentity }: { cardName: string | null; col
       }}
     >
       {cardName && (
-        <div style={{ display: "flex", alignItems: "center", gap: "3px", width: "100%", overflow: "hidden" }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "3px",
+            width: "100%",
+            overflow: "hidden",
+          }}
+        >
           <span
             style={{
               overflow: "hidden",
@@ -122,10 +136,17 @@ export function DraftBoardCell({
   // shows the literal marker instead of a blank cell — no pick_events row is ever
   // stored for an opted-out seat, so there is nothing else to derive it from. A
   // redacted position not yet reached stays blank like any other future pick.
-  const showRedacted = isRedacted && pickN !== undefined && latestPickN !== undefined && pickN <= latestPickN;
+  const showRedacted =
+    isRedacted && pickN !== undefined && latestPickN !== undefined && pickN <= latestPickN;
 
   function handleCellClick() {
-    if (isEditable && !showRedacted && !isEditing && cardName === null && optimisticCardName === null) {
+    if (
+      isEditable &&
+      !showRedacted &&
+      !isEditing &&
+      cardName === null &&
+      optimisticCardName === null
+    ) {
       setIsEditing(true);
     }
   }
@@ -158,16 +179,23 @@ export function DraftBoardCell({
         backgroundImage: colorTint ?? undefined,
         border: isActive ? "2px dashed #3b82f6" : "1px solid #333",
         animation: isActive ? "pulse-border 1.5s ease-in-out infinite" : undefined,
-        cursor: isEditable && !showRedacted && !isEditing && cardName === null && optimisticCardName === null ? "pointer" : undefined,
+        cursor:
+          isEditable &&
+          !showRedacted &&
+          !isEditing &&
+          cardName === null &&
+          optimisticCardName === null
+            ? "pointer"
+            : undefined,
       }}
     >
       {isEditing && draftId && nextPickN !== null ? (
-        <PickAutocomplete
-          onPick={handlePickLocal}
-          onCancel={handleCancel}
-        />
+        <PickAutocomplete onPick={handlePickLocal} onCancel={handleCancel} />
       ) : (
-        <CellContent cardName={displayName} colorIdentity={optimisticCardName ? [] : colorIdentity} />
+        <CellContent
+          cardName={displayName}
+          colorIdentity={optimisticCardName ? [] : colorIdentity}
+        />
       )}
     </td>
   );

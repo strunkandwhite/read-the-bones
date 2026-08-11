@@ -129,16 +129,14 @@ async function computeWinRateByColor(
 
     // Only include seats that have decklist data (and thus a known color)
     if (color1) {
-      if (!colorStats.has(color1))
-        colorStats.set(color1, { wins: 0, losses: 0 });
+      if (!colorStats.has(color1)) colorStats.set(color1, { wins: 0, losses: 0 });
       const s = colorStats.get(color1)!;
       s.wins += seat1Wins;
       s.losses += seat2Wins;
     }
 
     if (color2) {
-      if (!colorStats.has(color2))
-        colorStats.set(color2, { wins: 0, losses: 0 });
+      if (!colorStats.has(color2)) colorStats.set(color2, { wins: 0, losses: 0 });
       const s = colorStats.get(color2)!;
       s.wins += seat2Wins;
       s.losses += seat1Wins;
@@ -168,9 +166,7 @@ async function computeWinRateByColor(
  * - winRateBySeat: always computed across ALL drafts (independent of selection)
  * - winRateByColor: computed for the selected drafts only
  */
-export async function getDraftStats(
-  params: GetDraftStatsParams = {}
-): Promise<DraftStatsResponse> {
+export async function getDraftStats(params: GetDraftStatsParams = {}): Promise<DraftStatsResponse> {
   const client = await getClient();
 
   // Get completed draft IDs (with domain hashes for cache fingerprint)
@@ -178,9 +174,7 @@ export async function getDraftStats(
     sql: `SELECT draft_id, pool_hash, picks_hash, matches_hash FROM drafts WHERE phase IN ('complete', 'playing') ORDER BY draft_id`,
     args: [],
   });
-  const completedDraftIds = draftsResult.rows.map(
-    (r) => r.draft_id as string
-  );
+  const completedDraftIds = draftsResult.rows.map((r) => r.draft_id as string);
 
   const completedDraftIdSet = new Set(completedDraftIds);
   const selectedDraftIds = params.draftIds
@@ -189,7 +183,11 @@ export async function getDraftStats(
 
   // Compute cache fingerprint from per-domain hashes
   const ingestionHash = computeIngestionHash(
-    draftsResult.rows as unknown as Array<{ pool_hash: unknown; picks_hash: unknown; matches_hash: unknown }>
+    draftsResult.rows as unknown as Array<{
+      pool_hash: unknown;
+      picks_hash: unknown;
+      matches_hash: unknown;
+    }>
   );
 
   // Compute both stats in parallel

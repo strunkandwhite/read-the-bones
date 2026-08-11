@@ -76,7 +76,7 @@ describe("useHydration", () => {
         cardData: mockCardData,
         draftStats: mockDraftStats,
         completedDraftIds: ["d1", "d2"],
-      }),
+      })
     );
 
     const state = useCardStore.getState();
@@ -91,7 +91,7 @@ describe("useHydration", () => {
         cardData: mockCardData,
         draftStats: mockDraftStats,
         completedDraftIds: ["d1", "d2"],
-      }),
+      })
     );
 
     const state = useDraftStore.getState();
@@ -106,7 +106,7 @@ describe("useHydration", () => {
         cardData: mockCardData,
         draftStats: mockDraftStats,
         completedDraftIds: ["d1"],
-      }),
+      })
     );
 
     // After mount, useEffect fires synchronously in act — hydrated should be true
@@ -120,7 +120,7 @@ describe("useHydration", () => {
         draftStats: mockDraftStats,
         completedDraftIds: ["d1"],
         initialDraftId: "d1",
-      }),
+      })
     );
 
     expect(useDraftStore.getState().activeDraft).toBe("d1");
@@ -134,7 +134,7 @@ describe("useHydration", () => {
         cardData: mockCardData,
         draftStats: mockDraftStats,
         completedDraftIds: ["d1", "d2"],
-      }),
+      })
     );
 
     expect(useDraftStore.getState().activeDraft).toBe("d2");
@@ -151,7 +151,7 @@ describe("useHydration", () => {
           draftStats: mockDraftStats,
           completedDraftIds: ids,
         }),
-      { initialProps: { ids: ["d1"] } },
+      { initialProps: { ids: ["d1"] } }
     );
 
     act(() => {

@@ -87,10 +87,7 @@ export function parsePoolRows(rows: string[][]): string[] {
  * - Row 3+: Pick data with round number in column A, arrow in column B,
  *   card names in drafter columns, and colors in rightmost columns
  */
-export function parsePickRows(
-  rows: string[][],
-  draftId: string
-): ParsedPicks {
+export function parsePickRows(rows: string[][], draftId: string): ParsedPicks {
   if (rows.length < 4) {
     return {
       picks: [],
@@ -234,42 +231,31 @@ export function parsePickRows(
 
       // Calculate actual pick position from round number and drafter index
       let pickPosition: number;
-      if (
-        doublePickStartsAfterRound === null ||
-        roundNumber <= doublePickStartsAfterRound
-      ) {
+      if (doublePickStartsAfterRound === null || roundNumber <= doublePickStartsAfterRound) {
         // Standard snake draft: odd rounds left-to-right, even rounds right-to-left
         if (roundNumber % 2 === 1) {
           pickPosition = (roundNumber - 1) * numDrafters + (drafterIndex + 1);
         } else {
-          pickPosition =
-            (roundNumber - 1) * numDrafters + (numDrafters - drafterIndex);
+          pickPosition = (roundNumber - 1) * numDrafters + (numDrafters - drafterIndex);
         }
       } else {
         // Double-pick mode: pairs of rows form one "double round" with 2 picks per drafter
         const firstDoubleRound = doublePickStartsAfterRound + 1;
         const standardPickCount = doublePickStartsAfterRound * numDrafters;
-        const doubleRoundPairIndex = Math.floor(
-          (roundNumber - firstDoubleRound) / 2
-        );
-        const isSecondPickInPair =
-          (roundNumber - firstDoubleRound) % 2;
-        const basePosition =
-          standardPickCount + doubleRoundPairIndex * numDrafters * 2 + 1;
+        const doubleRoundPairIndex = Math.floor((roundNumber - firstDoubleRound) / 2);
+        const isSecondPickInPair = (roundNumber - firstDoubleRound) % 2;
+        const basePosition = standardPickCount + doubleRoundPairIndex * numDrafters * 2 + 1;
         // Direction continues snake from last standard round
         const isReverse =
           doublePickStartsAfterRound % 2 === 1
             ? doubleRoundPairIndex % 2 === 0
             : doubleRoundPairIndex % 2 === 1;
-        const drafterOrderIndex = isReverse
-          ? numDrafters - 1 - drafterIndex
-          : drafterIndex;
+        const drafterOrderIndex = isReverse ? numDrafters - 1 - drafterIndex : drafterIndex;
         // When an odd number of rows follows the threshold, the last row is a
         // trailing single round (one pick per drafter, contiguous numbering),
         // not the first half of a double pair.
         const isTrailingSingleRound =
-          roundNumber === maxRound &&
-          (maxRound - doublePickStartsAfterRound) % 2 === 1;
+          roundNumber === maxRound && (maxRound - doublePickStartsAfterRound) % 2 === 1;
         pickPosition = isTrailingSingleRound
           ? basePosition + drafterOrderIndex
           : basePosition + drafterOrderIndex * 2 + isSecondPickInPair;
@@ -318,10 +304,7 @@ export function parsePickRows(
  * @param rows - Row data, or null if no match data available
  * @param drafterNames - Ordered drafter names (index = seat number)
  */
-export function parseMatchRows(
-  rows: string[][] | null,
-  drafterNames: string[]
-): MatchResult[] {
+export function parseMatchRows(rows: string[][] | null, drafterNames: string[]): MatchResult[] {
   if (!rows || rows.length < 4) {
     return [];
   }

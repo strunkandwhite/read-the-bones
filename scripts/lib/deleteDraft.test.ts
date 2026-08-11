@@ -100,7 +100,7 @@ describe("deleteDraft", () => {
     expect(shared.cubeSnapshotDeleted).toBe(false);
 
     const snaps = await db.execute(
-      "SELECT cube_snapshot_id FROM cube_snapshots ORDER BY cube_snapshot_id",
+      "SELECT cube_snapshot_id FROM cube_snapshots ORDER BY cube_snapshot_id"
     );
     expect(snaps.rows.map((r) => r.cube_snapshot_id)).toEqual([20]);
   });

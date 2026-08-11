@@ -50,8 +50,7 @@ function parseArgs(args: string[]) {
 
   if (!name) throw new Error("--name is required");
   if (!date) throw new Error("--date is required (YYYY-MM-DD)");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
-    throw new Error("--date must be in YYYY-MM-DD format");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error("--date must be in YYYY-MM-DD format");
   if (!seats || seats < 2) throw new Error("--seats is required (minimum 2)");
   if (!picksPerPlayer || picksPerPlayer < 1)
     throw new Error("--picks-per-player is required (minimum 1)");
@@ -68,8 +67,9 @@ function parseArgs(args: string[]) {
 
 async function main() {
   loadEnv();
-  const { name, date, seats, picksPerPlayer, pool, bannedCards, doublePickAfterRound } =
-    parseArgs(process.argv.slice(2));
+  const { name, date, seats, picksPerPlayer, pool, bannedCards, doublePickAfterRound } = parseArgs(
+    process.argv.slice(2)
+  );
   const draftId = slugify(name);
 
   const client = createClient({
@@ -154,7 +154,7 @@ async function main() {
   console.log(
     doublePickAfterRound !== null
       ? `  Double picks after round: ${doublePickAfterRound}`
-      : `  Double picks after round: unset (falls back to the floor(N/4) heuristic)`,
+      : `  Double picks after round: unset (falls back to the floor(N/4) heuristic)`
   );
   if (bannedCards.length > 0) console.log(`  Banned: ${bannedCards.join(", ")}`);
 
@@ -163,7 +163,9 @@ async function main() {
 
   console.log(`\nSeat URLs:`);
   for (const { seat, token } of tokens) {
-    console.log(`  Seat ${seat}: https://read-the-bones.vercel.app/drafts/${draftId}?token=${token}`);
+    console.log(
+      `  Seat ${seat}: https://read-the-bones.vercel.app/drafts/${draftId}?token=${token}`
+    );
   }
 }
 

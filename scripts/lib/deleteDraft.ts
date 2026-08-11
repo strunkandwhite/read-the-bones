@@ -26,10 +26,7 @@ export interface DeleteDraftResult {
   cubeSnapshotDeleted: boolean;
 }
 
-export async function deleteDraft(
-  client: Client,
-  draftId: string,
-): Promise<DeleteDraftResult> {
+export async function deleteDraft(client: Client, draftId: string): Promise<DeleteDraftResult> {
   const result = await client.execute({
     sql: "SELECT draft_id, draft_name, cube_snapshot_id FROM drafts WHERE draft_id = ?",
     args: [draftId],

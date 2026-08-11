@@ -8,7 +8,7 @@ describe("displayManaCost", () => {
         manaCost: "{1}{B} // {B}{B}",
         oracleText:
           "When this creature enters, you may sacrifice another creature. If you do, this creature becomes prepared. (While it's prepared, you may cast a copy of the other half.)",
-      }),
+      })
     ).toBe("{1}{B}");
   });
 
@@ -18,7 +18,7 @@ describe("displayManaCost", () => {
         manaCost: "{2}{U} // {U}",
         oracleText:
           "Flash\nFlying, vigilance\nThis creature enters prepared. (While it's prepared, you may cast a copy of the other half.)",
-      }),
+      })
     ).toBe("{2}{U}");
   });
 
@@ -26,9 +26,8 @@ describe("displayManaCost", () => {
     expect(
       displayManaCost({
         manaCost: "{G} // {1}{B}",
-        oracleText:
-          "Put two 1/1 green Insect creature tokens onto the battlefield.",
-      }),
+        oracleText: "Put two 1/1 green Insect creature tokens onto the battlefield.",
+      })
     ).toBe("{G} // {1}{B}");
   });
 
@@ -38,7 +37,7 @@ describe("displayManaCost", () => {
         manaCost: "{2}{R} // {1}{R}",
         oracleText:
           "Whenever this creature becomes the target of a spell, it deals 2 damage to that spell's controller.",
-      }),
+      })
     ).toBe("{2}{R} // {1}{R}");
   });
 
@@ -47,7 +46,7 @@ describe("displayManaCost", () => {
       displayManaCost({
         manaCost: "{2}{U}{U}",
         oracleText: "Counter target spell.",
-      }),
+      })
     ).toBe("{2}{U}{U}");
   });
 
@@ -56,7 +55,7 @@ describe("displayManaCost", () => {
       displayManaCost({
         manaCost: "{1}{B}",
         oracleText: "This creature enters prepared.",
-      }),
+      })
     ).toBe("{1}{B}");
   });
 

@@ -28,14 +28,7 @@ function sheet(opts: {
           [],
           [],
           [],
-          ...opts.matches.map(([p1, w1, p2, w2]) => [
-            "",
-            p1,
-            String(w1),
-            "VS",
-            String(w2),
-            p2,
-          ]),
+          ...opts.matches.map(([p1, w1, p2, w2]) => ["", p1, String(w1), "VS", String(w2), p2]),
         ]
       : null,
   };
@@ -173,14 +166,14 @@ describe("syncActiveDraft phase decisions", () => {
     // instead of a single execute-calls array.
     const deleteCallIdx = client.batch.mock.calls.findIndex((args: any[]) =>
       (args[0] ?? []).some(
-        (s: any) => typeof s.sql === "string" && s.sql.includes("DELETE FROM pick_events"),
-      ),
+        (s: any) => typeof s.sql === "string" && s.sql.includes("DELETE FROM pick_events")
+      )
     );
     expect(deleteCallIdx).toBeGreaterThanOrEqual(0);
     const deleteOrder = client.batch.mock.invocationCallOrder[deleteCallIdx];
 
     const dbPicksIdx = client.execute.mock.calls.findIndex(([p]: any[]) =>
-      (p.sql as string).includes("JOIN cards"),
+      (p.sql as string).includes("JOIN cards")
     );
     expect(dbPicksIdx).toBeGreaterThanOrEqual(0);
     const dbPicksOrder = client.execute.mock.invocationCallOrder[dbPicksIdx];

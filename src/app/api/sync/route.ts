@@ -85,10 +85,7 @@ async function runSync(): Promise<NextResponse> {
     const apiKey = process.env.GOOGLE_SHEETS_API_KEY;
     if (!apiKey) {
       console.error("[sync] GOOGLE_SHEETS_API_KEY not set");
-      return NextResponse.json(
-        { error: "Server misconfiguration", autoPicked },
-        { status: 500 },
-      );
+      return NextResponse.json({ error: "Server misconfiguration", autoPicked }, { status: 500 });
     }
 
     let totalPicksInserted = 0;
@@ -147,17 +144,14 @@ function timingSafeStringEqual(a: string, b: string): boolean {
  * GET /api/sync — Called by Vercel cron job every minute.
  * Requires CRON_SECRET authorization.
  */
-export const GET = withApiErrors(
-  async (request: NextRequest) => {
-    // Verify cron secret using constant-time comparison to resist timing attacks
-    const authHeader = request.headers.get("authorization");
-    const cronSecret = process.env.CRON_SECRET;
+export const GET = withApiErrors(async (request: NextRequest) => {
+  // Verify cron secret using constant-time comparison to resist timing attacks
+  const authHeader = request.headers.get("authorization");
+  const cronSecret = process.env.CRON_SECRET;
 
-    if (!cronSecret || !timingSafeStringEqual(authHeader ?? "", `Bearer ${cronSecret}`)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!cronSecret || !timingSafeStringEqual(authHeader ?? "", `Bearer ${cronSecret}`)) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-    return await runSync();
-  },
-  "[sync] Unexpected error:",
-);
+  return await runSync();
+}, "[sync] Unexpected error:");

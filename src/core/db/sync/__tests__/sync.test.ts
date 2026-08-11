@@ -77,7 +77,7 @@ function buildPoolRows(cardNames: string[]): string[][] {
 
 function buildPickRows(
   drafterNames: string[],
-  picks: string[][], // rows of [roundNum, arrow, ...cardNames, ...colors]
+  picks: string[][] // rows of [roundNum, arrow, ...cardNames, ...colors]
 ): string[][] {
   return [
     [], // row 0
@@ -87,9 +87,7 @@ function buildPickRows(
   ];
 }
 
-function buildMatchRows(
-  matchData: Array<[string, number, string, number]>,
-): string[][] {
+function buildMatchRows(matchData: Array<[string, number, string, number]>): string[][] {
   return [
     [], // row 0
     [], // row 1
@@ -126,9 +124,10 @@ describe("syncDraft", () => {
     it("skips all domains when hashes match", async () => {
       const rawData: DraftSheetRawData = {
         pool: buildPoolRows(["Lightning Bolt", "Counterspell"]),
-        picks: buildPickRows(["Alice", "Bob"], [
-          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
-        ]),
+        picks: buildPickRows(
+          ["Alice", "Bob"],
+          [["1", "→", "Lightning Bolt", "Counterspell", "R", "U"]]
+        ),
         matches: null,
       };
 
@@ -145,11 +144,13 @@ describe("syncDraft", () => {
       const client = mockClient((params) => {
         if (params.sql.includes("pool_hash")) {
           return {
-            rows: [{
-              pool_hash: poolHash,
-              picks_hash: picksHash,
-              matches_hash: null,
-            }],
+            rows: [
+              {
+                pool_hash: poolHash,
+                picks_hash: picksHash,
+                matches_hash: null,
+              },
+            ],
           };
         }
         return { rows: [] };
@@ -166,7 +167,7 @@ describe("syncDraft", () => {
         rawData,
         cache,
         emptyScryfallCache,
-        emptyOptOuts,
+        emptyOptOuts
       );
 
       expect(result.poolAction).toBe("skip");
@@ -174,12 +175,8 @@ describe("syncDraft", () => {
       expect(result.matchesAction).toBe("skip");
 
       // No DELETE calls should have been made
-      const executeCalls = client.execute.mock.calls.map(
-        (c: any[]) => c[0].sql as string,
-      );
-      const deleteCalls = executeCalls.filter((sql: string) =>
-        sql.includes("DELETE"),
-      );
+      const executeCalls = client.execute.mock.calls.map((c: any[]) => c[0].sql as string);
+      const deleteCalls = executeCalls.filter((sql: string) => sql.includes("DELETE"));
       expect(deleteCalls).toHaveLength(0);
 
       // No batch INSERT calls for picks/matches
@@ -191,9 +188,10 @@ describe("syncDraft", () => {
     it("replaces picks when pick hash differs", async () => {
       const rawData: DraftSheetRawData = {
         pool: buildPoolRows(["Lightning Bolt", "Counterspell"]),
-        picks: buildPickRows(["Alice", "Bob"], [
-          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
-        ]),
+        picks: buildPickRows(
+          ["Alice", "Bob"],
+          [["1", "→", "Lightning Bolt", "Counterspell", "R", "U"]]
+        ),
         matches: null,
       };
 
@@ -206,11 +204,13 @@ describe("syncDraft", () => {
       const client = mockClient((params) => {
         if (params.sql.includes("pool_hash")) {
           return {
-            rows: [{
-              pool_hash: poolHash,
-              picks_hash: "stale-hash",
-              matches_hash: null,
-            }],
+            rows: [
+              {
+                pool_hash: poolHash,
+                picks_hash: "stale-hash",
+                matches_hash: null,
+              },
+            ],
           };
         }
         if (params.sql.includes("SELECT cube_snapshot_id FROM cube_snapshots")) {
@@ -238,7 +238,7 @@ describe("syncDraft", () => {
         rawData,
         cache,
         emptyScryfallCache,
-        emptyOptOuts,
+        emptyOptOuts
       );
 
       expect(result.poolAction).toBe("skip");
@@ -246,10 +246,10 @@ describe("syncDraft", () => {
       expect(result.picksCount).toBe(2);
 
       // Verify DELETE was called for picks
-      const executeCalls = client.execute.mock.calls.map(
-        (c: any[]) => c[0].sql as string,
+      const executeCalls = client.execute.mock.calls.map((c: any[]) => c[0].sql as string);
+      expect(executeCalls.some((sql: string) => sql.includes("DELETE FROM pick_events"))).toBe(
+        true
       );
-      expect(executeCalls.some((sql: string) => sql.includes("DELETE FROM pick_events"))).toBe(true);
 
       // Verify batch INSERT was called
       expect(client.batch).toHaveBeenCalled();
@@ -261,12 +261,11 @@ describe("syncDraft", () => {
     it("replaces matches when match hash differs", async () => {
       const rawData: DraftSheetRawData = {
         pool: buildPoolRows(["Lightning Bolt", "Counterspell"]),
-        picks: buildPickRows(["Alice", "Bob"], [
-          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
-        ]),
-        matches: buildMatchRows([
-          ["Alice", 2, "Bob", 1],
-        ]),
+        picks: buildPickRows(
+          ["Alice", "Bob"],
+          [["1", "→", "Lightning Bolt", "Counterspell", "R", "U"]]
+        ),
+        matches: buildMatchRows([["Alice", 2, "Bob", 1]]),
       };
 
       const { hashPool, hashPicks } = await import("../domains");
@@ -280,11 +279,13 @@ describe("syncDraft", () => {
       const client = mockClient((params) => {
         if (params.sql.includes("pool_hash")) {
           return {
-            rows: [{
-              pool_hash: poolHash,
-              picks_hash: picksHash,
-              matches_hash: "stale-match-hash",
-            }],
+            rows: [
+              {
+                pool_hash: poolHash,
+                picks_hash: picksHash,
+                matches_hash: "stale-match-hash",
+              },
+            ],
           };
         }
         return { rows: [] };
@@ -301,7 +302,7 @@ describe("syncDraft", () => {
         rawData,
         cache,
         emptyScryfallCache,
-        emptyOptOuts,
+        emptyOptOuts
       );
 
       expect(result.matchesAction).toBe("replace");
@@ -318,9 +319,7 @@ describe("syncDraft", () => {
     it("replaces all domains when stored hashes are null", async () => {
       const rawData: DraftSheetRawData = {
         pool: buildPoolRows(["Lightning Bolt"]),
-        picks: buildPickRows(["Alice", "Bob"], [
-          ["1", "→", "Lightning Bolt", "", "R", ""],
-        ]),
+        picks: buildPickRows(["Alice", "Bob"], [["1", "→", "Lightning Bolt", "", "R", ""]]),
         matches: buildMatchRows([["Alice", 2, "Bob", 0]]),
       };
 
@@ -328,11 +327,13 @@ describe("syncDraft", () => {
         // No stored hashes — first sync
         if (params.sql.includes("pool_hash")) {
           return {
-            rows: [{
-              pool_hash: null,
-              picks_hash: null,
-              matches_hash: null,
-            }],
+            rows: [
+              {
+                pool_hash: null,
+                picks_hash: null,
+                matches_hash: null,
+              },
+            ],
           };
         }
         // ensureCubeSnapshot: no existing snapshot
@@ -354,7 +355,7 @@ describe("syncDraft", () => {
         rawData,
         cache,
         emptyScryfallCache,
-        emptyOptOuts,
+        emptyOptOuts
       );
 
       expect(result.poolAction).toBe("replace");
@@ -385,7 +386,7 @@ describe("syncDraft", () => {
         rawData,
         cache,
         emptyScryfallCache,
-        emptyOptOuts,
+        emptyOptOuts
       );
 
       expect(result.poolAction).toBe("skip");
@@ -397,11 +398,11 @@ describe("syncDraft", () => {
       // 'drafting' may legitimately occur from setup; only 'playing' and
       // 'complete' are forbidden here.
       const executeCalls = client.execute.mock.calls;
-      const phaseWrites = executeCalls.filter(
-        (c: any[]) => (c[0].sql as string).includes("UPDATE drafts SET phase"),
+      const phaseWrites = executeCalls.filter((c: any[]) =>
+        (c[0].sql as string).includes("UPDATE drafts SET phase")
       );
       const advancingWrites = phaseWrites.filter(
-        (c: any[]) => c[0].args[0] === "playing" || c[0].args[0] === "complete",
+        (c: any[]) => c[0].args[0] === "playing" || c[0].args[0] === "complete"
       );
       expect(advancingWrites).toHaveLength(0);
     });
@@ -419,7 +420,12 @@ describe("syncDraft", () => {
       ];
 
       const rawData: DraftSheetRawData = {
-        pool: buildPoolRows(["Lightning Bolt", "Counterspell", "Dark Ritual", "Swords to Plowshares"]),
+        pool: buildPoolRows([
+          "Lightning Bolt",
+          "Counterspell",
+          "Dark Ritual",
+          "Swords to Plowshares",
+        ]),
         picks: picksRows,
         matches: null,
       };
@@ -450,13 +456,13 @@ describe("syncDraft", () => {
         rawData,
         cache,
         emptyScryfallCache,
-        emptyOptOuts,
+        emptyOptOuts
       );
 
       expect(result.markedComplete).toBe(false);
       const executeCalls = client.execute.mock.calls;
-      const completionUpdate = executeCalls.find(
-        (c: any[]) => (c[0].sql as string).includes("UPDATE drafts SET phase"),
+      const completionUpdate = executeCalls.find((c: any[]) =>
+        (c[0].sql as string).includes("UPDATE drafts SET phase")
       );
       expect(completionUpdate).toBeDefined();
       expect(completionUpdate![0].args[0]).toBe("playing");
@@ -494,13 +500,18 @@ describe("syncDraft", () => {
       ]);
 
       const result = await syncDraft(
-        client as any, "test-draft", rawData, cache, emptyScryfallCache, emptyOptOuts,
+        client as any,
+        "test-draft",
+        rawData,
+        cache,
+        emptyScryfallCache,
+        emptyOptOuts
       );
 
       expect(result.markedComplete).toBe(true);
       const executeCalls = client.execute.mock.calls;
-      const completionUpdate = executeCalls.find(
-        (c: any[]) => (c[0].sql as string).includes("UPDATE drafts SET phase"),
+      const completionUpdate = executeCalls.find((c: any[]) =>
+        (c[0].sql as string).includes("UPDATE drafts SET phase")
       );
       expect(completionUpdate![0].args[0]).toBe("complete");
     });
@@ -520,12 +531,7 @@ describe("syncDraft", () => {
 
     function buildIncompletePickRows(): string[][] {
       // No ✪ marker = still drafting
-      return [
-        [],
-        [],
-        ["", "", "Alice", "Bob", "↩"],
-        ["1", "→", "Lightning Bolt", "", "R", ""],
-      ];
+      return [[], [], ["", "", "Alice", "Bob", "↩"], ["1", "→", "Lightning Bolt", "", "R", ""]];
     }
 
     it("does NOT demote a 'playing' draft back to 'drafting' on re-sync", async () => {
@@ -544,7 +550,11 @@ describe("syncDraft", () => {
       const client = mockClient((params) => {
         if (params.sql.includes("pool_hash")) {
           // Current phase is 'playing' — matches ongoing
-          return { rows: [{ pool_hash: poolHash, picks_hash: picksHash, matches_hash: null, phase: "playing" }] };
+          return {
+            rows: [
+              { pool_hash: poolHash, picks_hash: picksHash, matches_hash: null, phase: "playing" },
+            ],
+          };
         }
         return { rows: [] };
       });
@@ -554,14 +564,20 @@ describe("syncDraft", () => {
         ["Counterspell", 2],
       ]);
 
-      await syncDraft(client as any, "test-draft", rawData, cache, emptyScryfallCache, emptyOptOuts);
+      await syncDraft(
+        client as any,
+        "test-draft",
+        rawData,
+        cache,
+        emptyScryfallCache,
+        emptyOptOuts
+      );
 
       // The UPDATE drafts SET phase must NOT have been called with 'drafting'
       const executeCalls = client.execute.mock.calls;
       const demotionCall = executeCalls.find(
         (c: any[]) =>
-          (c[0].sql as string).includes("UPDATE drafts SET phase") &&
-          c[0].args[0] === "drafting",
+          (c[0].sql as string).includes("UPDATE drafts SET phase") && c[0].args[0] === "drafting"
       );
       expect(demotionCall).toBeUndefined();
     });
@@ -579,27 +595,47 @@ describe("syncDraft", () => {
 
       const client = mockClient((params) => {
         if (params.sql.includes("pool_hash")) {
-          return { rows: [{ pool_hash: poolHash, picks_hash: "some-hash", matches_hash: null, phase: "complete" }] };
+          return {
+            rows: [
+              {
+                pool_hash: poolHash,
+                picks_hash: "some-hash",
+                matches_hash: null,
+                phase: "complete",
+              },
+            ],
+          };
         }
         return { rows: [] };
       });
 
       const cache = populatedCache([["Lightning Bolt", 1]]);
 
-      await syncDraft(client as any, "test-draft", rawData, cache, emptyScryfallCache, emptyOptOuts);
+      await syncDraft(
+        client as any,
+        "test-draft",
+        rawData,
+        cache,
+        emptyScryfallCache,
+        emptyOptOuts
+      );
 
       const executeCalls = client.execute.mock.calls;
       const demotionCall = executeCalls.find(
         (c: any[]) =>
-          (c[0].sql as string).includes("UPDATE drafts SET phase") &&
-          c[0].args[0] === "drafting",
+          (c[0].sql as string).includes("UPDATE drafts SET phase") && c[0].args[0] === "drafting"
       );
       expect(demotionCall).toBeUndefined();
     });
 
     it("DOES mark a 'playing' draft as 'complete' when picks are finished", async () => {
       const rawData: DraftSheetRawData = {
-        pool: buildPoolRows(["Lightning Bolt", "Counterspell", "Dark Ritual", "Swords to Plowshares"]),
+        pool: buildPoolRows([
+          "Lightning Bolt",
+          "Counterspell",
+          "Dark Ritual",
+          "Swords to Plowshares",
+        ]),
         picks: buildCompletePickRows(), // ✪ marker = complete
         matches: buildMatchRows([["Alice", 2, "Bob", 0]]),
       };
@@ -607,7 +643,9 @@ describe("syncDraft", () => {
       const client = mockClient((params) => {
         if (params.sql.includes("pool_hash")) {
           // Draft is currently 'playing' (matches in progress)
-          return { rows: [{ pool_hash: null, picks_hash: null, matches_hash: null, phase: "playing" }] };
+          return {
+            rows: [{ pool_hash: null, picks_hash: null, matches_hash: null, phase: "playing" }],
+          };
         }
         if (params.sql.includes("SELECT cube_snapshot_id FROM cube_snapshots")) {
           return { rows: [] };
@@ -626,14 +664,19 @@ describe("syncDraft", () => {
       ]);
 
       const result = await syncDraft(
-        client as any, "test-draft", rawData, cache, emptyScryfallCache, emptyOptOuts,
+        client as any,
+        "test-draft",
+        rawData,
+        cache,
+        emptyScryfallCache,
+        emptyOptOuts
       );
 
       expect(result.markedComplete).toBe(true);
 
       const executeCalls = client.execute.mock.calls;
-      const completionUpdate = executeCalls.find(
-        (c: any[]) => (c[0].sql as string).includes("UPDATE drafts SET phase"),
+      const completionUpdate = executeCalls.find((c: any[]) =>
+        (c[0].sql as string).includes("UPDATE drafts SET phase")
       );
       expect(completionUpdate).toBeDefined();
       expect(completionUpdate![0].args[0]).toBe("complete");
@@ -644,9 +687,10 @@ describe("syncDraft", () => {
     it("converts 0-indexed seats to 1-indexed for picks", async () => {
       const rawData: DraftSheetRawData = {
         pool: buildPoolRows(["Lightning Bolt", "Counterspell"]),
-        picks: buildPickRows(["Alice", "Bob"], [
-          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
-        ]),
+        picks: buildPickRows(
+          ["Alice", "Bob"],
+          [["1", "→", "Lightning Bolt", "Counterspell", "R", "U"]]
+        ),
         matches: null,
       };
 
@@ -674,25 +718,25 @@ describe("syncDraft", () => {
         rawData,
         cache,
         emptyScryfallCache,
-        emptyOptOuts,
+        emptyOptOuts
       );
 
       // Find the batch call for picks
       const batchCalls = client.batch.mock.calls;
       const picksBatch = batchCalls.find((c: any[]) =>
-        c[0]?.[0]?.sql?.includes("INSERT INTO pick_events"),
+        c[0]?.[0]?.sql?.includes("INSERT INTO pick_events")
       );
       expect(picksBatch).toBeDefined();
 
       // Alice (seat 0) should be seat 1 in the DB
       const alicePick = picksBatch![0].find(
-        (s: any) => s.args[3] === 1, // card_id for Lightning Bolt
+        (s: any) => s.args[3] === 1 // card_id for Lightning Bolt
       );
       expect(alicePick.args[2]).toBe(1); // seat = 0 + 1
 
       // Bob (seat 1) should be seat 2 in the DB
       const bobPick = picksBatch![0].find(
-        (s: any) => s.args[3] === 2, // card_id for Counterspell
+        (s: any) => s.args[3] === 2 // card_id for Counterspell
       );
       expect(bobPick.args[2]).toBe(2); // seat = 1 + 1
     });
@@ -702,9 +746,7 @@ describe("syncDraft", () => {
     it("applies opt-outs for matching drafter names", async () => {
       const rawData: DraftSheetRawData = {
         pool: buildPoolRows(["Lightning Bolt"]),
-        picks: buildPickRows(["Alice", "Bob"], [
-          ["1", "→", "Lightning Bolt", "", "R", ""],
-        ]),
+        picks: buildPickRows(["Alice", "Bob"], [["1", "→", "Lightning Bolt", "", "R", ""]]),
         matches: null,
       };
 
@@ -724,19 +766,12 @@ describe("syncDraft", () => {
       const cache = populatedCache([["Lightning Bolt", 1]]);
       const optOuts = new Set(["alice"]); // lowercase
 
-      await syncDraft(
-        client as any,
-        "test-draft",
-        rawData,
-        cache,
-        emptyScryfallCache,
-        optOuts,
-      );
+      await syncDraft(client as any, "test-draft", rawData, cache, emptyScryfallCache, optOuts);
 
       // Verify insertOptOuts was called (it runs INSERT OR IGNORE)
       const executeCalls = client.execute.mock.calls;
-      const optOutCall = executeCalls.find(
-        (c: any[]) => (c[0].sql as string).includes("privacy_opt_outs"),
+      const optOutCall = executeCalls.find((c: any[]) =>
+        (c[0].sql as string).includes("privacy_opt_outs")
       );
       expect(optOutCall).toBeDefined();
     });
@@ -754,9 +789,10 @@ describe("syncDraft", () => {
 
       const rawSheetData: DraftSheetRawData = {
         pool: null,
-        picks: buildPickRows(["Alice", "Bob"], [
-          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
-        ]),
+        picks: buildPickRows(
+          ["Alice", "Bob"],
+          [["1", "→", "Lightning Bolt", "Counterspell", "R", "U"]]
+        ),
         matches: null,
       };
       const cardCache = populatedCache([
@@ -771,7 +807,7 @@ describe("syncDraft", () => {
       const { parsePickRows } = await import("../../../parseSheetRows");
       const parsedForHash = parsePickRows(rawSheetData.picks!, "d1");
       const filteredPicksHash = hashPicks(
-        parsedForHash.picks.filter((p) => p.wasPicked && p.seat + 1 !== 2),
+        parsedForHash.picks.filter((p) => p.wasPicked && p.seat + 1 !== 2)
       );
 
       const client = mockClient((params) => {
@@ -788,7 +824,7 @@ describe("syncDraft", () => {
         cardCache,
         emptyScryfallCache,
         new Set(["bob"]),
-        {},
+        {}
       );
 
       // Picks are filtered against the opt-out table as it stood before insert.
@@ -814,8 +850,7 @@ describe("syncDraft", () => {
       const executeCalls = client.execute.mock.calls;
       const hashUpdateCall = executeCalls.find(
         (c: any[]) =>
-          (c[0].sql as string).includes("SET") &&
-          (c[0].sql as string).includes("picks_hash"),
+          (c[0].sql as string).includes("SET") && (c[0].sql as string).includes("picks_hash")
       );
       expect(hashUpdateCall).toBeDefined();
       expect(hashUpdateCall![0].args).toContain(filteredPicksHash);
@@ -831,9 +866,10 @@ describe("syncDraft", () => {
       // this test would fail against that ordering.
       const rawSheetData: DraftSheetRawData = {
         pool: null,
-        picks: buildPickRows(["Alice", "Bob"], [
-          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
-        ]),
+        picks: buildPickRows(
+          ["Alice", "Bob"],
+          [["1", "→", "Lightning Bolt", "Counterspell", "R", "U"]]
+        ),
         matches: null,
       };
       const cardCache = populatedCache([
@@ -855,7 +891,7 @@ describe("syncDraft", () => {
         cardCache,
         emptyScryfallCache,
         new Set(["bob"]),
-        {},
+        {}
       );
 
       const insertOptOutsOrder = mockInsertOptOuts.mock.invocationCallOrder.at(-1);
@@ -877,9 +913,10 @@ describe("syncDraft", () => {
       const { fetchDraftTabsRaw } = await import("../../../sheets");
       const sharedSheetData: DraftSheetRawData = {
         pool: null,
-        picks: buildPickRows(["Alice", "Bob"], [
-          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
-        ]),
+        picks: buildPickRows(
+          ["Alice", "Bob"],
+          [["1", "→", "Lightning Bolt", "Counterspell", "R", "U"]]
+        ),
         matches: null,
       };
       vi.mocked(fetchDraftTabsRaw).mockResolvedValueOnce(sharedSheetData);
@@ -913,12 +950,12 @@ describe("syncDraft", () => {
         cardCache,
         emptyScryfallCache,
         new Set(["bob"]),
-        {},
+        {}
       );
 
       const cliHashCall = cliClient.execute.mock.calls.find(
         (c: any[]) =>
-          (c[0].sql as string).includes("SET") && (c[0].sql as string).includes("picks_hash"),
+          (c[0].sql as string).includes("SET") && (c[0].sql as string).includes("picks_hash")
       );
       expect(cliHashCall).toBeDefined();
       const cliPicksHash = cliHashCall![0].args[0] as string;
@@ -931,7 +968,9 @@ describe("syncDraft", () => {
           return { rows: [{ seat: 2 }] };
         }
         if (params.sql.includes("pool_hash")) {
-          return { rows: [{ pool_hash: null, picks_hash: null, matches_hash: null, phase: "drafting" }] };
+          return {
+            rows: [{ pool_hash: null, picks_hash: null, matches_hash: null, phase: "drafting" }],
+          };
         }
         if (params.sql.includes("JOIN cards")) {
           return { rows: [] }; // no picks stored yet in the DB
@@ -950,12 +989,12 @@ describe("syncDraft", () => {
       await syncActiveDraft(
         cronClient as any,
         { draftId: "cross-path-draft", sheetId: "sheet-1" },
-        "api-key",
+        "api-key"
       );
 
       const cronHashCall = cronClient.execute.mock.calls.find(
         (c: any[]) =>
-          (c[0].sql as string).includes("SET") && (c[0].sql as string).includes("picks_hash"),
+          (c[0].sql as string).includes("SET") && (c[0].sql as string).includes("picks_hash")
       );
       expect(cronHashCall).toBeDefined();
       const cronPicksHash = cronHashCall![0].args[0] as string;
@@ -968,9 +1007,7 @@ describe("syncDraft", () => {
     it("returns error in result without throwing", async () => {
       const rawData: DraftSheetRawData = {
         pool: buildPoolRows(["Lightning Bolt"]),
-        picks: buildPickRows(["Alice"], [
-          ["1", "→", "Lightning Bolt", "R"],
-        ]),
+        picks: buildPickRows(["Alice"], [["1", "→", "Lightning Bolt", "R"]]),
         matches: null,
       };
 
@@ -991,7 +1028,7 @@ describe("syncDraft", () => {
         rawData,
         cache,
         emptyScryfallCache,
-        emptyOptOuts,
+        emptyOptOuts
       );
 
       expect(result.error).toBe("DB connection failed");
@@ -1003,9 +1040,10 @@ describe("syncDraft", () => {
     it("computes hashes but does not write anything", async () => {
       const rawData: DraftSheetRawData = {
         pool: buildPoolRows(["Lightning Bolt", "Counterspell"]),
-        picks: buildPickRows(["Alice", "Bob"], [
-          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
-        ]),
+        picks: buildPickRows(
+          ["Alice", "Bob"],
+          [["1", "→", "Lightning Bolt", "Counterspell", "R", "U"]]
+        ),
         matches: buildMatchRows([["Alice", 2, "Bob", 0]]),
       };
 
@@ -1028,7 +1066,7 @@ describe("syncDraft", () => {
         cache,
         emptyScryfallCache,
         emptyOptOuts,
-        { dryRun: true },
+        { dryRun: true }
       );
 
       // Should report replace actions
@@ -1051,9 +1089,7 @@ describe("syncDraft", () => {
     it("does not call updateDomainHashes when batchInsertPicks throws", async () => {
       const rawData: DraftSheetRawData = {
         pool: buildPoolRows(["Lightning Bolt"]),
-        picks: buildPickRows(["Alice"], [
-          ["1", "→", "Lightning Bolt", "R"],
-        ]),
+        picks: buildPickRows(["Alice"], [["1", "→", "Lightning Bolt", "R"]]),
         matches: null,
       };
 
@@ -1065,11 +1101,13 @@ describe("syncDraft", () => {
       const client = mockClient((params) => {
         if (params.sql.includes("pool_hash")) {
           return {
-            rows: [{
-              pool_hash: poolHash,
-              picks_hash: "stale-picks-hash", // mismatch triggers replace
-              matches_hash: null,
-            }],
+            rows: [
+              {
+                pool_hash: poolHash,
+                picks_hash: "stale-picks-hash", // mismatch triggers replace
+                matches_hash: null,
+              },
+            ],
           };
         }
         if (params.sql.includes("SELECT cube_snapshot_id FROM cube_snapshots")) {
@@ -1093,7 +1131,7 @@ describe("syncDraft", () => {
         rawData,
         cache,
         emptyScryfallCache,
-        emptyOptOuts,
+        emptyOptOuts
       );
 
       // Error is captured in result, not thrown
@@ -1101,14 +1139,12 @@ describe("syncDraft", () => {
 
       // updateDomainHashes must NOT have been called — the hash UPDATE SQL
       // contains "pool_hash" / "picks_hash" / "matches_hash" SET clauses
-      const executeCalls = client.execute.mock.calls.map(
-        (c: any[]) => c[0].sql as string,
-      );
+      const executeCalls = client.execute.mock.calls.map((c: any[]) => c[0].sql as string);
       // The only execute call that writes hashes uses SET picks_hash / pool_hash
       const hashUpdateCalls = executeCalls.filter(
         (sql: string) =>
           sql.includes("SET") &&
-          (sql.includes("picks_hash") || sql.includes("pool_hash") || sql.includes("matches_hash")),
+          (sql.includes("picks_hash") || sql.includes("pool_hash") || sql.includes("matches_hash"))
       );
       expect(hashUpdateCalls).toHaveLength(0);
     });
@@ -1118,9 +1154,10 @@ describe("syncDraft", () => {
     it("replaces resolvable picks but does not update picks_hash when a pick's card is missing from cardCache", async () => {
       const rawData: DraftSheetRawData = {
         pool: buildPoolRows(["Lightning Bolt", "Counterspell"]),
-        picks: buildPickRows(["Alice", "Bob"], [
-          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
-        ]),
+        picks: buildPickRows(
+          ["Alice", "Bob"],
+          [["1", "→", "Lightning Bolt", "Counterspell", "R", "U"]]
+        ),
         matches: null,
       };
 
@@ -1131,11 +1168,13 @@ describe("syncDraft", () => {
       const client = mockClient((params) => {
         if (params.sql.includes("pool_hash")) {
           return {
-            rows: [{
-              pool_hash: poolHash, // pool unchanged
-              picks_hash: "stale-hash", // mismatch triggers replace
-              matches_hash: null,
-            }],
+            rows: [
+              {
+                pool_hash: poolHash, // pool unchanged
+                picks_hash: "stale-hash", // mismatch triggers replace
+                matches_hash: null,
+              },
+            ],
           };
         }
         if (params.sql.includes("SELECT cube_snapshot_id FROM cube_snapshots")) {
@@ -1157,7 +1196,7 @@ describe("syncDraft", () => {
         rawData,
         cache,
         emptyScryfallCache,
-        emptyOptOuts,
+        emptyOptOuts
       );
 
       // The resolvable pick still gets replaced.
@@ -1169,8 +1208,7 @@ describe("syncDraft", () => {
       const executeCalls = client.execute.mock.calls;
       const hashUpdateCalls = executeCalls.filter(
         (c: any[]) =>
-          (c[0].sql as string).includes("SET") &&
-          (c[0].sql as string).includes("picks_hash"),
+          (c[0].sql as string).includes("SET") && (c[0].sql as string).includes("picks_hash")
       );
       expect(hashUpdateCalls).toHaveLength(0);
     });
@@ -1180,9 +1218,10 @@ describe("syncDraft", () => {
     it("calls updateDomainHashes with the newly computed picks hash after a successful replace", async () => {
       const rawData: DraftSheetRawData = {
         pool: buildPoolRows(["Lightning Bolt", "Counterspell"]),
-        picks: buildPickRows(["Alice", "Bob"], [
-          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
-        ]),
+        picks: buildPickRows(
+          ["Alice", "Bob"],
+          [["1", "→", "Lightning Bolt", "Counterspell", "R", "U"]]
+        ),
         matches: null,
       };
 
@@ -1195,11 +1234,13 @@ describe("syncDraft", () => {
       const client = mockClient((params) => {
         if (params.sql.includes("pool_hash")) {
           return {
-            rows: [{
-              pool_hash: poolHash, // pool unchanged
-              picks_hash: "stale-picks-hash", // triggers replace
-              matches_hash: null,
-            }],
+            rows: [
+              {
+                pool_hash: poolHash, // pool unchanged
+                picks_hash: "stale-picks-hash", // triggers replace
+                matches_hash: null,
+              },
+            ],
           };
         }
         if (params.sql.includes("SELECT cube_snapshot_id FROM cube_snapshots")) {
@@ -1227,15 +1268,14 @@ describe("syncDraft", () => {
         rawData,
         cache,
         emptyScryfallCache,
-        emptyOptOuts,
+        emptyOptOuts
       );
 
       // Find the execute call that writes the hash update
       const executeCalls = client.execute.mock.calls;
       const hashUpdateCall = executeCalls.find(
         (c: any[]) =>
-          (c[0].sql as string).includes("SET") &&
-          (c[0].sql as string).includes("picks_hash"),
+          (c[0].sql as string).includes("SET") && (c[0].sql as string).includes("picks_hash")
       );
 
       expect(hashUpdateCall).toBeDefined();
@@ -1251,9 +1291,7 @@ describe("syncDraft", () => {
 
       const rawData: DraftSheetRawData = {
         pool: buildPoolRows(["Lightning Bolt"]),
-        picks: buildPickRows(["Alice"], [
-          ["1", "→", "Lightning Bolt", "R"],
-        ]),
+        picks: buildPickRows(["Alice"], [["1", "→", "Lightning Bolt", "R"]]),
         matches: null,
       };
 
@@ -1264,11 +1302,13 @@ describe("syncDraft", () => {
       const client = mockClient((params) => {
         if (params.sql.includes("pool_hash")) {
           return {
-            rows: [{
-              pool_hash: poolHash,
-              picks_hash: picksHash, // matches current → skip
-              matches_hash: null,
-            }],
+            rows: [
+              {
+                pool_hash: poolHash,
+                picks_hash: picksHash, // matches current → skip
+                matches_hash: null,
+              },
+            ],
           };
         }
         return { rows: [] };
@@ -1282,16 +1322,14 @@ describe("syncDraft", () => {
         rawData,
         cache,
         emptyScryfallCache,
-        emptyOptOuts,
+        emptyOptOuts
       );
 
-      const executeCalls = client.execute.mock.calls.map(
-        (c: any[]) => c[0].sql as string,
-      );
+      const executeCalls = client.execute.mock.calls.map((c: any[]) => c[0].sql as string);
       const hashUpdateCalls = executeCalls.filter(
         (sql: string) =>
           sql.includes("SET") &&
-          (sql.includes("picks_hash") || sql.includes("pool_hash") || sql.includes("matches_hash")),
+          (sql.includes("picks_hash") || sql.includes("pool_hash") || sql.includes("matches_hash"))
       );
       // No hash update — domain was skipped
       expect(hashUpdateCalls).toHaveLength(0);
@@ -1301,17 +1339,20 @@ describe("syncDraft", () => {
   describe("double-pick boundary persistence", () => {
     function findDoublePickUpdate(client: ReturnType<typeof mockClient>) {
       return client.execute.mock.calls.find((c: any[]) =>
-        (c[0].sql as string).includes("double_pick_after_round"),
+        (c[0].sql as string).includes("double_pick_after_round")
       );
     }
 
     it("writes the sheet's Double Picks After value even when picks are skipped", async () => {
       const rawData: DraftSheetRawData = {
         pool: null,
-        picks: buildPickRows(["Alice", "Bob"], [
-          ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
-          ["", "", "", "", "", "", "", "Double Picks After:", "25"],
-        ]),
+        picks: buildPickRows(
+          ["Alice", "Bob"],
+          [
+            ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
+            ["", "", "", "", "", "", "", "Double Picks After:", "25"],
+          ]
+        ),
         matches: null,
       };
 
@@ -1332,9 +1373,12 @@ describe("syncDraft", () => {
         client as any,
         "test-draft",
         rawData,
-        populatedCache([["Lightning Bolt", 1], ["Counterspell", 2]]),
+        populatedCache([
+          ["Lightning Bolt", 1],
+          ["Counterspell", 2],
+        ]),
         emptyScryfallCache,
-        emptyOptOuts,
+        emptyOptOuts
       );
 
       expect(result.picksAction).toBe("skip");
@@ -1353,7 +1397,7 @@ describe("syncDraft", () => {
         rawData,
         populatedCache([]),
         emptyScryfallCache,
-        emptyOptOuts,
+        emptyOptOuts
       );
 
       expect(findDoublePickUpdate(client)).toBeUndefined();

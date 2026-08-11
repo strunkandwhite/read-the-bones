@@ -44,15 +44,13 @@ export function DesireCurveChart({
     // Symmetric y-domain around zero: equal magnitudes read equally, and the
     // zero baseline always sits mid-plot.
     const maxAbs = Math.max(...points.map((p) => Math.abs(p.desire)), 0.005);
-    const xFor = (pickN: number) =>
-      pad.left + ((pickN - 1) / (totalPicks - 1)) * plotWidth;
+    const xFor = (pickN: number) => pad.left + ((pickN - 1) / (totalPicks - 1)) * plotWidth;
     const yFor = (desire: number) =>
       pad.top + plotHeight / 2 - (desire / maxAbs) * (plotHeight / 2);
 
     const linePath = points
       .map(
-        (p, i) =>
-          `${i === 0 ? "M" : "L"} ${xFor(p.pickN).toFixed(1)} ${yFor(p.desire).toFixed(1)}`,
+        (p, i) => `${i === 0 ? "M" : "L"} ${xFor(p.pickN).toFixed(1)} ${yFor(p.desire).toFixed(1)}`
       )
       .join(" ");
 
@@ -97,21 +95,41 @@ export function DesireCurveChart({
         onMouseLeave={() => setHoverIndex(null)}
       >
         {/* Y extremes + zero baseline (recessive) */}
-        <line x1={pad.left} y1={zeroY} x2={width - pad.right} y2={zeroY} stroke="#3f3f46" strokeWidth={1} />
+        <line
+          x1={pad.left}
+          y1={zeroY}
+          x2={width - pad.right}
+          y2={zeroY}
+          stroke="#3f3f46"
+          strokeWidth={1}
+        />
         <text x={pad.left - 5} y={zeroY + 3} textAnchor="end" fontSize={9} fill="#71717a">
           0
         </text>
         <text x={pad.left - 5} y={pad.top + 4} textAnchor="end" fontSize={9} fill="#71717a">
           {`+${Math.round(Math.abs(desireIndex(maxAbs, worthScale) ?? 0))}`}
         </text>
-        <text x={pad.left - 5} y={pad.top + plotHeight} textAnchor="end" fontSize={9} fill="#71717a">
+        <text
+          x={pad.left - 5}
+          y={pad.top + plotHeight}
+          textAnchor="end"
+          fontSize={9}
+          fill="#71717a"
+        >
           {`-${Math.round(Math.abs(desireIndex(maxAbs, worthScale) ?? 0))}`}
         </text>
 
         {/* X ticks */}
         {xTicks.map((tick) => (
           <g key={tick}>
-            <line x1={xFor(tick)} y1={pad.top + plotHeight} x2={xFor(tick)} y2={pad.top + plotHeight + 3} stroke="#3f3f46" strokeWidth={1} />
+            <line
+              x1={xFor(tick)}
+              y1={pad.top + plotHeight}
+              x2={xFor(tick)}
+              y2={pad.top + plotHeight + 3}
+              stroke="#3f3f46"
+              strokeWidth={1}
+            />
             <text x={xFor(tick)} y={height - 5} textAnchor="middle" fontSize={9} fill="#71717a">
               {tick}
             </text>
@@ -145,13 +163,34 @@ export function DesireCurveChart({
         )}
 
         {/* Data line */}
-        <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
+        <path
+          d={linePath}
+          fill="none"
+          stroke={lineColor}
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
 
         {/* Hover crosshair + marker */}
         {hovered && (
           <g>
-            <line x1={xFor(hovered.pickN)} y1={pad.top} x2={xFor(hovered.pickN)} y2={pad.top + plotHeight} stroke="#52525b" strokeWidth={1} />
-            <circle cx={xFor(hovered.pickN)} cy={yFor(hovered.desire)} r={3.5} fill={lineColor} stroke="#1a1917" strokeWidth={2} />
+            <line
+              x1={xFor(hovered.pickN)}
+              y1={pad.top}
+              x2={xFor(hovered.pickN)}
+              y2={pad.top + plotHeight}
+              stroke="#52525b"
+              strokeWidth={1}
+            />
+            <circle
+              cx={xFor(hovered.pickN)}
+              cy={yFor(hovered.desire)}
+              r={3.5}
+              fill={lineColor}
+              stroke="#1a1917"
+              strokeWidth={2}
+            />
           </g>
         )}
       </svg>

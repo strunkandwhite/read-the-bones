@@ -48,9 +48,10 @@ export interface WorthCard {
  * weighted mean of delta as a — a flat prior rather than NaN.
  * Precondition: se > 0 for every point (callers filter by MIN_GAMES).
  */
-export function fitPriceCurve(
-  pts: { lnGeo: number; delta: number; se: number }[],
-): { a: number; b: number } {
+export function fitPriceCurve(pts: { lnGeo: number; delta: number; se: number }[]): {
+  a: number;
+  b: number;
+} {
   if (pts.length === 0) return { a: 0, b: 0 };
 
   let sumW = 0;
@@ -83,8 +84,7 @@ export function fitPriceCurve(
 export function estimateTau(resids: { resid: number; se: number }[]): number {
   if (resids.length === 0) return 0;
   const meanExcessVariance =
-    resids.reduce((sum, { resid, se }) => sum + resid * resid - se * se, 0) /
-    resids.length;
+    resids.reduce((sum, { resid, se }) => sum + resid * resid - se * se, 0) / resids.length;
   return Math.sqrt(Math.max(meanExcessVariance, 0));
 }
 
@@ -145,7 +145,7 @@ export function estimateTauDL(items: { delta: number; se: number }[]): {
 export function shrinkQuality(
   delta: number,
   tau0: number,
-  se: number,
+  se: number
 ): { worth: number; w: number } {
   const denominator = tau0 * tau0 + se * se;
   const w = denominator > 0 ? (tau0 * tau0) / denominator : 0;
@@ -162,10 +162,7 @@ function erf(x: number): number {
   const t = 1 / (1 + 0.3275911 * absX);
   const poly =
     t *
-    (0.254829592 +
-      t *
-        (-0.284496736 +
-          t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
+    (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
   return sign * (1 - poly * Math.exp(-absX * absX));
 }
 
@@ -192,12 +189,7 @@ export function pickCdf(x: number, geo: number, sigma: number): number {
  * When survival to n is essentially impossible (denominator < 1e-9) the
  * conditional is vacuous and we report certain loss: 1.0.
  */
-export function danger(
-  n: number,
-  h: number,
-  geo: number,
-  sigma: number,
-): number {
+export function danger(n: number, h: number, geo: number, sigma: number): number {
   const survival = 1 - pickCdf(n, geo, sigma);
   if (survival < 1e-9) return 1.0;
   return (pickCdf(n + h, geo, sigma) - pickCdf(n, geo, sigma)) / survival;
@@ -215,12 +207,7 @@ export function danger(
  * this is identical to danger(). Policy decision 2026-08-02; raw danger()
  * remains exported for callers that want the pure conditional hazard.
  */
-export function overdueDanger(
-  n: number,
-  h: number,
-  geo: number,
-  sigma: number,
-): number {
+export function overdueDanger(n: number, h: number, geo: number, sigma: number): number {
   return Math.max(danger(n, h, geo, sigma), pickCdf(n, geo, sigma));
 }
 
@@ -256,26 +243,22 @@ export function colorFlag(
   colors: string,
   pairEdges: Record<string, number>,
   state: { committed: string },
-  kappa: number,
+  kappa: number
 ): number {
   if (state.committed.length >= 2) return 0; // pair locked: no cost left to pay
   if (colors === "") return 0; // colorless fits every pair
 
   const candidatePairs = Object.entries(pairEdges).filter(
-    ([pair]) => state.committed === "" || pair.includes(state.committed),
+    ([pair]) => state.committed === "" || pair.includes(state.committed)
   );
   if (candidatePairs.length === 0) return 0;
 
   const cardColors = colors.split("");
-  const containsIdentity = (pair: string) =>
-    cardColors.every((color) => pair.includes(color));
-  const intersectsIdentity = (pair: string) =>
-    cardColors.some((color) => pair.includes(color));
+  const containsIdentity = (pair: string) => cardColors.every((color) => pair.includes(color));
+  const intersectsIdentity = (pair: string) => cardColors.some((color) => pair.includes(color));
 
   let feasiblePairs =
-    cardColors.length <= 2
-      ? candidatePairs.filter(([pair]) => containsIdentity(pair))
-      : [];
+    cardColors.length <= 2 ? candidatePairs.filter(([pair]) => containsIdentity(pair)) : [];
   if (feasiblePairs.length === 0) {
     feasiblePairs = candidatePairs.filter(([pair]) => intersectsIdentity(pair));
   }
@@ -297,7 +280,7 @@ export function pairSupply(
   cards: { worth: number; geo: number }[],
   slots: number[],
   fromPick: number,
-  sigma: number,
+  sigma: number
 ): number {
   const remainingByWorth = cards
     .filter((card) => card.worth > 0)
@@ -309,7 +292,7 @@ export function pairSupply(
   let obtainedCount = 0;
   for (const slot of upcomingSlots) {
     const takeIndex = remainingByWorth.findIndex(
-      (card) => 1 - pickCdf(slot, card.geo, sigma) >= 0.5,
+      (card) => 1 - pickCdf(slot, card.geo, sigma) >= 0.5
     );
     if (takeIndex !== -1) {
       remainingByWorth.splice(takeIndex, 1);

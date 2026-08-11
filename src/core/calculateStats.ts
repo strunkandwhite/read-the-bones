@@ -21,7 +21,7 @@ export const DISTRIBUTION_BUCKET_SIZE = 30;
 function calculateSingleCardStats(
   cardName: string,
   cardPicks: CardPick[],
-  sessionsAgoByDraftId: Map<string, number>,
+  sessionsAgoByDraftId: Map<string, number>
 ): CardStats {
   // Group by draft: the score treats each draft as one observation, and a
   // draft that took at least one copy contributes only the copies it took.
@@ -90,7 +90,7 @@ function calculateSingleCardStats(
  */
 export function calculateCardStats(
   picks: CardPick[],
-  sessionsAgoByDraftId: Map<string, number>,
+  sessionsAgoByDraftId: Map<string, number>
 ): CardStats[] {
   if (picks.length === 0) return [];
 

@@ -26,8 +26,24 @@ const sampleDeckState = {
   draftId: "tarkir",
   seat: 1,
   zones: {
-    deck: { "mv-0-1": ["Card A"], "mv-2": [], "mv-3": [], "mv-4": [], "mv-5": [], "mv-6+": [], lands: [] },
-    sideboard: { "mv-0-1": [], "mv-2": [], "mv-3": [], "mv-4": [], "mv-5": [], "mv-6+": [], lands: [] },
+    deck: {
+      "mv-0-1": ["Card A"],
+      "mv-2": [],
+      "mv-3": [],
+      "mv-4": [],
+      "mv-5": [],
+      "mv-6+": [],
+      lands: [],
+    },
+    sideboard: {
+      "mv-0-1": [],
+      "mv-2": [],
+      "mv-3": [],
+      "mv-4": [],
+      "mv-5": [],
+      "mv-6+": [],
+      lands: [],
+    },
   },
   basicLands: { Plains: 0, Island: 0, Swamp: 0, Mountain: 0, Forest: 0 },
 };

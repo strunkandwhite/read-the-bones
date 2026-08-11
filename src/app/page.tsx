@@ -8,18 +8,12 @@ export default async function Home() {
     const fixtures = await import("../../e2e/fixtures/ssr-fixtures");
     return (
       <Suspense fallback={null}>
-        <PageClient
-          initialCardData={fixtures.cards}
-          initialDraftStats={fixtures.draftStats}
-        />
+        <PageClient initialCardData={fixtures.cards} initialDraftStats={fixtures.draftStats} />
       </Suspense>
     );
   }
 
-  const [data, draftStats] = await Promise.all([
-    getCards({}),
-    getDraftStats(),
-  ]);
+  const [data, draftStats] = await Promise.all([getCards({}), getDraftStats()]);
 
   return (
     <Suspense fallback={null}>

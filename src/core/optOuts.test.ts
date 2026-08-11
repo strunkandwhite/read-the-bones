@@ -22,9 +22,7 @@ describe("loadOptOutNames", () => {
   it("returns lowercase names from JSON file", async () => {
     const fs = await import("fs");
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    vi.mocked(fs.readFileSync).mockReturnValue(
-      JSON.stringify(["Alice", "BOB"]),
-    );
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify(["Alice", "BOB"]));
 
     const { loadOptOutNames } = await import("./optOuts");
     const result = loadOptOutNames();
@@ -43,9 +41,7 @@ describe("loadOptOutNames", () => {
   it("throws when the file parses but is not an array of strings", async () => {
     const fs = await import("fs");
     vi.mocked(fs.existsSync).mockReturnValue(true);
-    vi.mocked(fs.readFileSync).mockReturnValue(
-      JSON.stringify({ names: ["Player One"] }),
-    );
+    vi.mocked(fs.readFileSync).mockReturnValue(JSON.stringify({ names: ["Player One"] }));
 
     const { loadOptOutNames } = await import("./optOuts");
     expect(() => loadOptOutNames()).toThrow(/\.opt-outs\.json/);

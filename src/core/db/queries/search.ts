@@ -31,9 +31,8 @@ type GetSearchableCardsParams = {
  */
 export async function getSearchableCards(
   client: Client,
-  params: GetSearchableCardsParams,
+  params: GetSearchableCardsParams
 ): Promise<SearchableCard[] | null> {
-
   // Path 1: Global search — all cards
   if (!params.draftId) {
     const result = await client.execute({

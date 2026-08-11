@@ -1,10 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import {
-  DISTRIBUTION_BUCKET_COUNT,
-  DISTRIBUTION_BUCKET_SIZE,
-} from "@/core/calculateStats";
+import { DISTRIBUTION_BUCKET_COUNT, DISTRIBUTION_BUCKET_SIZE } from "@/core/calculateStats";
 
 /**
  * Mini histogram showing pick distribution across 15 buckets.

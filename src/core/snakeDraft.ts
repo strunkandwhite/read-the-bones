@@ -19,12 +19,10 @@ export interface DerivePickSeatOptions {
 // Given N rounds total, floor(N/4) rounds are double-pick rounds at the end.
 const DOUBLE_PICK_FINAL_FRACTION = 4;
 
-export function derivePickSeat(
-  pickNumber: number,
-  opts: DerivePickSeatOptions,
-): PickSeatResult {
+export function derivePickSeat(pickNumber: number, opts: DerivePickSeatOptions): PickSeatResult {
   const { numSeats, picksPerPlayer, doublePickAfterRound } = opts;
-  const singlePickRounds = doublePickAfterRound ??
+  const singlePickRounds =
+    doublePickAfterRound ??
     picksPerPlayer - 2 * Math.floor(picksPerPlayer / DOUBLE_PICK_FINAL_FRACTION);
   const doublePickRounds = Math.floor((picksPerPlayer - singlePickRounds) / 2);
   // When the double region doesn't divide evenly (e.g. 45 picks with doubles
@@ -67,10 +65,7 @@ export function derivePickSeat(
   return { seat, round, isDoublePick };
 }
 
-export function getTotalPicks(
-  numSeats: number,
-  picksPerPlayer: number,
-): number {
+export function getTotalPicks(numSeats: number, picksPerPlayer: number): number {
   return numSeats * picksPerPlayer;
 }
 
@@ -82,7 +77,7 @@ export function getNextPick(
   currentPickCount: number,
   numSeats: number,
   picksPerPlayer: number,
-  doublePickAfterRound?: number | null,
+  doublePickAfterRound?: number | null
 ): { pickNumber: number; seat: number } | null {
   const total = getTotalPicks(numSeats, picksPerPlayer);
   if (currentPickCount >= total) return null;
@@ -102,7 +97,7 @@ export function getNextPick(
 export function picksUntilNextTurn(
   currentPickN: number,
   seat: number,
-  opts: DerivePickSeatOptions,
+  opts: DerivePickSeatOptions
 ): number | null {
   const total = getTotalPicks(opts.numSeats, opts.picksPerPlayer);
   for (let pickN = currentPickN + 1; pickN <= total; pickN++) {
@@ -120,13 +115,18 @@ export function picksUntilNextTurn(
 export function buildPickMatrix(
   numSeats: number,
   picksPerPlayer: number,
-  doublePickAfterRound?: number | null,
+  doublePickAfterRound?: number | null
 ): { round: number; isForward: boolean; isDoublePick: boolean; seats: number[] }[] {
   const total = getTotalPicks(numSeats, picksPerPlayer);
-  const rounds: Map<number, { isForward: boolean; isDoublePick: boolean; seats: number[] }> = new Map();
+  const rounds: Map<number, { isForward: boolean; isDoublePick: boolean; seats: number[] }> =
+    new Map();
 
   for (let p = 1; p <= total; p++) {
-    const { seat, round, isDoublePick } = derivePickSeat(p, { numSeats, picksPerPlayer, doublePickAfterRound });
+    const { seat, round, isDoublePick } = derivePickSeat(p, {
+      numSeats,
+      picksPerPlayer,
+      doublePickAfterRound,
+    });
     if (!rounds.has(round)) {
       rounds.set(round, {
         isForward: round % 2 === 1,

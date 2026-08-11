@@ -8,10 +8,7 @@ import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 const MAX_BODY_SIZE = 100 * 1024; // 100KB
 
 export const GET = withApiErrors(
-  async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) => {
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { id: draftId } = await params;
     const client = await getClient();
     const { seat } = await authenticateSeat(client, request, draftId);
@@ -23,14 +20,11 @@ export const GET = withApiErrors(
 
     return NextResponse.json(result.deckState);
   },
-  "[/api/drafts/[id]/deck-state] GET Error:",
+  "[/api/drafts/[id]/deck-state] GET Error:"
 );
 
 export const PUT = withApiErrors(
-  async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) => {
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { id: draftId } = await params;
     const client = await getClient();
     const { seat } = await authenticateSeat(client, request, draftId);
@@ -64,5 +58,5 @@ export const PUT = withApiErrors(
     await upsertWipDeck(client, draftId, seat, deckState);
     return NextResponse.json({ ok: true });
   },
-  "[/api/drafts/[id]/deck-state] PUT Error:",
+  "[/api/drafts/[id]/deck-state] PUT Error:"
 );

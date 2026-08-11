@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { createMemDb, insertCard, insertDraft, insertPickEvent } from "../src/core/db/__tests__/testDb";
+import {
+  createMemDb,
+  insertCard,
+  insertDraft,
+  insertPickEvent,
+} from "../src/core/db/__tests__/testDb";
 import {
   resolveDeckFromPicks,
   decideImportWrite,
@@ -46,9 +51,7 @@ describe("resolveDeckFromPicks", () => {
       sideboard: [],
     });
 
-    expect(rows).toEqual([
-      { draftId: "baleful-strix", seat: 3, cardId: 1, zone: "deck", qty: 2 },
-    ]);
+    expect(rows).toEqual([{ draftId: "baleful-strix", seat: 3, cardId: 1, zone: "deck", qty: 2 }]);
     client.close();
   });
 
@@ -61,7 +64,7 @@ describe("resolveDeckFromPicks", () => {
         seat: 3,
         maindeckNonBasics: ["Lightning Bolt", "Black Lotus"],
         sideboard: [],
-      }),
+      })
     ).rejects.toThrow(/Black Lotus/);
     client.close();
   });
@@ -76,7 +79,7 @@ describe("resolveDeckFromPicks", () => {
         seat: 9,
         maindeckNonBasics: ["Lightning Bolt"],
         sideboard: [],
-      }),
+      })
     ).rejects.toThrow(/no picks/i);
     client.close();
   });

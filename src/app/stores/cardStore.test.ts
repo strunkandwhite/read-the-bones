@@ -24,10 +24,7 @@ vi.mock("@/core/searchUtils", () => ({
   hasScryfallOperators: vi.fn(() => false),
 }));
 
-function makeCard(
-  name: string,
-  opts?: { scryfall?: boolean },
-): EnrichedCardStats {
+function makeCard(name: string, opts?: { scryfall?: boolean }): EnrichedCardStats {
   return {
     cardName: name,
     weightedGeomean: 5,
@@ -192,9 +189,7 @@ describe("cardStore — fetchCardData", () => {
     });
 
     // Wait for any subscription-triggered fetches to fully settle (including in-flight guard release)
-    await vi.waitFor(() =>
-      expect(useCardStore.getState().isLoading).toBe(false),
-    );
+    await vi.waitFor(() => expect(useCardStore.getState().isLoading).toBe(false));
     fetchSpy.mockClear();
 
     await useCardStore.getState().fetchCardData();
@@ -217,7 +212,7 @@ describe("cardStore — fetchCardData", () => {
     const loadingStates: boolean[] = [];
     const unsub = useCardStore.subscribe(
       (state) => state.isLoading,
-      (loading) => loadingStates.push(loading),
+      (loading) => loadingStates.push(loading)
     );
 
     await useCardStore.getState().fetchCardData();
@@ -286,16 +281,11 @@ describe("cardStore — fetchCardData", () => {
     fetchSpy.mockRejectedValue(new Error("Network error"));
     fetchSpy.mockClear();
 
-    const consoleSpy = vi
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
+    const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     await useCardStore.getState().fetchCardData();
 
-    expect(consoleSpy).toHaveBeenCalledWith(
-      "Failed to fetch card data:",
-      expect.any(Error),
-    );
+    expect(consoleSpy).toHaveBeenCalledWith("Failed to fetch card data:", expect.any(Error));
     expect(useCardStore.getState().isLoading).toBe(false);
 
     consoleSpy.mockRestore();
@@ -321,7 +311,12 @@ describe("cardStore — fetchCardData", () => {
     });
     useDraftStore.setState({
       selectedDrafts: new Set(["d1"]),
-      syncStatus: { lastSyncedAt: "0", syncInProgress: false, activeDrafts: [], ingestionHash: "server-hash" },
+      syncStatus: {
+        lastSyncedAt: "0",
+        syncInProgress: false,
+        activeDrafts: [],
+        ingestionHash: "server-hash",
+      },
     });
 
     await useCardStore.getState().fetchCardData();
@@ -379,7 +374,16 @@ describe("cardStore — fetchCardData", () => {
 
     // Simulate a pick landing: board.picks gets Lightning Bolt for seat 1
     const boardWithPick = {
-      picks: [{ pickN: 1, seat: 1, cardName: "Lightning Bolt", oracleId: "oid", colorIdentity: ["R"], manaCost: "{R}" }],
+      picks: [
+        {
+          pickN: 1,
+          seat: 1,
+          cardName: "Lightning Bolt",
+          oracleId: "oid",
+          colorIdentity: ["R"],
+          manaCost: "{R}",
+        },
+      ],
       numSeats: 10,
       picksPerPlayer: 45,
       doublePickAfterRound: null,
@@ -446,10 +450,14 @@ describe("cardStore — fetchCardData", () => {
         return new Response(JSON.stringify(statsResponse));
       }
       if (urlStr.includes("drafts=dA")) {
-        return new Promise<Response>((res) => { resolveA = res; });
+        return new Promise<Response>((res) => {
+          resolveA = res;
+        });
       }
       if (urlStr.includes("drafts=dB")) {
-        return new Promise<Response>((res) => { resolveB = res; });
+        return new Promise<Response>((res) => {
+          resolveB = res;
+        });
       }
       return new Response("", { status: 404 });
     });
@@ -470,7 +478,9 @@ describe("cardStore — fetchCardData", () => {
 
     // Wait for fetch A's finally block to run and kick off fetch B.
     await vi.waitFor(() =>
-      expect(fetchSpy.mock.calls.some((c: unknown[]) => String(c[0]).includes("drafts=dB"))).toBe(true)
+      expect(fetchSpy.mock.calls.some((c: unknown[]) => String(c[0]).includes("drafts=dB"))).toBe(
+        true
+      )
     );
 
     // Now resolve B.
@@ -504,11 +514,15 @@ describe("cardStore — fetchCardData", () => {
         return new Response(JSON.stringify(statsResponse));
       }
       if (urlStr.includes("drafts=dA")) {
-        return new Promise<Response>((res) => { resolveA = res; });
+        return new Promise<Response>((res) => {
+          resolveA = res;
+        });
       }
       if (urlStr.includes("drafts=dB")) {
         bFetchStarted = true;
-        return new Promise<Response>((res) => { resolveB = res; });
+        return new Promise<Response>((res) => {
+          resolveB = res;
+        });
       }
       return new Response("", { status: 404 });
     });
@@ -584,10 +598,9 @@ describe("cardStore — derived state", () => {
     const bolt = makeCard("Lightning Bolt");
     const noScry = makeCard("Mystery Card", { scryfall: false });
 
-    useCardStore.getState().hydrate(
-      { ...EMPTY_CARD_DATA, cards: [bolt, noScry] },
-      EMPTY_DRAFT_STATS,
-    );
+    useCardStore
+      .getState()
+      .hydrate({ ...EMPTY_CARD_DATA, cards: [bolt, noScry] }, EMPTY_DRAFT_STATS);
 
     const map = useCardStore.getState().scryfallDataMap;
     expect(map.size).toBe(1);
@@ -599,10 +612,7 @@ describe("cardStore — derived state", () => {
     const bolt = makeCard("Lightning Bolt");
     const path = makeCard("Path to Exile");
 
-    useCardStore.getState().hydrate(
-      { ...EMPTY_CARD_DATA, cards: [bolt, path] },
-      EMPTY_DRAFT_STATS,
-    );
+    useCardStore.getState().hydrate({ ...EMPTY_CARD_DATA, cards: [bolt, path] }, EMPTY_DRAFT_STATS);
 
     const map = useCardStore.getState().cardStatsMap;
     expect(map.size).toBe(2);
@@ -624,7 +634,7 @@ describe("cardStore — derived state", () => {
           { name: "Path to Exile", seat: 2 },
         ],
       },
-      EMPTY_DRAFT_STATS,
+      EMPTY_DRAFT_STATS
     );
 
     const state = useCardStore.getState();
@@ -646,7 +656,7 @@ describe("cardStore — derived state", () => {
           { name: "Lightning Bolt", seat: 2 },
         ],
       },
-      EMPTY_DRAFT_STATS,
+      EMPTY_DRAFT_STATS
     );
 
     const counts = useCardStore.getState().takenCardCounts;
@@ -665,7 +675,7 @@ describe("cardStore — derived state", () => {
           { name: "Path", seat: 2 },
         ],
       },
-      EMPTY_DRAFT_STATS,
+      EMPTY_DRAFT_STATS
     );
 
     const state = useCardStore.getState();
@@ -686,7 +696,7 @@ describe("cardStore — derived state", () => {
           { name: "Snap", seat: 1 },
         ],
       },
-      EMPTY_DRAFT_STATS,
+      EMPTY_DRAFT_STATS
     );
 
     expect(useCardStore.getState().seatCardList).toEqual(["Bolt", "Snap"]);
@@ -701,12 +711,10 @@ describe("cardStore — derived state", () => {
         cards: [makeCard("Bolt"), makeCard("Path"), makeCard("Snap")],
         bannedCardNames: ["Path"],
       },
-      EMPTY_DRAFT_STATS,
+      EMPTY_DRAFT_STATS
     );
 
-    const names = useCardStore
-      .getState()
-      .displayCards.map((c) => c.cardName);
+    const names = useCardStore.getState().displayCards.map((c) => c.cardName);
     expect(names).toContain("Bolt");
     expect(names).toContain("Snap");
     expect(names).not.toContain("Path");
@@ -729,12 +737,10 @@ describe("cardStore — derived state", () => {
           { name: "Path", seat: 2 },
         ],
       },
-      EMPTY_DRAFT_STATS,
+      EMPTY_DRAFT_STATS
     );
 
-    const names = useCardStore
-      .getState()
-      .displayCards.map((c) => c.cardName);
+    const names = useCardStore.getState().displayCards.map((c) => c.cardName);
     // Bolt is taken by seat 1 (selected seat) — now hidden too
     expect(names).not.toContain("Bolt");
     // Path is taken by seat 2 — should be filtered out
@@ -749,7 +755,7 @@ describe("cardStore — derived state", () => {
         ...EMPTY_CARD_DATA,
         cards: [makeCard("Bolt"), makeCard("Path"), makeCard("Snap")],
       },
-      EMPTY_DRAFT_STATS,
+      EMPTY_DRAFT_STATS
     );
 
     // Simulate scryfallMatchNames being set (as if a Scryfall search ran)
@@ -759,9 +765,7 @@ describe("cardStore — derived state", () => {
     // Trigger recompute by calling a no-op action
     useCardStore.getState().setColorFilter([]);
 
-    const names = useCardStore
-      .getState()
-      .searchFilteredCards.map((c) => c.cardName);
+    const names = useCardStore.getState().searchFilteredCards.map((c) => c.cardName);
     expect(names).toContain("Bolt");
     expect(names).toContain("Snap");
     expect(names).not.toContain("Path");
@@ -771,20 +775,14 @@ describe("cardStore — derived state", () => {
     useCardStore.getState().hydrate(
       {
         ...EMPTY_CARD_DATA,
-        cards: [
-          makeCard("Lightning Bolt"),
-          makeCard("Path to Exile"),
-          makeCard("Snapcaster Mage"),
-        ],
+        cards: [makeCard("Lightning Bolt"), makeCard("Path to Exile"), makeCard("Snapcaster Mage")],
       },
-      EMPTY_DRAFT_STATS,
+      EMPTY_DRAFT_STATS
     );
 
     useCardStore.getState().setSearchQuery("bolt");
 
-    const names = useCardStore
-      .getState()
-      .searchFilteredCards.map((c) => c.cardName);
+    const names = useCardStore.getState().searchFilteredCards.map((c) => c.cardName);
     expect(names).toEqual(["Lightning Bolt"]);
   });
 
@@ -804,7 +802,7 @@ describe("cardStore — derived state", () => {
         takenCards: [{ name: "Bolt", seat: 1 }],
         bannedCardNames: ["Delver"],
       },
-      EMPTY_DRAFT_STATS,
+      EMPTY_DRAFT_STATS
     );
 
     // Available: Path, Snap (Bolt taken, Delver banned via front face)
@@ -822,7 +820,7 @@ describe("cardStore — derived state", () => {
           d2: { name: "Beta", date: "2026-02-01", numDrafters: 10 },
         },
       },
-      EMPTY_DRAFT_STATS,
+      EMPTY_DRAFT_STATS
     );
 
     const drafts = useCardStore.getState().drafts;
@@ -909,7 +907,7 @@ describe("cardStore — card stats modal", () => {
     const loadingStates: boolean[] = [];
     const unsub = useCardStore.subscribe(
       (state) => state.cardStatsLoading,
-      (loading) => loadingStates.push(loading),
+      (loading) => loadingStates.push(loading)
     );
 
     await useCardStore.getState().selectCard("Path to Exile");
@@ -939,9 +937,7 @@ describe("cardStore — card stats modal", () => {
 
   it("cache is invalidated when ingestionHash changes (dataVersion bump)", async () => {
     // Use mockImplementation so each fetch call gets a fresh Response body
-    fetchSpy.mockImplementation(() =>
-      Promise.resolve(new Response(JSON.stringify(mockStatsData)))
-    );
+    fetchSpy.mockImplementation(() => Promise.resolve(new Response(JSON.stringify(mockStatsData))));
 
     useCardStore.setState({
       cardData: { ...EMPTY_CARD_DATA, ingestionHash: "hash-v1" },
@@ -964,9 +960,7 @@ describe("cardStore — card stats modal", () => {
 
   it("cache is keyed by name + excludeDraftId independently", async () => {
     // Use mockImplementation so each fetch call gets a fresh Response body
-    fetchSpy.mockImplementation(() =>
-      Promise.resolve(new Response(JSON.stringify(mockStatsData)))
-    );
+    fetchSpy.mockImplementation(() => Promise.resolve(new Response(JSON.stringify(mockStatsData))));
 
     useCardStore.setState({
       cardData: { ...EMPTY_CARD_DATA, ingestionHash: "hash-v1" },
@@ -1049,14 +1043,9 @@ describe("cardStore — worth table", () => {
   it("hydration triggers the worth fetch and stores cards keyed by card_name plus the model", async () => {
     useCardStore
       .getState()
-      .hydrate(
-        { ...EMPTY_CARD_DATA, ingestionHash: "hash-v1" },
-        EMPTY_DRAFT_STATS,
-      );
+      .hydrate({ ...EMPTY_CARD_DATA, ingestionHash: "hash-v1" }, EMPTY_DRAFT_STATS);
 
-    await vi.waitFor(() =>
-      expect(useCardStore.getState().worthCards.size).toBe(1),
-    );
+    await vi.waitFor(() => expect(useCardStore.getState().worthCards.size).toBe(1));
 
     expect(fetchSpy).toHaveBeenCalledWith("/api/cards/worth");
     const state = useCardStore.getState();
@@ -1077,9 +1066,7 @@ describe("cardStore — worth table", () => {
     useCardStore.setState({
       cardData: { ...EMPTY_CARD_DATA, ingestionHash: "hash-v1" },
     });
-    await vi.waitFor(() =>
-      expect(useCardStore.getState().worthCards.size).toBe(1),
-    );
+    await vi.waitFor(() => expect(useCardStore.getState().worthCards.size).toBe(1));
     fetchSpy.mockClear();
 
     await useCardStore.getState().fetchWorthTable();
@@ -1091,9 +1078,7 @@ describe("cardStore — worth table", () => {
     useCardStore.setState({
       cardData: { ...EMPTY_CARD_DATA, ingestionHash: "hash-v1" },
     });
-    await vi.waitFor(() =>
-      expect(useCardStore.getState().worthCards.size).toBe(1),
-    );
+    await vi.waitFor(() => expect(useCardStore.getState().worthCards.size).toBe(1));
     fetchSpy.mockClear();
 
     useCardStore.setState({
@@ -1102,10 +1087,8 @@ describe("cardStore — worth table", () => {
 
     await vi.waitFor(() =>
       expect(
-        fetchSpy.mock.calls.some((c: unknown[]) =>
-          String(c[0]).includes("/api/cards/worth"),
-        ),
-      ).toBe(true),
+        fetchSpy.mock.calls.some((c: unknown[]) => String(c[0]).includes("/api/cards/worth"))
+      ).toBe(true)
     );
   });
 
@@ -1118,18 +1101,14 @@ describe("cardStore — worth table", () => {
     expect(useCardStore.getState().worthModel).toBeNull();
 
     // The cache marker was cleared on failure, so a retry actually fetches.
-    fetchSpy.mockImplementation(
-      async () => new Response(JSON.stringify(mockWorthResponse)),
-    );
+    fetchSpy.mockImplementation(async () => new Response(JSON.stringify(mockWorthResponse)));
     await useCardStore.getState().fetchWorthTable();
 
     expect(useCardStore.getState().worthCards.size).toBe(1);
   });
 
   it("treats a non-ok response as an error (empty state, no throw)", async () => {
-    fetchSpy.mockImplementation(
-      async () => new Response("", { status: 404 }),
-    );
+    fetchSpy.mockImplementation(async () => new Response("", { status: 404 }));
 
     await useCardStore.getState().fetchWorthTable();
 
@@ -1184,9 +1163,7 @@ describe("cardStore — win stats", () => {
     });
 
     await vi.waitFor(() =>
-      expect(
-        useCardStore.getState().cardStatsMap.get("Lightning Bolt")?.gpwr,
-      ).toBe(0.62),
+      expect(useCardStore.getState().cardStatsMap.get("Lightning Bolt")?.gpwr).toBe(0.62)
     );
 
     const entry = useCardStore.getState().cardStatsMap.get("Lightning Bolt");
@@ -1208,9 +1185,7 @@ describe("cardStore — win stats", () => {
     useCardStore.setState({
       cardData: { ...EMPTY_CARD_DATA, ingestionHash: "hash-v1" },
     });
-    await vi.waitFor(() =>
-      expect(useCardStore.getState().winStats.size).toBe(1),
-    );
+    await vi.waitFor(() => expect(useCardStore.getState().winStats.size).toBe(1));
     fetchSpy.mockClear();
 
     await useCardStore.getState().fetchWinStats();
@@ -1221,9 +1196,7 @@ describe("cardStore — win stats", () => {
   it("swallows a failed fetch into an empty winStats state without throwing", async () => {
     fetchSpy.mockRejectedValue(new Error("dev server mid-compile"));
 
-    await expect(
-      useCardStore.getState().fetchWinStats(),
-    ).resolves.not.toThrow();
+    await expect(useCardStore.getState().fetchWinStats()).resolves.not.toThrow();
 
     expect(useCardStore.getState().winStats.size).toBe(0);
   });
@@ -1268,7 +1241,10 @@ describe("cardStore — analytics debounce for plain-name search", () => {
 
     vi.advanceTimersByTime(500);
     expect(trackMock).toHaveBeenCalledTimes(1);
-    expect(trackMock).toHaveBeenCalledWith("search", expect.objectContaining({ query_type: "name" }));
+    expect(trackMock).toHaveBeenCalledWith(
+      "search",
+      expect.objectContaining({ query_type: "name" })
+    );
   });
 
   it("cancels pending analytics event when query changes", () => {
@@ -1285,7 +1261,7 @@ describe("cardStore — analytics debounce for plain-name search", () => {
     vi.advanceTimersByTime(500);
     expect(trackMock).toHaveBeenCalledWith(
       "search",
-      expect.objectContaining({ result_count: expect.not.stringMatching(/-1/) }),
+      expect.objectContaining({ result_count: expect.not.stringMatching(/-1/) })
     );
     // result_count should be a number (not the old -1 placeholder)
     const call = trackMock.mock.calls[0][1] as { result_count: unknown };

@@ -55,11 +55,16 @@ export function Settings() {
   }, [activeDraft, drafts]);
 
   const activeDraftIds = useMemo(() => new Set(activeDrafts.map((d) => d.id)), [activeDrafts]);
-  const completedDrafts = useMemo(() => drafts.filter((d) => !activeDraftIds.has(d.id)), [drafts, activeDraftIds]);
+  const completedDrafts = useMemo(
+    () => drafts.filter((d) => !activeDraftIds.has(d.id)),
+    [drafts, activeDraftIds]
+  );
 
   // Group drafts by date within Active/Completed sections for the draft view selector
   const activeDraftGroups = useMemo(() => {
-    const fullActive = [...drafts.filter((d) => activeDraftIds.has(d.id))].sort((a, b) => b.date.localeCompare(a.date));
+    const fullActive = [...drafts.filter((d) => activeDraftIds.has(d.id))].sort((a, b) =>
+      b.date.localeCompare(a.date)
+    );
     return groupDraftsByDate(fullActive);
   }, [drafts, activeDraftIds]);
 
@@ -102,9 +107,12 @@ export function Settings() {
     [setPoolAsOfDraft]
   );
 
-  const onDraftsChange = useCallback((newSelection: Set<string>) => {
-    setSelectedDrafts(newSelection);
-  }, [setSelectedDrafts]);
+  const onDraftsChange = useCallback(
+    (newSelection: Set<string>) => {
+      setSelectedDrafts(newSelection);
+    },
+    [setSelectedDrafts]
+  );
 
   // Close modal when clicking outside
   useEffect(() => {
@@ -191,10 +199,21 @@ export function Settings() {
             <div className="flex-1 overflow-y-auto px-6 py-4">
               {isAuthed && mySeat != null && (
                 <div className="mb-4 flex items-center gap-2 rounded-lg border border-emerald-800/40 bg-emerald-950/40 px-3 py-2 text-xs text-emerald-400">
-                  <svg className="h-3.5 w-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  <svg
+                    className="h-3.5 w-3.5 shrink-0"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"
+                    />
                   </svg>
-                  Logged in to {drafts.find((d) => d.id === activeDraft)?.name ?? activeDraft} as {seatNames?.[String(mySeat)] || `Seat ${mySeat}`}
+                  Logged in to {drafts.find((d) => d.id === activeDraft)?.name ?? activeDraft} as{" "}
+                  {seatNames?.[String(mySeat)] || `Seat ${mySeat}`}
                 </div>
               )}
 
@@ -210,7 +229,7 @@ export function Settings() {
                     <select
                       value={activeDraft ?? ""}
                       onChange={(e) => handleActiveDraftChange(e.target.value || null)}
-                      className="block w-full appearance-none rounded-lg border border-zinc-300 bg-white py-1.5 pl-3 pr-9 text-sm text-zinc-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                      className="block w-full appearance-none rounded-lg border border-zinc-300 bg-white py-1.5 pr-9 pl-3 text-sm text-zinc-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
                     >
                       <option value="">None</option>
                       {activeDraftGroups.length > 0 ? (
@@ -218,30 +237,47 @@ export function Settings() {
                           {activeDraftGroups.map((group) => (
                             <optgroup key={`active-${group.date}`} label={`Active — ${group.date}`}>
                               {group.drafts.map((d) => (
-                                <option key={d.id} value={d.id}>{d.name}</option>
+                                <option key={d.id} value={d.id}>
+                                  {d.name}
+                                </option>
                               ))}
                             </optgroup>
                           ))}
                           {completedDraftGroups.map((group) => (
                             <optgroup key={`completed-${group.date}`} label={group.date}>
                               {group.drafts.map((d) => (
-                                <option key={d.id} value={d.id}>{d.name}</option>
+                                <option key={d.id} value={d.id}>
+                                  {d.name}
+                                </option>
                               ))}
                             </optgroup>
                           ))}
                         </>
                       ) : (
-                        groupDraftsByDate([...drafts].sort((a, b) => b.date.localeCompare(a.date))).map((group) => (
+                        groupDraftsByDate(
+                          [...drafts].sort((a, b) => b.date.localeCompare(a.date))
+                        ).map((group) => (
                           <optgroup key={group.date} label={group.date}>
                             {group.drafts.map((d) => (
-                              <option key={d.id} value={d.id}>{d.name}</option>
+                              <option key={d.id} value={d.id}>
+                                {d.name}
+                              </option>
                             ))}
                           </optgroup>
                         ))
                       )}
                     </select>
-                    <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                      <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                    <svg
+                      className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-zinc-400"
+                      viewBox="0 0 20 20"
+                      fill="currentColor"
+                      aria-hidden="true"
+                    >
+                      <path
+                        fillRule="evenodd"
+                        d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
+                        clipRule="evenodd"
+                      />
                     </svg>
                   </div>
 
@@ -249,16 +285,29 @@ export function Settings() {
                     <div className="relative flex-1">
                       <select
                         value={selectedSeat ?? ""}
-                        onChange={(e) => handleSeatChange(e.target.value ? Number(e.target.value) : null)}
-                        className="block w-full appearance-none rounded-lg border border-zinc-300 bg-white py-1.5 pl-3 pr-9 text-sm text-zinc-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                        onChange={(e) =>
+                          handleSeatChange(e.target.value ? Number(e.target.value) : null)
+                        }
+                        className="block w-full appearance-none rounded-lg border border-zinc-300 bg-white py-1.5 pr-9 pl-3 text-sm text-zinc-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
                       >
                         <option value="">No seat</option>
                         {Array.from({ length: activeDraftNumSeats }, (_, i) => i + 1).map((n) => (
-                          <option key={n} value={n}>{seatNames?.[String(n)] || `Seat ${n}`}</option>
+                          <option key={n} value={n}>
+                            {seatNames?.[String(n)] || `Seat ${n}`}
+                          </option>
                         ))}
                       </select>
-                      <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                        <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                      <svg
+                        className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-zinc-400"
+                        viewBox="0 0 20 20"
+                        fill="currentColor"
+                        aria-hidden="true"
+                      >
+                        <path
+                          fillRule="evenodd"
+                          d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
+                          clipRule="evenodd"
+                        />
                       </svg>
                     </div>
                   )}
@@ -285,7 +334,10 @@ export function Settings() {
                 <h3 className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
                   Show pool as of...
                   {poolLockedByActiveDraft && (
-                    <span className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400" title="Pool is locked to the active draft">
+                    <span
+                      className="ml-1 text-xs font-normal text-zinc-500 dark:text-zinc-400"
+                      title="Pool is locked to the active draft"
+                    >
                       (locked to active draft)
                     </span>
                   )}
@@ -302,9 +354,7 @@ export function Settings() {
               <div className="mb-6 border-t border-zinc-200 pt-6 dark:border-zinc-700">
                 <h3 className="mb-2 text-sm font-medium text-zinc-700 dark:text-zinc-300">
                   Collect pick data from...
-                  {isLoading && (
-                    <span className="ml-2 text-xs text-zinc-500">(Loading...)</span>
-                  )}
+                  {isLoading && <span className="ml-2 text-xs text-zinc-500">(Loading...)</span>}
                 </h3>
                 <DraftSelector
                   drafts={drafts}
@@ -329,11 +379,9 @@ export function Settings() {
                       value={desirePickOverride ?? ""}
                       placeholder="auto"
                       onChange={(e) =>
-                        setDesirePickOverride(
-                          e.target.value === "" ? null : Number(e.target.value),
-                        )
+                        setDesirePickOverride(e.target.value === "" ? null : Number(e.target.value))
                       }
-                      className="w-24 rounded-lg border border-zinc-300 bg-white py-1.5 px-3 text-sm text-zinc-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+                      className="w-24 rounded-lg border border-zinc-300 bg-white px-3 py-1.5 text-sm text-zinc-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
                     />
                     {desirePickOverride !== null && (
                       <button
@@ -346,8 +394,8 @@ export function Settings() {
                     )}
                   </label>
                   <p className="mt-1.5 text-xs text-zinc-500 dark:text-zinc-400">
-                    Evaluates the Desire column and modal at this pick instead of the
-                    live draft&apos;s current pick. Empty = automatic.
+                    Evaluates the Desire column and modal at this pick instead of the live
+                    draft&apos;s current pick. Empty = automatic.
                   </p>
                 </div>
               )}
@@ -368,7 +416,6 @@ export function Settings() {
                   Resets draft selection, seat tokens, and deck builder data.
                 </p>
               </div>
-
             </div>
           </div>
         </div>

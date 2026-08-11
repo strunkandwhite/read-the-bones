@@ -51,9 +51,7 @@ export function ManaSymbols({ cost }: { cost: string }) {
       {faces.map((symbols, faceIndex) => (
         <span key={faceIndex} className="flex flex-nowrap items-center gap-0.5">
           {faceIndex > 0 && (
-            <span className="mr-0.5 text-sm text-zinc-600 dark:text-zinc-400">
-              {"//"}
-            </span>
+            <span className="mr-0.5 text-sm text-zinc-600 dark:text-zinc-400">{"//"}</span>
           )}
           {symbols.map((sym, i) => (
             <ManaSymbol key={i} symbol={sym} />

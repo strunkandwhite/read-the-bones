@@ -22,9 +22,7 @@ describe("decomposeColorPairs", () => {
   });
 
   it("handles colorless as C", () => {
-    const result = decomposeColorPairs([
-      { color: "C", wins: 4, losses: 6 },
-    ]);
+    const result = decomposeColorPairs([{ color: "C", wins: 4, losses: 6 }]);
 
     expect(result).toHaveLength(1);
     expect(result[0].color).toBe("C");
@@ -51,9 +49,7 @@ describe("decomposeColorPairs", () => {
   });
 
   it("computes winRate and confidence intervals", () => {
-    const result = decomposeColorPairs([
-      { color: "G", wins: 8, losses: 2 },
-    ]);
+    const result = decomposeColorPairs([{ color: "G", wins: 8, losses: 2 }]);
 
     expect(result[0].winRate).toBeCloseTo(0.8);
     expect(result[0].ciLower).toBeGreaterThan(0);

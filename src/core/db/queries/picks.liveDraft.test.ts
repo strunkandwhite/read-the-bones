@@ -26,7 +26,9 @@ vi.mock("../client", () => ({
 
 describe("getLatestPickNumber", () => {
   let client: ReturnType<typeof createMockClient>;
-  beforeEach(() => { client = createMockClient(); });
+  beforeEach(() => {
+    client = createMockClient();
+  });
 
   it("returns the latest pick number", async () => {
     client.execute.mockResolvedValueOnce({ rows: [{ latest: 15 }] });
@@ -53,7 +55,9 @@ describe("getLatestPickNumber", () => {
 
 describe("getRecentPicks", () => {
   let client: ReturnType<typeof createMockClient>;
-  beforeEach(() => { client = createMockClient(); });
+  beforeEach(() => {
+    client = createMockClient();
+  });
 
   it("returns recent picks in descending order", async () => {
     client.execute.mockResolvedValueOnce({
@@ -90,33 +94,39 @@ describe("getRecentPicks", () => {
 
 describe("getPicksWithCardDetails", () => {
   let client: ReturnType<typeof createMockClient>;
-  beforeEach(() => { client = createMockClient(); });
+  beforeEach(() => {
+    client = createMockClient();
+  });
 
   // The query now uses json_extract to pull color_identity and mana_cost from
   // scryfall_json rather than fetching the full blob. Mock rows must use the
   // aliased column names: color_identity_json (serialized JSON array) and mana_cost.
   it("returns picks with slim json_extract fields", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        pick_n: 1,
-        seat: 1,
-        name: "Lightning Bolt",
-        oracle_id: "abc-123",
-        color_identity_json: JSON.stringify(["R"]),
-        mana_cost: "{R}",
-      }],
+      rows: [
+        {
+          pick_n: 1,
+          seat: 1,
+          name: "Lightning Bolt",
+          oracle_id: "abc-123",
+          color_identity_json: JSON.stringify(["R"]),
+          mana_cost: "{R}",
+        },
+      ],
     });
 
     const result = await getPicksWithCardDetails(client, "draft-1");
 
-    expect(result).toEqual([{
-      pickN: 1,
-      seat: 1,
-      cardName: "Lightning Bolt",
-      oracleId: "abc-123",
-      colorIdentity: ["R"],
-      manaCost: "{R}",
-    }]);
+    expect(result).toEqual([
+      {
+        pickN: 1,
+        seat: 1,
+        cardName: "Lightning Bolt",
+        oracleId: "abc-123",
+        colorIdentity: ["R"],
+        manaCost: "{R}",
+      },
+    ]);
     // Verify the query uses json_extract and the new aliases
     expect(client.execute).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -128,14 +138,16 @@ describe("getPicksWithCardDetails", () => {
 
   it("handles null color_identity_json gracefully", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        pick_n: 1,
-        seat: 1,
-        name: "Mystery Card",
-        oracle_id: "xyz",
-        color_identity_json: null,
-        mana_cost: null,
-      }],
+      rows: [
+        {
+          pick_n: 1,
+          seat: 1,
+          name: "Mystery Card",
+          oracle_id: "xyz",
+          color_identity_json: null,
+          mana_cost: null,
+        },
+      ],
     });
 
     const result = await getPicksWithCardDetails(client, "draft-1");
@@ -146,14 +158,16 @@ describe("getPicksWithCardDetails", () => {
 
   it("handles invalid color_identity_json gracefully", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{
-        pick_n: 1,
-        seat: 1,
-        name: "Mystery Card",
-        oracle_id: "xyz",
-        color_identity_json: "not valid json",
-        mana_cost: null,
-      }],
+      rows: [
+        {
+          pick_n: 1,
+          seat: 1,
+          name: "Mystery Card",
+          oracle_id: "xyz",
+          color_identity_json: "not valid json",
+          mana_cost: null,
+        },
+      ],
     });
 
     const result = await getPicksWithCardDetails(client, "draft-1");
@@ -282,13 +296,19 @@ describe("getLiveStateSig", () => {
     const sigs = new Set<string>();
     sigs.add((await getLiveStateSig(db, "draft-1")).sig);
 
-    await db.execute({ sql: "UPDATE drafts SET phase = 'playing' WHERE draft_id = ?", args: ["draft-1"] });
+    await db.execute({
+      sql: "UPDATE drafts SET phase = 'playing' WHERE draft_id = ?",
+      args: ["draft-1"],
+    });
     sigs.add((await getLiveStateSig(db, "draft-1")).sig);
 
     await insertMatch(db, "draft-1", 1, 2, 2, 1);
     sigs.add((await getLiveStateSig(db, "draft-1")).sig);
 
-    await db.execute({ sql: "UPDATE seat_tokens SET display_name = 'Alicia' WHERE draft_id = ? AND seat = 1", args: ["draft-1"] });
+    await db.execute({
+      sql: "UPDATE seat_tokens SET display_name = 'Alicia' WHERE draft_id = ? AND seat = 1",
+      args: ["draft-1"],
+    });
     sigs.add((await getLiveStateSig(db, "draft-1")).sig);
 
     expect(sigs.size).toBe(4);

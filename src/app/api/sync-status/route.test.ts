@@ -10,9 +10,7 @@ vi.mock("@/core/db/sync/lock", () => ({
     lastSyncedAt: "1700000000",
     syncInProgress: false,
   }),
-  getActiveDraftInfo: vi.fn().mockResolvedValue([
-    { id: "draft-1", numSeats: 10 },
-  ]),
+  getActiveDraftInfo: vi.fn().mockResolvedValue([{ id: "draft-1", numSeats: 10 }]),
   getServerIngestionHash: vi.fn().mockResolvedValue("abc123def456abcd"),
 }));
 

@@ -69,7 +69,7 @@ export function InlineEditableName({
         setIsEditing(false);
       }
     },
-    [handleSave, currentName],
+    [handleSave, currentName]
   );
 
   if (isEditing) {

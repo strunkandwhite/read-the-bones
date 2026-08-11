@@ -44,9 +44,7 @@ async function main() {
       }
     }
   } catch (e) {
-    console.warn(
-      `  (auto-pick on start skipped: ${e instanceof Error ? e.message : e})`,
-    );
+    console.warn(`  (auto-pick on start skipped: ${e instanceof Error ? e.message : e})`);
   }
 }
 

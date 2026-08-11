@@ -48,14 +48,8 @@ function recencyWeight(sessionsAgo: number): number {
  * the pool size. Finally, the observation's whole weight decays with how many
  * drafting sessions ago it happened.
  */
-function observationWeight(
-  copyIndex: number,
-  wasPicked: boolean,
-  sessionsAgo: number,
-): number {
-  return (
-    Math.pow(0.5, copyIndex) * (wasPicked ? 1 : 0.5) * recencyWeight(sessionsAgo)
-  );
+function observationWeight(copyIndex: number, wasPicked: boolean, sessionsAgo: number): number {
+  return Math.pow(0.5, copyIndex) * (wasPicked ? 1 : 0.5) * recencyWeight(sessionsAgo);
 }
 
 /**
@@ -65,9 +59,7 @@ function observationWeight(
  * leftover copy of a multi-copy card is not evidence the card went unwanted,
  * only that demand was not that deep.
  */
-function weightedValues(
-  observations: DraftObservation[],
-): { value: number; weight: number }[] {
+function weightedValues(observations: DraftObservation[]): { value: number; weight: number }[] {
   const items: { value: number; weight: number }[] = [];
 
   for (const observation of observations) {
@@ -100,10 +92,7 @@ export function pickScore(observations: DraftObservation[]): number {
   const totalWeight = items.reduce((sum, item) => sum + item.weight, 0);
   if (totalWeight === 0) return 0;
 
-  const weightedLogSum = items.reduce(
-    (sum, item) => sum + item.weight * Math.log(item.value),
-    0,
-  );
+  const weightedLogSum = items.reduce((sum, item) => sum + item.weight * Math.log(item.value), 0);
 
   return Math.exp(weightedLogSum / totalWeight);
 }

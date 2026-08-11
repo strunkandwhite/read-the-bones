@@ -32,9 +32,7 @@ describe("GET /api/cards/win-stats", () => {
   it("returns the bulk map as a plain object outside production", async () => {
     vi.stubEnv("NODE_ENV", "development");
     getAllCardWinStats.mockResolvedValue(
-      new Map([
-        ["bolt", { win_rate: 0.6, ci: { lower: 0.4, upper: 0.8 }, sample_size: 12 }],
-      ]),
+      new Map([["bolt", { win_rate: 0.6, ci: { lower: 0.4, upper: 0.8 }, sample_size: 12 }]])
     );
     const { GET } = await import("./route");
     const res = await GET();

@@ -146,8 +146,9 @@ describe("computeIngestionHash", () => {
   });
 
   it("treats null and empty string identically, as before", () => {
-    expect(computeIngestionHash([{ pool_hash: null, picks_hash: null, matches_hash: null }]))
-      .toBe(computeIngestionHash([{ pool_hash: "", picks_hash: "", matches_hash: "" }]));
+    expect(computeIngestionHash([{ pool_hash: null, picks_hash: null, matches_hash: null }])).toBe(
+      computeIngestionHash([{ pool_hash: "", picks_hash: "", matches_hash: "" }])
+    );
   });
 });
 

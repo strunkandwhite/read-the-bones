@@ -17,11 +17,7 @@ import type { DraftScore } from "@/core/types";
 import type { CardStatus } from "@/core/cardStatus";
 import type { WorthCard } from "@/core/worthModel";
 import { ciMarginPct } from "@/core/wilsonInterval";
-import {
-  WORTH_EXPLANATION,
-  PVI_EXPLANATION,
-  DESIRE_EXPLANATION,
-} from "./CardTable";
+import { WORTH_EXPLANATION, PVI_EXPLANATION, DESIRE_EXPLANATION } from "./CardTable";
 import { formatSignedPercent, formatSignedZ } from "./worthFormat";
 import { InfoTooltip } from "./InfoTooltip";
 import {
@@ -46,7 +42,7 @@ export function CardStatsModal() {
   const data = useCardStore((s) => s.cardStatsDetail);
   const loading = useCardStore((s) => s.cardStatsLoading);
   const worthCard = useCardStore((s) =>
-    s.selectedCard ? s.worthCards.get(s.selectedCard) : undefined,
+    s.selectedCard ? s.worthCards.get(s.selectedCard) : undefined
   );
   const worthModel = useCardStore((s) => s.worthModel);
   const worthCards = useCardStore((s) => s.worthCards);
@@ -74,9 +70,7 @@ export function CardStatsModal() {
   const currentPick =
     desirePickOverride ??
     (isDrafting ? (liveDraftStatus?.latestPickN ?? board!.picks.length) + 1 : 1);
-  const totalPicks = board
-    ? board.numSeats * board.picksPerPlayer
-    : DEFAULT_TOTAL_PICKS;
+  const totalPicks = board ? board.numSeats * board.picksPerPlayer : DEFAULT_TOTAL_PICKS;
 
   // Live store
   const isMyTurn = useLiveStore((s) => s.isMyTurn);
@@ -94,10 +88,7 @@ export function CardStatsModal() {
   const isLocal = useMemo(() => isLocalClient(), []);
   const isLiveDraft = !!activeDraft && boardPhase === "drafting";
 
-  const scryfallImageUrl = useMemo(
-    () => getImageUrl(selectedCard),
-    [selectedCard]
-  );
+  const scryfallImageUrl = useMemo(() => getImageUrl(selectedCard), [selectedCard]);
 
   // useCardStatus subscribes to all actual inputs of getCardStatus (queue, float, taken,
   // seat, cardData) so this result updates reactively without a hand-mirrored dep list.
@@ -270,9 +261,7 @@ export function CardStatsModal() {
 // --- Helpers ---
 
 /** Aggregate same-date drafts into a single sparkline point using geometric mean */
-function aggregateByDate(
-  history: StatsData["pick_history"],
-): DraftScore[] {
+function aggregateByDate(history: StatsData["pick_history"]): DraftScore[] {
   // Group entries by date
   const byDate = new Map<string, StatsData["pick_history"]>();
   for (const h of history) {
@@ -299,9 +288,7 @@ function aggregateByDate(
       const logSum = entries.reduce((sum, h) => sum + Math.log(Math.max(1, h.pickPosition)), 0);
       const geomean = Math.round(Math.exp(logSum / entries.length));
       const pickedCount = entries.filter((h) => h.picked).length;
-      const avgSeats = Math.round(
-        entries.reduce((sum, h) => sum + h.numSeats, 0) / entries.length,
-      );
+      const avgSeats = Math.round(entries.reduce((sum, h) => sum + h.numSeats, 0) / entries.length);
       result.push({
         draftId: entries[0].draftId,
         date,
@@ -380,11 +367,7 @@ function StatsContent({
               tooltip={PVI_EXPLANATION}
               tooltipAlign="right"
             />
-            <StatRow
-              label="Games"
-              value={String(worthCard.games)}
-              tooltip={GAMES_EXPLANATION}
-            />
+            <StatRow label="Games" value={String(worthCard.games)} tooltip={GAMES_EXPLANATION} />
             {worthModel &&
               worthModel.sigma > 0 &&
               worthScale > 0 &&
@@ -399,8 +382,8 @@ function StatsContent({
                         geomean: worthCard.geomean,
                         sigma: worthModel.sigma,
                       }),
-                      worthScale,
-                    )!,
+                      worthScale
+                    )!
                   )}
                   annotation={`at pick ${currentPick}`}
                   tooltip={DESIRE_EXPLANATION}
@@ -413,9 +396,7 @@ function StatsContent({
             worthCard.worth != null &&
             worthCard.geomean != null && (
               <div className="mt-3">
-                <div className="mb-1.5 text-xs font-medium text-zinc-400">
-                  Desire by Pick
-                </div>
+                <div className="mb-1.5 text-xs font-medium text-zinc-400">Desire by Pick</div>
                 <DesireCurveChart
                   inputs={{
                     worth: worthCard.worth,
@@ -503,9 +484,11 @@ function StatRow({
 // unqueue copy promises the card stays in your floats.
 const QUEUE_TOOLTIP = "Auto-pick takes this on your turn, in queue order. Private to you.";
 const UNQUEUE_TOOLTIP = "Take this off your queue. It stays in your floats.";
-const FLOAT_TOOLTIP = "Private shortlist; won't be picked for you, but shows up in your deck builder.";
+const FLOAT_TOOLTIP =
+  "Private shortlist; won't be picked for you, but shows up in your deck builder.";
 const UNFLOAT_TOOLTIP = "Drop this from your shortlist.";
-const ADD_TO_DECK_BUILDER_TOOLTIP = "Track this in your deck builder as a card you're hoping to get.";
+const ADD_TO_DECK_BUILDER_TOOLTIP =
+  "Track this in your deck builder as a card you're hoping to get.";
 const REMOVE_FROM_DECK_BUILDER_TOOLTIP = "Stop tracking this card.";
 
 interface ActionButtonsProps {
@@ -526,8 +509,10 @@ interface ActionButtonsProps {
 function ActionButtons(props: ActionButtonsProps) {
   const { cardStatus, isMyTurn, disabled } = props;
 
-  const queueBtn = "w-full cursor-pointer rounded-lg bg-amber-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed";
-  const secondaryBtn = "w-full cursor-pointer rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed";
+  const queueBtn =
+    "w-full cursor-pointer rounded-lg bg-amber-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-amber-600 disabled:opacity-40 disabled:cursor-not-allowed";
+  const secondaryBtn =
+    "w-full cursor-pointer rounded-lg bg-zinc-700 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-zinc-600 disabled:opacity-40 disabled:cursor-not-allowed";
 
   const floatLabel = props.localDeckMode ? "Add to Deck Builder" : "Float";
   const unfloatLabel = props.localDeckMode ? "Remove from Deck Builder" : "Unfloat";
@@ -538,14 +523,26 @@ function ActionButtons(props: ActionButtonsProps) {
     case "none":
       return (
         <>
-          {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} disabled={disabled} />}
+          {isMyTurn && props.onPick && (
+            <HoldToPickButton onPick={props.onPick} disabled={disabled} />
+          )}
           {props.onQueue && (
-            <button className={queueBtn} onClick={props.onQueue} disabled={disabled} title={QUEUE_TOOLTIP}>
+            <button
+              className={queueBtn}
+              onClick={props.onQueue}
+              disabled={disabled}
+              title={QUEUE_TOOLTIP}
+            >
               Queue
             </button>
           )}
           {props.onFloat && (
-            <button className={secondaryBtn} onClick={props.onFloat} disabled={disabled} title={floatTooltip}>
+            <button
+              className={secondaryBtn}
+              onClick={props.onFloat}
+              disabled={disabled}
+              title={floatTooltip}
+            >
               {floatLabel}
             </button>
           )}
@@ -553,24 +550,39 @@ function ActionButtons(props: ActionButtonsProps) {
       );
 
     case "queued": {
-      const canQueueMore = props.onQueue &&
+      const canQueueMore =
+        props.onQueue &&
         props.queuedCount != null &&
         props.remainingCopies != null &&
         props.queuedCount < props.remainingCopies;
-      const countLabel = props.queuedCount != null && props.remainingCopies != null
-        ? ` · ${props.queuedCount}/${props.remainingCopies} queued`
-        : "";
+      const countLabel =
+        props.queuedCount != null && props.remainingCopies != null
+          ? ` · ${props.queuedCount}/${props.remainingCopies} queued`
+          : "";
       return (
         <>
-          {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} disabled={disabled} />}
+          {isMyTurn && props.onPick && (
+            <HoldToPickButton onPick={props.onPick} disabled={disabled} />
+          )}
           {canQueueMore && (
-            <button className={queueBtn} onClick={props.onQueue} disabled={disabled} title={QUEUE_TOOLTIP}>
+            <button
+              className={queueBtn}
+              onClick={props.onQueue}
+              disabled={disabled}
+              title={QUEUE_TOOLTIP}
+            >
               Queue
             </button>
           )}
           {props.onUnqueue && (
-            <button className={secondaryBtn} onClick={props.onUnqueue} disabled={disabled} title={UNQUEUE_TOOLTIP}>
-              Unqueue{props.queuePosition != null ? ` (#${props.queuePosition})` : ""}{countLabel}
+            <button
+              className={secondaryBtn}
+              onClick={props.onUnqueue}
+              disabled={disabled}
+              title={UNQUEUE_TOOLTIP}
+            >
+              Unqueue{props.queuePosition != null ? ` (#${props.queuePosition})` : ""}
+              {countLabel}
             </button>
           )}
         </>
@@ -580,14 +592,26 @@ function ActionButtons(props: ActionButtonsProps) {
     case "floated":
       return (
         <>
-          {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} disabled={disabled} />}
+          {isMyTurn && props.onPick && (
+            <HoldToPickButton onPick={props.onPick} disabled={disabled} />
+          )}
           {props.onQueue && (
-            <button className={queueBtn} onClick={props.onQueue} disabled={disabled} title={QUEUE_TOOLTIP}>
+            <button
+              className={queueBtn}
+              onClick={props.onQueue}
+              disabled={disabled}
+              title={QUEUE_TOOLTIP}
+            >
               Queue
             </button>
           )}
           {props.onUnfloat && (
-            <button className={secondaryBtn} onClick={props.onUnfloat} disabled={disabled} title={unfloatTooltip}>
+            <button
+              className={secondaryBtn}
+              onClick={props.onUnfloat}
+              disabled={disabled}
+              title={unfloatTooltip}
+            >
               {unfloatLabel}
             </button>
           )}
@@ -599,14 +623,26 @@ function ActionButtons(props: ActionButtonsProps) {
       if ((props.remainingCopies ?? 0) > 0) {
         return (
           <>
-            {isMyTurn && props.onPick && <HoldToPickButton onPick={props.onPick} disabled={disabled} />}
+            {isMyTurn && props.onPick && (
+              <HoldToPickButton onPick={props.onPick} disabled={disabled} />
+            )}
             {props.onQueue && (
-              <button className={queueBtn} onClick={props.onQueue} disabled={disabled} title={QUEUE_TOOLTIP}>
+              <button
+                className={queueBtn}
+                onClick={props.onQueue}
+                disabled={disabled}
+                title={QUEUE_TOOLTIP}
+              >
                 Queue
               </button>
             )}
             {props.onFloat && (
-              <button className={secondaryBtn} onClick={props.onFloat} disabled={disabled} title={floatTooltip}>
+              <button
+                className={secondaryBtn}
+                onClick={props.onFloat}
+                disabled={disabled}
+                title={floatTooltip}
+              >
                 {floatLabel}
               </button>
             )}

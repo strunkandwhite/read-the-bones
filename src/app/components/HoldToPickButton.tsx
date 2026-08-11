@@ -15,13 +15,13 @@ export function HoldToPickButton({ onPick, disabled }: HoldToPickButtonProps) {
 
   return (
     <button
-      className={`relative overflow-hidden w-full rounded-lg py-3.5 text-center font-bold text-base text-white
-        ${confirmed
+      className={`relative w-full overflow-hidden rounded-lg py-3.5 text-center text-base font-bold text-white ${
+        confirmed
           ? "bg-emerald-500"
           : disabled
-            ? "bg-gray-600 cursor-not-allowed"
-            : "bg-emerald-700 hover:bg-emerald-600 cursor-pointer"}
-        transition-colors select-none touch-none`}
+            ? "cursor-not-allowed bg-gray-600"
+            : "cursor-pointer bg-emerald-700 hover:bg-emerald-600"
+      } touch-none transition-colors select-none`}
       disabled={disabled || confirmed}
       {...(disabled || confirmed ? {} : handlers)}
       role="button"

@@ -20,17 +20,8 @@ import { fetchDraftTabsRaw } from "../../sheets";
 import { parsePickRows, parseMatchRows } from "../../parseSheetRows";
 import { incrementalIngest, setDraftPhase } from "./incremental";
 import { filterRedactedPicks, reconcileRedactedRows } from "../ingest/redaction";
-import {
-  hashMatches,
-  getDomainHashes,
-  compareDomainHash,
-  updateDomainHashes,
-} from "./domains";
-import {
-  batchInsertMatches,
-  buildMatchInserts,
-  deleteDomainData,
-} from "./batch";
+import { hashMatches, getDomainHashes, compareDomainHash, updateDomainHashes } from "./domains";
+import { batchInsertMatches, buildMatchInserts, deleteDomainData } from "./batch";
 import {
   computeSyncTargetPhase,
   isMatchesComplete,
@@ -67,7 +58,7 @@ export interface SyncActiveDraftResult {
 export async function syncActiveDraft(
   client: Client,
   draft: { draftId: string; sheetId: string },
-  apiKey: string,
+  apiKey: string
 ): Promise<SyncActiveDraftResult> {
   const result: SyncActiveDraftResult = {
     draftId: draft.draftId,
@@ -98,9 +89,7 @@ export async function syncActiveDraft(
   // opted-out seat's picks unredacted. The pool and cube snapshot also only
   // ever land via the CLI, so there is no useful work to do here either.
   if (!stored || stored.currentPhase === "setup") {
-    console.log(
-      `[sync] Draft ${draft.draftId} is awaiting its first CLI sync — skipping`,
-    );
+    console.log(`[sync] Draft ${draft.draftId} is awaiting its first CLI sync — skipping`);
     result.status = "awaiting_cli_sync";
     return result;
   }
@@ -119,7 +108,7 @@ export async function syncActiveDraft(
     client,
     draft.draftId,
     redactedPicks,
-    stored?.picksHash ?? null,
+    stored?.picksHash ?? null
   );
 
   result.picksInserted = ingestResult.picksInserted;
@@ -127,9 +116,7 @@ export async function syncActiveDraft(
   result.status = ingestResult.status;
 
   if (ingestResult.status === "diverged") {
-    console.warn(
-      `[sync] Draft ${draft.draftId} has diverged data — run pnpm sync to fix`,
-    );
+    console.warn(`[sync] Draft ${draft.draftId} has diverged data — run pnpm sync to fix`);
     result.diverged = true;
   }
 
@@ -150,9 +137,7 @@ export async function syncActiveDraft(
       });
 
       result.matchesReplaced = matchInserts.length;
-      console.log(
-        `[sync] Replaced ${matchInserts.length} matches for draft ${draft.draftId}`,
-      );
+      console.log(`[sync] Replaced ${matchInserts.length} matches for draft ${draft.draftId}`);
 
       if (result.status === "no_change") {
         result.status = "updated";
@@ -166,12 +151,9 @@ export async function syncActiveDraft(
     const currentPhase = stored?.currentPhase ?? "drafting";
     const targetPhase = computeSyncTargetPhase(
       parsedPicks.isComplete,
-      isMatchesComplete(matches.length, parsedPicks.numDrafters),
+      isMatchesComplete(matches.length, parsedPicks.numDrafters)
     );
-    if (
-      targetPhase !== currentPhase &&
-      isSyncPhaseTransitionLegal(currentPhase, targetPhase)
-    ) {
+    if (targetPhase !== currentPhase && isSyncPhaseTransitionLegal(currentPhase, targetPhase)) {
       await setDraftPhase(client, draft.draftId, targetPhase);
       result.phaseSet = targetPhase;
       console.log(`[sync] Draft ${draft.draftId} phase → ${targetPhase}`);

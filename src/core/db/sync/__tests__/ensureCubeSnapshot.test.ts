@@ -65,7 +65,7 @@ async function seedCard(db: Client, name: string): Promise<number> {
 /** Read all cube_snapshot_cards for a given snapshot ID. */
 async function getSnapshotCards(
   db: Client,
-  snapshotId: number,
+  snapshotId: number
 ): Promise<Array<{ card_id: number; qty: number }>> {
   const result = await db.execute({
     sql: `SELECT card_id, qty FROM cube_snapshot_cards WHERE cube_snapshot_id = ? ORDER BY card_id`,

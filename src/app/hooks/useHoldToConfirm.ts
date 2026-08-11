@@ -7,10 +7,7 @@ type UseHoldToConfirmOptions = {
 
 const FRAME_INTERVAL = 16; // ~60fps
 
-export function useHoldToConfirm({
-  onConfirm,
-  duration = 1500,
-}: UseHoldToConfirmOptions) {
+export function useHoldToConfirm({ onConfirm, duration = 1500 }: UseHoldToConfirmOptions) {
   const [isHolding, setIsHolding] = useState(false);
   const [progress, setProgress] = useState(0);
   const [confirmed, setConfirmed] = useState(false);

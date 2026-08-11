@@ -184,9 +184,7 @@ describe("danger", () => {
 
   it("is monotone increasing in n approaching the geomean", () => {
     for (let n = 1; n < geo; n++) {
-      expect(danger(n + 1, h, geo, sigma)).toBeGreaterThan(
-        danger(n, h, geo, sigma),
-      );
+      expect(danger(n + 1, h, geo, sigma)).toBeGreaterThan(danger(n, h, geo, sigma));
     }
   });
 
@@ -299,10 +297,7 @@ describe("colorFlag", () => {
 
     it("falls back to intersecting pairs for 3+ color identities", () => {
       // WBG intersects everything except UR; best intersecting is BR (+1.9%)
-      expect(colorFlag("WBG", pairEdges, state, kappa)).toBeCloseTo(
-        -0.004,
-        10,
-      );
+      expect(colorFlag("WBG", pairEdges, state, kappa)).toBeCloseTo(-0.004, 10);
       // WUBRG intersects every pair, including the best
       expect(colorFlag("WUBRG", pairEdges, state, kappa)).toBe(0);
     });
@@ -344,9 +339,7 @@ describe("colorFlag", () => {
   it("is never positive", () => {
     for (const colors of ["W", "U", "B", "R", "G", "WU", "BG", "WUB"]) {
       for (const committed of ["", "W", "U", "B", "R", "G", "UR", "BG"]) {
-        expect(
-          colorFlag(colors, pairEdges, { committed }, kappa),
-        ).toBeLessThanOrEqual(0);
+        expect(colorFlag(colors, pairEdges, { committed }, kappa)).toBeLessThanOrEqual(0);
       }
     }
   });
@@ -390,8 +383,6 @@ describe("pairSupply", () => {
 
   it("assigns each card at most once", () => {
     // One survivable card, three slots: it can only be obtained once.
-    expect(pairSupply([{ worth: 0.05, geo: 100 }], [50, 55, 60], 40, sigma)).toBe(
-      1,
-    );
+    expect(pairSupply([{ worth: 0.05, geo: 100 }], [50, 55, 60], 40, sigma)).toBe(1);
   });
 });

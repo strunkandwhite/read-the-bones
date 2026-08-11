@@ -113,10 +113,30 @@ export function _resetSearchState() {
 // ---------------------------------------------------------------------------
 
 export type CardStatsData = {
-  pick: { drafts_in_pool: number; times_picked: number; avg_pick: number; median_pick: number; geomean_pick: number };
+  pick: {
+    drafts_in_pool: number;
+    times_picked: number;
+    avg_pick: number;
+    median_pick: number;
+    geomean_pick: number;
+  };
   play?: { times_drafted: number; times_maindecked: number; play_rate: number };
-  wins?: { game_wins: number; game_losses: number; win_rate: number; win_rate_ci: { lower: number; center: number; upper: number }; low_sample: boolean; drafts_with_data: number };
-  pick_history: Array<{ draftId: string; draftName: string; draftDate: string; pickPosition: number; picked: boolean; numSeats: number }>;
+  wins?: {
+    game_wins: number;
+    game_losses: number;
+    win_rate: number;
+    win_rate_ci: { lower: number; center: number; upper: number };
+    low_sample: boolean;
+    drafts_with_data: number;
+  };
+  pick_history: Array<{
+    draftId: string;
+    draftName: string;
+    draftDate: string;
+    pickPosition: number;
+    picked: boolean;
+    numSeats: number;
+  }>;
   pick_distribution: number[];
   times_banned: number;
   color_pair_breakdown: Array<{ colorPair: string; percentage: number; deckCount: number }>;
@@ -245,7 +265,7 @@ function recompute() {
               gpwrCi: ws.ci,
               gpwrSampleSize: ws.sample_size,
             }
-          : card,
+          : card
       );
     }
   }
@@ -290,9 +310,7 @@ function recompute() {
   let seatCardNames: Set<string> | undefined;
   let seatCardList: string[] | undefined;
   if (effectiveTakenCards && selectedSeat != null) {
-    const seatPicks = effectiveTakenCards.filter(
-      (c) => c.seat === selectedSeat,
-    );
+    const seatPicks = effectiveTakenCards.filter((c) => c.seat === selectedSeat);
     seatCardList = seatPicks.map((c) => c.name);
     seatCardNames = new Set(seatCardList);
   }
@@ -319,14 +337,10 @@ function recompute() {
   // searchFilteredCards
   let searchFilteredCards: EnrichedCardStats[];
   if (scryfallMatchNames) {
-    searchFilteredCards = displayCards.filter((c) =>
-      scryfallMatchNames.has(c.cardName),
-    );
+    searchFilteredCards = displayCards.filter((c) => scryfallMatchNames.has(c.cardName));
   } else if (searchQuery.trim()) {
     const q = searchQuery.trim().toLowerCase();
-    searchFilteredCards = displayCards.filter((c) =>
-      c.cardName.toLowerCase().includes(q),
-    );
+    searchFilteredCards = displayCards.filter((c) => c.cardName.toLowerCase().includes(q));
   } else {
     searchFilteredCards = displayCards;
   }
@@ -617,9 +631,7 @@ export const useCardStore = create<CardStoreState>()(
       set({
         // Guard against NaN and fractional input; the override is a pick number.
         desirePickOverride:
-          pick !== null && Number.isFinite(pick) && pick >= 1
-            ? Math.floor(pick)
-            : null,
+          pick !== null && Number.isFinite(pick) && pick >= 1 ? Math.floor(pick) : null,
       }),
 
     fetchWorthTable: async () => {
@@ -639,9 +651,7 @@ export const useCardStore = create<CardStoreState>()(
         // A newer hash may have started its own fetch while this one was in
         // flight; only the fetch that still owns the marker may write.
         if (worthFetchedForHash !== currentHash) return;
-        const worthCards = new Map(
-          data.cards.map((card) => [card.card_name, card]),
-        );
+        const worthCards = new Map(data.cards.map((card) => [card.card_name, card]));
         set({ worthCards, worthModel: data.model ?? null });
       } catch {
         // Swallow: the dev server may still be compiling the route. Empty
@@ -685,7 +695,7 @@ export const useCardStore = create<CardStoreState>()(
         recompute();
       }
     },
-  })),
+  }))
 );
 
 // Worth table (dev-only): fetch whenever the committed card data's
@@ -694,7 +704,7 @@ export const useCardStore = create<CardStoreState>()(
 // hash is one it already fetched for.
 useCardStore.subscribe(
   (state) => state.cardData.ingestionHash,
-  () => void useCardStore.getState().fetchWorthTable(),
+  () => void useCardStore.getState().fetchWorthTable()
 );
 
 // Bulk win stats (dev-only): same trigger as the worth table — refetch
@@ -702,7 +712,7 @@ useCardStore.subscribe(
 // no-ops off localhost and when the hash is one it already fetched for.
 useCardStore.subscribe(
   (state) => state.cardData.ingestionHash,
-  () => void useCardStore.getState().fetchWinStats(),
+  () => void useCardStore.getState().fetchWinStats()
 );
 
 // ---------------------------------------------------------------------------
@@ -712,7 +722,7 @@ useCardStore.subscribe(
 // Refetch when selectedDrafts changes
 useDraftStore.subscribe(
   (state) => state.selectedDrafts,
-  () => useCardStore.getState().fetchCardData(),
+  () => useCardStore.getState().fetchCardData()
 );
 
 // pickVersion: a live pick landed — recompute derived state from board.picks
@@ -721,33 +731,32 @@ useDraftStore.subscribe(
 // The board field is read inside recompute() via useDraftStore.getState().
 useDraftStore.subscribe(
   (state) => state.pickVersion,
-  () => recompute(),
+  () => recompute()
 );
 
 // dataVersion: ingestion/sync data changed — refetch BOTH card data and draft-stats.
 useDraftStore.subscribe(
   (state) => state.dataVersion,
-  () => useCardStore.getState().fetchCardData(),
+  () => useCardStore.getState().fetchCardData()
 );
 
 // Refetch when poolAsOfDraft changes
 useDraftStore.subscribe(
   (state) => state.poolAsOfDraft,
-  () => useCardStore.getState().fetchCardData(),
+  () => useCardStore.getState().fetchCardData()
 );
 
 // Refetch card data when activeDraft changes (taken cards depend on active draft)
 useDraftStore.subscribe(
   (state) => state.activeDraft,
-  () => useCardStore.getState().fetchCardData(),
+  () => useCardStore.getState().fetchCardData()
 );
 
 // Recompute derived state when display-affecting draftStore state changes
 useDraftStore.subscribe(
-  (state) =>
-    [state.hideTaken, state.selectedSeat] as const,
+  (state) => [state.hideTaken, state.selectedSeat] as const,
   () => recompute(),
   {
     equalityFn: (a, b) => a[0] === b[0] && a[1] === b[1],
-  },
+  }
 );

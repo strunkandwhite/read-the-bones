@@ -28,7 +28,7 @@ export type PickHistoryResult = {
 function getDistributionBucket(pickPosition: number): number {
   return Math.min(
     Math.floor((pickPosition - 1) / DISTRIBUTION_BUCKET_SIZE),
-    DISTRIBUTION_BUCKET_COUNT - 1,
+    DISTRIBUTION_BUCKET_COUNT - 1
   );
 }
 
@@ -41,7 +41,7 @@ export async function getPickHistory(
   cardName: string,
   draftId?: string,
   excludeDraftId?: string,
-  cardId?: number,
+  cardId?: number
 ): Promise<PickHistoryResult> {
   const draftFilter = draftId ? "AND d.draft_id = ?" : "";
   const excludeFilter = excludeDraftId ? "AND d.draft_id != ?" : "";
@@ -49,9 +49,7 @@ export async function getPickHistory(
   // When card_id is provided, query directly by ID (skips the name→id lookup join).
   // Otherwise fall back to joining through cards by name.
   const useCardId = cardId !== undefined;
-  const cardJoin = useCardId
-    ? ""
-    : "JOIN cards c ON c.name = ?";
+  const cardJoin = useCardId ? "" : "JOIN cards c ON c.name = ?";
   const csCardIdExpr = useCardId ? "?" : "c.card_id";
   const peCardIdExpr = useCardId ? "?" : "c.card_id";
 

@@ -55,10 +55,7 @@ export function aggregateMatchRecords(
 /**
  * Get the number of reported matches for a draft.
  */
-export async function getMatchCount(
-  client: Client,
-  draftId: string,
-): Promise<number> {
+export async function getMatchCount(client: Client, draftId: string): Promise<number> {
   const result = await client.execute({
     sql: "SELECT COUNT(*) as cnt FROM match_events WHERE draft_id = ?",
     args: [draftId],
@@ -79,7 +76,7 @@ export interface Tiebreakers {
  */
 export function computeTiebreakers(
   stats: Map<number, SeatRecord>,
-  matches: Array<{ seat1: number; seat2: number; seat1Wins: number; seat2Wins: number }>,
+  matches: Array<{ seat1: number; seat2: number; seat1Wins: number; seat2Wins: number }>
 ): Map<number, Tiebreakers> {
   const result = new Map<number, Tiebreakers>();
   if (matches.length === 0) return result;
@@ -134,12 +131,11 @@ export function computeTiebreakers(
 export function getHeadToHeadWinner(
   matches: Array<{ seat1: number; seat2: number; seat1Wins: number; seat2Wins: number }>,
   seatA: number,
-  seatB: number,
+  seatB: number
 ): number | null {
   for (const m of matches) {
     const isPair =
-      (m.seat1 === seatA && m.seat2 === seatB) ||
-      (m.seat1 === seatB && m.seat2 === seatA);
+      (m.seat1 === seatA && m.seat2 === seatB) || (m.seat1 === seatB && m.seat2 === seatA);
     if (!isPair) continue;
     if (m.seat1Wins > m.seat2Wins) return m.seat1;
     if (m.seat2Wins > m.seat1Wins) return m.seat2;
@@ -160,7 +156,7 @@ export async function reportMatchResult(
   seat2: number,
   seat1Wins: number,
   seat2Wins: number,
-  reportedBySeat: number,
+  reportedBySeat: number
 ): Promise<void> {
   await client.execute({
     sql: `INSERT OR REPLACE INTO match_events (draft_id, seat1, seat2, seat1_wins, seat2_wins, reported_by_seat)

@@ -50,7 +50,7 @@ export interface Draft {
   pool_hash: string | null;
   picks_hash: string | null;
   matches_hash: string | null;
-  phase: 'setup' | 'drafting' | 'playing' | 'complete';
+  phase: "setup" | "drafting" | "playing" | "complete";
   in_app: number;
   picks_per_player: number | null;
 }
@@ -112,7 +112,7 @@ export interface DeckCard {
   draft_id: string;
   seat: number;
   card_id: number;
-  zone: 'deck' | 'sideboard';
+  zone: "deck" | "sideboard";
   qty: number;
 }
 

@@ -62,8 +62,7 @@ function StatusProbe({ cardName }: { cardName: string }) {
   const statusMap = useCardStatuses([cardName]);
   const status = statusMap.get(cardName)?.status ?? "none";
   const queuePosition = statusMap.get(cardName)?.queuePosition;
-  const title =
-    status === "queued" ? `Queue position ${queuePosition}` : status;
+  const title = status === "queued" ? `Queue position ${queuePosition}` : status;
   return <span data-testid="status" title={title} />;
 }
 
@@ -279,7 +278,7 @@ function expectedIndex(pick: number, inputs: typeof earlyBird): string {
 
 function rowText(cardName: string): string {
   const row = [...document.querySelectorAll("tbody tr")].find((tr) =>
-    tr.textContent?.includes(cardName),
+    tr.textContent?.includes(cardName)
   );
   return row?.textContent ?? "";
 }
@@ -307,10 +306,7 @@ describe("CardTable desire column (dev-only)", () => {
     });
   });
 
-  const cards = [
-    tableCardFixture("Early Bird", 5),
-    tableCardFixture("Late Bloomer", 300),
-  ];
+  const cards = [tableCardFixture("Early Bird", 5), tableCardFixture("Late Bloomer", 300)];
 
   it("renders desire at pick 1 when no draft is active", () => {
     render(<CardTable cards={cards} />);
@@ -421,7 +417,7 @@ describe("CardTable desire column (dev-only)", () => {
 function multiFaceCardFixture(
   name: string,
   manaCost: string,
-  oracleText: string,
+  oracleText: string
 ): EnrichedCardStats {
   return {
     cardName: name,
@@ -447,12 +443,10 @@ function costSymbols(cardName: string): string[] {
   expect(costIndex).toBeGreaterThanOrEqual(0);
 
   const row = [...document.querySelectorAll("tbody tr")].find((tr) =>
-    tr.textContent?.includes(cardName),
+    tr.textContent?.includes(cardName)
   );
   const cell = row?.querySelectorAll("td")[costIndex];
-  return [...(cell?.querySelectorAll("img") ?? [])].map(
-    (img) => img.getAttribute("alt") ?? "",
-  );
+  return [...(cell?.querySelectorAll("img") ?? [])].map((img) => img.getAttribute("alt") ?? "");
 }
 
 describe("CardTable cost column", () => {
@@ -464,12 +458,12 @@ describe("CardTable cost column", () => {
     multiFaceCardFixture(
       "Scheming Silvertongue",
       "{1}{B} // {B}{B}",
-      "When this creature enters, it becomes prepared. (While it's prepared, you may cast a copy of the other half.)",
+      "When this creature enters, it becomes prepared. (While it's prepared, you may cast a copy of the other half.)"
     ),
     multiFaceCardFixture(
       "Bonecrusher Giant",
       "{2}{R} // {1}{R}",
-      "Whenever this creature becomes the target of a spell, Bonecrusher Giant deals 2 damage to that spell's controller.",
+      "Whenever this creature becomes the target of a spell, Bonecrusher Giant deals 2 damage to that spell's controller."
     ),
   ];
 

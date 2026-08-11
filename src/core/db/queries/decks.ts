@@ -29,7 +29,7 @@ export interface SnapshotResult {
 export async function getWipDeck(
   client: Client,
   draftId: string,
-  seat: number,
+  seat: number
 ): Promise<WipDeckResult | null> {
   const result = await client.execute({
     sql: `SELECT draft_id, seat, deck_state, updated_at
@@ -57,7 +57,7 @@ export async function upsertWipDeck(
   client: Client,
   draftId: string,
   seat: number,
-  deckState: DeckState,
+  deckState: DeckState
 ): Promise<void> {
   const id = generateDeckId();
   await client.execute({
@@ -75,7 +75,7 @@ export async function upsertWipDeck(
  */
 export async function createSnapshot(
   client: Client,
-  deckState: DeckState,
+  deckState: DeckState
 ): Promise<{ deckId: string }> {
   const deckId = generateDeckId();
   await client.execute({
@@ -90,10 +90,7 @@ export async function createSnapshot(
  * Retrieve a shared deck snapshot by ID.
  * Returns null if not found.
  */
-export async function getSnapshot(
-  client: Client,
-  deckId: string,
-): Promise<SnapshotResult | null> {
+export async function getSnapshot(client: Client, deckId: string): Promise<SnapshotResult | null> {
   const result = await client.execute({
     sql: `SELECT id, draft_id, seat, deck_state, created_at
           FROM decks

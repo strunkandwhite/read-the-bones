@@ -49,8 +49,7 @@ export function scoreAgainstSeat(storedCards: Set<string>, picks: Set<string>): 
 /** A seat can receive a decklist only if it clears both thresholds. */
 export function isEligibleSeat(score: SeatScore): boolean {
   return (
-    score.precision >= SEAT_MATCH_PRECISION_THRESHOLD &&
-    score.recall >= SEAT_MATCH_RECALL_THRESHOLD
+    score.precision >= SEAT_MATCH_PRECISION_THRESHOLD && score.recall >= SEAT_MATCH_RECALL_THRESHOLD
   );
 }
 

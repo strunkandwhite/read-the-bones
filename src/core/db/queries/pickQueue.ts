@@ -1,4 +1,4 @@
-import type { Client } from '@libsql/client';
+import type { Client } from "@libsql/client";
 
 export interface QueueCard {
   id: number;
@@ -6,19 +6,19 @@ export interface QueueCard {
 }
 
 export interface QueueEntry {
-  mode: 'pause' | 'flow-through';
+  mode: "pause" | "flow-through";
   cards: QueueCard[];
 }
 
 export type AutoPickResult =
-  | { kind: 'candidate'; cardId: number; entryIndex: number }
-  | { kind: 'paused' }
-  | { kind: 'empty' };
+  | { kind: "candidate"; cardId: number; entryIndex: number }
+  | { kind: "paused" }
+  | { kind: "empty" };
 
 export async function getQueue(
   client: Client,
   draftId: string,
-  seat: number,
+  seat: number
 ): Promise<QueueEntry[]> {
   const result = await client.execute({
     sql: `SELECT queue_json FROM seat_tokens WHERE draft_id = ? AND seat = ?`,
@@ -34,7 +34,7 @@ export async function setQueue(
   client: Client,
   draftId: string,
   seat: number,
-  entries: QueueEntry[],
+  entries: QueueEntry[]
 ): Promise<void> {
   await client.execute({
     sql: `UPDATE seat_tokens SET queue_json = ? WHERE draft_id = ? AND seat = ?`,
@@ -45,7 +45,7 @@ export async function setQueue(
 export async function removeCardFromAllQueues(
   client: Client,
   draftId: string,
-  cardId: number,
+  cardId: number
 ): Promise<{ pauseSeats: number[] }> {
   const result = await client.execute({
     sql: `SELECT seat, queue_json FROM seat_tokens WHERE draft_id = ? AND queue_json IS NOT NULL`,
@@ -78,7 +78,7 @@ export async function removeCardFromAllQueues(
 
     // Pause check: if card was in the first entry, that entry's mode is 'pause',
     // and the first entry is now fully exhausted (empty after removal)
-    if (cardInFirstEntry && firstEntry.mode === 'pause') {
+    if (cardInFirstEntry && firstEntry.mode === "pause") {
       const remainingInFirstEntry = firstEntry.cards.filter((c) => c.id !== cardId);
       if (remainingInFirstEntry.length === 0) {
         pauseSeats.push(seat);
@@ -93,7 +93,7 @@ export async function removeCardFromAllQueues(
       updates.map(({ seat, newQueue }) => ({
         sql: `UPDATE seat_tokens SET queue_json = ? WHERE draft_id = ? AND seat = ?`,
         args: [JSON.stringify(newQueue), draftId, seat] as (string | number)[],
-      })),
+      }))
     );
   }
 
@@ -104,21 +104,21 @@ export async function getAutoPickCandidate(
   client: Client,
   draftId: string,
   seat: number,
-  availableCardIds: Set<number>,
+  availableCardIds: Set<number>
 ): Promise<AutoPickResult> {
   const queue = await getQueue(client, draftId, seat);
   for (let i = 0; i < queue.length; i++) {
     const entry = queue[i];
     for (const card of entry.cards) {
       if (availableCardIds.has(card.id)) {
-        return { kind: 'candidate', cardId: card.id, entryIndex: i };
+        return { kind: "candidate", cardId: card.id, entryIndex: i };
       }
     }
     // Entry exhausted
-    if (entry.mode === 'pause') return { kind: 'paused' };
+    if (entry.mode === "pause") return { kind: "paused" };
     // flow-through: continue to next entry
   }
-  return { kind: 'empty' };
+  return { kind: "empty" };
 }
 
 /**
@@ -130,7 +130,7 @@ export async function trimExcessQueueEntries(
   client: Client,
   draftId: string,
   cardId: number,
-  remainingCopies: number,
+  remainingCopies: number
 ): Promise<void> {
   if (remainingCopies <= 0) {
     await removeCardFromAllQueues(client, draftId, cardId);
@@ -192,7 +192,7 @@ export async function trimExcessQueueEntries(
       updates.map(({ seat, newQueue }) => ({
         sql: `UPDATE seat_tokens SET queue_json = ? WHERE draft_id = ? AND seat = ?`,
         args: [JSON.stringify(newQueue), draftId, seat] as (string | number)[],
-      })),
+      }))
     );
   }
 }
@@ -214,7 +214,7 @@ export async function fulfillGroupEntry(
   draftId: string,
   seat: number,
   entryIndex: number,
-  cardId: number,
+  cardId: number
 ): Promise<QueueEntry | null> {
   const queue = await getQueue(client, draftId, seat);
 
@@ -232,6 +232,11 @@ export async function fulfillGroupEntry(
   if (index === -1) return null;
 
   const removed = queue[index];
-  await setQueue(client, draftId, seat, queue.filter((_, i) => i !== index));
+  await setQueue(
+    client,
+    draftId,
+    seat,
+    queue.filter((_, i) => i !== index)
+  );
   return removed;
 }

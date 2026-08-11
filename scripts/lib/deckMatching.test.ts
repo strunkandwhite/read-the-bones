@@ -51,7 +51,7 @@ describe("isEligibleSeat", () => {
         overlap: 1,
         recall: SEAT_MATCH_RECALL_THRESHOLD,
         precision: SEAT_MATCH_PRECISION_THRESHOLD,
-      }),
+      })
     ).toBe(true);
   });
 });

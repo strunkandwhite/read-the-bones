@@ -43,7 +43,7 @@ describe("GET /api/cards/stats", () => {
     expect(body.card_name).toBe("Lightning Bolt");
     expect(body).toHaveProperty("pick");
     expect(body.pick).toEqual(
-      expect.objectContaining({ drafts_in_pool: 3, times_picked: 3, avg_pick: 12 }),
+      expect.objectContaining({ drafts_in_pool: 3, times_picked: 3, avg_pick: 12 })
     );
     expect(body).toHaveProperty("play");
     expect(body).toHaveProperty("wins");
@@ -86,7 +86,7 @@ describe("GET /api/cards/stats", () => {
     });
     await GET(makeRequest({ card_name: "Bolt", deck_colors: "RW", draft_id: "tarkir" }));
     expect(queries.getCardStats).toHaveBeenCalledWith(
-      expect.objectContaining({ deck_colors: "RW", draft_id: "tarkir" }),
+      expect.objectContaining({ deck_colors: "RW", draft_id: "tarkir" })
     );
   });
 });

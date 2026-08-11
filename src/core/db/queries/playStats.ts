@@ -7,7 +7,6 @@ import { getSeatsMatchingColors } from "./helpers";
 import { resolveCard } from "./cards";
 import { round3 } from "../../utils";
 
-
 export interface GetCardPlayStatsParams {
   card_name: string;
   card_id?: number;
@@ -42,12 +41,8 @@ export async function getCardPlayStats(
     card_name = card.name;
   }
 
-  const draftFilter = params.draft_id
-    ? "AND dc.draft_id = ?"
-    : "";
-  const excludeFilter = params.exclude_draft_id
-    ? "AND dc.draft_id != ?"
-    : "";
+  const draftFilter = params.draft_id ? "AND dc.draft_id = ?" : "";
+  const excludeFilter = params.exclude_draft_id ? "AND dc.draft_id != ?" : "";
   const args: (string | number)[] = [card_id];
   if (params.draft_id) args.push(params.draft_id);
   if (params.exclude_draft_id) args.push(params.exclude_draft_id);

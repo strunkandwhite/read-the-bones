@@ -95,10 +95,7 @@ function rankWithTies(values: number[]): number[] {
   let runStart = 0;
   while (runStart < indexed.length) {
     let runEnd = runStart;
-    while (
-      runEnd + 1 < indexed.length &&
-      indexed[runEnd + 1].value === indexed[runStart].value
-    ) {
+    while (runEnd + 1 < indexed.length && indexed[runEnd + 1].value === indexed[runStart].value) {
       runEnd++;
     }
     const averageRank = (runStart + runEnd + 2) / 2;
@@ -170,7 +167,7 @@ function withinDraftPermutationPValue(
   groups: SeatScoreGroup[],
   observedStatistic: number,
   iterations: number,
-  nextRandom: () => number,
+  nextRandom: () => number
 ): number {
   let atLeastAsExtreme = 0;
   for (let iteration = 0; iteration < iterations; iteration++) {
@@ -227,7 +224,7 @@ interface SeatPick {
 
 async function evaluateDraftLodo(
   client: Awaited<ReturnType<typeof getClient>>,
-  draftId: string,
+  draftId: string
 ): Promise<DraftEvaluation> {
   const worthTable = await getWorthTable({ excludeDraftId: draftId });
 
@@ -267,14 +264,11 @@ async function evaluateDraftLodo(
 
   const { sigma, pairEdges, kappa } = worthTable.model;
 
-  for (const [seat, seatPicks] of [...picksBySeat.entries()].sort(
-    ([a], [b]) => a - b,
-  )) {
+  for (const [seat, seatPicks] of [...picksBySeat.entries()].sort(([a], [b]) => a - b)) {
     const coveredWorths = seatPicks
       .map((pick) => worthByName.get(pick.cardName))
       .filter((worth): worth is number => worth !== undefined);
-    const coverage =
-      seatPicks.length > 0 ? coveredWorths.length / seatPicks.length : 0;
+    const coverage = seatPicks.length > 0 ? coveredWorths.length / seatPicks.length : 0;
     const wins = matchWinsBySeat.get(seat) ?? 0;
     const included = coverage >= COVERAGE_MINIMUM;
 
@@ -295,9 +289,7 @@ async function evaluateDraftLodo(
     // model params. Seats whose first pick the excluded-fit cannot price
     // (no worth or no geomean) are simply left out of the diagnostic.
     const firstPick = seatPicks[0];
-    const firstPickCard = firstPick
-      ? cardByName.get(firstPick.cardName)
-      : undefined;
+    const firstPickCard = firstPick ? cardByName.get(firstPick.cardName) : undefined;
     if (
       firstPick &&
       firstPickCard &&
@@ -335,11 +327,9 @@ async function main() {
   const statsDraftIds = draftsResult.rows.map((row) => row.draft_id as string);
 
   console.log("Worth model LODO validation");
+  console.log(`Measurement run — exit code is always 0; this is not a CI gate yet.`);
   console.log(
-    `Measurement run — exit code is always 0; this is not a CI gate yet.`,
-  );
-  console.log(
-    `PRNG: mulberry32, seed ${PRNG_SEED}; permutations: ${PERMUTATION_ITERATIONS} (within-draft)`,
+    `PRNG: mulberry32, seed ${PRNG_SEED}; permutations: ${PERMUTATION_ITERATIONS} (within-draft)`
   );
   console.log(`Stats-phase drafts: ${statsDraftIds.length}\n`);
 
@@ -347,14 +337,12 @@ async function main() {
   for (let i = 0; i < statsDraftIds.length; i++) {
     const draftId = statsDraftIds[i];
     const refitStartedAt = Date.now();
-    process.stdout.write(
-      `[${i + 1}/${statsDraftIds.length}] LODO refit excluding ${draftId} ... `,
-    );
+    process.stdout.write(`[${i + 1}/${statsDraftIds.length}] LODO refit excluding ${draftId} ... `);
     const evaluation = await evaluateDraftLodo(client, draftId);
     const refitSeconds = ((Date.now() - refitStartedAt) / 1000).toFixed(1);
     const includedSeats = evaluation.scoreGroup.scores.length;
     console.log(
-      `done in ${refitSeconds}s (${includedSeats} seats included, ${evaluation.excludedSeatCount} excluded)`,
+      `done in ${refitSeconds}s (${includedSeats} seats included, ${evaluation.excludedSeatCount} excluded)`
     );
     evaluations.push(evaluation);
   }
@@ -365,17 +353,14 @@ async function main() {
   console.log("\nPer-draft Spearman rho (top-23 worth sum vs match wins):");
   for (const group of scoreGroups) {
     const rho = spearmanRho(group.scores, group.wins);
-    const note =
-      rho === null ? "  (undefined: <3 seats or a constant variable)" : "";
+    const note = rho === null ? "  (undefined: <3 seats or a constant variable)" : "";
     console.log(
-      `  ${group.draftId.padEnd(30)} n=${String(group.scores.length).padStart(2)}  rho=${formatRho(rho)}${note}`,
+      `  ${group.draftId.padEnd(30)} n=${String(group.scores.length).padStart(2)}  rho=${formatRho(rho)}${note}`
     );
   }
 
   const observedPooledRho = pooledWeightedRho(scoreGroups);
-  console.log(
-    `\nPooled within-draft rho (seat-weighted): ${formatRho(observedPooledRho)}`,
-  );
+  console.log(`\nPooled within-draft rho (seat-weighted): ${formatRho(observedPooledRho)}`);
 
   let mainPValue: number | null = null;
   if (observedPooledRho !== null) {
@@ -383,10 +368,10 @@ async function main() {
       scoreGroups,
       observedPooledRho,
       PERMUTATION_ITERATIONS,
-      mulberry32(PRNG_SEED),
+      mulberry32(PRNG_SEED)
     );
     console.log(
-      `Permutation p (two-sided, within-draft, ${PERMUTATION_ITERATIONS} iters, seed ${PRNG_SEED}): ${mainPValue.toFixed(4)}`,
+      `Permutation p (two-sided, within-draft, ${PERMUTATION_ITERATIONS} iters, seed ${PRNG_SEED}): ${mainPValue.toFixed(4)}`
     );
   } else {
     console.log("Permutation test skipped: pooled statistic is undefined.");
@@ -394,39 +379,30 @@ async function main() {
 
   // --- Coverage guards ---
   const allCoverageRecords = evaluations.flatMap((e) => e.coverageRecords);
-  const coverageValues = allCoverageRecords
-    .map((record) => record.coverage)
-    .sort((a, b) => a - b);
-  const excludedSeatTotal = evaluations.reduce(
-    (sum, e) => sum + e.excludedSeatCount,
-    0,
-  );
+  const coverageValues = allCoverageRecords.map((record) => record.coverage).sort((a, b) => a - b);
+  const excludedSeatTotal = evaluations.reduce((sum, e) => sum + e.excludedSeatCount, 0);
 
   console.log("\nCoverage:");
   if (coverageValues.length > 0) {
     const meanCoverage =
-      coverageValues.reduce((sum, value) => sum + value, 0) /
-      coverageValues.length;
+      coverageValues.reduce((sum, value) => sum + value, 0) / coverageValues.length;
     console.log(
-      `  seats: ${allCoverageRecords.length} total, ${excludedSeatTotal} excluded (coverage < ${(COVERAGE_MINIMUM * 100).toFixed(0)}%)`,
+      `  seats: ${allCoverageRecords.length} total, ${excludedSeatTotal} excluded (coverage < ${(COVERAGE_MINIMUM * 100).toFixed(0)}%)`
     );
     console.log(
-      `  distribution: min=${coverageValues[0].toFixed(3)}  p25=${percentile(coverageValues, 0.25).toFixed(3)}  median=${percentile(coverageValues, 0.5).toFixed(3)}  p75=${percentile(coverageValues, 0.75).toFixed(3)}  max=${coverageValues[coverageValues.length - 1].toFixed(3)}  mean=${meanCoverage.toFixed(3)}`,
+      `  distribution: min=${coverageValues[0].toFixed(3)}  p25=${percentile(coverageValues, 0.25).toFixed(3)}  median=${percentile(coverageValues, 0.5).toFixed(3)}  p75=${percentile(coverageValues, 0.75).toFixed(3)}  max=${coverageValues[coverageValues.length - 1].toFixed(3)}  mean=${meanCoverage.toFixed(3)}`
     );
 
     const coverageWinsRho = spearmanRho(
       allCoverageRecords.map((record) => record.coverage),
-      allCoverageRecords.map((record) => record.wins),
+      allCoverageRecords.map((record) => record.wins)
     );
     console.log(
-      `  coverage-vs-wins Spearman (all seats, included + excluded): rho=${formatRho(coverageWinsRho)}`,
+      `  coverage-vs-wins Spearman (all seats, included + excluded): rho=${formatRho(coverageWinsRho)}`
     );
-    if (
-      coverageWinsRho !== null &&
-      Math.abs(coverageWinsRho) > COVERAGE_WINS_WARNING_THRESHOLD
-    ) {
+    if (coverageWinsRho !== null && Math.abs(coverageWinsRho) > COVERAGE_WINS_WARNING_THRESHOLD) {
       console.log(
-        `  WARNING: |rho| > ${COVERAGE_WINS_WARNING_THRESHOLD} — coverage correlates with wins; investigate before trusting the pooled statistic (expected driver is cube rotation, not deck quality).`,
+        `  WARNING: |rho| > ${COVERAGE_WINS_WARNING_THRESHOLD} — coverage correlates with wins; investigate before trusting the pooled statistic (expected driver is cube rotation, not deck quality).`
       );
     }
   } else {
@@ -440,20 +416,20 @@ async function main() {
 
   console.log("\nP1 diagnostic (underpowered by design — reported, NOT gated):");
   console.log(
-    `  first-pick score = worth x overdueDanger(pickN, ${P1_DANGER_HORIZON}, geo, sigma) + colorFlag(colors, pairEdges, uncommitted, kappa)`,
+    `  first-pick score = worth x overdueDanger(pickN, ${P1_DANGER_HORIZON}, geo, sigma) + colorFlag(colors, pairEdges, uncommitted, kappa)`
   );
   console.log(
-    `  seats scored: ${p1SeatTotal}; pooled within-draft rho: ${formatRho(observedP1Rho)}`,
+    `  seats scored: ${p1SeatTotal}; pooled within-draft rho: ${formatRho(observedP1Rho)}`
   );
   if (observedP1Rho !== null) {
     const p1PValue = withinDraftPermutationPValue(
       p1Groups,
       observedP1Rho,
       PERMUTATION_ITERATIONS,
-      mulberry32(PRNG_SEED),
+      mulberry32(PRNG_SEED)
     );
     console.log(
-      `  permutation p (two-sided, within-draft, ${PERMUTATION_ITERATIONS} iters, seed ${PRNG_SEED}): ${p1PValue.toFixed(4)}`,
+      `  permutation p (two-sided, within-draft, ${PERMUTATION_ITERATIONS} iters, seed ${PRNG_SEED}): ${p1PValue.toFixed(4)}`
     );
   }
 
@@ -463,7 +439,7 @@ async function main() {
     const recommendedGate = observedPooledRho - GATE_MARGIN;
     console.log(`  measured pooled rho: ${observedPooledRho.toFixed(4)}`);
     console.log(
-      `  recommended pinned gate (measured - ${GATE_MARGIN}): ${recommendedGate.toFixed(4)}`,
+      `  recommended pinned gate (measured - ${GATE_MARGIN}): ${recommendedGate.toFixed(4)}`
     );
     console.log("  measured on draft set (paste into a future config):");
     const pinnedConfig = {
@@ -478,7 +454,7 @@ async function main() {
     console.log(JSON.stringify(pinnedConfig, null, 2));
   } else {
     console.log(
-      "  pooled rho undefined — no gate recommendation (not enough drafts with rankable seats).",
+      "  pooled rho undefined — no gate recommendation (not enough drafts with rankable seats)."
     );
   }
 

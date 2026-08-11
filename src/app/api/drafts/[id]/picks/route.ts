@@ -5,10 +5,7 @@ import { intParam } from "@/app/api/_utils";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 export const GET = withApiErrors(
-  async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) => {
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { id } = await params;
     const { searchParams } = request.nextUrl;
     const client = await getClient();
@@ -23,5 +20,5 @@ export const GET = withApiErrors(
       headers: { "Cache-Control": "public, s-maxage=60" },
     });
   },
-  "[/api/drafts/[id]/picks] Error:",
+  "[/api/drafts/[id]/picks] Error:"
 );

@@ -17,9 +17,7 @@ describe("normalizeCardName", () => {
 
   it("should handle names without suffixes", () => {
     expect(normalizeCardName("Lightning Bolt")).toBe("Lightning Bolt");
-    expect(normalizeCardName("Phelia, Exuberant Shepherd")).toBe(
-      "Phelia, Exuberant Shepherd"
-    );
+    expect(normalizeCardName("Phelia, Exuberant Shepherd")).toBe("Phelia, Exuberant Shepherd");
   });
 
   it("should handle edge cases", () => {
@@ -29,9 +27,7 @@ describe("normalizeCardName", () => {
   });
 
   it("should preserve numbers in card names that are not suffixes", () => {
-    expect(normalizeCardName("Phyrexia: All Will Be One")).toBe(
-      "Phyrexia: All Will Be One"
-    );
+    expect(normalizeCardName("Phyrexia: All Will Be One")).toBe("Phyrexia: All Will Be One");
   });
 });
 
@@ -176,18 +172,7 @@ describe("parsePickRows", () => {
     ["", "", "", "", "", ""],
     ["", "", "Alice", "Bob", "Carol", "↩", "", "Color1", "Color2", "Color3"],
     ["1", "→", "Phelia", "Swords", "Reanimate", "↩", "", "W", "W", "B"],
-    [
-      "2",
-      "↪",
-      "Mother of Runes",
-      "Solitude",
-      "Thoughtseize",
-      "↩",
-      "",
-      "W",
-      "W",
-      "UB",
-    ],
+    ["2", "↪", "Mother of Runes", "Solitude", "Thoughtseize", "↩", "", "W", "W", "UB"],
   ];
 
   it("should parse pick positions correctly", () => {
@@ -309,9 +294,7 @@ describe("parsePickRows", () => {
   it("should parse colors correctly", () => {
     const { picks } = parsePickRows(minimalRows, "test-draft");
 
-    const pheliaPick = picks.find(
-      (p) => p.cardName === "Phelia" && p.pickPosition === 1
-    );
+    const pheliaPick = picks.find((p) => p.cardName === "Phelia" && p.pickPosition === 1);
     expect(pheliaPick?.color).toBe("W");
 
     // Thoughtseize: Carol (index 2), round 2 (even) with 3 drafters
@@ -340,10 +323,7 @@ describe("parsePickRows", () => {
       ["1", "→", "Card1", "Card2", "Card3", "", "", "", "", ""],
     ];
 
-    const { picks, numDrafters } = parsePickRows(
-      rowsWithExcelError,
-      "test-draft"
-    );
+    const { picks, numDrafters } = parsePickRows(rowsWithExcelError, "test-draft");
     expect(numDrafters).toBe(3);
     expect(picks).toHaveLength(3);
   });
@@ -364,7 +344,7 @@ describe("parsePickRows", () => {
           ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
           ["2", "↩", "Dark Ritual", "Swords to Plowshares", "B", "W"],
         ]),
-        "test-draft",
+        "test-draft"
       );
       expect(isComplete).toBe(true);
     });
@@ -375,7 +355,7 @@ describe("parsePickRows", () => {
           ["1", "→", "Lightning Bolt", "", "R", ""],
           ["2", "↩", "Dark Ritual", "Swords to Plowshares", "B", "W"],
         ]),
-        "test-draft",
+        "test-draft"
       );
       expect(isComplete).toBe(false);
     });
@@ -388,7 +368,7 @@ describe("parsePickRows", () => {
           ["1", "→", "Lightning Bolt", "Counterspell", "R", "U"],
           ["2", "↩", "Dark Ritual", "", "B", ""],
         ]),
-        "test-draft",
+        "test-draft"
       );
       expect(isComplete).toBe(false);
     });
@@ -396,10 +376,7 @@ describe("parsePickRows", () => {
     it("is incomplete when rows exist but none have a valid round number", () => {
       // Exercises the maxRound > 0 guard: numDrafters is 2 but no row parses
       // to a round, so without the guard 0 === 2 * 0 would read as complete.
-      const { isComplete } = parsePickRows(
-        rows([["", "→", "", "", "", ""]]),
-        "test-draft",
-      );
+      const { isComplete } = parsePickRows(rows([["", "→", "", "", "", ""]]), "test-draft");
       expect(isComplete).toBe(false);
     });
 
@@ -413,24 +390,7 @@ describe("parsePickRows", () => {
 describe("parsePickRows with 12 drafters (real-style data)", () => {
   // Mimics the actual sheet structure with 12 drafters
   const realStyleRows = [
-    [
-      "",
-      "",
-      "Rotisserie Draft",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-    ],
+    ["", "", "Rotisserie Draft", "", "", "", "", "", "", "", "", "", "", "", "", ""],
     ["", "", "", "", "", "", "", "", "", "", "", "", "", "", "", ""],
     [
       "",
@@ -555,18 +515,13 @@ describe("parsePickRows with 12 drafters (real-style data)", () => {
 
   it("should handle card names with commas", () => {
     const { picks } = parsePickRows(realStyleRows, "real-draft");
-    const pheliaPick = picks.find(
-      (p) => p.cardName === "Phelia, Exuberant Shepherd"
-    );
+    const pheliaPick = picks.find((p) => p.cardName === "Phelia, Exuberant Shepherd");
     expect(pheliaPick).toBeDefined();
     expect(pheliaPick?.pickPosition).toBe(1);
   });
 
   it("should extract doublePickStartsAfterRound from metadata", () => {
-    const { doublePickStartsAfterRound } = parsePickRows(
-      realStyleRows,
-      "real-draft"
-    );
+    const { doublePickStartsAfterRound } = parsePickRows(realStyleRows, "real-draft");
     expect(doublePickStartsAfterRound).toBe(25);
   });
 });
@@ -600,10 +555,7 @@ describe("parsePickRows double-pick mode", () => {
   ];
 
   it("should extract doublePickStartsAfterRound from metadata", () => {
-    const { doublePickStartsAfterRound } = parsePickRows(
-      doublePickRows,
-      "test"
-    );
+    const { doublePickStartsAfterRound } = parsePickRows(doublePickRows, "test");
     expect(doublePickStartsAfterRound).toBe(2);
   });
 
@@ -725,14 +677,7 @@ describe("parsePickRows double-pick mode with 10 drafters", () => {
     for (let round = 1; round <= 27; round++) {
       const cards = drafterNames.map((_, i) => `R${round}_P${i}`);
       const colors = drafterNames.map(() => "C");
-      const row = [
-        `${round}`,
-        "→",
-        ...cards,
-        "↩",
-        "",
-        ...colors,
-      ];
+      const row = [`${round}`, "→", ...cards, "↩", "", ...colors];
       if (round === 2) {
         row.push("", "Double Picks After:", "25");
       }
@@ -776,16 +721,7 @@ describe("parseMatchRows", () => {
   const minimalRows = [
     ["Round Robin Tournament"],
     ["", ""],
-    [
-      "",
-      "Player 1",
-      "P1 Games",
-      "VS",
-      "P2 Games",
-      "Player 2",
-      "P1 Win",
-      "P2 Win",
-    ],
+    ["", "Player 1", "P1 Games", "VS", "P2 Games", "Player 2", "P1 Win", "P2 Win"],
     ["", "Alice", "1", "VS", "2", "Bob", "0", "1"],
     ["", "Carol", "2", "VS", "1", "Dave", "1", "0"],
   ];
@@ -839,16 +775,7 @@ describe("parseMatchRows", () => {
     const headerOnly = [
       ["Round Robin Tournament"],
       ["", ""],
-      [
-        "",
-        "Player 1",
-        "P1 Games",
-        "VS",
-        "P2 Games",
-        "Player 2",
-        "P1 Win",
-        "P2 Win",
-      ],
+      ["", "Player 1", "P1 Games", "VS", "P2 Games", "Player 2", "P1 Win", "P2 Win"],
     ];
     expect(parseMatchRows(headerOnly, drafterNames)).toEqual([]);
   });
@@ -969,12 +896,7 @@ describe("parseMatchRows", () => {
   it("should build name-to-seat map from drafterNames array", () => {
     // This verifies the internal map is built correctly from the array
     const customDrafters = ["Zara", "Yuki", "Xander"];
-    const rows = [
-      ["Title"],
-      ["", ""],
-      ["", "Header"],
-      ["", "Yuki", "2", "VS", "1", "Xander"],
-    ];
+    const rows = [["Title"], ["", ""], ["", "Header"], ["", "Yuki", "2", "VS", "1", "Xander"]];
     const matches = parseMatchRows(rows, customDrafters);
     expect(matches).toHaveLength(1);
     expect(matches[0].seat1).toBe(1); // Yuki is index 1
@@ -988,18 +910,7 @@ describe("integration: parseMatchRows round robin", () => {
   const roundRobinRows = [
     ["Round Robin Tournament Results"],
     ["", ""],
-    [
-      "",
-      "Player 1",
-      "P1 Games",
-      "VS",
-      "P2 Games",
-      "Player 2",
-      "P1 Win",
-      "P2 Win",
-      "",
-      "Standings",
-    ],
+    ["", "Player 1", "P1 Games", "VS", "P2 Games", "Player 2", "P1 Win", "P2 Win", "", "Standings"],
     ["", "Alice", "2", "VS", "1", "Bob", "1", "0"],
     ["", "Alice", "2", "VS", "0", "Carol", "1", "0"],
     ["", "Alice", "1", "VS", "2", "Dave", "0", "1"],

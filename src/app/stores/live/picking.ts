@@ -23,7 +23,7 @@ let autoPickInFlight = false;
  */
 async function triggerAutoPick(
   get: GetState,
-  setState: (partial: Partial<{ autoPick: boolean }>) => void,
+  setState: (partial: Partial<{ autoPick: boolean }>) => void
 ): Promise<void> {
   if (autoPickInFlight) return;
   autoPickInFlight = true;
@@ -44,7 +44,7 @@ async function triggerAutoPick(
     });
 
     if (res.ok) {
-      const data = await res.json() as { autoPickDisabled?: boolean; pickedCard?: unknown };
+      const data = (await res.json()) as { autoPickDisabled?: boolean; pickedCard?: unknown };
       if (data.autoPickDisabled) {
         // Server disabled auto-pick due to pause-mode exhaustion — reflect locally
         setState({ autoPick: false });
@@ -155,7 +155,7 @@ export interface MatchReportParams {
  */
 function toMatchRecord(
   mySeat: number,
-  { opponentSeat, wins, losses }: MatchReportParams,
+  { opponentSeat, wins, losses }: MatchReportParams
 ): MatchRecord {
   const seat1 = Math.min(mySeat, opponentSeat);
   const seat2 = Math.max(mySeat, opponentSeat);

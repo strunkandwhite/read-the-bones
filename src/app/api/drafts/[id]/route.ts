@@ -4,10 +4,7 @@ import { getClient } from "@/core/db/client";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 export const GET = withApiErrors(
-  async (
-    _request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) => {
+  async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { id } = await params;
     const client = await getClient();
     const result = await queries.getDraft(client, id);
@@ -18,5 +15,5 @@ export const GET = withApiErrors(
       headers: { "Cache-Control": "public, s-maxage=60" },
     });
   },
-  "[/api/drafts/[id]] Error:",
+  "[/api/drafts/[id]] Error:"
 );

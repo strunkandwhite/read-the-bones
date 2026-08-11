@@ -12,7 +12,9 @@ vi.mock("../client", () => ({
 
 describe("getDraftPhase", () => {
   let client: ReturnType<typeof createMockClient>;
-  beforeEach(() => { client = createMockClient(); });
+  beforeEach(() => {
+    client = createMockClient();
+  });
 
   it("returns the phase for an existing draft", async () => {
     client.execute.mockResolvedValueOnce({ rows: [{ phase: "drafting" }] });
@@ -39,24 +41,42 @@ describe("getDraftPhase", () => {
 
 describe("getDraftMeta — sheetId", () => {
   let client: ReturnType<typeof createMockClient>;
-  beforeEach(() => { client = createMockClient(); });
+  beforeEach(() => {
+    client = createMockClient();
+  });
 
   it("returns sheetId for a sheet-based draft", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{ phase: "drafting", num_seats: 10, picks_per_player: 45, banned_cards: null, sheet_id: "abc123" }],
+      rows: [
+        {
+          phase: "drafting",
+          num_seats: 10,
+          picks_per_player: 45,
+          banned_cards: null,
+          sheet_id: "abc123",
+        },
+      ],
     });
 
     const meta = await getDraftMeta(client, "draft-1");
 
     expect(meta?.sheetId).toBe("abc123");
     expect(client.execute).toHaveBeenCalledWith(
-      expect.objectContaining({ sql: expect.stringContaining("sheet_id") }),
+      expect.objectContaining({ sql: expect.stringContaining("sheet_id") })
     );
   });
 
   it("returns null sheetId for a live draft", async () => {
     client.execute.mockResolvedValueOnce({
-      rows: [{ phase: "drafting", num_seats: 10, picks_per_player: 45, banned_cards: null, sheet_id: null }],
+      rows: [
+        {
+          phase: "drafting",
+          num_seats: 10,
+          picks_per_player: 45,
+          banned_cards: null,
+          sheet_id: null,
+        },
+      ],
     });
 
     const meta = await getDraftMeta(client, "draft-1");

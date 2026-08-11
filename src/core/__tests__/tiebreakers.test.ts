@@ -5,7 +5,8 @@ import type { SeatRecord } from "../db/queries/matches";
 describe("computeTiebreakers", () => {
   it("returns empty map for no matches", () => {
     const stats = new Map<number, SeatRecord>();
-    const matches: Array<{ seat1: number; seat2: number; seat1Wins: number; seat2Wins: number }> = [];
+    const matches: Array<{ seat1: number; seat2: number; seat1Wins: number; seat2Wins: number }> =
+      [];
 
     const result = computeTiebreakers(stats, matches);
 
@@ -48,9 +49,7 @@ describe("computeTiebreakers", () => {
       [1, { matchWins: 1, matchLosses: 0, gameWins: 2, gameLosses: 0 }],
       [2, { matchWins: 0, matchLosses: 1, gameWins: 0, gameLosses: 2 }],
     ]);
-    const matches = [
-      { seat1: 1, seat2: 2, seat1Wins: 2, seat2Wins: 0 },
-    ];
+    const matches = [{ seat1: 1, seat2: 2, seat1Wins: 2, seat2Wins: 0 }];
 
     const result = computeTiebreakers(stats, matches);
 

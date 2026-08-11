@@ -37,14 +37,7 @@ const DECKLISTS_FILE = join(__dirname, "..", "data", "decklists.txt");
 // be a considerate client.
 const SEALEDDECK_RATE_LIMIT_MS = 200;
 
-const BASIC_LANDS = new Set([
-  "plains",
-  "island",
-  "swamp",
-  "mountain",
-  "forest",
-  "wastes",
-]);
+const BASIC_LANDS = new Set(["plains", "island", "swamp", "mountain", "forest", "wastes"]);
 
 // ============================================================================
 // Types
@@ -156,7 +149,7 @@ function extractZoneCards(cards: SealedDeckCard[]): string[] {
 /** Report why a decklist matched no seat, at a severity that fits the cause. */
 function reportSkip(
   decklist: DecklistEntry,
-  best: { seat: number; score: SeatScore } | null,
+  best: { seat: number; score: SeatScore } | null
 ): void {
   if (!best || best.score.overlap === 0) {
     // No overlap with any seat at all. This is an opted-out player's list:
@@ -165,7 +158,7 @@ function reportSkip(
     // a warning here would be routine noise, training readers to skim past
     // every warning line including the ones that matter.
     logIndent(
-      `Skipping ${decklist.sealeddeckId} — no overlap with any seat (expected for an opted-out player)`,
+      `Skipping ${decklist.sealeddeckId} — no overlap with any seat (expected for an opted-out player)`
     );
     return;
   }
@@ -174,7 +167,7 @@ function reportSkip(
     `  WARNING: Skipping ${decklist.sealeddeckId} — best candidate seat ${best.seat} ` +
       `scored recall ${formatPct(best.score.recall)} (need ${formatPct(SEAT_MATCH_RECALL_THRESHOLD)}), ` +
       `precision ${formatPct(best.score.precision)} (need ${formatPct(SEAT_MATCH_PRECISION_THRESHOLD)}). ` +
-      `Low precision means the list holds cards that seat never drafted.`,
+      `Low precision means the list holds cards that seat never drafted.`
   );
 }
 
@@ -200,7 +193,7 @@ export interface MatchResult {
  */
 export function matchDecksToSeats(
   decklists: DecklistEntry[],
-  seatPicks: Map<number, Set<string>>,
+  seatPicks: Map<number, Set<string>>
 ): MatchResult {
   const assignments = new Map<number, DecklistEntry>();
   let skippedBelowThreshold = 0;
@@ -229,7 +222,7 @@ export function matchDecksToSeats(
       console.warn(
         `  WARNING: Skipping ${decklist.sealeddeckId} — ${eligible.length} seats are eligible ` +
           `(${eligible.map((e) => `seat ${e.seat} at ${formatPct(e.score.precision)} precision`).join(", ")}). ` +
-          `Rotisserie gives every card one owner, so this means an assumption has broken.`,
+          `Rotisserie gives every card one owner, so this means an assumption has broken.`
       );
       skippedBelowThreshold++;
       continue;
@@ -245,12 +238,12 @@ export function matchDecksToSeats(
     const previous = assignments.get(seat);
     if (previous) {
       logIndent(
-        `Seat ${seat}: ${previous.sealeddeckId} replaced by ${decklist.sealeddeckId} (later submission)`,
+        `Seat ${seat}: ${previous.sealeddeckId} replaced by ${decklist.sealeddeckId} (later submission)`
       );
     }
 
     logIndent(
-      `Seat ${seat}: ${decklist.sealeddeckId} — recall ${formatPct(score.recall)}, precision ${formatPct(score.precision)}`,
+      `Seat ${seat}: ${decklist.sealeddeckId} — recall ${formatPct(score.recall)}, precision ${formatPct(score.precision)}`
     );
     assignments.set(seat, decklist);
   }
@@ -279,7 +272,7 @@ export function decideSeatWrite(
   existing: { hash: string; sealeddeckId: string | null } | undefined,
   hash: string,
   sealeddeckId: string,
-  force: boolean,
+  force: boolean
 ): SeatAction {
   if (existing?.sealeddeckId?.startsWith("recovered:") && !force) {
     return "skip-recovered";
@@ -302,12 +295,10 @@ export function decideSeatWrite(
 export function assertSeatNotOptedOut(
   seat: number,
   optedOutSeats: Set<number>,
-  draftId: string,
+  draftId: string
 ): void {
   if (optedOutSeats.has(seat)) {
-    throw new Error(
-      `Refusing to write a deck for seat ${seat} of ${draftId}: the seat opted out`,
-    );
+    throw new Error(`Refusing to write a deck for seat ${seat} of ${draftId}: the seat opted out`);
   }
 }
 
@@ -322,10 +313,7 @@ export function assertSeatNotOptedOut(
  * names exactly as the write path does (`CardCache` + `resolveCardNameToId`),
  * or a split card scores as a mismatch on a list that would write correctly.
  */
-async function getSeatPicks(
-  client: Client,
-  draftId: string,
-): Promise<Map<number, Set<string>>> {
+async function getSeatPicks(client: Client, draftId: string): Promise<Map<number, Set<string>>> {
   const result = await client.execute({
     sql: `SELECT pe.seat, c.name FROM pick_events pe
           JOIN cards c ON pe.card_id = c.card_id
@@ -342,10 +330,7 @@ async function getSeatPicks(
 }
 
 /** Resolve a draft label to a draft_id in Turso */
-async function resolveDraftId(
-  client: Client,
-  label: string,
-): Promise<string | null> {
+async function resolveDraftId(client: Client, label: string): Promise<string | null> {
   // Try direct match
   let result = await client.execute({
     sql: "SELECT draft_id FROM drafts WHERE draft_id = ?",
@@ -372,7 +357,7 @@ async function resolveDraftId(
  * in the summary from a seat nobody submitted unless the count is carried out.
  */
 async function fetchAllDecklists(
-  urls: string[],
+  urls: string[]
 ): Promise<{ decklists: DecklistEntry[]; errors: number }> {
   const decklists: DecklistEntry[] = [];
   let errors = 0;
@@ -418,7 +403,7 @@ async function resolveCard(
   client: Client,
   cardCache: CardCache,
   cardName: string,
-  persistAlias: boolean,
+  persistAlias: boolean
 ): Promise<number | null> {
   const normalized = normalizeCardName(cardName);
   const cached = cardCache.get(normalized);
@@ -452,7 +437,7 @@ async function resolveZoneCards(
   seat: number,
   qtyMap: Map<string, { cardId: number; zone: "deck" | "sideboard"; qty: number }>,
   warnOnMiss: boolean,
-  persistAlias: boolean,
+  persistAlias: boolean
 ): Promise<number> {
   let warnings = 0;
   for (const cardName of cardNames) {
@@ -490,9 +475,11 @@ const RECOGNIZED_FLAGS = new Set(["--dry-run", "--force"]);
  * Throws on any `--`-prefixed argument that isn't a recognized flag, rather
  * than silently dropping it and falling through to a full run.
  */
-export function parseDecklistArgs(
-  args: string[],
-): { filterDraft: string | undefined; force: boolean; dryRun: boolean } {
+export function parseDecklistArgs(args: string[]): {
+  filterDraft: string | undefined;
+  force: boolean;
+  dryRun: boolean;
+} {
   assertRecognizedFlags(args, RECOGNIZED_FLAGS);
 
   return {
@@ -590,10 +577,7 @@ async function main() {
         deck: entry.deck,
         sideboard: entry.sideboard,
       });
-      const hash = createHash("sha256")
-        .update(deckJson)
-        .digest("hex")
-        .slice(0, 16);
+      const hash = createHash("sha256").update(deckJson).digest("hex").slice(0, 16);
 
       // Existing state for this seat, including where its deck came from.
       const existingRow = await client.execute({
@@ -615,7 +599,7 @@ async function main() {
       // work that cannot be redone from this file.
       if (action === "skip-recovered") {
         logIndent(
-          `Seat ${seat}: skipped — hand-recovered deck (${existing?.sealeddeckId}). Pass --force to overwrite.`,
+          `Seat ${seat}: skipped — hand-recovered deck (${existing?.sealeddeckId}). Pass --force to overwrite.`
         );
         summary.skippedRecovered++;
         continue;
@@ -634,8 +618,26 @@ async function main() {
       // Resolve card names and build insert batch, aggregating duplicates
       const qtyMap = new Map<string, { cardId: number; zone: "deck" | "sideboard"; qty: number }>();
 
-      const warnings = await resolveZoneCards(client, cardCache, entry.deck, "deck", seat, qtyMap, true, !dryRun);
-      await resolveZoneCards(client, cardCache, entry.sideboard, "sideboard", seat, qtyMap, false, !dryRun);
+      const warnings = await resolveZoneCards(
+        client,
+        cardCache,
+        entry.deck,
+        "deck",
+        seat,
+        qtyMap,
+        true,
+        !dryRun
+      );
+      await resolveZoneCards(
+        client,
+        cardCache,
+        entry.sideboard,
+        "sideboard",
+        seat,
+        qtyMap,
+        false,
+        !dryRun
+      );
 
       const deckCards: DeckCardInsert[] = [...qtyMap.values()].map((e) => ({
         draftId,
@@ -654,9 +656,7 @@ async function main() {
         .reduce((sum, c) => sum + c.qty, 0);
 
       if (maindeckQty < 20) {
-        logIndent(
-          `Seat ${seat}: skipped — only ${maindeckQty} maindeck cards (minimum 20)`,
-        );
+        logIndent(`Seat ${seat}: skipped — only ${maindeckQty} maindeck cards (minimum 20)`);
         summary.skippedMalformed++;
         if (!dryRun) {
           // Clear the hash so a corrected resubmission is re-evaluated next run,
@@ -694,7 +694,7 @@ async function main() {
 
         logIndent(
           `Seat ${seat}: ${status} — ${maindeckQty} maindeck + ${sideboardQty} sideboard cards from ${entry.sealeddeckId}` +
-            `${warnings > 0 ? ` [${warnings} unresolved names]` : ""}`,
+            `${warnings > 0 ? ` [${warnings} unresolved names]` : ""}`
         );
         continue;
       }
@@ -722,7 +722,7 @@ async function main() {
 
       const status = existing ? "updated" : "new";
       logIndent(
-        `Seat ${seat}: ${deckCards.length} cards written (${status})${warnings > 0 ? ` [${warnings} warnings]` : ""}`,
+        `Seat ${seat}: ${deckCards.length} cards written (${status})${warnings > 0 ? ` [${warnings} warnings]` : ""}`
       );
     }
   }
@@ -732,7 +732,7 @@ async function main() {
       `${dryRun ? "would update" : "updated"}: ${summary.updated}, ` +
       `unchanged: ${summary.unchanged}, skipped (below threshold): ${summary.skippedBelowThreshold}, ` +
       `skipped (malformed): ${summary.skippedMalformed}, skipped (recovered): ${summary.skippedRecovered}, ` +
-      `fetch errors: ${summary.fetchErrors}`,
+      `fetch errors: ${summary.fetchErrors}`
   );
 
   log(dryRun ? "Dry run complete — re-run without --dry-run to apply." : "Done!");
@@ -743,8 +743,7 @@ async function main() {
 // production. `loadEnv` picks up real Turso credentials, so the guard is what
 // stands between `pnpm test` and a write to deck_cards.
 const invokedDirectly =
-  process.argv[1] !== undefined &&
-  realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+  process.argv[1] !== undefined && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (invokedDirectly) {
   main().catch((e) => {

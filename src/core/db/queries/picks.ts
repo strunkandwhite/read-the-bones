@@ -108,7 +108,6 @@ export async function getAvailableCards(
   client: Client,
   params: GetAvailableCardsParams
 ): Promise<AvailableCardsResult> {
-
   // Get the cube_snapshot_id for this draft
   const draftResult = await client.execute({
     sql: `SELECT cube_snapshot_id, banned_cards FROM drafts WHERE draft_id = ?`,
@@ -177,9 +176,7 @@ export async function getAvailableCards(
     if (bannedCards.has(lowerName) || (frontFace && bannedCards.has(frontFace))) continue;
 
     // Parse scryfall JSON if a filter needs it (only selected by needsScryfall SQL variant)
-    const scryfall = needsScryfall
-      ? parseScryfallJson(row.scryfall_json as string | null)
-      : null;
+    const scryfall = needsScryfall ? parseScryfallJson(row.scryfall_json as string | null) : null;
 
     // Apply color filter
     if (params.color) {
@@ -243,7 +240,11 @@ export interface StandingsResult {
  * Get match standings for a draft.
  * Computes wins/losses from match_events table.
  */
-export async function getStandings(client: Client, draftId: string, numSeats?: number): Promise<StandingsResult> {
+export async function getStandings(
+  client: Client,
+  draftId: string,
+  numSeats?: number
+): Promise<StandingsResult> {
   // Get all match events for this draft. The explicit ordering keeps
   // standings deterministic for seats that stay tied through every
   // tiebreaker — their relative order falls back to row order via the
@@ -265,7 +266,10 @@ export async function getStandings(client: Client, draftId: string, numSeats?: n
 
   // Aggregate stats per seat using shared helper
   const aggregated = aggregateMatchRecords(result.rows);
-  const stats = new Map<number, { matchWins: number; matchLosses: number; gameWins: number; gameLosses: number }>();
+  const stats = new Map<
+    number,
+    { matchWins: number; matchLosses: number; gameWins: number; gameLosses: number }
+  >();
   for (const [key, rec] of aggregated) {
     const seat = Number(key.split(":")[1]);
     stats.set(seat, rec);
@@ -299,8 +303,7 @@ export async function getStandings(client: Client, draftId: string, numSeats?: n
   // arithmetic (e.g. two seats whose opponent sets differ only by swapping
   // opponents with identical records). Rounding before comparing lets such
   // values tie so the next tiebreaker decides.
-  const quantizePct = (pct: number | null): number =>
-    pct === null ? -1 : Math.round(pct * 1e12);
+  const quantizePct = (pct: number | null): number => (pct === null ? -1 : Math.round(pct * 1e12));
 
   // Sort: match wins DESC → OMW% DESC (nulls last) → OGW% DESC (nulls last)
   entries.sort((a, b) => {
@@ -317,7 +320,7 @@ export async function getStandings(client: Client, draftId: string, numSeats?: n
   // beat the other, the head-to-head winner ranks higher. Groups of three or
   // more keep their sorted order — pairwise results there can be cyclic, so
   // head-to-head is ill-defined.
-  for (let i = 0; i < entries.length; ) {
+  for (let i = 0; i < entries.length;) {
     let groupEnd = i + 1;
     while (
       groupEnd < entries.length &&
@@ -367,10 +370,7 @@ export async function getStandings(client: Client, draftId: string, numSeats?: n
  * Get the latest pick number for a draft.
  * Returns 0 if no picks have been made.
  */
-export async function getLatestPickNumber(
-  client: Client,
-  draftId: string,
-): Promise<number> {
+export async function getLatestPickNumber(client: Client, draftId: string): Promise<number> {
   const result = await client.execute({
     sql: "SELECT COALESCE(MAX(pick_n), 0) as latest FROM pick_events WHERE draft_id = ?",
     args: [draftId],
@@ -384,7 +384,7 @@ export async function getLatestPickNumber(
 export async function getRecentPicks(
   client: Client,
   draftId: string,
-  limit: number,
+  limit: number
 ): Promise<Array<{ pickN: number; seat: number; cardName: string }>> {
   const result = await client.execute({
     sql: `SELECT pe.pick_n, pe.seat, c.name as card_name
@@ -421,7 +421,7 @@ export interface PickWithCardDetails {
  */
 export async function getPicksWithCardDetails(
   client: Client,
-  draftId: string,
+  draftId: string
 ): Promise<PickWithCardDetails[]> {
   const result = await client.execute({
     sql: `SELECT pe.pick_n, pe.seat, c.name,
@@ -478,7 +478,7 @@ export async function getPicksWithCardDetails(
 export async function getLiveStateSig(
   client: Client,
   draftId: string,
-  seat?: number,
+  seat?: number
 ): Promise<{ latestPickN: number; sig: string }> {
   // These four reads are mutually independent: the seat marker depends only on
   // `seat` (a function argument), not on the other three queries' results, so

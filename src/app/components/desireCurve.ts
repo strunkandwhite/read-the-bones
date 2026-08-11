@@ -28,9 +28,7 @@ export interface DesireInputs {
  * full (worth-capped) desire instead of fading — see overdueDanger's doc.
  */
 export function desireAt(pickN: number, inputs: DesireInputs): number {
-  return (
-    inputs.worth * overdueDanger(pickN, DESIRE_HORIZON, inputs.geomean, inputs.sigma)
-  );
+  return inputs.worth * overdueDanger(pickN, DESIRE_HORIZON, inputs.geomean, inputs.sigma);
 }
 
 /**
@@ -104,14 +102,9 @@ const SURVIVAL_CUTOFF = 0.001;
 export function desireCurvePoints(
   inputs: DesireInputs,
   totalPicks: number,
-  sampleCount = 64,
+  sampleCount = 64
 ): DesirePoint[] {
-  if (
-    inputs.sigma <= 0 ||
-    inputs.geomean <= 0 ||
-    !Number.isFinite(totalPicks) ||
-    totalPicks < 1
-  ) {
+  if (inputs.sigma <= 0 || inputs.geomean <= 0 || !Number.isFinite(totalPicks) || totalPicks < 1) {
     return [];
   }
   const step = Math.max(1, Math.floor(totalPicks / sampleCount));

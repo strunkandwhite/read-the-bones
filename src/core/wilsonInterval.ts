@@ -29,9 +29,10 @@ export function wilsonInterval(
   if (total === 0) return { lower: 0, center: 0, upper: 0 };
 
   const p = wins / total;
-  const denominator = 1 + z * z / total;
-  const center = (p + z * z / (2 * total)) / denominator;
-  const margin = (z / denominator) * Math.sqrt(p * (1 - p) / total + z * z / (4 * total * total));
+  const denominator = 1 + (z * z) / total;
+  const center = (p + (z * z) / (2 * total)) / denominator;
+  const margin =
+    (z / denominator) * Math.sqrt((p * (1 - p)) / total + (z * z) / (4 * total * total));
 
   return {
     lower: round3(Math.max(0, center - margin)),

@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import type { Client } from "@libsql/client";
-import { getMatchCount, reportMatchResult, aggregateMatchRecords, computeTiebreakers } from "./matches";
+import {
+  getMatchCount,
+  reportMatchResult,
+  aggregateMatchRecords,
+  computeTiebreakers,
+} from "./matches";
 
 function createMockClient() {
   return { execute: vi.fn() } as unknown as Client & { execute: ReturnType<typeof vi.fn> };
@@ -8,7 +13,9 @@ function createMockClient() {
 
 describe("getMatchCount", () => {
   let client: ReturnType<typeof createMockClient>;
-  beforeEach(() => { client = createMockClient(); });
+  beforeEach(() => {
+    client = createMockClient();
+  });
 
   it("returns the count of matches", async () => {
     client.execute.mockResolvedValueOnce({ rows: [{ cnt: 7 }] });
@@ -35,7 +42,9 @@ describe("getMatchCount", () => {
 
 describe("reportMatchResult", () => {
   let client: ReturnType<typeof createMockClient>;
-  beforeEach(() => { client = createMockClient(); });
+  beforeEach(() => {
+    client = createMockClient();
+  });
 
   it("persists the match result with all seats, games, and reporter fields", async () => {
     client.execute.mockResolvedValueOnce({ rows: [] });
@@ -61,9 +70,7 @@ describe("aggregateMatchRecords", () => {
   });
 
   it("correctly tracks match wins and losses for each seat", () => {
-    const rows = [
-      { draft_id: "d1", seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 0 },
-    ];
+    const rows = [{ draft_id: "d1", seat1: 1, seat2: 2, seat1_wins: 2, seat2_wins: 0 }];
     const result = aggregateMatchRecords(rows);
 
     const seat1 = result.get("d1:1")!;
@@ -80,9 +87,7 @@ describe("aggregateMatchRecords", () => {
   });
 
   it("handles draws (equal wins) — no match win or loss awarded", () => {
-    const rows = [
-      { draft_id: "d1", seat1: 1, seat2: 2, seat1_wins: 1, seat2_wins: 1 },
-    ];
+    const rows = [{ draft_id: "d1", seat1: 1, seat2: 2, seat1_wins: 1, seat2_wins: 1 }];
     const result = aggregateMatchRecords(rows);
 
     const seat1 = result.get("d1:1")!;

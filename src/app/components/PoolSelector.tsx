@@ -35,13 +35,13 @@ export function PoolSelector({
   }, [drafts]);
 
   return (
-    <div className={`relative${disabled ? " opacity-50" : ""}`}>
+    <div className={`relative${disabled ? "opacity-50" : ""}`}>
       <select
         id="pool-selector"
         value={selectedDraftId ?? ""}
         onChange={(e) => onChange(e.target.value || null)}
         disabled={disabled}
-        className="block w-full appearance-none rounded-lg border border-zinc-300 bg-white py-1.5 pl-3 pr-9 text-sm text-zinc-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
+        className="block w-full appearance-none rounded-lg border border-zinc-300 bg-white py-1.5 pr-9 pl-3 text-sm text-zinc-900 focus:border-transparent focus:ring-2 focus:ring-blue-500 focus:outline-none dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100"
       >
         <option value="">Latest pool</option>
         {groupedByDate.map((group) => (
@@ -54,8 +54,17 @@ export function PoolSelector({
           </optgroup>
         ))}
       </select>
-      <svg className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-        <path fillRule="evenodd" d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+      <svg
+        className="pointer-events-none absolute top-1/2 right-3 h-4 w-4 -translate-y-1/2 text-zinc-400"
+        viewBox="0 0 20 20"
+        fill="currentColor"
+        aria-hidden="true"
+      >
+        <path
+          fillRule="evenodd"
+          d="M5.22 8.22a.75.75 0 0 1 1.06 0L10 11.94l3.72-3.72a.75.75 0 1 1 1.06 1.06l-4.25 4.25a.75.75 0 0 1-1.06 0L5.22 9.28a.75.75 0 0 1 0-1.06Z"
+          clipRule="evenodd"
+        />
       </svg>
     </div>
   );

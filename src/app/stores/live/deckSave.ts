@@ -9,10 +9,7 @@ import { useDraftStore } from "../draftStore";
 import { useCardStore } from "../cardStore";
 import { computeMyDeckCardNames } from "../computeMyDeckCardNames";
 import { getLocalDeckMode, loadLocalDeckState, saveLocalDeckState } from "./localDeck";
-import {
-  deckReducer,
-  createEmptyDeckState,
-} from "@/core/deckBuilder";
+import { deckReducer, createEmptyDeckState } from "@/core/deckBuilder";
 import type { DeckAction } from "@/core/deckBuilder";
 import type { DeckState } from "@/core/types";
 import type { SetState, GetState } from "../liveStore";
@@ -78,7 +75,7 @@ export function resetDeckSaveState(): void {
 
 async function flushDeckSave(
   scheduledForDraft: string,
-  getLiveStore: () => { getState: GetState; setState: SetState },
+  getLiveStore: () => { getState: GetState; setState: SetState }
 ): Promise<void> {
   const { seatToken, deckState } = getLiveStore().getState();
   const activeDraft = useDraftStore.getState().activeDraft;
@@ -162,7 +159,15 @@ function scheduleDeckSave(getLiveStore: () => { getState: GetState; setState: Se
 
 export function makeSyncDeckWithPicks(get: GetState) {
   return (): void => {
-    const { deckBuilderActive, deckReady, dispatchDeck, mySeat, floatedCards, queue, viewingSharedDeck } = get();
+    const {
+      deckBuilderActive,
+      deckReady,
+      dispatchDeck,
+      mySeat,
+      floatedCards,
+      queue,
+      viewingSharedDeck,
+    } = get();
     const { scryfallDataMap, seatCardList } = useCardStore.getState();
     const { selectedSeat } = useDraftStore.getState();
 
@@ -205,7 +210,7 @@ export function makeDebouncedSyncDeckWithPicks(syncDeckWithPicks: () => void) {
 export function makeDispatchDeck(
   set: SetState,
   get: GetState,
-  getLiveStore: () => { getState: GetState; setState: SetState },
+  getLiveStore: () => { getState: GetState; setState: SetState }
 ) {
   return (action: DeckAction): void => {
     if (action.type === "INIT_FROM_SNAPSHOT") {
@@ -289,7 +294,7 @@ export function makeShareDeck(get: GetState) {
       const data = await response.json().catch(() => ({}));
       throw new Error((data as { error?: string }).error ?? "Server error");
     }
-    const { deckId } = await response.json() as { deckId: string };
+    const { deckId } = (await response.json()) as { deckId: string };
     return `${window.location.origin}/?deck=${deckId}`;
   };
 }
@@ -352,7 +357,7 @@ export function makeFetchDeckState(set: SetState, get: GetState) {
  */
 export function makeSyncLocalDeck(
   get: GetState,
-  getLiveStore: () => { getState: GetState; setState: SetState },
+  getLiveStore: () => { getState: GetState; setState: SetState }
 ) {
   return (): void => {
     if (get().viewingSharedDeck) return;

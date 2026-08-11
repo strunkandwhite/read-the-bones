@@ -35,27 +35,14 @@ import {
   getDomainHashes,
   updateDomainHashes,
 } from "./domains";
-import {
-  batchInsertPicks,
-  batchInsertMatches,
-  buildMatchInserts,
-  deleteDomainData,
-} from "./batch";
+import { batchInsertPicks, batchInsertMatches, buildMatchInserts, deleteDomainData } from "./batch";
 import type { PickInsert } from "./batch";
 import { CardCache } from "./card-cache";
-import {
-  computeCubeHash,
-  loadEnv,
-  log,
-  logIndent,
-} from "../ingest/utils";
+import { computeCubeHash, loadEnv, log, logIndent } from "../ingest/utils";
 import { ensureCubeSnapshot, insertOptOuts } from "../ingest/db-helpers";
 import { filterRedactedPicks, reconcileRedactedRows } from "../ingest/redaction";
 import { getOptedOutSeats } from "../queries/helpers";
-import {
-  loadScryfallCache,
-  backfillScryfallData,
-} from "../ingest/scryfall";
+import { loadScryfallCache, backfillScryfallData } from "../ingest/scryfall";
 import { resolveCardNamesToCache } from "../ingest/serializeScryfall";
 import { fetchDraftTabsRaw } from "../../sheets";
 import { loadOptOutNames } from "../../optOuts";
@@ -113,7 +100,7 @@ export async function syncDraft(
   cardCache: CardCache,
   scryfallCache: Map<string, ScryCard>,
   optOutNames: Set<string>,
-  options: SyncOptions = {},
+  options: SyncOptions = {}
 ): Promise<SyncDraftResult> {
   const result: SyncDraftResult = {
     draftId,
@@ -130,11 +117,15 @@ export async function syncDraft(
     const poolNames = rawData.pool ? parsePoolRows(rawData.pool) : [];
     const parsedPicks = rawData.picks
       ? parsePickRows(rawData.picks, draftId)
-      : { picks: [], numDrafters: 0, drafterNames: [], isComplete: false, doublePickStartsAfterRound: null, picksPerPlayer: 0 };
-    const matches = parseMatchRows(
-      rawData.matches,
-      parsedPicks.drafterNames,
-    );
+      : {
+          picks: [],
+          numDrafters: 0,
+          drafterNames: [],
+          isComplete: false,
+          doublePickStartsAfterRound: null,
+          picksPerPlayer: 0,
+        };
+    const matches = parseMatchRows(rawData.matches, parsedPicks.drafterNames);
 
     // Handle opt-outs before computing the picks hash or reading any picks
     // for insertion. This must run first for two reasons:
@@ -155,8 +146,7 @@ export async function syncDraft(
     const optedOutSeats = await getOptedOutSeats(client, draftId);
     const pickedCards = parsedPicks.picks.filter((p) => p.wasPicked);
     const visiblePickedCards = filterRedactedPicks(pickedCards, optedOutSeats);
-    const newPicksHash =
-      visiblePickedCards.length > 0 ? hashPicks(visiblePickedCards) : null;
+    const newPicksHash = visiblePickedCards.length > 0 ? hashPicks(visiblePickedCards) : null;
     const newMatchesHash = matches.length > 0 ? hashMatches(matches) : null;
 
     // Get stored hashes and current phase
@@ -167,12 +157,8 @@ export async function syncDraft(
     const currentPhase = stored?.currentPhase ?? null;
 
     // Compare each domain
-    result.poolAction = newPoolHash
-      ? compareDomainHash(newPoolHash, storedPoolHash)
-      : "skip";
-    result.picksAction = newPicksHash
-      ? compareDomainHash(newPicksHash, storedPicksHash)
-      : "skip";
+    result.poolAction = newPoolHash ? compareDomainHash(newPoolHash, storedPoolHash) : "skip";
+    result.picksAction = newPicksHash ? compareDomainHash(newPicksHash, storedPicksHash) : "skip";
     result.matchesAction = newMatchesHash
       ? compareDomainHash(newMatchesHash, storedMatchesHash)
       : "skip";
@@ -183,7 +169,7 @@ export async function syncDraft(
       result.markedComplete =
         computeSyncTargetPhase(
           parsedPicks.isComplete,
-          isMatchesComplete(matches.length, parsedPicks.numDrafters),
+          isMatchesComplete(matches.length, parsedPicks.numDrafters)
         ) === "complete";
       return result;
     }
@@ -221,7 +207,7 @@ export async function syncDraft(
 
       if (unresolvedCardNames.length > 0) {
         console.warn(
-          `syncDraft(${draftId}): dropped ${unresolvedCardNames.length} pick(s) with cards unresolved in cardCache: ${unresolvedCardNames.join(", ")}`,
+          `syncDraft(${draftId}): dropped ${unresolvedCardNames.length} pick(s) with cards unresolved in cardCache: ${unresolvedCardNames.join(", ")}`
         );
       }
     }
@@ -290,7 +276,7 @@ export async function syncDraft(
     // demote a draft an admin has manually advanced.
     const targetPhase = computeSyncTargetPhase(
       parsedPicks.isComplete,
-      isMatchesComplete(matches.length, parsedPicks.numDrafters),
+      isMatchesComplete(matches.length, parsedPicks.numDrafters)
     );
     result.markedComplete = targetPhase === "complete";
     if (isSyncPhaseTransitionLegal(currentPhase ?? "drafting", targetPhase)) {
@@ -327,7 +313,7 @@ async function syncPool(
   poolNames: string[],
   poolRows: string[][],
   cardCache: CardCache,
-  scryfallCache: Map<string, ScryCard>,
+  scryfallCache: Map<string, ScryCard>
 ): Promise<void> {
   // Count occurrences for qty
   const nameCounts = new Map<string, number>();
@@ -387,7 +373,7 @@ export interface SyncAllOptions extends SyncOptions {
  */
 export async function syncAll(
   client: Client,
-  options: SyncAllOptions = {},
+  options: SyncAllOptions = {}
 ): Promise<SyncRunResult> {
   const runResult: SyncRunResult = { results: [], errors: [] };
 
@@ -424,9 +410,7 @@ export async function syncAll(
       sheetId: r.sheet_id as string,
     }));
     if (drafts.length === 0) {
-      runResult.errors.push(
-        `Draft "${options.filterDraftId}" not found or has no sheet_id`,
-      );
+      runResult.errors.push(`Draft "${options.filterDraftId}" not found or has no sheet_id`);
       return runResult;
     }
   } else {
@@ -464,7 +448,7 @@ export async function syncAll(
         cardCache,
         scryfallCache,
         optOutNames,
-        options,
+        options
       );
 
       runResult.results.push(draftResult);

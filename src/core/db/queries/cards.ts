@@ -22,12 +22,12 @@ export async function resolveCard(client: Client, cardName: string): Promise<Car
 
 export interface FuzzyCardMatch {
   card: Card;
-  match_type: 'exact' | 'front_face' | 'back_face' | 'prefix' | 'substring';
+  match_type: "exact" | "front_face" | "back_face" | "prefix" | "substring";
 }
 
 export interface FuzzyCardResult {
   match: FuzzyCardMatch | null;
-  candidates: string[] | null;  // non-null when ambiguous
+  candidates: string[] | null; // non-null when ambiguous
 }
 
 /**
@@ -36,14 +36,13 @@ export interface FuzzyCardResult {
  * Returns the match with its type, or candidates when ambiguous.
  */
 export async function resolveCardFuzzy(client: Client, cardName: string): Promise<FuzzyCardResult> {
-
   // 1. Exact match
   const exact = await client.execute({
     sql: `SELECT card_id, oracle_id, name, scryfall_json FROM cards WHERE LOWER(name) = LOWER(?) LIMIT 1`,
     args: [cardName],
   });
   if (exact.rows.length === 1) {
-    return { match: { card: rowToCard(exact.rows[0]), match_type: 'exact' }, candidates: null };
+    return { match: { card: rowToCard(exact.rows[0]), match_type: "exact" }, candidates: null };
   }
 
   // 2. Front-face DFC match
@@ -52,10 +51,13 @@ export async function resolveCardFuzzy(client: Client, cardName: string): Promis
     args: [cardName],
   });
   if (frontFace.rows.length === 1) {
-    return { match: { card: rowToCard(frontFace.rows[0]), match_type: 'front_face' }, candidates: null };
+    return {
+      match: { card: rowToCard(frontFace.rows[0]), match_type: "front_face" },
+      candidates: null,
+    };
   }
   if (frontFace.rows.length > 1) {
-    return { match: null, candidates: frontFace.rows.map(r => r.name as string) };
+    return { match: null, candidates: frontFace.rows.map((r) => r.name as string) };
   }
 
   // 3. Back-face DFC match
@@ -64,10 +66,13 @@ export async function resolveCardFuzzy(client: Client, cardName: string): Promis
     args: [cardName],
   });
   if (backFace.rows.length === 1) {
-    return { match: { card: rowToCard(backFace.rows[0]), match_type: 'back_face' }, candidates: null };
+    return {
+      match: { card: rowToCard(backFace.rows[0]), match_type: "back_face" },
+      candidates: null,
+    };
   }
   if (backFace.rows.length > 1) {
-    return { match: null, candidates: backFace.rows.map(r => r.name as string) };
+    return { match: null, candidates: backFace.rows.map((r) => r.name as string) };
   }
 
   // 4. Prefix match
@@ -76,10 +81,10 @@ export async function resolveCardFuzzy(client: Client, cardName: string): Promis
     args: [cardName],
   });
   if (prefix.rows.length === 1) {
-    return { match: { card: rowToCard(prefix.rows[0]), match_type: 'prefix' }, candidates: null };
+    return { match: { card: rowToCard(prefix.rows[0]), match_type: "prefix" }, candidates: null };
   }
   if (prefix.rows.length > 1) {
-    return { match: null, candidates: prefix.rows.map(r => r.name as string) };
+    return { match: null, candidates: prefix.rows.map((r) => r.name as string) };
   }
 
   // 5. Substring match
@@ -88,10 +93,13 @@ export async function resolveCardFuzzy(client: Client, cardName: string): Promis
     args: [cardName],
   });
   if (substring.rows.length === 1) {
-    return { match: { card: rowToCard(substring.rows[0]), match_type: 'substring' }, candidates: null };
+    return {
+      match: { card: rowToCard(substring.rows[0]), match_type: "substring" },
+      candidates: null,
+    };
   }
   if (substring.rows.length > 1) {
-    return { match: null, candidates: substring.rows.map(r => r.name as string) };
+    return { match: null, candidates: substring.rows.map((r) => r.name as string) };
   }
 
   return { match: null, candidates: null };
@@ -168,10 +176,7 @@ export async function lookupCardWithApiFallback(
  *
  * Returns null if the card doesn't exist.
  */
-export async function resolveCardId(
-  client: Client,
-  cardName: string,
-): Promise<number | null> {
+export async function resolveCardId(client: Client, cardName: string): Promise<number | null> {
   const result = await client.execute({
     sql: "SELECT card_id FROM cards WHERE name = ?",
     args: [cardName],
@@ -195,7 +200,7 @@ export async function resolveCardId(
  */
 export async function resolveCardIds(
   client: Client,
-  cardNames: string[],
+  cardNames: string[]
 ): Promise<Map<string, number>> {
   if (cardNames.length === 0) return new Map();
   const result = await client.execute({

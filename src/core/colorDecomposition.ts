@@ -16,9 +16,7 @@ export type DecomposedColorStats = {
  * "WU" with 10 wins contributes 10 wins to both W and U.
  * "C" (colorless) stays as "C". Results sorted in WUBRGC order.
  */
-export function decomposeColorPairs(
-  colorData: ColorWinData[],
-): DecomposedColorStats[] {
+export function decomposeColorPairs(colorData: ColorWinData[]): DecomposedColorStats[] {
   const buckets = new Map<string, { wins: number; losses: number }>();
   for (const c of colorData) {
     const colors = c.color === "C" ? ["C"] : c.color.split("");

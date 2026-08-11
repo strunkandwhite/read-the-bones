@@ -37,10 +37,7 @@ import { rankAvailableCards } from "./rankedAvailable";
 
 const SIGMA = 0.5;
 
-function makeWorthCard(
-  name: string,
-  overrides: Partial<WorthCard> = {},
-): WorthCard {
+function makeWorthCard(name: string, overrides: Partial<WorthCard> = {}): WorthCard {
   return {
     card_name: name,
     colors: "",
@@ -118,10 +115,7 @@ async function seedDraft(): Promise<void> {
   await insertDraft(db, "d1", { numSeats: 10, cubeSnapshotId: 1 });
 }
 
-function findCard(
-  result: Awaited<ReturnType<typeof rankAvailableCards>>,
-  name: string,
-) {
+function findCard(result: Awaited<ReturnType<typeof rankAvailableCards>>, name: string) {
   const card = result.cards.find((c) => c.card_name === name);
   expect(card, `card ${name} missing from result`).toBeDefined();
   return card!;
@@ -330,7 +324,7 @@ describe("rankAvailableCards worth-model extensions", () => {
       });
 
       expect(Object.keys(result.pair_supply!).sort()).toEqual(
-        ["WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG"].sort(),
+        ["WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG"].sort()
       );
       // Seat 1 slots are 1, 20, 21, 40, … With σ = 0.5 a card survives a
       // slot (p ≥ 0.5) iff slot ≤ geomean: UR takes Alpha (geo 5) at slot 1

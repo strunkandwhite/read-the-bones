@@ -49,7 +49,7 @@ const norm = cardNameKey;
  */
 export async function resolveDeckFromPicks(
   client: Client,
-  parsed: ParsedDeck,
+  parsed: ParsedDeck
 ): Promise<DeckCardInsert[]> {
   const result = await client.execute({
     sql: `SELECT DISTINCT c.card_id, c.name
@@ -60,7 +60,7 @@ export async function resolveDeckFromPicks(
 
   if (result.rows.length === 0) {
     throw new Error(
-      `${parsed.draftId} seat ${parsed.seat} has no picks — cannot import a deck for a seat that never drafted (or opted out)`,
+      `${parsed.draftId} seat ${parsed.seat} has no picks — cannot import a deck for a seat that never drafted (or opted out)`
     );
   }
 
@@ -96,7 +96,7 @@ export async function resolveDeckFromPicks(
 
   if (unresolved.length > 0) {
     throw new Error(
-      `${parsed.draftId} seat ${parsed.seat}: ${unresolved.length} card(s) not among this seat's picks: ${unresolved.join(", ")}`,
+      `${parsed.draftId} seat ${parsed.seat}: ${unresolved.length} card(s) not among this seat's picks: ${unresolved.join(", ")}`
     );
   }
 
@@ -134,7 +134,7 @@ export type ImportAction = "write" | "refuse-foreign";
  */
 export function decideImportWrite(
   existing: { hasDeck: boolean; source: string | null },
-  force: boolean,
+  force: boolean
 ): ImportAction {
   if (!existing.hasDeck) return "write";
   if (existing.source?.startsWith("recovered:")) return "write";
@@ -213,7 +213,7 @@ async function loadStoredSeat(
   client: Client,
   draftId: string,
   seat: number,
-  provenanceReadable: boolean,
+  provenanceReadable: boolean
 ): Promise<StoredSeat> {
   const hashRow = await client.execute({
     sql: `SELECT ${provenanceReadable ? "sealeddeck_id" : "NULL AS sealeddeck_id"}
@@ -245,7 +245,7 @@ async function loadStoredSeat(
 async function loadMissingCardNames(
   client: Client,
   nameById: Map<number, string>,
-  cardIds: number[],
+  cardIds: number[]
 ): Promise<void> {
   const missing = [...new Set(cardIds)].filter((id) => !nameById.has(id));
   if (missing.length === 0) return;
@@ -275,7 +275,7 @@ function reportSeatState(
   stored: StoredSeat,
   rows: DeckCardInsert[],
   action: ImportAction,
-  provenanceReadable: boolean,
+  provenanceReadable: boolean
 ): void {
   if (stored.slots.length === 0) {
     const note = stored.hasHashRow ? " (a deck_hashes row exists, but no deck_cards rows)" : "";
@@ -299,12 +299,12 @@ function reportSeatState(
   } else {
     console.log(
       `      transcription differs by ${diff.onlyStored + diff.onlyParsed} card copies ` +
-        `(${diff.onlyStored} only in stored, ${diff.onlyParsed} only in parsed)`,
+        `(${diff.onlyStored} only in stored, ${diff.onlyParsed} only in parsed)`
     );
     for (const slot of diff.slots.slice(0, MAX_LISTED_DIFFERENCES)) {
       const name = stored.nameById.get(slot.cardId) ?? `card ${slot.cardId}`;
       console.log(
-        `        ${name} (${slot.zone}): stored ${slot.storedQty}, parsed ${slot.parsedQty}`,
+        `        ${name} (${slot.zone}): stored ${slot.storedQty}, parsed ${slot.parsedQty}`
       );
     }
     if (diff.slots.length > MAX_LISTED_DIFFERENCES) {
@@ -314,7 +314,7 @@ function reportSeatState(
 
   if (action === "refuse-foreign") {
     console.log(
-      "      REFUSED — this seat's deck did not come from a recovery. Pass --force to overwrite it.",
+      "      REFUSED — this seat's deck did not come from a recovery. Pass --force to overwrite it."
     );
   } else if (stored.source?.startsWith("recovered:")) {
     console.log("      would overwrite the previous recovery");
@@ -390,16 +390,20 @@ async function main() {
 
   for (const { file, deck, rows } of resolved) {
     const stored = await loadStoredSeat(client, deck.draftId, deck.seat, provenanceReadable);
-    await loadMissingCardNames(client, stored.nameById, rows.map((r) => r.cardId));
+    await loadMissingCardNames(
+      client,
+      stored.nameById,
+      rows.map((r) => r.cardId)
+    );
 
     const action = decideImportWrite(
       { hasDeck: stored.slots.length > 0, source: stored.source },
-      force,
+      force
     );
     const maindeck = countCopies(rows.filter((r) => r.zone === "deck"));
     const sideboard = countCopies(rows.filter((r) => r.zone === "sideboard"));
     logIndent(
-      `${file}: ${deck.draftId} seat ${deck.seat} — ${maindeck} maindeck, ${sideboard} sideboard`,
+      `${file}: ${deck.draftId} seat ${deck.seat} — ${maindeck} maindeck, ${sideboard} sideboard`
     );
     reportSeatState(stored, rows, action, provenanceReadable);
 
@@ -413,7 +417,7 @@ async function main() {
   if (dryRun) {
     log(
       `Dry run complete — ${writable.length} deck(s) would be imported, ${refused} refused. ` +
-        `Re-run without --dry-run to apply.`,
+        `Re-run without --dry-run to apply.`
     );
     client.close();
     return;
@@ -423,7 +427,7 @@ async function main() {
     console.error(
       "\ndeck_hashes has no sealeddeck_id column — run pnpm db:migrate first. Nothing was written.\n" +
         "Without it the import cannot record that these decks were recovered, and the guard that\n" +
-        "stops pnpm decklists from reverting them has nothing to read.",
+        "stops pnpm decklists from reverting them has nothing to read."
     );
     client.close();
     process.exit(1);
@@ -464,8 +468,7 @@ async function main() {
 // production. `loadEnv` picks up real Turso credentials, so the guard is what
 // stands between `pnpm test` and a write to deck_cards.
 const invokedDirectly =
-  process.argv[1] !== undefined &&
-  realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
+  process.argv[1] !== undefined && realpathSync(process.argv[1]) === fileURLToPath(import.meta.url);
 
 if (invokedDirectly) {
   main().catch((e) => {

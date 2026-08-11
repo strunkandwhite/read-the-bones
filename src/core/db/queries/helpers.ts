@@ -65,7 +65,7 @@ export async function getOptedOutSeats(client: Client, draftId: string): Promise
 export async function getRemainingCopies(
   client: Client,
   draftId: string,
-  cardIds: number[],
+  cardIds: number[]
 ): Promise<Map<number, number>> {
   if (cardIds.length === 0) return new Map();
 
@@ -85,10 +85,7 @@ export async function getRemainingCopies(
 
   const remaining = new Map<number, number>();
   for (const row of result.rows) {
-    remaining.set(
-      row.card_id as number,
-      (row.qty as number) - (row.picked as number),
-    );
+    remaining.set(row.card_id as number, (row.qty as number) - (row.picked as number));
   }
   return remaining;
 }
@@ -230,4 +227,3 @@ export function transformScryfallJson(json: string | null, cardName: string): Sc
     return undefined;
   }
 }
-

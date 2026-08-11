@@ -6,7 +6,6 @@ import { decomposeColorPairs } from "@/core/colorDecomposition";
 import { useSlowRenderTracking } from "../hooks/useSlowRenderTracking";
 import { InfoTooltip } from "./InfoTooltip";
 
-
 const SEAT_EXPLANATION = `Game win rate per draft seat position, aggregated across all 10-seat drafts. Drafts with a different number of seats are excluded since seat position is not comparable across different draft sizes.
 
 Each bar shows the proportion of games won by players in that seat. The shaded band is a 95% Wilson confidence interval — wider bands mean fewer games and less certainty. The dashed line marks 50%.`;
@@ -58,13 +57,7 @@ const CHART_HEIGHT = 148;
 const MARGIN = { top: 12, right: 4, bottom: 32, left: 36 };
 const INNER_H = CHART_HEIGHT - MARGIN.top - MARGIN.bottom;
 
-function WinRateHistogram({
-  bars,
-  theme,
-}: {
-  bars: BarDatum[];
-  theme: BarTheme;
-}) {
+function WinRateHistogram({ bars, theme }: { bars: BarDatum[]; theme: BarTheme }) {
   if (bars.length === 0) return null;
 
   const innerW = VIEWBOX_W - MARGIN.left - MARGIN.right;
@@ -78,8 +71,7 @@ function WinRateHistogram({
   const yMin = Math.max(0, Math.floor(dataMin * 10 - 0.5) / 10);
   const yRange = yMax - yMin;
 
-  const toY = (v: number) =>
-    MARGIN.top + INNER_H * (1 - (v - yMin) / yRange);
+  const toY = (v: number) => MARGIN.top + INNER_H * (1 - (v - yMin) / yRange);
 
   const barCount = bars.length;
   const barGap = Math.max(2, Math.min(8, (innerW / barCount) * 0.2));
@@ -115,7 +107,7 @@ function WinRateHistogram({
             y={toY(v)}
             textAnchor="end"
             dominantBaseline="middle"
-            className="fill-zinc-400 dark:fill-zinc-600 font-mono"
+            className="fill-zinc-400 font-mono dark:fill-zinc-600"
             fontSize={9}
           >
             {(v * 100).toFixed(0)}%
@@ -187,9 +179,7 @@ function WinRateHistogram({
               y1={ciBottom}
               y2={ciBottom}
               className={
-                bottomWhiskerInBar
-                  ? "stroke-white/70 dark:stroke-white/40"
-                  : theme.whisker
+                bottomWhiskerInBar ? "stroke-white/70 dark:stroke-white/40" : theme.whisker
               }
               strokeWidth={1}
             />
@@ -272,26 +262,23 @@ export function DraftStats({ data }: DraftStatsProps) {
         wins: c.wins,
         losses: c.losses,
       })),
-    [winRateByColor],
+    [winRateByColor]
   );
 
   if (winRateBySeat.length === 0 && winRateByColor.length === 0) {
     return null;
   }
 
-  const activeColorBars =
-    colorMode === "pairs" ? colorPairBars : colorIndividualBars;
+  const activeColorBars = colorMode === "pairs" ? colorPairBars : colorIndividualBars;
   const activeColorExplanation =
-    colorMode === "pairs"
-      ? COLOR_PAIR_EXPLANATION
-      : COLOR_INDIVIDUAL_EXPLANATION;
+    colorMode === "pairs" ? COLOR_PAIR_EXPLANATION : COLOR_INDIVIDUAL_EXPLANATION;
 
   return (
     <div className="grid gap-4">
       {seatBars.length > 0 && (
         <div className="rounded-lg border border-dashed border-zinc-300 bg-white px-4 pt-3 pb-2 dark:border-zinc-700 dark:bg-zinc-900/60">
           <div className="mb-1 flex items-center justify-between">
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+            <h3 className="text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
               Win Rate by Seat
             </h3>
             <InfoTooltip align="right" text={SEAT_EXPLANATION} />
@@ -304,7 +291,7 @@ export function DraftStats({ data }: DraftStatsProps) {
         <div className="rounded-lg border border-dashed border-zinc-300 bg-white px-4 pt-3 pb-2 dark:border-zinc-700 dark:bg-zinc-900/60">
           <div className="mb-1 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-500 dark:text-zinc-400">
+              <h3 className="text-xs font-semibold tracking-wider text-zinc-500 uppercase dark:text-zinc-400">
                 Win Rate by Color
               </h3>
               <div className="flex rounded-md border border-zinc-300 text-[10px] dark:border-zinc-600">

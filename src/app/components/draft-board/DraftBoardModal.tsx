@@ -25,12 +25,7 @@ const PHASE_BADGE_COLORS: Record<string, { bg: string; text: string }> = {
   complete: { bg: "bg-green-900", text: "text-green-300" },
 };
 
-export function DraftBoardModal({
-  draftId,
-  draftName,
-  isOpen,
-  onClose,
-}: DraftBoardModalProps) {
+export function DraftBoardModal({ draftId, draftName, isOpen, onClose }: DraftBoardModalProps) {
   // Draft store
   const board = useDraftStore((s) => s.board);
   const liveDraftStatus = useDraftStore((s) => s.liveDraftStatus);
@@ -64,26 +59,28 @@ export function DraftBoardModal({
     if (isOpen) backdropRef.current?.focus();
   }, [isOpen]);
 
-  const handleUpdateDisplayName = useCallback(async (name: string) => {
-    if (mySeat !== null) patchSeatName(mySeat, name || `Seat ${mySeat}`);
-    await useLiveStore.getState().updateDisplayName(name);
-    await useDraftStore.getState().refreshNow();
-  }, [mySeat, patchSeatName]);
+  const handleUpdateDisplayName = useCallback(
+    async (name: string) => {
+      if (mySeat !== null) patchSeatName(mySeat, name || `Seat ${mySeat}`);
+      await useLiveStore.getState().updateDisplayName(name);
+      await useDraftStore.getState().refreshNow();
+    },
+    [mySeat, patchSeatName]
+  );
 
   const setEntryMode = useLiveStore((s) => s.setEntryMode);
 
   const phase = board?.phase ?? "unknown";
   const badgeColors = PHASE_BADGE_COLORS[phase] ?? { bg: "bg-zinc-700", text: "text-zinc-400" };
 
-  const nextPick =
-    board
-      ? getNextPick(
-          liveDraftStatus?.latestPickN ?? board.picks.length,
-          board.numSeats,
-          board.picksPerPlayer,
-          board.doublePickAfterRound,
-        )
-      : null;
+  const nextPick = board
+    ? getNextPick(
+        liveDraftStatus?.latestPickN ?? board.picks.length,
+        board.numSeats,
+        board.picksPerPlayer,
+        board.doublePickAfterRound
+      )
+    : null;
 
   return (
     <div
@@ -97,19 +94,15 @@ export function DraftBoardModal({
         if (e.key === "Escape") onClose();
       }}
     >
-      <div
-        className="flex flex-col max-h-[95dvh] w-full max-w-[95vw] mx-3 rounded-xl border border-zinc-700/40 bg-zinc-950 shadow-2xl overflow-hidden"
-      >
+      <div className="mx-3 flex max-h-[95dvh] w-full max-w-[95vw] flex-col overflow-hidden rounded-xl border border-zinc-700/40 bg-zinc-950 shadow-2xl">
         {/* Header */}
-        <div
-          className="flex items-center justify-between px-5 py-3 border-b border-zinc-800/60 bg-zinc-900/80"
-        >
+        <div className="flex items-center justify-between border-b border-zinc-800/60 bg-zinc-900/80 px-5 py-3">
           <div className="flex items-center gap-3">
-            <span className="text-sm font-semibold text-zinc-200 tracking-tight">
+            <span className="text-sm font-semibold tracking-tight text-zinc-200">
               {draftName || draftId}
             </span>
             <span
-              className={`text-[11px] font-medium px-2 py-0.5 rounded ${badgeColors.bg} ${badgeColors.text}`}
+              className={`rounded px-2 py-0.5 text-[11px] font-medium ${badgeColors.bg} ${badgeColors.text}`}
             >
               {phase}
             </span>
@@ -117,10 +110,10 @@ export function DraftBoardModal({
               <span className="text-[11px] text-zinc-400">
                 {availableCount} available
                 {bannedCardNames && bannedCardNames.length > 0 && (
-                  <span
-                    className="text-zinc-500 cursor-default"
-                    title={bannedCardNames.join("\n")}
-                  >{" · "}{bannedCardNames.length} banned</span>
+                  <span className="cursor-default text-zinc-500" title={bannedCardNames.join("\n")}>
+                    {" · "}
+                    {bannedCardNames.length} banned
+                  </span>
                 )}
               </span>
             )}
@@ -144,7 +137,7 @@ export function DraftBoardModal({
         </div>
 
         {/* Body */}
-        <div className="flex-1 flex flex-col overflow-hidden px-5 py-4 gap-4">
+        <div className="flex flex-1 flex-col gap-4 overflow-hidden px-5 py-4">
           {board ? (
             <>
               <CollapsibleSection
@@ -197,9 +190,7 @@ export function DraftBoardModal({
               </div>
             </>
           ) : (
-            <div
-              className="py-10 text-center text-zinc-500 text-[13px]"
-            >
+            <div className="py-10 text-center text-[13px] text-zinc-500">
               Loading draft board...
             </div>
           )}

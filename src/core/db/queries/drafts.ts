@@ -45,8 +45,7 @@ export async function listDrafts(
     args.push(`%${filters.draft_name}%`);
   }
 
-  const whereClause =
-    conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+  const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
   const result = await client.execute({
     sql: `SELECT d.draft_id, d.draft_name, d.draft_date, d.phase, d.sheet_id
@@ -77,11 +76,7 @@ export interface DraftDetails {
  * Get detailed information about a specific draft.
  * Returns null if the draft doesn't exist.
  */
-export async function getDraft(
-  client: Client,
-  draftId: string,
-): Promise<DraftDetails | null> {
-
+export async function getDraft(client: Client, draftId: string): Promise<DraftDetails | null> {
   const draftResult = await client.execute({
     sql: `SELECT draft_id, draft_name, draft_date, num_seats, banned_cards
           FROM drafts
@@ -131,10 +126,7 @@ export interface DraftMeta {
  * Get live-draft metadata needed by pick processing and match routes.
  * Returns null if the draft doesn't exist.
  */
-export async function getDraftMeta(
-  client: Client,
-  draftId: string,
-): Promise<DraftMeta | null> {
+export async function getDraftMeta(client: Client, draftId: string): Promise<DraftMeta | null> {
   const result = await client.execute({
     sql: "SELECT phase, num_seats, picks_per_player, banned_cards, sheet_id, double_pick_after_round FROM drafts WHERE draft_id = ?",
     args: [draftId],
@@ -157,10 +149,7 @@ export async function getDraftMeta(
  * Get the current phase of a draft.
  * Returns null if the draft doesn't exist.
  */
-export async function getDraftPhase(
-  client: Client,
-  draftId: string,
-): Promise<string | null> {
+export async function getDraftPhase(client: Client, draftId: string): Promise<string | null> {
   const result = await client.execute({
     sql: "SELECT phase FROM drafts WHERE draft_id = ?",
     args: [draftId],

@@ -1,11 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { pickScore, RECENCY_HALF_LIFE_SESSIONS, type DraftObservation } from "./pickScore";
 
-const seen = (
-  pickPositions: number[],
-  poolSize = 540,
-  sessionsAgo = 0,
-): DraftObservation => ({ sessionsAgo, pickPositions, poolSize });
+const seen = (pickPositions: number[], poolSize = 540, sessionsAgo = 0): DraftObservation => ({
+  sessionsAgo,
+  pickPositions,
+  poolSize,
+});
 
 describe("pickScore", () => {
   it("returns 0 when there is nothing to average", () => {
@@ -57,7 +57,7 @@ describe("pickScore recency", () => {
     // Recent pick at 10 (weight 1), pick four sessions back at 40 (weight 0.5):
     // exp((1*ln(10) + 0.5*ln(40)) / 1.5)
     expect(
-      pickScore([seen([10], 540, 0), seen([40], 540, RECENCY_HALF_LIFE_SESSIONS)]),
+      pickScore([seen([10], 540, 0), seen([40], 540, RECENCY_HALF_LIFE_SESSIONS)])
     ).toBeCloseTo(15.9, 1);
   });
 

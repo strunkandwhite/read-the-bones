@@ -42,7 +42,6 @@ describe("getDeck", () => {
       sideboard: ["Wrath of God"],
     });
   });
-
 });
 
 describe("getCardPlayStats", () => {
@@ -87,9 +86,7 @@ describe("getCardPlayStats", () => {
       rows: [{ card_id: 42, oracle_id: "gen:bolt", name: "Lightning Bolt", scryfall_json: null }],
     });
     mockExecute.mockResolvedValueOnce({
-      rows: [
-        { draft_id: "tarkir", seat: 1, zone: "sideboard" },
-      ],
+      rows: [{ draft_id: "tarkir", seat: 1, zone: "sideboard" }],
     });
 
     const result = await getCardPlayStats(mockClient, { card_name: "Lightning Bolt" });

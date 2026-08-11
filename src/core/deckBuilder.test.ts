@@ -37,17 +37,45 @@ function makeScryCard(overrides: Partial<ScryCard>): ScryCard {
 
 const bolt = makeScryCard({ name: "Lightning Bolt", manaValue: 1, typeLine: "Instant" });
 const counterspell = makeScryCard({ name: "Counterspell", manaValue: 2, typeLine: "Instant" });
-const vendilion = makeScryCard({ name: "Vendilion Clique", manaValue: 3, typeLine: "Creature - Faerie Wizard" });
-const jace = makeScryCard({ name: "Jace, the Mind Sculptor", manaValue: 4, typeLine: "Planeswalker - Jace" });
+const vendilion = makeScryCard({
+  name: "Vendilion Clique",
+  manaValue: 3,
+  typeLine: "Creature - Faerie Wizard",
+});
+const jace = makeScryCard({
+  name: "Jace, the Mind Sculptor",
+  manaValue: 4,
+  typeLine: "Planeswalker - Jace",
+});
 const forceOfWill = makeScryCard({ name: "Force of Will", manaValue: 5, typeLine: "Instant" });
-const emrakul = makeScryCard({ name: "Emrakul, the Aeons Torn", manaValue: 15, typeLine: "Creature - Eldrazi" });
+const emrakul = makeScryCard({
+  name: "Emrakul, the Aeons Torn",
+  manaValue: 15,
+  typeLine: "Creature - Eldrazi",
+});
 const moxRuby = makeScryCard({ name: "Mox Ruby", manaValue: 0, typeLine: "Artifact" });
 const tundra = makeScryCard({ name: "Tundra", manaValue: 0, typeLine: "Land" });
-const dryad = makeScryCard({ name: "Dryad Arbor", manaValue: 0, typeLine: "Land Creature - Dryad" });
-const sixDrop = makeScryCard({ name: "Primeval Titan", manaValue: 6, typeLine: "Creature - Giant" });
+const dryad = makeScryCard({
+  name: "Dryad Arbor",
+  manaValue: 0,
+  typeLine: "Land Creature - Dryad",
+});
+const sixDrop = makeScryCard({
+  name: "Primeval Titan",
+  manaValue: 6,
+  typeLine: "Creature - Giant",
+});
 const tenDrop = makeScryCard({ name: "Ulamog", manaValue: 10, typeLine: "Creature - Eldrazi" });
-const snapcaster = makeScryCard({ name: "Snapcaster Mage", manaValue: 2, typeLine: "Creature - Human Wizard" });
-const wurmcoil = makeScryCard({ name: "Wurmcoil Engine", manaValue: 4, typeLine: "Artifact Creature - Wurm" });
+const snapcaster = makeScryCard({
+  name: "Snapcaster Mage",
+  manaValue: 2,
+  typeLine: "Creature - Human Wizard",
+});
+const wurmcoil = makeScryCard({
+  name: "Wurmcoil Engine",
+  manaValue: 4,
+  typeLine: "Artifact Creature - Wurm",
+});
 
 const scryfallData = new Map<string, ScryCard>([
   ["Lightning Bolt", bolt],
@@ -113,28 +141,13 @@ describe("BASE_COLUMN_KEYS", () => {
   });
 
   it("is in the expected order", () => {
-    expect(BASE_COLUMN_KEYS).toEqual([
-      "mv-0-1",
-      "mv-2",
-      "mv-3",
-      "mv-4",
-      "mv-5",
-      "mv-6+",
-      "lands",
-    ]);
+    expect(BASE_COLUMN_KEYS).toEqual(["mv-0-1", "mv-2", "mv-3", "mv-4", "mv-5", "mv-6+", "lands"]);
   });
 });
 
 describe("MANA_VALUE_COLUMN_KEYS", () => {
   it("is the base keys without lands", () => {
-    expect(MANA_VALUE_COLUMN_KEYS).toEqual([
-      "mv-0-1",
-      "mv-2",
-      "mv-3",
-      "mv-4",
-      "mv-5",
-      "mv-6+",
-    ]);
+    expect(MANA_VALUE_COLUMN_KEYS).toEqual(["mv-0-1", "mv-2", "mv-3", "mv-4", "mv-5", "mv-6+"]);
   });
 });
 
@@ -251,28 +264,19 @@ describe("createEmptyColumnMap", () => {
 
 describe("assignCardsToColumns", () => {
   it("distributes cards into correct columns", () => {
-    const result = assignCardsToColumns(
-      ["Lightning Bolt", "Counterspell", "Tundra"],
-      scryfallData,
-    );
+    const result = assignCardsToColumns(["Lightning Bolt", "Counterspell", "Tundra"], scryfallData);
     expect(result["mv-0-1"]).toEqual(["Lightning Bolt"]);
     expect(result["mv-2"]).toEqual(["Counterspell"]);
     expect(result["lands"]).toEqual(["Tundra"]);
   });
 
   it("falls back to mv-0-1 for unknown cards", () => {
-    const result = assignCardsToColumns(
-      ["Unknown Card"],
-      scryfallData,
-    );
+    const result = assignCardsToColumns(["Unknown Card"], scryfallData);
     expect(result["mv-0-1"]).toEqual(["Unknown Card"]);
   });
 
   it("preserves order within a column", () => {
-    const result = assignCardsToColumns(
-      ["Lightning Bolt", "Mox Ruby"],
-      scryfallData,
-    );
+    const result = assignCardsToColumns(["Lightning Bolt", "Mox Ruby"], scryfallData);
     expect(result["mv-0-1"]).toEqual(["Lightning Bolt", "Mox Ruby"]);
   });
 });
@@ -331,7 +335,7 @@ describe("deckReducer", () => {
      *  in the creature row and no version stamp. */
     function preSplitState(
       deck: Record<string, string[]> = {},
-      sideboard: Record<string, string[]> = {},
+      sideboard: Record<string, string[]> = {}
     ): DeckState {
       return migrateDeckState({
         draftId: "tarkir",
@@ -449,7 +453,10 @@ describe("deckReducer", () => {
     });
 
     it("returns the same reference when version is already current", () => {
-      const state = { ...preSplitState({ "mv-0-1": ["Lightning Bolt"] }), version: DECK_STATE_VERSION };
+      const state = {
+        ...preSplitState({ "mv-0-1": ["Lightning Bolt"] }),
+        version: DECK_STATE_VERSION,
+      };
 
       const result = deckReducer(state, { type: "MIGRATE_ROWS", scryfallData });
 
@@ -598,7 +605,9 @@ describe("deckReducer", () => {
         canonicalCards: ["Lightning Bolt", "Lightning Bolt"],
         scryfallData,
       });
-      const boltsInDeck = result.zones.deck["nc-mv-0-1"].filter((c: string) => c === "Lightning Bolt");
+      const boltsInDeck = result.zones.deck["nc-mv-0-1"].filter(
+        (c: string) => c === "Lightning Bolt"
+      );
       expect(boltsInDeck).toHaveLength(2);
       // Sideboard stays empty
       expect(result.zones.sideboard["mv-0-1"]).toEqual([]);
@@ -623,8 +632,12 @@ describe("deckReducer", () => {
         toIndex: 0,
       });
       // Now: 1 in deck, 1 in sideboard
-      expect(state.zones.deck["nc-mv-0-1"].filter((c: string) => c === "Lightning Bolt")).toHaveLength(1);
-      expect(state.zones.sideboard["mv-0-1"].filter((c: string) => c === "Lightning Bolt")).toHaveLength(1);
+      expect(
+        state.zones.deck["nc-mv-0-1"].filter((c: string) => c === "Lightning Bolt")
+      ).toHaveLength(1);
+      expect(
+        state.zones.sideboard["mv-0-1"].filter((c: string) => c === "Lightning Bolt")
+      ).toHaveLength(1);
 
       // REBUILD with same 2 copies — must preserve arrangement
       const result = deckReducer(state, {
@@ -632,8 +645,12 @@ describe("deckReducer", () => {
         canonicalCards: ["Lightning Bolt", "Lightning Bolt"],
         scryfallData,
       });
-      expect(result.zones.deck["nc-mv-0-1"].filter((c: string) => c === "Lightning Bolt")).toHaveLength(1);
-      expect(result.zones.sideboard["mv-0-1"].filter((c: string) => c === "Lightning Bolt")).toHaveLength(1);
+      expect(
+        result.zones.deck["nc-mv-0-1"].filter((c: string) => c === "Lightning Bolt")
+      ).toHaveLength(1);
+      expect(
+        result.zones.sideboard["mv-0-1"].filter((c: string) => c === "Lightning Bolt")
+      ).toHaveLength(1);
     });
 
     it("copy removed upstream — rebuild drops the right one (excess removed, remaining kept)", () => {
@@ -860,7 +877,11 @@ describe("deckReducer", () => {
         toIndex: 0,
       });
       expect(result.basicLands).toEqual({
-        Plains: 0, Island: 0, Swamp: 0, Mountain: 0, Forest: 0,
+        Plains: 0,
+        Island: 0,
+        Swamp: 0,
+        Mountain: 0,
+        Forest: 0,
       });
     });
 
@@ -903,11 +924,7 @@ describe("deckReducer", () => {
         basics: { Plains: 2, Island: 1, Swamp: 0, Mountain: 0, Forest: 0 },
         scryfallData,
       });
-      expect(result.zones.deck["lands"]).toEqual([
-        "Plains",
-        "Plains",
-        "Island",
-      ]);
+      expect(result.zones.deck["lands"]).toEqual(["Plains", "Plains", "Island"]);
     });
 
     it("clears pre-existing basics from the lands column", () => {
@@ -937,11 +954,7 @@ describe("deckReducer", () => {
         basics: { Plains: 0, Island: 0, Swamp: 0, Mountain: 3, Forest: 0 },
         scryfallData,
       });
-      expect(result.zones.deck["lands"]).toEqual([
-        "Mountain",
-        "Mountain",
-        "Mountain",
-      ]);
+      expect(result.zones.deck["lands"]).toEqual(["Mountain", "Mountain", "Mountain"]);
       expect(result.basicLands.Plains).toBe(0);
       expect(result.basicLands.Mountain).toBe(3);
     });
@@ -1067,10 +1080,7 @@ describe("deckReducer", () => {
         scryfallData,
       });
       // Both end up in deck nc-mv-0-1
-      expect(state.zones.deck["nc-mv-0-1"]).toEqual([
-        "Lightning Bolt",
-        "Mox Ruby",
-      ]);
+      expect(state.zones.deck["nc-mv-0-1"]).toEqual(["Lightning Bolt", "Mox Ruby"]);
       const result = deckReducer(state, {
         type: "REORDER_CARD",
         zone: "deck",
@@ -1078,10 +1088,7 @@ describe("deckReducer", () => {
         fromIndex: 0,
         toIndex: 1,
       });
-      expect(result.zones.deck["nc-mv-0-1"]).toEqual([
-        "Mox Ruby",
-        "Lightning Bolt",
-      ]);
+      expect(result.zones.deck["nc-mv-0-1"]).toEqual(["Mox Ruby", "Lightning Bolt"]);
     });
   });
 
@@ -1252,7 +1259,7 @@ describe("migrateDeckState — row-aware keys", () => {
 
   it("adds the missing nc-* columns to a pre-split deck zone without moving cards", () => {
     const migrated = migrateDeckState(
-      preSplitState({ "mv-0-1": ["Lightning Bolt"], lands: ["Tundra"] }),
+      preSplitState({ "mv-0-1": ["Lightning Bolt"], lands: ["Tundra"] })
     );
 
     expect(Object.keys(migrated.zones.deck)).toHaveLength(13);

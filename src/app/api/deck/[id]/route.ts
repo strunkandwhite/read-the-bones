@@ -4,10 +4,7 @@ import { getSnapshot } from "@/core/db/queries/decks";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 export const GET = withApiErrors(
-  async (
-    _request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
-  ) => {
+  async (_request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { id } = await params;
     const client = await getClient();
     const result = await getSnapshot(client, id);
@@ -22,5 +19,5 @@ export const GET = withApiErrors(
       },
     });
   },
-  "[/api/deck/[id]] Error:",
+  "[/api/deck/[id]] Error:"
 );

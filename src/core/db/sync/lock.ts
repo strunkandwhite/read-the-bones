@@ -66,7 +66,11 @@ export async function getServerIngestionHash(client: Client): Promise<string> {
     args: [],
   });
   return computeIngestionHash(
-    result.rows as unknown as Array<{ pool_hash: unknown; picks_hash: unknown; matches_hash: unknown }>
+    result.rows as unknown as Array<{
+      pool_hash: unknown;
+      picks_hash: unknown;
+      matches_hash: unknown;
+    }>
   );
 }
 
@@ -109,7 +113,7 @@ export async function getSyncStatus(client: Client): Promise<{
  * keep syncing; completeAgedPlayingDrafts caps how long that lasts.
  */
 export async function getActiveDrafts(
-  client: Client,
+  client: Client
 ): Promise<Array<{ draftId: string; sheetId: string }>> {
   const result = await client.execute({
     sql: `SELECT draft_id, sheet_id FROM drafts WHERE phase IN ('setup', 'drafting', 'playing') AND sheet_id IS NOT NULL`,

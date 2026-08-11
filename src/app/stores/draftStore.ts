@@ -226,7 +226,11 @@ export function _resetPollingState() {
     clearInterval(pollInterval);
     pollInterval = null;
   }
-  if (visibilityHandler && typeof document !== "undefined" && typeof document.removeEventListener === "function") {
+  if (
+    visibilityHandler &&
+    typeof document !== "undefined" &&
+    typeof document.removeEventListener === "function"
+  ) {
     document.removeEventListener("visibilitychange", visibilityHandler);
     visibilityHandler = null;
   }
@@ -238,8 +242,7 @@ export function _resetPollingState() {
 
 function isSamePairing(a: MatchRecord, b: MatchRecord): boolean {
   return (
-    (a.seat1 === b.seat1 && a.seat2 === b.seat2) ||
-    (a.seat1 === b.seat2 && a.seat2 === b.seat1)
+    (a.seat1 === b.seat1 && a.seat2 === b.seat2) || (a.seat1 === b.seat2 && a.seat2 === b.seat1)
   );
 }
 
@@ -250,7 +253,7 @@ function containsMatchRecord(matches: MatchRecord[], pending: MatchRecord): bool
       isSamePairing(m, pending) &&
       (m.seat1 === pending.seat1
         ? m.seat1Wins === pending.seat1Wins && m.seat2Wins === pending.seat2Wins
-        : m.seat1Wins === pending.seat2Wins && m.seat2Wins === pending.seat1Wins),
+        : m.seat1Wins === pending.seat2Wins && m.seat2Wins === pending.seat1Wins)
   );
 }
 
@@ -262,7 +265,7 @@ function containsMatchRecord(matches: MatchRecord[], pending: MatchRecord): bool
  */
 export function mergePendingMatch(
   matches: MatchRecord[],
-  pending: MatchRecord | null,
+  pending: MatchRecord | null
 ): MatchRecord[] {
   if (!pending) return matches;
   const index = matches.findIndex((m) => isSamePairing(m, pending));
@@ -320,7 +323,7 @@ async function fetchPollData(draftId: string, generation: number) {
 
   const liveFailed = !liveRes.ok;
   if (liveRes.ok) {
-    const json = await liveRes.json() as Record<string, unknown>;
+    const json = (await liveRes.json()) as Record<string, unknown>;
     // Server returns {unchanged:true} when nothing changed — treat as a no-op.
     // Do NOT update lastLiveSig (it's already current), and return null liveData
     // so applyPollResults skips the board/status update and generation counters
@@ -339,7 +342,7 @@ async function fetchPollData(draftId: string, generation: number) {
 function applyPollResults(
   liveData: Record<string, unknown> | null,
   syncData: SyncStatusData | null,
-  generation: number,
+  generation: number
 ) {
   // Discard responses from a generation older than the last applied generation.
   // This prevents a slow interval response that started before a refreshNow() call
@@ -403,16 +406,18 @@ function applyPollResults(
     // so subscribers that use reference equality (e.g. selectors, React memoization)
     // don't re-render on idle polls where nothing actually changed.
     const prev = useDraftStore.getState();
-    const nextStatus: LiveDraftStatus = prev.liveDraftStatus !== null &&
+    const nextStatus: LiveDraftStatus =
+      prev.liveDraftStatus !== null &&
       status.latestPickN === prev.liveDraftStatus.latestPickN &&
       status.nextSeat === prev.liveDraftStatus.nextSeat &&
       status.matchCount === prev.liveDraftStatus.matchCount &&
       status.totalMatches === prev.liveDraftStatus.totalMatches &&
       JSON.stringify(status.recentPicks) === JSON.stringify(prev.liveDraftStatus.recentPicks)
-      ? prev.liveDraftStatus
-      : status;
+        ? prev.liveDraftStatus
+        : status;
 
-    const nextBoard: BoardData = prev.board !== null &&
+    const nextBoard: BoardData =
+      prev.board !== null &&
       board.phase === prev.board.phase &&
       board.numSeats === prev.board.numSeats &&
       board.picksPerPlayer === prev.board.picksPerPlayer &&
@@ -422,8 +427,8 @@ function applyPollResults(
       JSON.stringify(board.bannedCards) === JSON.stringify(prev.board.bannedCards) &&
       board.isSheetDraft === prev.board.isSheetDraft &&
       JSON.stringify(board.redactedSeats) === JSON.stringify(prev.board.redactedSeats)
-      ? prev.board
-      : board;
+        ? prev.board
+        : board;
 
     // If the route returned per-seat `me` data (authenticated caller), delegate
     // to liveStore via the registered callback — avoids a circular import.
@@ -501,9 +506,16 @@ export const useDraftStore = create<DraftState>()(
     setPoolAsOfDraft: (draftId) => set({ poolAsOfDraft: draftId }),
 
     patchSeatName: (seat, name) => {
-      set((state) => state.board ? {
-        board: { ...state.board, seatNames: { ...state.board.seatNames, [String(seat)]: name } }
-      } : {});
+      set((state) =>
+        state.board
+          ? {
+              board: {
+                ...state.board,
+                seatNames: { ...state.board.seatNames, [String(seat)]: name },
+              },
+            }
+          : {}
+      );
     },
 
     fetchStandings: async () => {
@@ -514,7 +526,7 @@ export const useDraftStore = create<DraftState>()(
       try {
         const res = await fetch(`/api/drafts/${activeDraft}/standings`);
         if (res.ok) {
-          const data = await res.json() as { standings?: unknown[]; matches?: unknown[] };
+          const data = (await res.json()) as { standings?: unknown[]; matches?: unknown[] };
           if (Array.isArray(data.standings)) {
             set({
               standings: data.standings.map((row: unknown) => {
@@ -545,7 +557,9 @@ export const useDraftStore = create<DraftState>()(
             }
           }
         }
-      } catch { /* ignore network errors */ }
+      } catch {
+        /* ignore network errors */
+      }
       set({ standingsLoading: false });
     },
 
@@ -702,7 +716,11 @@ export const useDraftStore = create<DraftState>()(
       }
       // Remove the visibility listener when polling stops (draft deselected or
       // component unmounted) so we never accumulate duplicate handlers.
-      if (visibilityHandler && typeof document !== "undefined" && typeof document.removeEventListener === "function") {
+      if (
+        visibilityHandler &&
+        typeof document !== "undefined" &&
+        typeof document.removeEventListener === "function"
+      ) {
         document.removeEventListener("visibilitychange", visibilityHandler);
         visibilityHandler = null;
       }
@@ -720,8 +738,7 @@ export const useDraftStore = create<DraftState>()(
         // Silently ignore
       }
     },
-
-  })),
+  }))
 );
 
 // ---------------------------------------------------------------------------
@@ -747,5 +764,5 @@ useDraftStore.subscribe(
       pendingMatch: null,
     });
     if (activeDraft) useDraftStore.getState().startPolling();
-  },
+  }
 );

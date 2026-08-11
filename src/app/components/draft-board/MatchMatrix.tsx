@@ -32,7 +32,7 @@ export interface MatchMatrixProps {
 function findMatch(
   matches: MatchMatrixProps["matches"],
   row: number,
-  col: number,
+  col: number
 ): { wins: number; losses: number } | null {
   for (const m of matches) {
     if (m.seat1 === row && m.seat2 === col) {
@@ -90,7 +90,7 @@ export function MatchMatrix({
       const name = seatNames[String(seat)];
       return name || `Seat ${seat}`;
     },
-    [seatNames],
+    [seatNames]
   );
 
   const startEditing = useCallback(
@@ -100,7 +100,7 @@ export function MatchMatrix({
       const initialValue = existing ? `${existing.wins}-${existing.losses}` : "";
       setEditing({ row, col, value: initialValue, error: null, saving: false });
     },
-    [canEdit, mySeat, matches],
+    [canEdit, mySeat, matches]
   );
 
   const cancelEditing = useCallback(() => {
@@ -111,7 +111,7 @@ export function MatchMatrix({
     async (state: EditingState) => {
       if (!isValidResult(state.value)) {
         setEditing((prev) =>
-          prev ? { ...prev, error: "Format: W-L (e.g. 2-1), one side must be 2" } : null,
+          prev ? { ...prev, error: "Format: W-L (e.g. 2-1), one side must be 2" } : null
         );
         return;
       }
@@ -144,7 +144,7 @@ export function MatchMatrix({
         onMatchReverted();
       }
     },
-    [matches, onReportMatch, onMatchReported, onMatchReverted],
+    [matches, onReportMatch, onMatchReported, onMatchReverted]
   );
 
   const handleKeyDown = useCallback(
@@ -155,7 +155,7 @@ export function MatchMatrix({
         saveResult(editing);
       }
     },
-    [editing, cancelEditing, saveResult],
+    [editing, cancelEditing, saveResult]
   );
 
   const handleBlur = useCallback(() => {
@@ -170,14 +170,14 @@ export function MatchMatrix({
 
   return (
     <div data-testid="match-matrix" className="overflow-x-auto">
-      <table className="border-collapse table-fixed text-sm w-full text-zinc-300">
+      <table className="w-full table-fixed border-collapse text-sm text-zinc-300">
         <thead>
           <tr className="border-b border-zinc-700">
             <th className="px-1.5 py-1" />
             {seats.map((col) => (
               <th
                 key={col}
-                className="px-1.5 py-1 text-center text-zinc-500 font-normal overflow-hidden text-ellipsis whitespace-nowrap"
+                className="overflow-hidden px-1.5 py-1 text-center font-normal text-ellipsis whitespace-nowrap text-zinc-500"
                 title={displayName(col)}
               >
                 {displayName(col)}
@@ -189,20 +189,16 @@ export function MatchMatrix({
           {seats.map((row) => {
             const isMyRow = row === mySeat;
             return (
-              <tr
-                key={row}
-                className={isMyRow ? "bg-blue-500/10" : ""}
-              >
+              <tr key={row} className={isMyRow ? "bg-blue-500/10" : ""}>
                 <td
-                  className="px-1.5 py-1 overflow-hidden text-ellipsis whitespace-nowrap"
+                  className="overflow-hidden px-1.5 py-1 text-ellipsis whitespace-nowrap"
                   title={displayName(row)}
                 >
                   {displayName(row)}
                 </td>
                 {seats.map((col) => {
                   const isDiagonal = row === col;
-                  const isEditing =
-                    editing !== null && editing.row === row && editing.col === col;
+                  const isEditing = editing !== null && editing.row === row && editing.col === col;
 
                   if (isDiagonal) {
                     return (
@@ -234,19 +230,17 @@ export function MatchMatrix({
                             value={editing.value}
                             onChange={(e) =>
                               setEditing((prev) =>
-                                prev
-                                  ? { ...prev, value: e.target.value, error: null }
-                                  : null,
+                                prev ? { ...prev, value: e.target.value, error: null } : null
                               )
                             }
                             onKeyDown={handleKeyDown}
                             onBlur={handleBlur}
                             disabled={editing.saving}
-                            className="w-10 px-0.5 py-0.5 text-[11px] text-center bg-zinc-800 border border-zinc-500 rounded text-zinc-200 focus:border-blue-500 focus:outline-none"
+                            className="w-10 rounded border border-zinc-500 bg-zinc-800 px-0.5 py-0.5 text-center text-[11px] text-zinc-200 focus:border-blue-500 focus:outline-none"
                             placeholder="W-L"
                           />
                           {editing.error && (
-                            <span className="text-red-500 text-[9px] mt-0.5 whitespace-nowrap">
+                            <span className="mt-0.5 text-[9px] whitespace-nowrap text-red-500">
                               {editing.error}
                             </span>
                           )}
@@ -278,10 +272,10 @@ export function MatchMatrix({
                       <td
                         key={col}
                         data-testid={`match-cell-${row}-${col}`}
-                        className="px-1.5 py-1 text-center cursor-pointer hover:bg-zinc-700/50"
+                        className="cursor-pointer px-1.5 py-1 text-center hover:bg-zinc-700/50"
                         onClick={() => startEditing(row, col)}
                       >
-                        <span className="inline-block w-6 h-5 border border-dashed border-zinc-600 rounded text-zinc-600 leading-5">
+                        <span className="inline-block h-5 w-6 rounded border border-dashed border-zinc-600 leading-5 text-zinc-600">
                           &mdash;
                         </span>
                       </td>

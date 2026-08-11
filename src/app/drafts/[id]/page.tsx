@@ -10,18 +10,11 @@ interface DraftPageProps {
 export default async function DraftPage({ params }: DraftPageProps) {
   const { id } = await params;
 
-  const [data, draftStats] = await Promise.all([
-    getCards({}),
-    getDraftStats(),
-  ]);
+  const [data, draftStats] = await Promise.all([getCards({}), getDraftStats()]);
 
   return (
     <Suspense fallback={null}>
-      <PageClient
-        initialCardData={data}
-        initialDraftStats={draftStats}
-        initialDraftId={id}
-      />
+      <PageClient initialCardData={data} initialDraftStats={draftStats} initialDraftId={id} />
     </Suspense>
   );
 }

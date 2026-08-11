@@ -2,12 +2,7 @@
 // One-time migration script to compute and store per-domain hashes for existing drafts.
 import { createClient } from "@libsql/client";
 import { loadEnv, log } from "../src/core/db/ingest/utils";
-import {
-  hashPool,
-  hashPicks,
-  hashMatches,
-  updateDomainHashes,
-} from "../src/core/db/sync/domains";
+import { hashPool, hashPicks, hashMatches, updateDomainHashes } from "../src/core/db/sync/domains";
 
 async function main() {
   loadEnv();
@@ -67,8 +62,7 @@ async function main() {
       seat1GamesWon: r.seat1_wins as number,
       seat2GamesWon: r.seat2_wins as number,
     }));
-    const matchesHash =
-      matches.length > 0 ? hashMatches(matches) : null;
+    const matchesHash = matches.length > 0 ? hashMatches(matches) : null;
 
     await updateDomainHashes(client, draftId, {
       poolHash,
@@ -76,7 +70,7 @@ async function main() {
       matchesHash,
     });
     log(
-      `${draftId}: pool=${poolHash ?? "null"} picks=${picksHash ?? "null"} matches=${matchesHash ?? "null"}`,
+      `${draftId}: pool=${poolHash ?? "null"} picks=${picksHash ?? "null"} matches=${matchesHash ?? "null"}`
     );
   }
 

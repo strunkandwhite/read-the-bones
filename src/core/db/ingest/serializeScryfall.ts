@@ -46,7 +46,7 @@ export function serializeScryfallEntry(card: ScryCard): string {
 export function resolveCardNamesToCache(
   cardNames: string[],
   cardCache: CardCache,
-  scryfallCache: Map<string, ScryCard>,
+  scryfallCache: Map<string, ScryCard>
 ): void {
   for (const name of cardNames) {
     if (cardCache.get(name) !== undefined) continue;

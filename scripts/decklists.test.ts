@@ -64,7 +64,7 @@ describe("matchDecksToSeats", () => {
   it("assigns a decklist to the seat it overlaps", () => {
     const { assignments } = matchDecksToSeats(
       [entry("aaa", ["bolt", "swords", "ragavan", "brainstorm"])],
-      seatPicks,
+      seatPicks
     );
     expect(assignments.get(1)?.sealeddeckId).toBe("aaa");
   });
@@ -74,7 +74,7 @@ describe("matchDecksToSeats", () => {
     // from seatPicks and this overlaps nobody
     const { assignments, skippedBelowThreshold } = matchDecksToSeats(
       [entry("zzz", ["llanowar elves", "giant growth"])],
-      seatPicks,
+      seatPicks
     );
     expect(assignments.size).toBe(0);
     expect(skippedBelowThreshold).toBe(1);
@@ -83,7 +83,7 @@ describe("matchDecksToSeats", () => {
   it("never overwrites a good assignment with a sub-threshold one", () => {
     const { assignments } = matchDecksToSeats(
       [entry("aaa", ["bolt", "swords", "ragavan", "brainstorm"]), entry("zzz", ["bolt"])],
-      seatPicks,
+      seatPicks
     );
     expect(assignments.get(1)?.sealeddeckId).toBe("aaa");
   });
@@ -126,7 +126,7 @@ describe("matchDecksToSeats", () => {
 
     const { assignments } = matchDecksToSeats(
       [{ ...entry("LZYpr4rjmH", []), storedCards }],
-      seatPicks,
+      seatPicks
     );
 
     // The deck must land on its true owner, not merely fail to corrupt seat 1.
@@ -145,7 +145,7 @@ describe("matchDecksToSeats", () => {
       [
         3,
         new Set(
-          ["Claim // Fame", "Commit // Memory", "Life // Death", "Counterspell"].map(cardNameKey),
+          ["Claim // Fame", "Commit // Memory", "Life // Death", "Counterspell"].map(cardNameKey)
         ),
       ],
     ]);
@@ -170,7 +170,7 @@ describe("matchDecksToSeats", () => {
     // the recall floor on its own — only precision rejects this.
     const { assignments, skippedBelowThreshold } = matchDecksToSeats(
       [entry("mixed", ["bolt", "swords", "counterspell", "ponder"])],
-      seatPicks,
+      seatPicks
     );
     expect(assignments.size).toBe(0);
     expect(skippedBelowThreshold).toBe(1);
@@ -189,22 +189,12 @@ describe("decideSeatWrite", () => {
     // no recorded provenance yet. If this ever returned "unchanged", the
     // column would stay NULL forever and the later prune would have nothing
     // to query.
-    const action = decideSeatWrite(
-      { hash: "hash1", sealeddeckId: null },
-      "hash1",
-      "aaa",
-      false,
-    );
+    const action = decideSeatWrite({ hash: "hash1", sealeddeckId: null }, "hash1", "aaa", false);
     expect(action).toBe("write");
   });
 
   it("is unchanged when both hash and provenance already match", () => {
-    const action = decideSeatWrite(
-      { hash: "hash1", sealeddeckId: "aaa" },
-      "hash1",
-      "aaa",
-      false,
-    );
+    const action = decideSeatWrite({ hash: "hash1", sealeddeckId: "aaa" }, "hash1", "aaa", false);
     expect(action).toBe("unchanged");
   });
 
@@ -213,7 +203,7 @@ describe("decideSeatWrite", () => {
       { hash: "hash1", sealeddeckId: "recovered:seat3.png" },
       "hash2",
       "aaa",
-      false,
+      false
     );
     expect(action).toBe("skip-recovered");
   });
@@ -225,7 +215,7 @@ describe("decideSeatWrite", () => {
       { hash: "hash1", sealeddeckId: "recovered:seat3.png" },
       "hash2",
       "aaa",
-      true,
+      true
     );
     expect(action).toBe("write");
   });
@@ -233,9 +223,7 @@ describe("decideSeatWrite", () => {
 
 describe("assertSeatNotOptedOut", () => {
   it("refuses to write a deck for a seat that opted out", () => {
-    expect(() => assertSeatNotOptedOut(2, new Set([2]), "tarkir")).toThrow(
-      /seat 2 .*opted out/i,
-    );
+    expect(() => assertSeatNotOptedOut(2, new Set([2]), "tarkir")).toThrow(/seat 2 .*opted out/i);
   });
 
   it("allows a seat that did not opt out", () => {
@@ -275,8 +263,6 @@ describe("parseDecklistArgs", () => {
   });
 
   it("throws on an unrecognized flag even when a valid flag is also present", () => {
-    expect(() => parseDecklistArgs(["--dry-run", "--forc"])).toThrow(
-      "Unrecognized flag: --forc",
-    );
+    expect(() => parseDecklistArgs(["--dry-run", "--forc"])).toThrow("Unrecognized flag: --forc");
   });
 });

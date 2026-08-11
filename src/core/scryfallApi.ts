@@ -144,9 +144,7 @@ export interface LookupCardResult {
  * Use this when the card is not in the local database (last-resort fallback).
  * For callers that have DB access, prefer lookupCardWithApiFallback in queries/cards.ts.
  */
-export async function fetchFromScryfallApi(
-  cardName: string
-): Promise<LookupCardResult | null> {
+export async function fetchFromScryfallApi(cardName: string): Promise<LookupCardResult | null> {
   const encodedName = encodeURIComponent(cardName);
   const url = `${SCRYFALL_API_BASE}/cards/named?exact=${encodedName}`;
 

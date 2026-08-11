@@ -12,7 +12,9 @@ export interface DraftSelectorProps {
 }
 
 /** Group drafts by date, preserving input order. */
-export function groupDraftsByDate<T extends { date: string }>(drafts: T[]): Array<{ date: string; drafts: T[] }> {
+export function groupDraftsByDate<T extends { date: string }>(
+  drafts: T[]
+): Array<{ date: string; drafts: T[] }> {
   const groups: Array<{ date: string; drafts: T[] }> = [];
   for (const draft of drafts) {
     const last = groups[groups.length - 1];
@@ -89,7 +91,7 @@ export function DraftSelector({
             {group.drafts.map((draft) => (
               <label
                 key={draft.id}
-                className="flex cursor-pointer items-center gap-2 rounded py-1.5 pl-4 pr-2 hover:bg-zinc-100 dark:hover:bg-zinc-700"
+                className="flex cursor-pointer items-center gap-2 rounded py-1.5 pr-2 pl-4 hover:bg-zinc-100 dark:hover:bg-zinc-700"
               >
                 <input
                   type="checkbox"
@@ -101,7 +103,10 @@ export function DraftSelector({
                 <span className="text-sm text-zinc-700 dark:text-zinc-300">
                   {draft.name}
                   {draft.isComplete === false && (
-                    <span className="ml-1.5 text-xs text-zinc-400 dark:text-zinc-500" title="Draft is still in progress">
+                    <span
+                      className="ml-1.5 text-xs text-zinc-400 dark:text-zinc-500"
+                      title="Draft is still in progress"
+                    >
                       (in progress)
                     </span>
                   )}

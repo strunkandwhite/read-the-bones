@@ -35,9 +35,7 @@ export function loadOptOutNames(): Set<string> {
   }
 
   if (!Array.isArray(parsed) || parsed.some((name) => typeof name !== "string")) {
-    throw new Error(
-      `${OPT_OUTS_PATH} must be a JSON array of player names, e.g. ["Player One"]`,
-    );
+    throw new Error(`${OPT_OUTS_PATH} must be a JSON array of player names, e.g. ["Player One"]`);
   }
 
   return new Set(parsed.map((name) => name.toLowerCase()));

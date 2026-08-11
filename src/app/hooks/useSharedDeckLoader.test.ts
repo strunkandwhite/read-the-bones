@@ -100,7 +100,7 @@ describe("useSharedDeckLoader", () => {
         new Response(JSON.stringify(deckState), {
           status: 200,
           headers: { "Content-Type": "application/json" },
-        }),
+        })
       )
       .mockResolvedValue(new Response("{}", { status: 401 }));
 
@@ -120,7 +120,7 @@ describe("useSharedDeckLoader", () => {
     mockSearchParams.set("deck", "bad-id");
 
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
-      new Response(JSON.stringify({ error: "Not found" }), { status: 404 }),
+      new Response(JSON.stringify({ error: "Not found" }), { status: 404 })
     );
     const consoleSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
@@ -128,7 +128,7 @@ describe("useSharedDeckLoader", () => {
 
     await waitFor(() => {
       expect(consoleSpy).toHaveBeenCalledWith(
-        expect.stringContaining("Failed to load shared deck"),
+        expect.stringContaining("Failed to load shared deck")
       );
     });
 
@@ -167,7 +167,7 @@ describe("useSharedDeckLoader", () => {
       draftId: "draft-42",
       seat: 2,
       zones: {
-        deck: { "Counterspell": { quantity: 1, scryfallData: null } },
+        deck: { Counterspell: { quantity: 1, scryfallData: null } },
         sideboard: {},
       },
     };
@@ -228,9 +228,9 @@ describe("useSharedDeckLoader", () => {
       deckState: createEmptyDeckState("draft-42", 2),
     });
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     // Dispatch a user edit action (non-snapshot)
     useLiveStore.getState().dispatchDeck({
@@ -245,7 +245,7 @@ describe("useSharedDeckLoader", () => {
 
     // No PUT should have been made
     const putCalls = fetchSpy.mock.calls.filter(
-      (c) => (c[1] as RequestInit | undefined)?.method === "PUT",
+      (c) => (c[1] as RequestInit | undefined)?.method === "PUT"
     );
     expect(putCalls).toHaveLength(0);
 
@@ -281,9 +281,9 @@ describe("useSharedDeckLoader", () => {
       deckState: createEmptyDeckState("draft-99", 1),
     });
 
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-      new Response("{}", { status: 200 }),
-    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response("{}", { status: 200 }));
 
     useLiveStore.getState().dispatchDeck({
       type: "SET_BASICS",
@@ -295,7 +295,7 @@ describe("useSharedDeckLoader", () => {
     await vi.advanceTimersByTimeAsync(0);
 
     const putCalls = fetchSpy.mock.calls.filter(
-      (c) => (c[1] as RequestInit | undefined)?.method === "PUT",
+      (c) => (c[1] as RequestInit | undefined)?.method === "PUT"
     );
     expect(putCalls).toHaveLength(1);
 

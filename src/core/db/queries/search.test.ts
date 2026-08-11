@@ -14,8 +14,16 @@ describe("getSearchableCards", () => {
   it("returns all cards with scryfall_json for global search", async () => {
     mockExecute.mockResolvedValueOnce({
       rows: [
-        { name: "Lightning Bolt", scryfall_json: '{"name":"Lightning Bolt","colors":["R"],"type_line":"Instant","oracle_text":"Deal 3 damage.","mana_cost":"{R}","cmc":1,"color_identity":["R"]}' },
-        { name: "Counterspell", scryfall_json: '{"name":"Counterspell","colors":["U"],"type_line":"Instant","oracle_text":"Counter target spell.","mana_cost":"{U}{U}","cmc":2,"color_identity":["U"]}' },
+        {
+          name: "Lightning Bolt",
+          scryfall_json:
+            '{"name":"Lightning Bolt","colors":["R"],"type_line":"Instant","oracle_text":"Deal 3 damage.","mana_cost":"{R}","cmc":1,"color_identity":["R"]}',
+        },
+        {
+          name: "Counterspell",
+          scryfall_json:
+            '{"name":"Counterspell","colors":["U"],"type_line":"Instant","oracle_text":"Counter target spell.","mana_cost":"{U}{U}","cmc":2,"color_identity":["U"]}',
+        },
       ],
     });
 
@@ -33,9 +41,7 @@ describe("getSearchableCards", () => {
       rows: [{ cube_snapshot_id: 42, banned_cards: null }],
     });
     mockExecute.mockResolvedValueOnce({
-      rows: [
-        { name: "Lightning Bolt", scryfall_json: '{"name":"Lightning Bolt"}', qty: 1 },
-      ],
+      rows: [{ name: "Lightning Bolt", scryfall_json: '{"name":"Lightning Bolt"}', qty: 1 }],
     });
 
     const result = await getSearchableCards(mockClient, { draftId: "tarkir" });
@@ -63,9 +69,7 @@ describe("getSearchableCards", () => {
       ],
     });
     mockExecute.mockResolvedValueOnce({
-      rows: [
-        { card_id: 2, pick_count: 1 },
-      ],
+      rows: [{ card_id: 2, pick_count: 1 }],
     });
 
     const result = await getSearchableCards(mockClient, {
@@ -112,9 +116,7 @@ describe("getSearchableCards", () => {
       ],
     });
     mockExecute.mockResolvedValueOnce({
-      rows: [
-        { card_id: 1, pick_count: 1 },
-      ],
+      rows: [{ card_id: 1, pick_count: 1 }],
     });
 
     const result = await getSearchableCards(mockClient, {

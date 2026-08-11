@@ -18,11 +18,7 @@ export function validateDeckState(input: unknown): ValidationResult {
   if (!deck.draftId || typeof deck.draftId !== "string") {
     return { valid: false, reason: "missing or invalid draftId" };
   }
-  if (
-    typeof deck.seat !== "number" ||
-    deck.seat < 1 ||
-    !Number.isInteger(deck.seat)
-  ) {
+  if (typeof deck.seat !== "number" || deck.seat < 1 || !Number.isInteger(deck.seat)) {
     return { valid: false, reason: "seat must be a positive integer" };
   }
 
@@ -58,9 +54,7 @@ export function validateDeckState(input: unknown): ValidationResult {
 
   let totalCards = 0;
   for (const zoneName of ZONE_NAMES) {
-    const zone = (deck.zones as Record<string, Record<string, string[]>>)[
-      zoneName
-    ];
+    const zone = (deck.zones as Record<string, Record<string, string[]>>)[zoneName];
     for (const cards of Object.values(zone)) {
       totalCards += cards.length;
     }
@@ -74,11 +68,7 @@ export function validateDeckState(input: unknown): ValidationResult {
 
   // Absent on states written by clients that predate the row split.
   if (deck.version !== undefined) {
-    if (
-      typeof deck.version !== "number" ||
-      deck.version < 0 ||
-      !Number.isInteger(deck.version)
-    ) {
+    if (typeof deck.version !== "number" || deck.version < 0 || !Number.isInteger(deck.version)) {
       return { valid: false, reason: "version must be a non-negative integer" };
     }
   }

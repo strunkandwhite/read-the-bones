@@ -31,7 +31,9 @@ vi.mock("@/core/db/sync/syncActiveDraft", () => ({
 
 vi.mock("@/core/processPick", () => ({
   resumeAutoPickForCurrentSeat: vi.fn().mockResolvedValue({
-    picks: [], phaseChanged: false, newPhase: null,
+    picks: [],
+    phaseChanged: false,
+    newPhase: null,
   }),
 }));
 
@@ -66,9 +68,7 @@ describe("GET /api/sync (cron)", () => {
   });
 
   it("returns no_change when syncActiveDraft reports no change", async () => {
-    vi.mocked(getActiveDrafts).mockResolvedValue([
-      { draftId: "draft-1", sheetId: "sheet-abc" },
-    ]);
+    vi.mocked(getActiveDrafts).mockResolvedValue([{ draftId: "draft-1", sheetId: "sheet-abc" }]);
     vi.mocked(syncActiveDraft).mockResolvedValue({
       draftId: "draft-1",
       picksInserted: 0,
@@ -158,9 +158,7 @@ describe("GET /api/sync (cron)", () => {
   });
 
   it("returns 500 when GOOGLE_SHEETS_API_KEY is not set", async () => {
-    vi.mocked(getActiveDrafts).mockResolvedValue([
-      { draftId: "draft-1", sheetId: "sheet-abc" },
-    ]);
+    vi.mocked(getActiveDrafts).mockResolvedValue([{ draftId: "draft-1", sheetId: "sheet-abc" }]);
     delete process.env.GOOGLE_SHEETS_API_KEY;
 
     const res = await GET(cronRequest());
@@ -178,7 +176,9 @@ describe("GET /api/sync — live-draft auto-pick heartbeat", () => {
     vi.mocked(getActiveDrafts).mockReset().mockResolvedValue([]);
     vi.mocked(getLiveDraftingDrafts).mockReset().mockResolvedValue([]);
     vi.mocked(resumeAutoPickForCurrentSeat).mockReset().mockResolvedValue({
-      picks: [], phaseChanged: false, newPhase: null,
+      picks: [],
+      phaseChanged: false,
+      newPhase: null,
     });
   });
 
@@ -203,14 +203,16 @@ describe("GET /api/sync — live-draft auto-pick heartbeat", () => {
     vi.mocked(resumeAutoPickForCurrentSeat)
       .mockResolvedValueOnce({
         picks: [{ pickN: 1, seat: 1, cardId: 1, cardName: "A" }],
-        phaseChanged: false, newPhase: null,
+        phaseChanged: false,
+        newPhase: null,
       })
       .mockResolvedValueOnce({
         picks: [
           { pickN: 2, seat: 2, cardId: 2, cardName: "B" },
           { pickN: 3, seat: 3, cardId: 3, cardName: "C" },
         ],
-        phaseChanged: false, newPhase: null,
+        phaseChanged: false,
+        newPhase: null,
       });
 
     const body = await (await GET(cronRequest())).json();
@@ -225,7 +227,8 @@ describe("GET /api/sync — live-draft auto-pick heartbeat", () => {
       .mockRejectedValueOnce(new Error("Conflict: pick_n already exists — retry"))
       .mockResolvedValueOnce({
         picks: [{ pickN: 9, seat: 1, cardId: 1, cardName: "A" }],
-        phaseChanged: false, newPhase: null,
+        phaseChanged: false,
+        newPhase: null,
       });
 
     const res = await GET(cronRequest());
@@ -239,9 +242,7 @@ describe("GET /api/sync — live-draft auto-pick heartbeat", () => {
     // A non-empty activeDrafts plus a held lock is the only way to reach the
     // in_progress return — an empty activeDrafts list would return earlier,
     // at no_active_drafts, without ever exercising this branch.
-    vi.mocked(getActiveDrafts).mockResolvedValue([
-      { draftId: "draft-1", sheetId: "sheet-abc" },
-    ]);
+    vi.mocked(getActiveDrafts).mockResolvedValue([{ draftId: "draft-1", sheetId: "sheet-abc" }]);
     vi.mocked(acquireSyncLock).mockResolvedValueOnce(false);
     vi.mocked(getLiveDraftingDrafts).mockResolvedValue(["kishla-skimmer"]);
 
@@ -256,9 +257,7 @@ describe("GET /api/sync — live-draft auto-pick heartbeat", () => {
     // Likewise, activeDrafts must be non-empty to reach the API-key check at
     // all — otherwise this returns at no_active_drafts before ever looking at
     // GOOGLE_SHEETS_API_KEY, and the test would pass for the wrong reason.
-    vi.mocked(getActiveDrafts).mockResolvedValue([
-      { draftId: "draft-1", sheetId: "sheet-abc" },
-    ]);
+    vi.mocked(getActiveDrafts).mockResolvedValue([{ draftId: "draft-1", sheetId: "sheet-abc" }]);
     delete process.env.GOOGLE_SHEETS_API_KEY;
     vi.mocked(getLiveDraftingDrafts).mockResolvedValue(["kishla-skimmer"]);
 

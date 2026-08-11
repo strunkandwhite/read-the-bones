@@ -23,10 +23,7 @@ export interface DraftSheetRawData {
  * Fetch all data from a Google Sheet tab as a 2D array.
  * Returns raw cell values including empty cells.
  */
-async function fetchSheetTab(
-  doc: GoogleSpreadsheet,
-  tabName: string
-): Promise<string[][] | null> {
+async function fetchSheetTab(doc: GoogleSpreadsheet, tabName: string): Promise<string[][] | null> {
   const sheet = doc.sheetsByTitle[tabName];
   if (!sheet) {
     return null;
@@ -69,10 +66,7 @@ async function fetchSheetTab(
 
   // Trim trailing empty columns
   const maxColWithContent = rows.reduce((max, row) => {
-    const lastNonEmpty = row.reduce(
-      (last, cell, i) => (cell ? i : last),
-      -1
-    );
+    const lastNonEmpty = row.reduce((last, cell, i) => (cell ? i : last), -1);
     return Math.max(max, lastNonEmpty);
   }, -1);
 
@@ -94,7 +88,7 @@ async function fetchSheetTab(
  */
 export async function fetchDraftTabsRaw(
   sheetId: string,
-  apiKey: string,
+  apiKey: string
 ): Promise<DraftSheetRawData> {
   const doc = new GoogleSpreadsheet(sheetId, { apiKey });
   await doc.loadInfo();
@@ -105,4 +99,3 @@ export async function fetchDraftTabsRaw(
     matches: await fetchSheetTab(doc, TAB_NAMES.matches),
   };
 }
-

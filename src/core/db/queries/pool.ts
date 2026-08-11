@@ -233,9 +233,10 @@ export async function getDraftPool(
   }
 
   // Group cards (using cached Scryfall data)
-  const grouped = groupBy === "color_identity"
-    ? groupPoolByColor(cards, scryfallCache)
-    : groupPoolByType(cards, scryfallCache);
+  const grouped =
+    groupBy === "color_identity"
+      ? groupPoolByColor(cards, scryfallCache)
+      : groupPoolByType(cards, scryfallCache);
 
   return {
     draft_id: draftId,

@@ -146,7 +146,7 @@ function addedColors(card: ScryCard): ManaColor[] {
  *  basic land card (Prismatic Vista, Evolving Wilds). Null when not a fetch. */
 function fetchTargets(card: ScryCard): ManaColor[] | "basic" | null {
   const match = /Search your library for (?:an?|up to one) ([^.]*?) card/i.exec(
-    card.oracleText ?? "",
+    card.oracleText ?? ""
   );
   if (!match) return null;
 
@@ -271,14 +271,14 @@ function hypergeometricAtLeast(
   deckSize: number,
   successes: number,
   drawn: number,
-  wanted: number,
+  wanted: number
 ): number {
   let probability = 0;
   for (let i = wanted; i <= Math.min(successes, drawn); i++) {
     probability += Math.exp(
       logChoose(successes, i) +
         logChoose(deckSize - successes, drawn - i) -
-        logChoose(deckSize, drawn),
+        logChoose(deckSize, drawn)
     );
   }
   return probability;
@@ -300,10 +300,7 @@ export function sourcesNeeded(pips: number, turn: number): number {
   const drawn = Math.min(6 + effectiveTurn, TARGET_DECK_SIZE);
   let needed = TARGET_DECK_SIZE;
   for (let sources = pips; sources <= TARGET_DECK_SIZE; sources++) {
-    if (
-      hypergeometricAtLeast(TARGET_DECK_SIZE, sources, drawn, pips) >=
-      CASTABILITY_THRESHOLD
-    ) {
+    if (hypergeometricAtLeast(TARGET_DECK_SIZE, sources, drawn, pips) >= CASTABILITY_THRESHOLD) {
       needed = sources;
       break;
     }
@@ -324,7 +321,7 @@ export function sourcesNeeded(pips: number, turn: number): number {
  */
 export function colorSourceSplits(
   cardNames: string[],
-  scryfallData: Map<string, ScryCard>,
+  scryfallData: Map<string, ScryCard>
 ): ColorSourceSplit[] {
   const lands: LandEntry[] = [];
   const spells: Array<{ name: string; card: ScryCard }> = [];

@@ -129,10 +129,7 @@ describe("GET /api/cards/worth", () => {
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body).toEqual({ error: "Internal server error" });
-    expect(consoleError).toHaveBeenCalledWith(
-      "[/api/cards/worth] Error:",
-      expect.any(Error),
-    );
+    expect(consoleError).toHaveBeenCalledWith("[/api/cards/worth] Error:", expect.any(Error));
     consoleError.mockRestore();
   });
 });

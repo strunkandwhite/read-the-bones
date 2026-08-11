@@ -10,7 +10,7 @@ const PREPARED_PATTERN = /\b(?:enters|becomes) prepared\b/i;
 
 /** The mana cost to show for a card: front face only for prepared cards. */
 export function displayManaCost(
-  card: Pick<ScryCard, "manaCost" | "oracleText"> | undefined,
+  card: Pick<ScryCard, "manaCost" | "oracleText"> | undefined
 ): string {
   const cost = card?.manaCost;
   if (!cost) return "";

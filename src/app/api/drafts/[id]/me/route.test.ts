@@ -28,20 +28,15 @@ describe("GET /api/drafts/[id]/me", () => {
       displayName: "Alice",
     });
 
-    const req = makeRequest(
-      "http://localhost:3000/api/drafts/test-draft/me",
-      { "X-Seat-Token": "valid-token" },
-    );
+    const req = makeRequest("http://localhost:3000/api/drafts/test-draft/me", {
+      "X-Seat-Token": "valid-token",
+    });
     const res = await GET(req, { params: Promise.resolve({ id: "test-draft" }) });
     const body = await res.json();
 
     expect(res.status).toBe(200);
     expect(body).toEqual({ seat: 3, autoPick: true, displayName: "Alice" });
-    expect(mockAuthenticateSeat).toHaveBeenCalledWith(
-      expect.anything(),
-      req,
-      "test-draft",
-    );
+    expect(mockAuthenticateSeat).toHaveBeenCalledWith(expect.anything(), req, "test-draft");
   });
 
   it("returns 401 for missing token", async () => {
@@ -56,10 +51,9 @@ describe("GET /api/drafts/[id]/me", () => {
   it("returns 401 for invalid token", async () => {
     mockAuthenticateSeat.mockRejectedValueOnce(new AuthError("Invalid seat token"));
 
-    const req = makeRequest(
-      "http://localhost:3000/api/drafts/test-draft/me",
-      { "X-Seat-Token": "bad-token" },
-    );
+    const req = makeRequest("http://localhost:3000/api/drafts/test-draft/me", {
+      "X-Seat-Token": "bad-token",
+    });
     const res = await GET(req, { params: Promise.resolve({ id: "test-draft" }) });
 
     expect(res.status).toBe(401);
@@ -68,10 +62,9 @@ describe("GET /api/drafts/[id]/me", () => {
   it("returns 401 when token belongs to different draft", async () => {
     mockAuthenticateSeat.mockRejectedValueOnce(new AuthError("Token does not match draft"));
 
-    const req = makeRequest(
-      "http://localhost:3000/api/drafts/test-draft/me",
-      { "X-Seat-Token": "wrong-draft-token" },
-    );
+    const req = makeRequest("http://localhost:3000/api/drafts/test-draft/me", {
+      "X-Seat-Token": "wrong-draft-token",
+    });
     const res = await GET(req, { params: Promise.resolve({ id: "test-draft" }) });
 
     expect(res.status).toBe(401);
@@ -84,10 +77,9 @@ describe("GET /api/drafts/[id]/me", () => {
       displayName: null,
     });
 
-    const req = makeRequest(
-      "http://localhost:3000/api/drafts/test-draft/me",
-      { "X-Seat-Token": "valid-token" },
-    );
+    const req = makeRequest("http://localhost:3000/api/drafts/test-draft/me", {
+      "X-Seat-Token": "valid-token",
+    });
     const res = await GET(req, { params: Promise.resolve({ id: "test-draft" }) });
     const body = await res.json();
 

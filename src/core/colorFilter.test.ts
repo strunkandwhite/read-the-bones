@@ -181,7 +181,7 @@ describe("filterCardsByColor", () => {
       expect(result[0]).toBe(colorlessCard);
     });
 
-    it('colorless matches with C and colored cards excluded when C is in filter (exclusive)', () => {
+    it("colorless matches with C and colored cards excluded when C is in filter (exclusive)", () => {
       // In exclusive mode with C and R:
       // - colorlessCard matches via colorless check
       // - redCard matches (R is subset of [R])

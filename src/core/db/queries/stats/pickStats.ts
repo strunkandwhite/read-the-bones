@@ -75,10 +75,7 @@ export async function getCardPickStats(
     draftArgs.push(params.exclude_draft_id);
   }
 
-  const draftWhere =
-    draftConditions.length > 0
-      ? `AND ${draftConditions.join(" AND ")}`
-      : "";
+  const draftWhere = draftConditions.length > 0 ? `AND ${draftConditions.join(" AND ")}` : "";
 
   // Get all drafts where this card was available (in cube).
   // Include both 'complete' and 'playing' phases — picks are finalised in both.
@@ -155,7 +152,7 @@ export async function getCardPickStats(
     allStatsDraftsResult.rows.map((row) => ({
       draftId: row.draft_id as string,
       draftDate: row.draft_date as string,
-    })),
+    }))
   );
 
   if (draftIds.length === 0) {
@@ -246,10 +243,7 @@ export async function getCardPickStats(
     // Median
     const sorted = [...pickPositions].sort((a, b) => a - b);
     const mid = Math.floor(sorted.length / 2);
-    median_pick_n =
-      sorted.length % 2 === 0
-        ? (sorted[mid - 1] + sorted[mid]) / 2
-        : sorted[mid];
+    median_pick_n = sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
   }
 
   const weighted_geomean = pickScore(observations);

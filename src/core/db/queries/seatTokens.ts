@@ -1,14 +1,14 @@
-import { randomBytes } from 'crypto';
-import type { Client } from '@libsql/client';
+import { randomBytes } from "crypto";
+import type { Client } from "@libsql/client";
 
 export function generateToken(): string {
-  return randomBytes(24).toString('base64url');
+  return randomBytes(24).toString("base64url");
 }
 
 export async function generateSeatTokens(
   client: Client,
   draftId: string,
-  numSeats: number,
+  numSeats: number
 ): Promise<{ seat: number; token: string }[]> {
   const tokens: { seat: number; token: string }[] = [];
   for (let seat = 1; seat <= numSeats; seat++) {
@@ -25,8 +25,13 @@ export async function generateSeatTokens(
 
 export async function resolveToken(
   client: Client,
-  token: string,
-): Promise<{ draftId: string; seat: number; autoPick: boolean; displayName: string | null } | null> {
+  token: string
+): Promise<{
+  draftId: string;
+  seat: number;
+  autoPick: boolean;
+  displayName: string | null;
+} | null> {
   const result = await client.execute({
     sql: `SELECT draft_id, seat, auto_pick, display_name FROM seat_tokens WHERE token = ?`,
     args: [token],
@@ -43,7 +48,7 @@ export async function resolveToken(
 
 export async function getSeatTokens(
   client: Client,
-  draftId: string,
+  draftId: string
 ): Promise<{ seat: number; token: string; displayName: string | null; autoPick: boolean }[]> {
   const result = await client.execute({
     sql: `SELECT seat, token, display_name, auto_pick
@@ -61,7 +66,7 @@ export async function getSeatTokens(
 export async function regenerateToken(
   client: Client,
   draftId: string,
-  seat: number,
+  seat: number
 ): Promise<string> {
   const newToken = generateToken();
   await client.execute({
@@ -75,7 +80,7 @@ export async function updateDisplayName(
   client: Client,
   draftId: string,
   seat: number,
-  displayName: string | null,
+  displayName: string | null
 ): Promise<void> {
   await client.execute({
     sql: `UPDATE seat_tokens SET display_name = ? WHERE draft_id = ? AND seat = ?`,
@@ -87,7 +92,7 @@ export async function updateAutoPick(
   client: Client,
   draftId: string,
   seat: number,
-  enabled: boolean,
+  enabled: boolean
 ): Promise<void> {
   await client.execute({
     sql: `UPDATE seat_tokens SET auto_pick = ? WHERE draft_id = ? AND seat = ?`,
@@ -101,7 +106,7 @@ export async function updateAutoPick(
  */
 export async function getSeatDisplayNames(
   client: Client,
-  draftId: string,
+  draftId: string
 ): Promise<Record<string, string>> {
   const result = await client.execute({
     sql: "SELECT seat, display_name FROM seat_tokens WHERE draft_id = ? ORDER BY seat",
@@ -119,7 +124,7 @@ export async function getSeatDisplayNames(
  */
 export async function getAllSeatSettings(
   client: Client,
-  draftId: string,
+  draftId: string
 ): Promise<Map<number, { autoPick: boolean; displayName: string | null }>> {
   const result = await client.execute({
     sql: "SELECT seat, auto_pick, display_name FROM seat_tokens WHERE draft_id = ?",
@@ -142,7 +147,7 @@ export async function getAllSeatSettings(
 export async function getSeatSettings(
   client: Client,
   draftId: string,
-  seat: number,
+  seat: number
 ): Promise<{ autoPick: boolean; displayName: string | null } | null> {
   const result = await client.execute({
     sql: "SELECT auto_pick, display_name FROM seat_tokens WHERE draft_id = ? AND seat = ?",

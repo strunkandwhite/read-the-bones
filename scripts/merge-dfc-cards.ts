@@ -51,7 +51,11 @@ async function main() {
       if (!dryRun) {
         await client.execute({
           sql: "UPDATE cards SET name = ?, oracle_id = ? WHERE card_id = ?",
-          args: [frontFace, `generated:${frontFace.toLowerCase().replace(/[^a-z0-9]/g, "-")}`, dfcCardId],
+          args: [
+            frontFace,
+            `generated:${frontFace.toLowerCase().replace(/[^a-z0-9]/g, "-")}`,
+            dfcCardId,
+          ],
         });
       }
       mergeCount++;

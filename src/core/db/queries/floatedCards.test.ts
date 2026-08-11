@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { getFloatedCards, addFloatedCard, removeFloatedCard, addFloatedCards, removeFloatedCards } from "./floatedCards";
+import {
+  getFloatedCards,
+  addFloatedCard,
+  removeFloatedCard,
+  addFloatedCards,
+  removeFloatedCards,
+} from "./floatedCards";
 
 describe("floatedCards queries", () => {
   let mockClient: { execute: ReturnType<typeof vi.fn>; batch: ReturnType<typeof vi.fn> };
@@ -11,10 +17,7 @@ describe("floatedCards queries", () => {
   describe("getFloatedCards", () => {
     it("returns floated card names for a draft and seat", async () => {
       mockClient.execute.mockResolvedValue({
-        rows: [
-          { card_name: "Lightning Bolt" },
-          { card_name: "Counterspell" },
-        ],
+        rows: [{ card_name: "Lightning Bolt" }, { card_name: "Counterspell" }],
       });
       const result = await getFloatedCards(mockClient as any, "draft-1", 1);
       expect(result).toEqual(["Lightning Bolt", "Counterspell"]);
@@ -38,7 +41,9 @@ describe("floatedCards queries", () => {
       // First insert
       await addFloatedCard(mockClient as any, "draft-1", 1, "Lightning Bolt");
       // Second insert for same card — must not throw (duplicate-safe semantics)
-      await expect(addFloatedCard(mockClient as any, "draft-1", 1, "Lightning Bolt")).resolves.not.toThrow();
+      await expect(
+        addFloatedCard(mockClient as any, "draft-1", 1, "Lightning Bolt")
+      ).resolves.not.toThrow();
       expect(mockClient.execute).toHaveBeenCalledTimes(2);
     });
   });

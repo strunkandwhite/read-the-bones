@@ -30,9 +30,7 @@ export function computeMyDeckCardNames({
   queue: QueueGroupEntry[];
 }): string[] {
   const authFloated = isAuthed || localDeckMode ? floatedCards : [];
-  const authQueued = isAuthed
-    ? queue.flatMap((entry) => entry.cards.map((c) => c.cardName))
-    : [];
+  const authQueued = isAuthed ? queue.flatMap((entry) => entry.cards.map((c) => c.cardName)) : [];
 
   const seen = new Set(picks);
   const speculative: string[] = [];

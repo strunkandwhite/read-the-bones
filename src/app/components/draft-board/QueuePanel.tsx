@@ -37,8 +37,12 @@ export type QueuePanelProps = {
 //   "drag-entry:<i>" — dragging entry i
 //   "slot:<i>"       — drop slot before entry i (slot:N = after the last entry)
 
-function makeDragEntryId(i: number) { return `drag-entry:${i}`; }
-function makeSlotId(i: number) { return `slot:${i}`; }
+function makeDragEntryId(i: number) {
+  return `drag-entry:${i}`;
+}
+function makeSlotId(i: number) {
+  return `slot:${i}`;
+}
 
 function parseDragEntryIndex(id: string): number | null {
   const p = id.split(":");
@@ -57,7 +61,7 @@ function parseSlotIndex(id: string): number | null {
 export function reorderEntryToSlot(
   queue: QueueGroupEntry[],
   from: number,
-  slot: number,
+  slot: number
 ): QueueGroupEntry[] | null {
   if (slot === from || slot === from + 1) return null;
   const newQueue = [...queue];
@@ -82,7 +86,10 @@ function DropSlot({ id, isActive }: { id: string; isActive: boolean }) {
 
 // Up/down buttons for reordering cards within a group.
 function MoveButtons({
-  onUp, onDown, disableUp, disableDown,
+  onUp,
+  onDown,
+  disableUp,
+  disableDown,
 }: {
   onUp: () => void;
   onDown: () => void;
@@ -95,8 +102,10 @@ function MoveButtons({
         onClick={onUp}
         disabled={disableUp}
         aria-label="Move up"
-        className={`border-none bg-transparent px-1.5 py-0.5 sm:px-1 sm:py-0 text-base sm:text-xs leading-none transition-colors ${
-          disableUp ? "cursor-default text-zinc-800" : "cursor-pointer text-zinc-500 hover:text-zinc-300"
+        className={`border-none bg-transparent px-1.5 py-0.5 text-base leading-none transition-colors sm:px-1 sm:py-0 sm:text-xs ${
+          disableUp
+            ? "cursor-default text-zinc-800"
+            : "cursor-pointer text-zinc-500 hover:text-zinc-300"
         }`}
       >
         ▲
@@ -105,8 +114,10 @@ function MoveButtons({
         onClick={onDown}
         disabled={disableDown}
         aria-label="Move down"
-        className={`border-none bg-transparent px-1.5 py-0.5 sm:px-1 sm:py-0 text-base sm:text-xs leading-none transition-colors ${
-          disableDown ? "cursor-default text-zinc-800" : "cursor-pointer text-zinc-500 hover:text-zinc-300"
+        className={`border-none bg-transparent px-1.5 py-0.5 text-base leading-none transition-colors sm:px-1 sm:py-0 sm:text-xs ${
+          disableDown
+            ? "cursor-default text-zinc-800"
+            : "cursor-pointer text-zinc-500 hover:text-zinc-300"
         }`}
       >
         ▼
@@ -123,8 +134,10 @@ function GroupButton({ onGroup, disabled }: { onGroup: () => void; disabled: boo
       disabled={disabled}
       aria-label="Group with card above"
       title="Group with the card above — auto-pick takes any one of a group"
-      className={`border-none bg-transparent px-2 py-1.5 sm:px-1 sm:py-0.5 text-base sm:text-sm leading-none transition-colors ${
-        disabled ? "cursor-default text-zinc-800" : "cursor-pointer text-zinc-500 hover:text-zinc-300"
+      className={`border-none bg-transparent px-2 py-1.5 text-base leading-none transition-colors sm:px-1 sm:py-0.5 sm:text-sm ${
+        disabled
+          ? "cursor-default text-zinc-800"
+          : "cursor-pointer text-zinc-500 hover:text-zinc-300"
       }`}
     >
       ⧉
@@ -162,7 +175,7 @@ function DragHandle({
       // button instead of self-stretch would grow the row itself by 14px,
       // roughly halving how many queue entries fit on a short mobile
       // viewport.
-      className="flex w-11 shrink-0 self-stretch -my-2.5 cursor-grab touch-none items-center justify-center border-none bg-transparent p-0 leading-none text-zinc-600 select-none active:cursor-grabbing sm:-my-0 sm:h-5 sm:w-5"
+      className="-my-2.5 flex w-11 shrink-0 cursor-grab touch-none items-center justify-center self-stretch border-none bg-transparent p-0 leading-none text-zinc-600 select-none active:cursor-grabbing sm:-my-0 sm:h-5 sm:w-5"
     >
       ⠿
     </button>
@@ -192,8 +205,9 @@ function DraggableEntry({
   onEject,
   takenCards,
 }: DraggableEntryProps) {
-  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } =
-    useDraggable({ id: makeDragEntryId(entryIndex) });
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, isDragging } = useDraggable({
+    id: makeDragEntryId(entryIndex),
+  });
 
   const isGroup = entry.cards.length > 1;
   const allTaken = entry.cards.every((c) => takenCards.has(c.cardName));
@@ -203,8 +217,12 @@ function DraggableEntry({
     <button
       onClick={() => onSetEntryMode(entryIndex, isPause ? "flow-through" : "pause")}
       aria-label={`Mode: ${entry.mode}`}
-      title={isPause ? "Currently set to Pause — stops if top card taken" : "Currently set to Flow-through — skips taken cards"}
-      className={`rounded px-2.5 py-1.5 sm:px-1.5 sm:py-0.5 text-sm sm:text-[10px] font-semibold leading-none transition-colors cursor-pointer border-none ${
+      title={
+        isPause
+          ? "Currently set to Pause — stops if top card taken"
+          : "Currently set to Flow-through — skips taken cards"
+      }
+      className={`cursor-pointer rounded border-none px-2.5 py-1.5 text-sm leading-none font-semibold transition-colors sm:px-1.5 sm:py-0.5 sm:text-[10px] ${
         isPause
           ? "bg-blue-900/50 text-blue-300 hover:bg-blue-800/60"
           : "bg-amber-900/50 text-amber-300 hover:bg-amber-800/60"
@@ -221,7 +239,9 @@ function DraggableEntry({
   if (isGroup) {
     return (
       <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} className="select-none">
-        <div className={`rounded px-2 py-2.5 sm:py-1.5 text-sm sm:text-xs border border-zinc-700/60 bg-zinc-800/50 ${allTaken ? "opacity-40" : ""}`}>
+        <div
+          className={`rounded border border-zinc-700/60 bg-zinc-800/50 px-2 py-2.5 text-sm sm:py-1.5 sm:text-xs ${allTaken ? "opacity-40" : ""}`}
+        >
           <div className="flex items-center gap-1.5">
             <DragHandle
               setActivatorNodeRef={setActivatorNodeRef}
@@ -229,7 +249,7 @@ function DraggableEntry({
               listeners={listeners}
               label={`Reorder group of ${entry.cards.length} cards`}
             />
-            <span className="flex-1 text-[11px] font-semibold text-zinc-500 uppercase tracking-wider">
+            <span className="flex-1 text-[11px] font-semibold tracking-wider text-zinc-500 uppercase">
               Group ({entry.cards.length})
             </span>
             {groupButton}
@@ -261,7 +281,7 @@ function DraggableEntry({
 
   return (
     <div ref={setNodeRef} style={{ opacity: isDragging ? 0.3 : 1 }} className="select-none">
-      <div className="flex items-center gap-1.5 rounded px-2 py-2.5 sm:py-1 text-sm sm:text-xs border border-transparent bg-zinc-800/30">
+      <div className="flex items-center gap-1.5 rounded border border-transparent bg-zinc-800/30 px-2 py-2.5 text-sm sm:py-1 sm:text-xs">
         <DragHandle
           setActivatorNodeRef={setActivatorNodeRef}
           attributes={attributes}
@@ -276,7 +296,7 @@ function DraggableEntry({
         <button
           onClick={() => onRemove(card.cardName)}
           aria-label={`Remove ${card.cardName}`}
-          className="cursor-pointer border-none bg-transparent px-2.5 py-1.5 sm:px-1 sm:py-0.5 text-lg sm:text-sm leading-none text-zinc-500 hover:text-zinc-300"
+          className="cursor-pointer border-none bg-transparent px-2.5 py-1.5 text-lg leading-none text-zinc-500 hover:text-zinc-300 sm:px-1 sm:py-0.5 sm:text-sm"
         >
           &times;
         </button>
@@ -309,8 +329,10 @@ function GroupCard({
   onEject,
 }: GroupCardProps) {
   return (
-    <div className="flex items-center gap-1.5 select-none rounded px-1 py-1.5 sm:py-0.5">
-      <span className={`flex-1 text-xs ${isTaken ? "text-zinc-600 line-through" : "text-zinc-400"}`}>
+    <div className="flex items-center gap-1.5 rounded px-1 py-1.5 select-none sm:py-0.5">
+      <span
+        className={`flex-1 text-xs ${isTaken ? "text-zinc-600 line-through" : "text-zinc-400"}`}
+      >
         {cardName}
       </span>
       <MoveButtons
@@ -323,14 +345,14 @@ function GroupCard({
         onClick={() => onEject(entryIndex, cardIndex)}
         aria-label={`Ungroup ${cardName}`}
         title="Remove from group (keep in queue on its own)"
-        className="cursor-pointer border-none bg-transparent px-2 py-1.5 sm:px-1 sm:py-0.5 text-base sm:text-xs leading-none text-zinc-600 hover:text-zinc-300"
+        className="cursor-pointer border-none bg-transparent px-2 py-1.5 text-base leading-none text-zinc-600 hover:text-zinc-300 sm:px-1 sm:py-0.5 sm:text-xs"
       >
         ⏏
       </button>
       <button
         onClick={() => onRemove(cardName)}
         aria-label={`Remove ${cardName}`}
-        className="cursor-pointer border-none bg-transparent px-2.5 py-1.5 sm:px-1 sm:py-0.5 text-lg sm:text-sm leading-none text-zinc-600 hover:text-zinc-300"
+        className="cursor-pointer border-none bg-transparent px-2.5 py-1.5 text-lg leading-none text-zinc-600 hover:text-zinc-300 sm:px-1 sm:py-0.5 sm:text-sm"
       >
         &times;
       </button>
@@ -355,7 +377,7 @@ export function QueuePanel({
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
     useSensor(TouchSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor),
+    useSensor(KeyboardSensor)
   );
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
@@ -382,7 +404,7 @@ export function QueuePanel({
       const newQueue = reorderEntryToSlot(queue, from, slot);
       if (newQueue) onReorder(newQueue);
     },
-    [queue, onReorder, activeSlotId],
+    [queue, onReorder, activeSlotId]
   );
 
   const handleMoveCard = useCallback(
@@ -394,7 +416,7 @@ export function QueuePanel({
       newCards.splice(to, 0, moved);
       onReorder(queue.map((e, i) => (i === entryIndex ? { ...e, cards: newCards } : e)));
     },
-    [queue, onReorder],
+    [queue, onReorder]
   );
 
   // Merge entry[entryIndex] into the entry directly above it. The combined
@@ -410,7 +432,7 @@ export function QueuePanel({
         .map((e, i) => (i === entryIndex - 1 ? merged : e));
       onReorder(newQueue);
     },
-    [queue, onReorder],
+    [queue, onReorder]
   );
 
   // Pull a card out of its group into its own entry, placed right after the
@@ -426,7 +448,7 @@ export function QueuePanel({
       newQueue.splice(entryIndex + 1, 0, { mode: "pause", cards: [ejected] });
       onReorder(newQueue);
     },
-    [queue, onReorder],
+    [queue, onReorder]
   );
 
   // Derive the drag overlay label
@@ -434,7 +456,9 @@ export function QueuePanel({
   const draggingIndex = activeDragId ? parseDragEntryIndex(activeDragId) : null;
   if (draggingIndex !== null) {
     const entry = queue[draggingIndex];
-    if (entry) overlayLabel = entry.cards.length === 1 ? entry.cards[0].cardName : `Group (${entry.cards.length})`;
+    if (entry)
+      overlayLabel =
+        entry.cards.length === 1 ? entry.cards[0].cardName : `Group (${entry.cards.length})`;
   }
 
   return (
@@ -466,7 +490,10 @@ export function QueuePanel({
           <div className="flex max-h-[30dvh] flex-col overflow-y-auto pb-2">
             {queue.map((entry, entryIndex) => (
               <div key={`entry-${entryIndex}`}>
-                <DropSlot id={makeSlotId(entryIndex)} isActive={activeSlotId === makeSlotId(entryIndex)} />
+                <DropSlot
+                  id={makeSlotId(entryIndex)}
+                  isActive={activeSlotId === makeSlotId(entryIndex)}
+                />
                 <DraggableEntry
                   entry={entry}
                   entryIndex={entryIndex}
@@ -479,12 +506,15 @@ export function QueuePanel({
                 />
               </div>
             ))}
-            <DropSlot id={makeSlotId(queue.length)} isActive={activeSlotId === makeSlotId(queue.length)} />
+            <DropSlot
+              id={makeSlotId(queue.length)}
+              isActive={activeSlotId === makeSlotId(queue.length)}
+            />
           </div>
 
           <DragOverlay>
             {overlayLabel && (
-              <div className="rounded border border-zinc-600 bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 shadow-lg opacity-90">
+              <div className="rounded border border-zinc-600 bg-zinc-800 px-3 py-1.5 text-xs text-zinc-300 opacity-90 shadow-lg">
                 {overlayLabel}
               </div>
             )}

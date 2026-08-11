@@ -33,7 +33,7 @@ describe("GET /api/drafts/[id]/pool", () => {
         type_contains: "Creature",
         include_draft_results: "true",
       }),
-      { params: Promise.resolve({ id: "tarkir" }) },
+      { params: Promise.resolve({ id: "tarkir" }) }
     );
     expect(res.status).toBe(200);
     expect(queries.getDraftPool).toHaveBeenCalledWith(expect.anything(), {

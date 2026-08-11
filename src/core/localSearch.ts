@@ -38,10 +38,7 @@ type SearchExpr =
 // ─── Token Types ─────────────────────────────────────────────────────────────
 
 type Token =
-  | { kind: "word"; value: string }
-  | { kind: "or" }
-  | { kind: "lparen" }
-  | { kind: "rparen" };
+  { kind: "word"; value: string } | { kind: "or" } | { kind: "lparen" } | { kind: "rparen" };
 
 // ─── Color Constants ─────────────────────────────────────────────────────────
 
@@ -140,7 +137,12 @@ function parseExpr(tokens: Token[]): SearchExpr {
     }
 
     // Negated group: -(...)
-    if (tok.kind === "word" && tok.value === "-" && pos + 1 < tokens.length && tokens[pos + 1].kind === "lparen") {
+    if (
+      tok.kind === "word" &&
+      tok.value === "-" &&
+      pos + 1 < tokens.length &&
+      tokens[pos + 1].kind === "lparen"
+    ) {
       pos++; // consume "-"
       pos++; // consume "("
       const inner = parseOrExpr();
@@ -336,11 +338,7 @@ function matchesTerm(card: ScryCard, term: SearchTerm): boolean {
  * - `c:m` = multicolor (2+ colors)
  * - `c:c` = colorless (0 colors)
  */
-function matchesColorExpr(
-  cardColors: string[],
-  operator: ColorOperator,
-  query: string
-): boolean {
+function matchesColorExpr(cardColors: string[], operator: ColorOperator, query: string): boolean {
   // Special: multicolor — comparison operators don't have meaningful
   // semantics here, so all operators behave the same as `c:m`
   if (query === "m") {

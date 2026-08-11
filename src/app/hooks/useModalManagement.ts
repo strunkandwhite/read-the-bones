@@ -83,7 +83,7 @@ export function useModalManagement({
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deckBuilderModalOpen, draftBoardOpen]);
 
   return {

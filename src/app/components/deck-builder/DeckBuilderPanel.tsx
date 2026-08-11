@@ -40,10 +40,7 @@ function parseDragId(id: string) {
   };
 }
 
-export function DeckBuilderPanel({
-  draftName,
-  onClose,
-}: DeckBuilderPanelProps) {
+export function DeckBuilderPanel({ draftName, onClose }: DeckBuilderPanelProps) {
   useSlowRenderTracking("deck_builder");
 
   // Live store
@@ -67,7 +64,9 @@ export function DeckBuilderPanel({
   const isAuthed = useIsAuthed();
   const localDeckMode = useLocalDeckMode();
   const effectiveFloatedCards = isAuthed || localDeckMode ? floatedCards : [];
-  const effectiveQueuedCardNames = isAuthed ? queue.flatMap((e) => e.cards.map((c) => c.cardName)) : [];
+  const effectiveQueuedCardNames = isAuthed
+    ? queue.flatMap((e) => e.cards.map((c) => c.cardName))
+    : [];
 
   const [showBasicLands, setShowBasicLands] = useState(false);
   const [activeDragId, setActiveDragId] = useState<string | null>(null);
@@ -104,11 +103,7 @@ export function DeckBuilderPanel({
         const fromIndex = list.indexOf(from.cardName);
         if (isCardTarget) {
           const targetIndex = parseInt(toParts[2], 10);
-          if (
-            fromIndex !== -1 &&
-            targetIndex !== -1 &&
-            fromIndex !== targetIndex
-          ) {
+          if (fromIndex !== -1 && targetIndex !== -1 && fromIndex !== targetIndex) {
             dispatch({
               type: "REORDER_CARD",
               zone: from.zone,
@@ -151,8 +146,9 @@ export function DeckBuilderPanel({
     setShareStatus("sharing");
     try {
       const url = await shareDeck();
-      const totalCards = Object.values(state.zones.deck).flat().length
-        + Object.values(state.zones.sideboard).flat().length;
+      const totalCards =
+        Object.values(state.zones.deck).flat().length +
+        Object.values(state.zones.sideboard).flat().length;
       track("deck_shared", { draft: draftName, card_count: totalCards });
       await navigator.clipboard.writeText(url);
       setShareStatus("shared");
@@ -186,8 +182,9 @@ export function DeckBuilderPanel({
   }, [state, draftName]);
 
   const handleClearDeck = useCallback(() => {
-    const cardCount = Object.values(state.zones.deck).flat().length
-      + Object.values(state.zones.sideboard).flat().length;
+    const cardCount =
+      Object.values(state.zones.deck).flat().length +
+      Object.values(state.zones.sideboard).flat().length;
     if (cardCount > 0) {
       track("deck_cleared", { card_count: cardCount });
     }
@@ -199,7 +196,7 @@ export function DeckBuilderPanel({
       removeFloat(cardName);
       track("deck_card_removed", { zone: "deck" });
     },
-    [removeFloat],
+    [removeFloat]
   );
 
   const handleToggleQueue = useCallback(
@@ -210,7 +207,7 @@ export function DeckBuilderPanel({
         addToQueue(cardName);
       }
     },
-    [queuedCardCounts, addToQueue, removeFromQueue],
+    [queuedCardCounts, addToQueue, removeFromQueue]
   );
 
   const dragOverlayCard = useMemo(() => {
@@ -224,9 +221,7 @@ export function DeckBuilderPanel({
     <div className="flex flex-1 flex-col overflow-hidden rounded-xl border border-zinc-700/40 bg-zinc-950">
       <div className="flex items-center justify-between border-b border-zinc-800/60 bg-zinc-900/80 px-5 py-3">
         <div className="flex items-center gap-4">
-          <span className="text-sm font-semibold tracking-tight text-zinc-200">
-            {draftName}
-          </span>
+          <span className="text-sm font-semibold tracking-tight text-zinc-200">{draftName}</span>
           <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs font-medium text-zinc-400">
             {seatNames?.[String(mySeat ?? state.seat)] || `Seat ${mySeat ?? state.seat}`}
           </span>
@@ -240,7 +235,13 @@ export function DeckBuilderPanel({
           )}
           {saveStatus === "saved" && (
             <span className="flex items-center gap-1.5 text-xs text-emerald-400/80">
-              <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <svg
+                className="h-3 w-3"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.5}
+              >
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
               Saved
@@ -248,27 +249,31 @@ export function DeckBuilderPanel({
           )}
           <button
             onClick={() => setShowBasicLands(true)}
-            className="cursor-pointer rounded-md bg-zinc-800 px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"
+            className="cursor-pointer rounded-md bg-zinc-800 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200"
           >
             Add Basic Lands
           </button>
           <button
             onClick={handleClearDeck}
-            className="cursor-pointer rounded-md bg-zinc-800 px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"
+            className="cursor-pointer rounded-md bg-zinc-800 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200"
           >
             Clear Deck
           </button>
           <button
             onClick={handleExportText}
-            className="cursor-pointer rounded-md bg-zinc-800 px-3 py-1.5 text-xs text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"
+            className="cursor-pointer rounded-md bg-zinc-800 px-3 py-1.5 text-xs text-zinc-400 transition-colors hover:bg-zinc-700 hover:text-zinc-200"
           >
             {exportStatus === "copied" ? "Copied!" : "Export"}
           </button>
           <button
             onClick={handleShareDeck}
-            className="cursor-pointer rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm shadow-blue-900/40 hover:bg-blue-500 transition-colors"
+            className="cursor-pointer rounded-md bg-blue-600 px-3 py-1.5 text-xs font-medium text-white shadow-sm shadow-blue-900/40 transition-colors hover:bg-blue-500"
           >
-            {shareStatus === "sharing" ? "Sharing..." : shareStatus === "shared" ? "Copied!" : "Share Deck"}
+            {shareStatus === "sharing"
+              ? "Sharing..."
+              : shareStatus === "shared"
+                ? "Copied!"
+                : "Share Deck"}
           </button>
           <div className="h-4 w-px bg-zinc-700/60" />
           <button
@@ -288,7 +293,7 @@ export function DeckBuilderPanel({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
       >
-        <div className="overflow-y-auto px-5 py-4 space-y-5 flex-1">
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-4">
           <DeckZone
             zone="sideboard"
             columns={state.zones.sideboard}
@@ -316,16 +321,16 @@ export function DeckBuilderPanel({
 
         <DragOverlay>
           {dragOverlayCard && (
-            <div className="w-[120px] rounded border border-zinc-500 shadow-xl opacity-90">
+            <div className="w-[120px] rounded border border-zinc-500 opacity-90 shadow-xl">
               {dragOverlayCard.imageUri ? (
                 <img
                   src={dragOverlayCard.imageUri}
                   alt={dragOverlayCard.cardName}
-                  className="rounded w-full"
+                  className="w-full rounded"
                   draggable={false}
                 />
               ) : (
-                <div className="flex items-center justify-center bg-zinc-800 p-2 text-xs text-zinc-300 aspect-[5/7] rounded">
+                <div className="flex aspect-[5/7] items-center justify-center rounded bg-zinc-800 p-2 text-xs text-zinc-300">
                   {dragOverlayCard.cardName}
                 </div>
               )}

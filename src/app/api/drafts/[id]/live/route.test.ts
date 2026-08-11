@@ -57,13 +57,15 @@ const DEFAULT_SIG = { latestPickN: 3, sig: "drafting|0|Alice" };
 /** Minimal draft meta mock for getDraftMeta (mockExecute-based) */
 function mockDraftMeta(overrides: Record<string, unknown> = {}) {
   mockExecute.mockResolvedValueOnce({
-    rows: [{
-      phase: "drafting",
-      num_seats: 10,
-      picks_per_player: 5,
-      banned_cards: null,
-      ...overrides,
-    }],
+    rows: [
+      {
+        phase: "drafting",
+        num_seats: 10,
+        picks_per_player: 5,
+        banned_cards: null,
+        ...overrides,
+      },
+    ],
   });
 }
 
@@ -79,31 +81,32 @@ describe("GET /api/drafts/[id]/live", () => {
 
   it("returns merged status + board data", async () => {
     mockExecute.mockResolvedValueOnce({
-      rows: [{
-        phase: "drafting",
-        num_seats: 10,
-        picks_per_player: 5,
-        banned_cards: null,
-      }],
+      rows: [
+        {
+          phase: "drafting",
+          num_seats: 10,
+          picks_per_player: 5,
+          banned_cards: null,
+        },
+      ],
     });
-    mockGetRecentPicks.mockResolvedValueOnce([
-      { pickN: 3, seat: 3, cardName: "Counterspell" },
-    ]);
+    mockGetRecentPicks.mockResolvedValueOnce([{ pickN: 3, seat: 3, cardName: "Counterspell" }]);
     mockGetSeatDisplayNames.mockResolvedValueOnce({ "1": "Alice" });
     mockGetMatchCount.mockResolvedValueOnce(0);
-    mockGetPicksWithCardDetails.mockResolvedValueOnce([{
-      pickN: 1,
-      seat: 1,
-      cardName: "Lightning Bolt",
-      oracleId: "abc-123",
-      colorIdentity: ["R"],
-      manaCost: "{R}",
-    }]);
+    mockGetPicksWithCardDetails.mockResolvedValueOnce([
+      {
+        pickN: 1,
+        seat: 1,
+        cardName: "Lightning Bolt",
+        oracleId: "abc-123",
+        colorIdentity: ["R"],
+        manaCost: "{R}",
+      },
+    ]);
 
-    const res = await GET(
-      makeRequest("http://localhost:3000/api/drafts/test/live"),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await GET(makeRequest("http://localhost:3000/api/drafts/test/live"), {
+      params: Promise.resolve({ id: "test" }),
+    });
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -132,10 +135,9 @@ describe("GET /api/drafts/[id]/live", () => {
     mockGetLiveStateSig.mockResolvedValueOnce({ latestPickN: 0, sig: "||" });
     mockExecute.mockResolvedValueOnce({ rows: [] });
 
-    const res = await GET(
-      makeRequest("http://localhost:3000/api/drafts/nope/live"),
-      { params: Promise.resolve({ id: "nope" }) },
-    );
+    const res = await GET(makeRequest("http://localhost:3000/api/drafts/nope/live"), {
+      params: Promise.resolve({ id: "nope" }),
+    });
 
     expect(res.status).toBe(404);
   });
@@ -143,22 +145,23 @@ describe("GET /api/drafts/[id]/live", () => {
   it("sets no-cache header", async () => {
     mockGetLiveStateSig.mockResolvedValueOnce({ latestPickN: 0, sig: "drafting|0|" });
     mockExecute.mockResolvedValueOnce({
-      rows: [{
-        phase: "drafting",
-        num_seats: 4,
-        picks_per_player: 10,
-        banned_cards: null,
-      }],
+      rows: [
+        {
+          phase: "drafting",
+          num_seats: 4,
+          picks_per_player: 10,
+          banned_cards: null,
+        },
+      ],
     });
     mockGetRecentPicks.mockResolvedValueOnce([]);
     mockGetSeatDisplayNames.mockResolvedValueOnce({});
     mockGetMatchCount.mockResolvedValueOnce(0);
     mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
 
-    const res = await GET(
-      makeRequest("http://localhost:3000/api/drafts/test/live"),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await GET(makeRequest("http://localhost:3000/api/drafts/test/live"), {
+      params: Promise.resolve({ id: "test" }),
+    });
 
     expect(res.headers.get("Cache-Control")).toBe("no-cache");
   });
@@ -166,22 +169,23 @@ describe("GET /api/drafts/[id]/live", () => {
   it("parses banned cards correctly", async () => {
     mockGetLiveStateSig.mockResolvedValueOnce({ latestPickN: 0, sig: "drafting|0|" });
     mockExecute.mockResolvedValueOnce({
-      rows: [{
-        phase: "drafting",
-        num_seats: 2,
-        picks_per_player: 5,
-        banned_cards: JSON.stringify(["Sol Ring", "Black Lotus"]),
-      }],
+      rows: [
+        {
+          phase: "drafting",
+          num_seats: 2,
+          picks_per_player: 5,
+          banned_cards: JSON.stringify(["Sol Ring", "Black Lotus"]),
+        },
+      ],
     });
     mockGetRecentPicks.mockResolvedValueOnce([]);
     mockGetSeatDisplayNames.mockResolvedValueOnce({});
     mockGetMatchCount.mockResolvedValueOnce(0);
     mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
 
-    const res = await GET(
-      makeRequest("http://localhost:3000/api/drafts/test/live"),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await GET(makeRequest("http://localhost:3000/api/drafts/test/live"), {
+      params: Promise.resolve({ id: "test" }),
+    });
     const body = await res.json();
 
     expect(body.bannedCards).toEqual(["Sol Ring", "Black Lotus"]);
@@ -190,22 +194,23 @@ describe("GET /api/drafts/[id]/live", () => {
   it("returns null nextSeat when picksPerPlayer is null", async () => {
     mockGetLiveStateSig.mockResolvedValueOnce({ latestPickN: 0, sig: "setup|0|" });
     mockExecute.mockResolvedValueOnce({
-      rows: [{
-        phase: "setup",
-        num_seats: 4,
-        picks_per_player: null,
-        banned_cards: null,
-      }],
+      rows: [
+        {
+          phase: "setup",
+          num_seats: 4,
+          picks_per_player: null,
+          banned_cards: null,
+        },
+      ],
     });
     mockGetRecentPicks.mockResolvedValueOnce([]);
     mockGetSeatDisplayNames.mockResolvedValueOnce({});
     mockGetMatchCount.mockResolvedValueOnce(0);
     mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
 
-    const res = await GET(
-      makeRequest("http://localhost:3000/api/drafts/test/live"),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await GET(makeRequest("http://localhost:3000/api/drafts/test/live"), {
+      params: Promise.resolve({ id: "test" }),
+    });
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -215,12 +220,14 @@ describe("GET /api/drafts/[id]/live", () => {
   it("getOptedOutSeats is called once to populate redactedSeats, independent of pick queries", async () => {
     mockGetLiveStateSig.mockResolvedValueOnce({ latestPickN: 0, sig: "drafting|0|" });
     mockExecute.mockResolvedValueOnce({
-      rows: [{
-        phase: "drafting",
-        num_seats: 4,
-        picks_per_player: 5,
-        banned_cards: null,
-      }],
+      rows: [
+        {
+          phase: "drafting",
+          num_seats: 4,
+          picks_per_player: 5,
+          banned_cards: null,
+        },
+      ],
     });
     mockGetOptedOutSeats.mockResolvedValueOnce(new Set([3]));
     mockGetRecentPicks.mockResolvedValueOnce([]);
@@ -228,10 +235,9 @@ describe("GET /api/drafts/[id]/live", () => {
     mockGetMatchCount.mockResolvedValueOnce(0);
     mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
 
-    await GET(
-      makeRequest("http://localhost:3000/api/drafts/test/live"),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    await GET(makeRequest("http://localhost:3000/api/drafts/test/live"), {
+      params: Promise.resolve({ id: "test" }),
+    });
 
     expect(mockGetOptedOutSeats).toHaveBeenCalledTimes(1);
     // Pick queries no longer take an opted-out-seats argument
@@ -248,7 +254,9 @@ describe("GET /api/drafts/[id]/live", () => {
     mockGetMatchCount.mockResolvedValueOnce(0);
     mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
 
-    const res = await GET(makeRequest("http://localhost:3000/api/drafts/d1/live"), { params: Promise.resolve({ id: "d1" }) });
+    const res = await GET(makeRequest("http://localhost:3000/api/drafts/d1/live"), {
+      params: Promise.resolve({ id: "d1" }),
+    });
     expect((await res.json()).redactedSeats).toEqual([5]);
   });
 
@@ -261,7 +269,9 @@ describe("GET /api/drafts/[id]/live", () => {
     mockGetMatchCount.mockResolvedValueOnce(0);
     mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
 
-    const res = await GET(makeRequest("http://localhost:3000/api/drafts/d1/live"), { params: Promise.resolve({ id: "d1" }) });
+    const res = await GET(makeRequest("http://localhost:3000/api/drafts/d1/live"), {
+      params: Promise.resolve({ id: "d1" }),
+    });
     expect((await res.json()).redactedSeats).toEqual([]);
   });
 
@@ -276,7 +286,9 @@ describe("GET /api/drafts/[id]/live", () => {
     mockGetMatchCount.mockResolvedValueOnce(0);
     mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
 
-    const res = await GET(makeRequest("http://localhost:3000/api/drafts/d1/live"), { params: Promise.resolve({ id: "d1" }) });
+    const res = await GET(makeRequest("http://localhost:3000/api/drafts/d1/live"), {
+      params: Promise.resolve({ id: "d1" }),
+    });
     expect((await res.json()).redactedSeats).toEqual([3, 5, 7]);
   });
 
@@ -291,8 +303,10 @@ describe("GET /api/drafts/[id]/live", () => {
 
     // Client echoes the exact same values
     const res = await GET(
-      makeRequest(`http://localhost:3000/api/drafts/test/live?since=5&sig=${encodeURIComponent(currentSig)}`),
-      { params: Promise.resolve({ id: "test" }) },
+      makeRequest(
+        `http://localhost:3000/api/drafts/test/live?since=5&sig=${encodeURIComponent(currentSig)}`
+      ),
+      { params: Promise.resolve({ id: "test" }) }
     );
     const body = await res.json();
 
@@ -319,8 +333,10 @@ describe("GET /api/drafts/[id]/live", () => {
 
     // Client sends the OLD sig (before rename)
     const res = await GET(
-      makeRequest(`http://localhost:3000/api/drafts/test/live?since=5&sig=${encodeURIComponent("drafting|2|Alice:Bob")}`),
-      { params: Promise.resolve({ id: "test" }) },
+      makeRequest(
+        `http://localhost:3000/api/drafts/test/live?since=5&sig=${encodeURIComponent("drafting|2|Alice:Bob")}`
+      ),
+      { params: Promise.resolve({ id: "test" }) }
     );
     const body = await res.json();
 
@@ -344,8 +360,10 @@ describe("GET /api/drafts/[id]/live", () => {
     mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
 
     const res = await GET(
-      makeRequest(`http://localhost:3000/api/drafts/test/live?since=5&sig=${encodeURIComponent(sig)}`),
-      { params: Promise.resolve({ id: "test" }) },
+      makeRequest(
+        `http://localhost:3000/api/drafts/test/live?since=5&sig=${encodeURIComponent(sig)}`
+      ),
+      { params: Promise.resolve({ id: "test" }) }
     );
     const body = await res.json();
 
@@ -366,8 +384,10 @@ describe("GET /api/drafts/[id]/live", () => {
     mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
 
     const res = await GET(
-      makeRequest(`http://localhost:3000/api/drafts/test/live?since=45&sig=${encodeURIComponent("drafting|0|Alice")}`),
-      { params: Promise.resolve({ id: "test" }) },
+      makeRequest(
+        `http://localhost:3000/api/drafts/test/live?since=45&sig=${encodeURIComponent("drafting|0|Alice")}`
+      ),
+      { params: Promise.resolve({ id: "test" }) }
     );
     const body = await res.json();
 
@@ -388,8 +408,10 @@ describe("GET /api/drafts/[id]/live", () => {
     mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
 
     const res = await GET(
-      makeRequest(`http://localhost:3000/api/drafts/test/live?since=45&sig=${encodeURIComponent("drafting|0|Alice")}`),
-      { params: Promise.resolve({ id: "test" }) },
+      makeRequest(
+        `http://localhost:3000/api/drafts/test/live?since=45&sig=${encodeURIComponent("drafting|0|Alice")}`
+      ),
+      { params: Promise.resolve({ id: "test" }) }
     );
     const body = await res.json();
 
@@ -408,10 +430,9 @@ describe("GET /api/drafts/[id]/live", () => {
     mockGetMatchCount.mockResolvedValueOnce(0);
     mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
 
-    const res = await GET(
-      makeRequest("http://localhost:3000/api/drafts/test/live"),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await GET(makeRequest("http://localhost:3000/api/drafts/test/live"), {
+      params: Promise.resolve({ id: "test" }),
+    });
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -445,7 +466,7 @@ describe("GET /api/drafts/[id]/live", () => {
 
     const res = await GET(
       makeRequest("http://localhost:3000/api/drafts/test/live", { "X-Seat-Token": "valid-token" }),
-      { params: Promise.resolve({ id: "test" }) },
+      { params: Promise.resolve({ id: "test" }) }
     );
     const body = await res.json();
 
@@ -470,10 +491,9 @@ describe("GET /api/drafts/[id]/live", () => {
     mockGetMatchCount.mockResolvedValueOnce(0);
     mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
 
-    const res = await GET(
-      makeRequest("http://localhost:3000/api/drafts/test/live"),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await GET(makeRequest("http://localhost:3000/api/drafts/test/live"), {
+      params: Promise.resolve({ id: "test" }),
+    });
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -496,7 +516,7 @@ describe("GET /api/drafts/[id]/live", () => {
 
     const res = await GET(
       makeRequest("http://localhost:3000/api/drafts/test/live", { "X-Seat-Token": "bad-token" }),
-      { params: Promise.resolve({ id: "test" }) },
+      { params: Promise.resolve({ id: "test" }) }
     );
     const body = await res.json();
 
@@ -521,8 +541,10 @@ describe("GET /api/drafts/[id]/live", () => {
     mockGetPicksWithCardDetails.mockResolvedValueOnce([]);
 
     const res = await GET(
-      makeRequest("http://localhost:3000/api/drafts/test/live", { "X-Seat-Token": "cross-draft-token" }),
-      { params: Promise.resolve({ id: "test" }) },
+      makeRequest("http://localhost:3000/api/drafts/test/live", {
+        "X-Seat-Token": "cross-draft-token",
+      }),
+      { params: Promise.resolve({ id: "test" }) }
     );
     const body = await res.json();
 
@@ -538,7 +560,10 @@ describe("GET /api/drafts/[id]/live", () => {
     const serverSig = "drafting|0|Alice~90:3"; // new sig with per-seat marker
 
     mockResolveToken.mockResolvedValueOnce({
-      draftId: "test", seat: 2, autoPick: false, displayName: "Alice",
+      draftId: "test",
+      seat: 2,
+      autoPick: false,
+      displayName: "Alice",
     });
     mockGetLiveStateSig.mockResolvedValueOnce({ latestPickN: 5, sig: serverSig });
     mockDraftMeta();
@@ -553,9 +578,9 @@ describe("GET /api/drafts/[id]/live", () => {
     const res = await GET(
       makeRequest(
         `http://localhost:3000/api/drafts/test/live?since=5&sig=${encodeURIComponent(clientSig)}`,
-        { "X-Seat-Token": "seat-token" },
+        { "X-Seat-Token": "seat-token" }
       ),
-      { params: Promise.resolve({ id: "test" }) },
+      { params: Promise.resolve({ id: "test" }) }
     );
     const body = await res.json();
 

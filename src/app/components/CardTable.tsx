@@ -25,12 +25,7 @@ import { useCardStore } from "../stores/cardStore";
 import { useDraftStore } from "../stores/draftStore";
 import { useCardStatuses } from "../stores/selectors";
 import { isLocalClient } from "@/core/isLocal";
-import {
-  desireAt,
-  desireIndex,
-  formatDesireIndex,
-  maxAbsWorth,
-} from "./desireCurve";
+import { desireAt, desireIndex, formatDesireIndex, maxAbsWorth } from "./desireCurve";
 import { formatSignedPercent, formatSignedZ } from "./worthFormat";
 
 export interface CardTableProps {
@@ -39,7 +34,6 @@ export interface CardTableProps {
 }
 
 const columnHelper = createColumnHelper<EnrichedCardStats>();
-
 
 export const WORTH_EXPLANATION = `Best estimate of the win-rate points this card adds to a deck, vs its color's baseline.
 
@@ -64,7 +58,7 @@ Weighting factors:
 function renderWorthModelValue(
   worthCard: WorthCard | undefined,
   value: number | null | undefined,
-  format: (value: number) => string = formatSignedPercent,
+  format: (value: number) => string = formatSignedPercent
 ) {
   if (!worthCard || worthCard.no_data || value == null) {
     return <span className="text-sm text-zinc-400 dark:text-zinc-500">—</span>;
@@ -79,10 +73,7 @@ function renderWorthModelValue(
   );
 }
 
-export function CardTable({
-  cards,
-  onCardClick,
-}: CardTableProps) {
+export function CardTable({ cards, onCardClick }: CardTableProps) {
   useSlowRenderTracking("card_table");
 
   // Read from stores
@@ -173,18 +164,21 @@ export function CardTable({
     takenCardCountsRef.current = takenCardCounts;
   }, [takenCardCounts]);
 
-  const handleSortingChange = useCallback((updater: SortingState | ((prev: SortingState) => SortingState)) => {
-    setSorting((prev) => {
-      const next = typeof updater === "function" ? updater(prev) : updater;
-      if (next.length > 0) {
-        track("sort_column", {
-          column: next[0].id,
-          direction: next[0].desc ? "desc" : "asc",
-        });
-      }
-      return next;
-    });
-  }, []);
+  const handleSortingChange = useCallback(
+    (updater: SortingState | ((prev: SortingState) => SortingState)) => {
+      setSorting((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        if (next.length > 0) {
+          track("sort_column", {
+            column: next[0].id,
+            direction: next[0].desc ? "desc" : "asc",
+          });
+        }
+        return next;
+      });
+    },
+    []
+  );
 
   const columns = useMemo(
     () => [
@@ -204,7 +198,7 @@ export function CardTable({
                     (takenCardCountsRef.current.get(row.original.cardName) ?? 0)
                   : undefined
               }
-              cardStatus={cs?.status === "taken" ? "none" : cs?.status ?? "none"}
+              cardStatus={cs?.status === "taken" ? "none" : (cs?.status ?? "none")}
               queuePosition={cs?.queuePosition}
             />
           );
@@ -232,132 +226,146 @@ export function CardTable({
         size: 70,
         cell: ({ getValue }) => <ColorPills colors={getValue() || []} />,
       }),
-      columnHelper.accessor((row) => row.weightedGeomean != null && isFinite(row.weightedGeomean) ? row.weightedGeomean : undefined, {
-        id: "pickScore",
-        size: 85,
-        sortUndefined: "last",
-        header: () => (
-          <span className="inline-flex items-center">
-            P#
-            <InfoTooltip text={PICK_EXPLANATION} />
-          </span>
-        ),
-        cell: ({ getValue }) => {
-          const value = getValue();
-          if (value == null || !isFinite(value)) {
-            return (
-              <span className="text-sm font-medium text-zinc-400 italic dark:text-zinc-500">
-                New
-              </span>
-            );
-          }
-          return (
-            <span className="font-mono text-sm font-semibold text-zinc-800 dark:text-zinc-200">
-              {value.toFixed(2)}
-            </span>
-          );
-        },
-      }),
-      ...(isLocalClient() ? [
-        columnHelper.accessor((row) => {
-          const worthCard = worthCards.get(row.cardName);
-          return worthCard != null && !worthCard.no_data && worthCard.worth != null
-            ? worthCard.worth
-            : undefined;
-        }, {
-          id: "worth",
-          size: 90,
-          sortUndefined: "last",
-          header: () => (
-            <span className="inline-flex items-center">
-              Worth
-              <InfoTooltip
-                align="right"
-                text={WORTH_EXPLANATION}
-              />
-            </span>
-          ),
-          cell: ({ row }) => {
-            const worthCard = worthCards.get(row.original.cardName);
-            return renderWorthModelValue(worthCard, worthCard?.worth);
-          },
-        }),
-        columnHelper.accessor((row) => {
-          const worthCard = worthCards.get(row.cardName);
-          return worthCard != null && !worthCard.no_data && worthCard.pvi != null
-            ? worthCard.pvi
-            : undefined;
-        }, {
-          id: "pvi",
+      columnHelper.accessor(
+        (row) =>
+          row.weightedGeomean != null && isFinite(row.weightedGeomean)
+            ? row.weightedGeomean
+            : undefined,
+        {
+          id: "pickScore",
           size: 85,
           sortUndefined: "last",
           header: () => (
             <span className="inline-flex items-center">
-              PVI
-              <InfoTooltip align="right" text={PVI_EXPLANATION} />
+              P#
+              <InfoTooltip text={PICK_EXPLANATION} />
             </span>
           ),
-          cell: ({ row }) => {
-            const worthCard = worthCards.get(row.original.cardName);
-            return renderWorthModelValue(worthCard, worthCard?.pvi, formatSignedZ);
-          },
-        }),
-        columnHelper.accessor((row) => {
-          const worthCard = worthCards.get(row.cardName);
-          if (
-            worthCard == null ||
-            worthCard.no_data ||
-            worthCard.worth == null ||
-            worthCard.geomean == null ||
-            worthModel == null ||
-            worthModel.sigma <= 0
-          ) {
-            return undefined;
-          }
-          const index = desireIndex(
-            desireAt(currentPick, {
-              worth: worthCard.worth,
-              geomean: worthCard.geomean,
-              sigma: worthModel.sigma,
-            }),
-            worthScale,
-          );
-          return index ?? undefined;
-        }, {
-          id: "desire",
-          size: 105,
-          sortUndefined: "last",
-          header: () => (
-            <span className="inline-flex items-center">
-              Desire ({currentPick})
-              <InfoTooltip align="right" text={DESIRE_EXPLANATION} />
-            </span>
-          ),
-          cell: ({ row, getValue }) => {
-            const worthCard = worthCards.get(row.original.cardName);
+          cell: ({ getValue }) => {
             const value = getValue();
-            if (worthCard == null || value === undefined) {
-              return <span className="text-sm text-zinc-400 dark:text-zinc-500">—</span>;
+            if (value == null || !isFinite(value)) {
+              return (
+                <span className="text-sm font-medium text-zinc-400 italic dark:text-zinc-500">
+                  New
+                </span>
+              );
             }
-            const label = formatDesireIndex(value);
-            if (label === "—") {
-              return <span className="text-sm text-zinc-400 dark:text-zinc-500">—</span>;
-            }
-            const flags = [
-              worthCard.prior_only ? "prior only" : null,
-              worthCard.is_land ? "land (unreliable)" : null,
-            ].filter(Boolean);
             return (
-              <span
-                className="font-mono text-sm font-semibold text-zinc-800 dark:text-zinc-200"
-                title={[`${worthCard.games} games`, ...flags].join(" · ")}
-              >
-                {label}
+              <span className="font-mono text-sm font-semibold text-zinc-800 dark:text-zinc-200">
+                {value.toFixed(2)}
               </span>
             );
           },
-        }),
-      ] : []),
+        }
+      ),
+      ...(isLocalClient()
+        ? [
+            columnHelper.accessor(
+              (row) => {
+                const worthCard = worthCards.get(row.cardName);
+                return worthCard != null && !worthCard.no_data && worthCard.worth != null
+                  ? worthCard.worth
+                  : undefined;
+              },
+              {
+                id: "worth",
+                size: 90,
+                sortUndefined: "last",
+                header: () => (
+                  <span className="inline-flex items-center">
+                    Worth
+                    <InfoTooltip align="right" text={WORTH_EXPLANATION} />
+                  </span>
+                ),
+                cell: ({ row }) => {
+                  const worthCard = worthCards.get(row.original.cardName);
+                  return renderWorthModelValue(worthCard, worthCard?.worth);
+                },
+              }
+            ),
+            columnHelper.accessor(
+              (row) => {
+                const worthCard = worthCards.get(row.cardName);
+                return worthCard != null && !worthCard.no_data && worthCard.pvi != null
+                  ? worthCard.pvi
+                  : undefined;
+              },
+              {
+                id: "pvi",
+                size: 85,
+                sortUndefined: "last",
+                header: () => (
+                  <span className="inline-flex items-center">
+                    PVI
+                    <InfoTooltip align="right" text={PVI_EXPLANATION} />
+                  </span>
+                ),
+                cell: ({ row }) => {
+                  const worthCard = worthCards.get(row.original.cardName);
+                  return renderWorthModelValue(worthCard, worthCard?.pvi, formatSignedZ);
+                },
+              }
+            ),
+            columnHelper.accessor(
+              (row) => {
+                const worthCard = worthCards.get(row.cardName);
+                if (
+                  worthCard == null ||
+                  worthCard.no_data ||
+                  worthCard.worth == null ||
+                  worthCard.geomean == null ||
+                  worthModel == null ||
+                  worthModel.sigma <= 0
+                ) {
+                  return undefined;
+                }
+                const index = desireIndex(
+                  desireAt(currentPick, {
+                    worth: worthCard.worth,
+                    geomean: worthCard.geomean,
+                    sigma: worthModel.sigma,
+                  }),
+                  worthScale
+                );
+                return index ?? undefined;
+              },
+              {
+                id: "desire",
+                size: 105,
+                sortUndefined: "last",
+                header: () => (
+                  <span className="inline-flex items-center">
+                    Desire ({currentPick})
+                    <InfoTooltip align="right" text={DESIRE_EXPLANATION} />
+                  </span>
+                ),
+                cell: ({ row, getValue }) => {
+                  const worthCard = worthCards.get(row.original.cardName);
+                  const value = getValue();
+                  if (worthCard == null || value === undefined) {
+                    return <span className="text-sm text-zinc-400 dark:text-zinc-500">—</span>;
+                  }
+                  const label = formatDesireIndex(value);
+                  if (label === "—") {
+                    return <span className="text-sm text-zinc-400 dark:text-zinc-500">—</span>;
+                  }
+                  const flags = [
+                    worthCard.prior_only ? "prior only" : null,
+                    worthCard.is_land ? "land (unreliable)" : null,
+                  ].filter(Boolean);
+                  return (
+                    <span
+                      className="font-mono text-sm font-semibold text-zinc-800 dark:text-zinc-200"
+                      title={[`${worthCard.games} games`, ...flags].join(" · ")}
+                    >
+                      {label}
+                    </span>
+                  );
+                },
+              }
+            ),
+          ]
+        : []),
     ],
     [currentCubeCopies, worthCards, worthModel, currentPick, worthScale]
   );
@@ -376,7 +384,7 @@ export function CardTable({
   const tableData = useMemo(
     () => [...filteredData],
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the "unnecessary" deps ARE the point: they bust TanStack's per-row value caches when accessor inputs change
-    [filteredData, worthCards, worthModel, currentPick, worthScale],
+    [filteredData, worthCards, worthModel, currentPick, worthScale]
   );
 
   // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table API is incompatible with React Compiler memoization
@@ -434,17 +442,17 @@ export function CardTable({
   const virtualRows = rowVirtualizer.getVirtualItems();
   const totalSize = rowVirtualizer.getTotalSize();
   const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
-  const paddingBottom = virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
+  const paddingBottom =
+    virtualRows.length > 0 ? totalSize - virtualRows[virtualRows.length - 1].end : 0;
 
   return (
     <div ref={containerRef}>
       <div className="relative">
         <div className="rounded-lg border border-zinc-200 dark:border-zinc-700">
-          <div
-            ref={scrollContainerRef}
-            style={{ height: scrollHeight, overflowY: "auto" }}
-          >
-            <table className={`w-full text-left ${isDesktopOrWider ? "table-fixed" : "table-auto"}`}>
+          <div ref={scrollContainerRef} style={{ height: scrollHeight, overflowY: "auto" }}>
+            <table
+              className={`w-full text-left ${isDesktopOrWider ? "table-fixed" : "table-auto"}`}
+            >
               {isDesktopOrWider && (
                 <colgroup>
                   {table.getVisibleLeafColumns().map((col) => (
@@ -461,7 +469,7 @@ export function CardTable({
                     {headerGroup.headers.map((header) => (
                       <th
                         key={header.id}
-                        className={`px-2 py-2 sm:px-4 sm:py-3 text-sm font-semibold text-zinc-700 dark:text-zinc-300 ${
+                        className={`px-2 py-2 text-sm font-semibold text-zinc-700 sm:px-4 sm:py-3 dark:text-zinc-300 ${
                           header.column.getCanSort()
                             ? "cursor-pointer select-none hover:bg-zinc-100 dark:hover:bg-zinc-700"
                             : ""
@@ -497,7 +505,9 @@ export function CardTable({
                 ) : (
                   <>
                     {paddingTop > 0 && (
-                      <tr><td style={{ height: paddingTop, padding: 0, border: "none" }} /></tr>
+                      <tr>
+                        <td style={{ height: paddingTop, padding: 0, border: "none" }} />
+                      </tr>
                     )}
                     {virtualRows.map((virtualRow) => {
                       const row = rows[virtualRow.index];
@@ -518,10 +528,7 @@ export function CardTable({
                           onClick={() => onCardClick?.(row.original.cardName)}
                         >
                           {row.getVisibleCells().map((cell) => (
-                            <td
-                              key={cell.id}
-                              className="px-2 py-2 sm:px-4 sm:py-3"
-                            >
+                            <td key={cell.id} className="px-2 py-2 sm:px-4 sm:py-3">
                               {flexRender(cell.column.columnDef.cell, cell.getContext())}
                             </td>
                           ))}
@@ -529,7 +536,9 @@ export function CardTable({
                       );
                     })}
                     {paddingBottom > 0 && (
-                      <tr><td style={{ height: paddingBottom, padding: 0, border: "none" }} /></tr>
+                      <tr>
+                        <td style={{ height: paddingBottom, padding: 0, border: "none" }} />
+                      </tr>
                     )}
                   </>
                 )}

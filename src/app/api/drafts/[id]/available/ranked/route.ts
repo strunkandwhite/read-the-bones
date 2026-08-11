@@ -17,17 +17,14 @@ type SortBy = (typeof ALL_SORT_VALUES)[number];
 const WUBRG = "WUBRG";
 
 export const GET = withApiErrors(
-  async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) => {
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { id } = await params;
     const { searchParams } = request.nextUrl;
     const beforePickN = requiredIntParam(searchParams.get("before_pick_n"));
     if (beforePickN === null) {
       return NextResponse.json(
         { error: "before_pick_n is required and must be an integer" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -35,7 +32,7 @@ export const GET = withApiErrors(
     if (seat !== undefined && seat < 1) {
       return NextResponse.json(
         { error: "seat must be a positive integer (1-indexed)" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -51,7 +48,7 @@ export const GET = withApiErrors(
       if (!isValid) {
         return NextResponse.json(
           { error: "committed_colors must be at most two distinct letters from WUBRG" },
-          { status: 400 },
+          { status: 400 }
         );
       }
       committedColors = committedColorsRaw;
@@ -75,7 +72,7 @@ export const GET = withApiErrors(
       // Explicit rejection beats silently downgrading to a non-worth ranking.
       return NextResponse.json(
         { error: "worth model is not available in production" },
-        { status: 400 },
+        { status: 400 }
       );
     }
 
@@ -84,10 +81,9 @@ export const GET = withApiErrors(
       // sort would silently fall back to geomean order.
       return NextResponse.json(
         { error: "sort_by=first_pick_score requires committed_colors" },
-        { status: 400 },
+        { status: 400 }
       );
     }
-
 
     const result = await queries.rankAvailableCards({
       draft_id: id,
@@ -105,5 +101,5 @@ export const GET = withApiErrors(
       headers: { "Cache-Control": "public, s-maxage=60" },
     });
   },
-  "[/api/drafts/[id]/available/ranked] Error:",
+  "[/api/drafts/[id]/available/ranked] Error:"
 );

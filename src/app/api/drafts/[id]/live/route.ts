@@ -13,10 +13,7 @@ import { resolveToken } from "@/core/db/queries/seatTokens";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 export const GET = withApiErrors(
-  async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string }> },
-  ) => {
+  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const { id: draftId } = await params;
     const client = await getClient();
 
@@ -51,7 +48,7 @@ export const GET = withApiErrors(
     const { latestPickN: currentPickN, sig: currentSig } = await getLiveStateSig(
       client,
       draftId,
-      authenticatedSeat ?? undefined,
+      authenticatedSeat ?? undefined
     );
 
     // If getLiveStateSig found no draft (sig would be "||"), the draft-not-found check
@@ -77,15 +74,20 @@ export const GET = withApiErrors(
     // Opt-outs no longer gate the pick queries (redaction now happens at ingest
     // time), but the seat list still drives the pod sheet's [REDACTED] cells.
     // It has no dependency on the other reads below, so it joins their Promise.all.
-    const [optedOutSeats, recentPicks, seatNames, matchCount, picks, seatQueue, seatFloats] = await Promise.all([
-      getOptedOutSeats(client, draftId),
-      getRecentPicks(client, draftId, 10),
-      getSeatDisplayNames(client, draftId),
-      getMatchCount(client, draftId),
-      getPicksWithCardDetails(client, draftId),
-      authenticatedSeat !== null ? getQueue(client, draftId, authenticatedSeat) : Promise.resolve(null),
-      authenticatedSeat !== null ? getFloatedCards(client, draftId, authenticatedSeat) : Promise.resolve(null),
-    ]);
+    const [optedOutSeats, recentPicks, seatNames, matchCount, picks, seatQueue, seatFloats] =
+      await Promise.all([
+        getOptedOutSeats(client, draftId),
+        getRecentPicks(client, draftId, 10),
+        getSeatDisplayNames(client, draftId),
+        getMatchCount(client, draftId),
+        getPicksWithCardDetails(client, draftId),
+        authenticatedSeat !== null
+          ? getQueue(client, draftId, authenticatedSeat)
+          : Promise.resolve(null),
+        authenticatedSeat !== null
+          ? getFloatedCards(client, draftId, authenticatedSeat)
+          : Promise.resolve(null),
+      ]);
 
     const next = picksPerPlayer
       ? getNextPick(currentPickN, numSeats, picksPerPlayer, meta.doublePickAfterRound)
@@ -95,46 +97,52 @@ export const GET = withApiErrors(
     // Build `me` when the request carried a valid seat token for this draft.
     // Absent or invalid tokens result in no `me` field — the response is identical
     // to today's unauthenticated response, keeping the route fully public.
-    const me = authenticatedSeat !== null ? {
-      seat: authenticatedSeat,
-      autoPick: authenticatedAutoPick,
-      displayName: authenticatedDisplayName,
-      queue: seatQueue,
-      floatedCards: seatFloats,
-    } : undefined;
+    const me =
+      authenticatedSeat !== null
+        ? {
+            seat: authenticatedSeat,
+            autoPick: authenticatedAutoPick,
+            displayName: authenticatedDisplayName,
+            queue: seatQueue,
+            floatedCards: seatFloats,
+          }
+        : undefined;
 
-    return NextResponse.json({
-      phase,
-      isSheetDraft: meta.sheetId !== null,
-      numSeats,
-      picksPerPlayer,
-      doublePickAfterRound: meta.doublePickAfterRound,
-      latestPickN: currentPickN,
-      nextSeat: next?.seat ?? null,
-      recentPicks,
-      seatNames,
-      matchCount,
-      totalMatches,
-      picks,
-      bannedCards,
-      // Seat-level flag for the pod sheet: cells for opted-out seats render
-      // "[REDACTED]" structurally (from draft metadata) rather than from a pick
-      // row, since no pick row exists for these seats. Always present, [] when
-      // nothing is redacted. Not part of getLiveStateSig's sig: because this
-      // field isn't in the signature, an opt-out recorded mid-draft does not
-      // change the sig, so a polling client keeps short-circuiting and does not
-      // see the new redactedSeats until some other change (a pick, a name edit,
-      // a phase change) breaks the short-circuit for an unrelated reason.
-      redactedSeats: [...optedOutSeats].sort((a, b) => a - b),
-      // Client echoes latestPickN + sig back on subsequent polls for the change short-circuit.
-      // Including sig in the response avoids the client having to recompute the server's
-      // SQL-derived seat-names string. For authenticated callers the sig includes the
-      // per-seat freshness marker so cross-device changes break the short-circuit.
-      liveSig: currentSig,
-      // Per-seat data for authenticated callers — eliminates separate /queue, /float,
-      // and /me poll requests. Absent when no valid token was provided.
-      ...(me !== undefined ? { me } : {}),
-    }, { headers: { "Cache-Control": "no-cache" } });
+    return NextResponse.json(
+      {
+        phase,
+        isSheetDraft: meta.sheetId !== null,
+        numSeats,
+        picksPerPlayer,
+        doublePickAfterRound: meta.doublePickAfterRound,
+        latestPickN: currentPickN,
+        nextSeat: next?.seat ?? null,
+        recentPicks,
+        seatNames,
+        matchCount,
+        totalMatches,
+        picks,
+        bannedCards,
+        // Seat-level flag for the pod sheet: cells for opted-out seats render
+        // "[REDACTED]" structurally (from draft metadata) rather than from a pick
+        // row, since no pick row exists for these seats. Always present, [] when
+        // nothing is redacted. Not part of getLiveStateSig's sig: because this
+        // field isn't in the signature, an opt-out recorded mid-draft does not
+        // change the sig, so a polling client keeps short-circuiting and does not
+        // see the new redactedSeats until some other change (a pick, a name edit,
+        // a phase change) breaks the short-circuit for an unrelated reason.
+        redactedSeats: [...optedOutSeats].sort((a, b) => a - b),
+        // Client echoes latestPickN + sig back on subsequent polls for the change short-circuit.
+        // Including sig in the response avoids the client having to recompute the server's
+        // SQL-derived seat-names string. For authenticated callers the sig includes the
+        // per-seat freshness marker so cross-device changes break the short-circuit.
+        liveSig: currentSig,
+        // Per-seat data for authenticated callers — eliminates separate /queue, /float,
+        // and /me poll requests. Absent when no valid token was provided.
+        ...(me !== undefined ? { me } : {}),
+      },
+      { headers: { "Cache-Control": "no-cache" } }
+    );
   },
-  "[/api/drafts/[id]/live] Error:",
+  "[/api/drafts/[id]/live] Error:"
 );

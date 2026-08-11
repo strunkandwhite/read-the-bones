@@ -23,7 +23,7 @@ describe("GET /api/drafts/[id]/picks", () => {
     vi.mocked(queries.getPicks).mockResolvedValue(emptyPicksResult);
     const res = await GET(
       makeRequest("tarkir", { seat: "1", pick_n_min: "1", pick_n_max: "120" }),
-      { params: Promise.resolve({ id: "tarkir" }) },
+      { params: Promise.resolve({ id: "tarkir" }) }
     );
     expect(res.status).toBe(200);
     expect(queries.getPicks).toHaveBeenCalledWith(expect.anything(), {
@@ -42,23 +42,21 @@ describe("GET /api/drafts/[id]/picks", () => {
 
   it("handles card_name filter", async () => {
     vi.mocked(queries.getPicks).mockResolvedValue(emptyPicksResult);
-    const res = await GET(
-      makeRequest("tarkir", { card_name: "Lightning Bolt" }),
-      { params: Promise.resolve({ id: "tarkir" }) },
-    );
+    const res = await GET(makeRequest("tarkir", { card_name: "Lightning Bolt" }), {
+      params: Promise.resolve({ id: "tarkir" }),
+    });
     expect(res.status).toBe(200);
     expect(queries.getPicks).toHaveBeenCalledWith(
       expect.anything(),
-      expect.objectContaining({ card_name: "Lightning Bolt" }),
+      expect.objectContaining({ card_name: "Lightning Bolt" })
     );
   });
 
   it("returns 500 when query throws", async () => {
     vi.mocked(queries.getPicks).mockRejectedValueOnce(new Error("DB error"));
-    const res = await GET(
-      makeRequest("tarkir", { seat: "1" }),
-      { params: Promise.resolve({ id: "tarkir" }) },
-    );
+    const res = await GET(makeRequest("tarkir", { seat: "1" }), {
+      params: Promise.resolve({ id: "tarkir" }),
+    });
     expect(res.status).toBe(500);
     const body = await res.json();
     expect(body).toHaveProperty("error");

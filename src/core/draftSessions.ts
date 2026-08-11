@@ -18,16 +18,12 @@
  * older observation against the newest one.
  */
 export function sessionsAgoByDraft(
-  drafts: Array<{ draftId: string; draftDate: string }>,
+  drafts: Array<{ draftId: string; draftDate: string }>
 ): Map<string, number> {
   // ISO dates sort lexicographically, so this is newest-first.
-  const sessionDates = [...new Set(drafts.map((draft) => draft.draftDate))]
-    .sort()
-    .reverse();
+  const sessionDates = [...new Set(drafts.map((draft) => draft.draftDate))].sort().reverse();
 
   const ordinalByDate = new Map(sessionDates.map((date, index) => [date, index]));
 
-  return new Map(
-    drafts.map((draft) => [draft.draftId, ordinalByDate.get(draft.draftDate)!]),
-  );
+  return new Map(drafts.map((draft) => [draft.draftId, ordinalByDate.get(draft.draftDate)!]));
 }

@@ -5,7 +5,9 @@ import { AuthError } from "@/core/errors";
 
 const mockExecute = vi.fn();
 vi.mock("@/core/db/client", () => ({
-  getClient: vi.fn(() => Promise.resolve({ execute: (...args: unknown[]) => mockExecute(...args) })),
+  getClient: vi.fn(() =>
+    Promise.resolve({ execute: (...args: unknown[]) => mockExecute(...args) })
+  ),
 }));
 
 const mockAuthenticateSeat = vi.fn();
@@ -19,17 +21,14 @@ vi.mock("@/core/db/queries/matches", () => ({
 }));
 
 function makeRequest(body: Record<string, unknown>, token = "test-token") {
-  return new NextRequest(
-    new URL("http://localhost:3000/api/drafts/test/match"),
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { "X-Seat-Token": token } : {}),
-      },
-      body: JSON.stringify(body),
+  return new NextRequest(new URL("http://localhost:3000/api/drafts/test/match"), {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { "X-Seat-Token": token } : {}),
     },
-  );
+    body: JSON.stringify(body),
+  });
 }
 
 /** Mock the draft query to return a given phase and num_seats */
@@ -49,10 +48,9 @@ describe("POST /api/drafts/[id]/match", () => {
     mockDraft("playing");
     mockReportMatchResult.mockResolvedValueOnce(undefined);
 
-    const res = await POST(
-      makeRequest({ opponent_seat: 1, wins: 2, losses: 1 }),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await POST(makeRequest({ opponent_seat: 1, wins: 2, losses: 1 }), {
+      params: Promise.resolve({ id: "test" }),
+    });
     const body = await res.json();
 
     expect(res.status).toBe(200);
@@ -61,18 +59,15 @@ describe("POST /api/drafts/[id]/match", () => {
     expect(body.seat2).toBe(3);
     expect(body.seat1Wins).toBe(1);
     expect(body.seat2Wins).toBe(2);
-    expect(mockReportMatchResult).toHaveBeenCalledWith(
-      expect.anything(), "test", 1, 3, 1, 2, 3
-    );
+    expect(mockReportMatchResult).toHaveBeenCalledWith(expect.anything(), "test", 1, 3, 1, 2, 3);
   });
 
   it("returns 401 without token", async () => {
     mockAuthenticateSeat.mockRejectedValueOnce(new AuthError("Missing seat token"));
 
-    const res = await POST(
-      makeRequest({ opponent_seat: 1, wins: 2, losses: 0 }, ""),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await POST(makeRequest({ opponent_seat: 1, wins: 2, losses: 0 }, ""), {
+      params: Promise.resolve({ id: "test" }),
+    });
 
     expect(res.status).toBe(401);
   });
@@ -80,10 +75,9 @@ describe("POST /api/drafts/[id]/match", () => {
   it("returns 400 for missing fields", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
 
-    const res = await POST(
-      makeRequest({ opponent_seat: 2 }),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await POST(makeRequest({ opponent_seat: 2 }), {
+      params: Promise.resolve({ id: "test" }),
+    });
 
     expect(res.status).toBe(400);
   });
@@ -91,10 +85,9 @@ describe("POST /api/drafts/[id]/match", () => {
   it("returns 400 when reporting match against yourself", async () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
 
-    const res = await POST(
-      makeRequest({ opponent_seat: 1, wins: 2, losses: 0 }),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await POST(makeRequest({ opponent_seat: 1, wins: 2, losses: 0 }), {
+      params: Promise.resolve({ id: "test" }),
+    });
 
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -105,10 +98,9 @@ describe("POST /api/drafts/[id]/match", () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
     mockDraft("drafting");
 
-    const res = await POST(
-      makeRequest({ opponent_seat: 2, wins: 2, losses: 1 }),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await POST(makeRequest({ opponent_seat: 2, wins: 2, losses: 1 }), {
+      params: Promise.resolve({ id: "test" }),
+    });
 
     expect(res.status).toBe(400);
     const body = await res.json();
@@ -119,10 +111,9 @@ describe("POST /api/drafts/[id]/match", () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
     mockDraft(null);
 
-    const res = await POST(
-      makeRequest({ opponent_seat: 2, wins: 2, losses: 1 }),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await POST(makeRequest({ opponent_seat: 2, wins: 2, losses: 1 }), {
+      params: Promise.resolve({ id: "test" }),
+    });
 
     expect(res.status).toBe(404);
   });
@@ -132,10 +123,9 @@ describe("POST /api/drafts/[id]/match", () => {
     mockDraft("complete");
     mockReportMatchResult.mockResolvedValueOnce(undefined);
 
-    const res = await POST(
-      makeRequest({ opponent_seat: 2, wins: 2, losses: 0 }),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await POST(makeRequest({ opponent_seat: 2, wins: 2, losses: 0 }), {
+      params: Promise.resolve({ id: "test" }),
+    });
 
     expect(res.status).toBe(200);
   });
@@ -144,10 +134,9 @@ describe("POST /api/drafts/[id]/match", () => {
     mockAuthenticateSeat.mockResolvedValueOnce({ seat: 1, autoPick: false });
     mockDraft("playing", 8);
 
-    const res = await POST(
-      makeRequest({ opponent_seat: 999, wins: 2, losses: 0 }),
-      { params: Promise.resolve({ id: "test" }) },
-    );
+    const res = await POST(makeRequest({ opponent_seat: 999, wins: 2, losses: 0 }), {
+      params: Promise.resolve({ id: "test" }),
+    });
 
     expect(res.status).toBe(400);
     const body = await res.json();

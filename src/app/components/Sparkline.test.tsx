@@ -68,7 +68,7 @@ describe("Sparkline", () => {
     render(
       <Sparkline
         history={[makeEntry({ date: "2026-04-01", pickPosition: 540, wasPicked: false })]}
-      />,
+      />
     );
     hover(0);
     expect(screen.getByTestId("sparkline-tooltip").textContent).toBe("2026-04-01: unpicked");
@@ -80,7 +80,7 @@ describe("Sparkline", () => {
         history={[
           makeEntry({ date: "2026-04-01", pickPosition: 12, pickedCount: 4, totalCount: 5 }),
         ]}
-      />,
+      />
     );
     hover(0);
     expect(screen.getByTestId("sparkline-tooltip").textContent).toBe("2026-04-01: Pick 12 (4/5)");
@@ -98,7 +98,7 @@ describe("Sparkline", () => {
             totalCount: 5,
           }),
         ]}
-      />,
+      />
     );
     hover(0);
     expect(screen.getByTestId("sparkline-tooltip").textContent).toBe("2026-04-01: unpicked (0/5)");
@@ -115,30 +115,28 @@ describe("Sparkline", () => {
 
     hover(0);
     expect(screen.getByTestId("sparkline-tooltip").style.transform).toBe(
-      "translateX(clamp(-4px, -50%, calc(156px - 100%)))",
+      "translateX(clamp(-4px, -50%, calc(156px - 100%)))"
     );
 
     hover(1);
     expect(screen.getByTestId("sparkline-tooltip").style.transform).toBe(
-      "translateX(clamp(-80px, -50%, calc(80px - 100%)))",
+      "translateX(clamp(-80px, -50%, calc(80px - 100%)))"
     );
 
     hover(2);
     expect(screen.getByTestId("sparkline-tooltip").style.transform).toBe(
-      "translateX(clamp(-156px, -50%, calc(4px - 100%)))",
+      "translateX(clamp(-156px, -50%, calc(4px - 100%)))"
     );
   });
 
   it("keeps the hit radius at 9 for a single-point history", () => {
-    render(
-      <Sparkline history={[makeEntry({ date: "2026-04-01", pickPosition: 12 })]} />,
-    );
+    render(<Sparkline history={[makeEntry({ date: "2026-04-01", pickPosition: 12 })]} />);
     expect(screen.getByTestId("sparkline-hit-0").getAttribute("r")).toBe("9");
   });
 
   it("shrinks the hit radius so hit targets never overlap as points crowd together", () => {
     const denseHistory: DraftScore[] = Array.from({ length: 20 }, (_, i) =>
-      makeEntry({ date: `2026-01-${String(i + 1).padStart(2, "0")}`, pickPosition: 12 }),
+      makeEntry({ date: `2026-01-${String(i + 1).padStart(2, "0")}`, pickPosition: 12 })
     );
     render(<Sparkline history={denseHistory} />);
     // usableWidth (152) / 19 gaps = 8 apart; half of that gap is the capped radius.

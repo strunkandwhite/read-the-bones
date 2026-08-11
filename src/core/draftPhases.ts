@@ -74,7 +74,7 @@ export function isMatchesComplete(matchCount: number, numSeats: number): boolean
  */
 export function computeSyncTargetPhase(
   picksComplete: boolean,
-  matchesComplete: boolean,
+  matchesComplete: boolean
 ): "drafting" | "playing" | "complete" {
   if (picksComplete && matchesComplete) return "complete";
   if (picksComplete) return "playing";
@@ -85,17 +85,10 @@ export function computeSyncTargetPhase(
  * Returns true when sync is allowed to write the given target phase.
  * Forward progress only — never demote a phase (see file header).
  */
-export function isSyncPhaseTransitionLegal(
-  currentPhase: string,
-  targetPhase: string,
-): boolean {
+export function isSyncPhaseTransitionLegal(currentPhase: string, targetPhase: string): boolean {
   if (targetPhase === "complete") return true;
   if (targetPhase === "playing") {
-    return (
-      currentPhase === "setup" ||
-      currentPhase === "drafting" ||
-      currentPhase === "playing"
-    );
+    return currentPhase === "setup" || currentPhase === "drafting" || currentPhase === "playing";
   }
   if (targetPhase === "drafting") {
     return currentPhase === "setup" || currentPhase === "drafting";
