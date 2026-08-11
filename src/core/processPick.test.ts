@@ -70,9 +70,21 @@ describe('processPick', () => {
     cardName: 'Counterspell',
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     mockClient = createMockClient();
     vi.clearAllMocks();
+    // vi.clearAllMocks() clears recorded calls but not mock implementations
+    // or queued *Once values, and this suite's vi.mock factory defaults
+    // (module-scope, above) are otherwise only ever applied once, at module
+    // load. Re-establish them here so every test starts from the same
+    // queue-empty baseline no matter what an earlier test in this file left
+    // behind (e.g. a persistent, non-Once mockResolvedValue).
+    const { removeCardFromAllQueues, trimExcessQueueEntries, getAutoPickCandidate, fulfillGroupEntry } =
+      await import('./db/queries/pickQueue');
+    vi.mocked(removeCardFromAllQueues).mockReset().mockResolvedValue({ pauseSeats: [] });
+    vi.mocked(trimExcessQueueEntries).mockReset().mockResolvedValue(undefined);
+    vi.mocked(getAutoPickCandidate).mockReset().mockResolvedValue({ kind: 'empty' });
+    vi.mocked(fulfillGroupEntry).mockReset().mockResolvedValue(null);
   });
 
   it('rejects when phase is not drafting', async () => {
@@ -603,7 +615,6 @@ describe('processPick', () => {
       // 6. Available cards query (for advanceAutoPick: seat 2's turn)
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 10 }]));
       // getAutoPickCandidate returns candidate for seat 2 (mocked)
-      // fulfillGroupEntry (mocked, cards=[])
       // 7. Card name lookup for cardId=10 → success
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ name: 'Lightning Bolt' }]));
       // Now cascadeDepth increments to 1; loop iteration 2:
@@ -728,9 +739,7 @@ describe('processPick', () => {
         kind: 'candidate', cardId: 10, entryIndex: 0,
       });
       // Seat 2 is on the clock again after its own pick (double-pick round);
-      // this ends the cascade there instead of inheriting whatever a prior
-      // test's persistent mock left behind.
-      vi.mocked(getAutoPickCandidate).mockResolvedValueOnce({ kind: 'empty' });
+      // the beforeEach-reset default ('empty') ends the cascade there.
       // Group has 3 cards; cardId 10 is picked, 20 and 30 should be floated
       vi.mocked(fulfillGroupEntry).mockResolvedValueOnce({
         mode: 'pause',
@@ -756,8 +765,8 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
       // 2 seats / 3 picks each means seat 2 is on the clock again (double-pick
       // round); available-cards query for that next candidate select, whose
-      // getAutoPickCandidate call falls through to the module default ('empty'),
-      // ending the cascade.
+      // getAutoPickCandidate call falls through to the beforeEach-reset
+      // default ('empty'), ending the cascade.
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 20 }]));
 
       await processPick(mockClient as never, baseInput);
@@ -827,9 +836,7 @@ describe('processPick', () => {
         kind: 'candidate', cardId: 55, entryIndex: 0,
       });
       // Seat 2 is on the clock again after its own pick (double-pick round);
-      // this ends the cascade there instead of inheriting whatever a prior
-      // test's persistent mock left behind.
-      vi.mocked(getAutoPickCandidate).mockResolvedValueOnce({ kind: 'empty' });
+      // the beforeEach-reset default ('empty') ends the cascade there.
       // Group entry for seat 2: cards 55 (picked) and 66 (demoted to float)
       vi.mocked(fulfillGroupEntry).mockResolvedValueOnce({
         mode: 'flow-through',
@@ -855,8 +862,8 @@ describe('processPick', () => {
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ picked_count: 1, qty: 1 }]));
       // 2 seats / 3 picks each means seat 2 is on the clock again (double-pick
       // round); available-cards query for that next candidate select, whose
-      // getAutoPickCandidate call falls through to the module default ('empty'),
-      // ending the cascade.
+      // getAutoPickCandidate call falls through to the beforeEach-reset
+      // default ('empty'), ending the cascade.
       mockClient.execute.mockResolvedValueOnce(createQueryResult([{ card_id: 66 }]));
 
       await processPick(mockClient as never, baseInput);
@@ -1053,7 +1060,7 @@ describe('triggerAutoPickOnDemand', () => {
   });
 
   it('throws ConflictError when optimistic INSERT is beaten (cascade fired first)', async () => {
-    const { getAutoPickCandidate } = await import('./db/queries/pickQueue');
+    const { getAutoPickCandidate, fulfillGroupEntry } = await import('./db/queries/pickQueue');
     vi.mocked(getAutoPickCandidate).mockResolvedValueOnce({ kind: 'candidate', cardId: 7, entryIndex: 0 });
     // fulfillGroupEntry is never reached here: the queue is only committed after
     // a successful INSERT, and this INSERT loses the race.
@@ -1069,6 +1076,11 @@ describe('triggerAutoPickOnDemand', () => {
     await expect(
       triggerAutoPickOnDemand(mockClient as never, 'draft-1', 1),
     ).rejects.toThrow('Conflict: pick_n already exists — retry');
+    // Pins the invariant this whole change exists to enforce: a losing INSERT
+    // must never touch the queue. This is the exact scenario that leaked a
+    // queue entry in production before commitQueueEntryForPick was moved to
+    // run only after a successful INSERT.
+    expect(fulfillGroupEntry).not.toHaveBeenCalled();
   });
 
   it('demotes non-picked group members to float (same as cascade path)', async () => {

@@ -3,8 +3,9 @@
  *
  * The lock guards concurrent serverless cron executions — only one sync
  * runs at a time. updateLastSyncedAt tracks when the last successful sync
- * finished. getSyncStatus / getActiveDrafts / getActiveDraftInfo are the
- * read-side queries consumed by /api/sync and /api/sync-status.
+ * finished. getSyncStatus / getActiveDrafts / getActiveDraftInfo /
+ * getLiveDraftingDrafts are the read-side queries consumed by /api/sync
+ * and /api/sync-status.
  */
 
 import type { Client } from "@libsql/client";

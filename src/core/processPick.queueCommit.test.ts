@@ -11,7 +11,13 @@ vi.mock('./db/queries/pickQueue', async (importOriginal) => {
     ...actual,
     getAutoPickCandidate: async (...args: Parameters<typeof actual.getAutoPickCandidate>) => {
       const n = calls++;
-      if (n > 0) await new Promise((r) => setTimeout(r, 25 * n));
+      // Modulo bounds the total delay across the whole file: `calls` is
+      // module-scoped and never resets between tests, so an unbounded `25 * n`
+      // grows past the default 5s timeout by the file's later describe blocks.
+      // `% 4` preserves the within-test stagger (each concurrent batch still
+      // sees increasing 0/25/50/75ms delays relative to its own calls).
+      const staggerIndex = n % 4;
+      if (staggerIndex > 0) await new Promise((r) => setTimeout(r, 25 * staggerIndex));
       return actual.getAutoPickCandidate(...args);
     },
   };

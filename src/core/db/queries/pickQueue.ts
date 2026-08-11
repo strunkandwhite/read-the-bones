@@ -219,6 +219,13 @@ export async function fulfillGroupEntry(
   const queue = await getQueue(client, draftId, seat);
 
   const indexHoldsCard = queue[entryIndex]?.cards.some((c) => c.id === cardId) ?? false;
+  // On the index-drift path, this matches the FIRST entry holding cardId. A
+  // seat can queue the same card twice (multi-copy queue support), so if a PUT
+  // reordered the queue between selection and landing, this could in theory
+  // fulfill the wrong one of two entries for the same card and float the wrong
+  // group's members. Accepted: still strictly better than trusting a stale
+  // index outright, and disambiguating further would need an identity beyond
+  // card_id that the queue entry shape doesn't carry today.
   const index = indexHoldsCard
     ? entryIndex
     : queue.findIndex((entry) => entry.cards.some((c) => c.id === cardId));

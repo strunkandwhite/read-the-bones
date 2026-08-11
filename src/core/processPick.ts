@@ -125,10 +125,13 @@ type SeatCandidateResult =
  * the queue is exhausted in pause mode, auto-pick is disabled for the seat and
  * `{ kind: 'paused' }` is returned so the caller can surface the state change.
  *
- * Choosing is otherwise read-only: the chosen entry is reported by index and
- * removed only once its pick has actually landed (see `commitQueueEntryForPick`).
- * Removing it here instead meant a selection that never became a pick still
- * consumed the entry, silently deleting queued cards nobody picked.
+ * Choosing is otherwise read-only, with one deliberate exception: pause-mode
+ * exhaustion disables the seat's auto-pick immediately (`updateAutoPick(...,
+ * false)`, below), rather than waiting for a pick to land. Beyond that, the
+ * chosen entry is reported by index and removed only once its pick has
+ * actually landed (see `commitQueueEntryForPick`). Removing it here instead
+ * meant a selection that never became a pick still consumed the entry,
+ * silently deleting queued cards nobody picked.
  *
  * Called by both:
  *  - `advanceAutoPick` (cascade path — fires after a preceding pick lands)
@@ -192,8 +195,9 @@ async function selectAutoPickCandidateForSeat(
  * Delegates candidate selection to `selectAutoPickCandidateForSeat` — the
  * single implementation of queue-traversal semantics.
  *
- * Returns `{ kind: 'candidate', seat, cardId, cardName }` when a cascade pick
- * should proceed, or `{ kind: 'none' }` when the cascade should stop.
+ * Returns `{ kind: 'candidate', seat, cardId, cardName, entryIndex }` when a
+ * cascade pick should proceed, or `{ kind: 'none' }` when the cascade should
+ * stop.
  */
 async function advanceAutoPick(
   client: Client,

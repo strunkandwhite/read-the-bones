@@ -12,6 +12,7 @@ import {
 } from "@/core/db/sync/lock";
 import { syncActiveDraft } from "@/core/db/sync/syncActiveDraft";
 import { resumeAutoPickForCurrentSeat } from "@/core/processPick";
+import { ConflictError } from "@/core/errors";
 import { withApiErrors } from "@/app/api/_lib/withApiErrors";
 
 /**
@@ -27,7 +28,12 @@ import { withApiErrors } from "@/app/api/_lib/withApiErrors";
  * a client racing this call produces a ConflictError, which is a normal outcome
  * here, not an error worth a non-200.
  *
- * Returns the total number of picks made, for the response body.
+ * Returns the total number of picks made, for the response body. This count is
+ * a lower bound, not a guarantee: if a draft lands some picks and then loses a
+ * race partway through its cascade, the ConflictError is caught below and that
+ * draft's picks so far are never added to the total, even though they are
+ * already committed. `autoPicked: 0` in the response does not prove this
+ * function did nothing.
  */
 async function runAutoPickHeartbeat(client: Client): Promise<number> {
   const draftIds = await getLiveDraftingDrafts(client);
@@ -38,7 +44,14 @@ async function runAutoPickHeartbeat(client: Client): Promise<number> {
       const outcome = await resumeAutoPickForCurrentSeat(client, draftId);
       picksMade += outcome.picks.length;
     } catch (error) {
-      console.error(`[sync] auto-pick heartbeat failed for ${draftId}:`, error);
+      if (error instanceof ConflictError) {
+        // A client racing this same seat's turn is routine once players are
+        // active, not a failure — console.error here would produce
+        // false-positive alerts on every such race.
+        console.warn(`[sync] auto-pick heartbeat raced a client for ${draftId}:`, error.message);
+      } else {
+        console.error(`[sync] auto-pick heartbeat failed for ${draftId}:`, error);
+      }
     }
   }
 
