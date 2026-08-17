@@ -188,6 +188,18 @@ turso db shell read-the-bones
 
 Log in first with `turso auth login` if needed. Prefer this over ad-hoc scripts — it's faster, avoids import/require issues, and works for both quick checks and multi-statement exploration. The database name is `read-the-bones`.
 
+**In a sandbox this fails** with "You are not logged in" — the CLI binary is there but the `turso auth login` session lives on the host and is not shared.
+
+When that happens, **stop and ask the user to authenticate**. The working path is headless, because plain `turso auth login` wants to open a browser the sandbox does not have:
+
+```
+! turso auth login --headless
+```
+
+That prints a URL for the user to visit; the page returns a token, which they paste back with `turso config set token "<token>"`. Both steps are theirs to run — ask, then wait.
+
+Do not work around an auth failure: not with a throwaway `@libsql/client` script, and not by reading `TURSO_AUTH_TOKEN` out of `.env.local`. Credentials in that file are for the app to load at runtime, not for tooling to scrape.
+
 ## Important: Process Management
 
 Kill running dev processes as soon as they're no longer needed. Don't leave `pnpm dev` running in the background - it blocks the port and causes issues when trying to restart.
