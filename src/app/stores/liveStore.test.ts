@@ -3712,6 +3712,78 @@ describe("liveStore — reportMatch optimistic continuity", () => {
 });
 
 // ---------------------------------------------------------------------------
+// deleteMatch — store action
+// ---------------------------------------------------------------------------
+describe("deleteMatch", () => {
+  beforeEach(() => {
+    useDraftStore.setState({
+      activeDraft: "gamma",
+      standingsMatches: [
+        { seat1: 1, seat2: 3, seat1Wins: 2, seat2Wins: 1 },
+        { seat1: 2, seat2: 3, seat1Wins: 0, seat2Wins: 2 },
+      ],
+      pendingMatch: null,
+    });
+    useLiveStore.setState({ seatToken: "tok", mySeat: 3 });
+  });
+
+  it("sends DELETE with the opponent seat and the seat token", async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ success: true, deleted: true }),
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const err = await useLiveStore.getState().deleteMatch(1);
+
+    expect(err).toBeNull();
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/drafts/gamma/match");
+    expect(init.method).toBe("DELETE");
+    expect(init.headers["X-Seat-Token"]).toBe("tok");
+    expect(JSON.parse(init.body)).toEqual({ opponent_seat: 1 });
+  });
+
+  it("removes the pairing from standingsMatches optimistically", async () => {
+    // Never resolves, so the assertion observes state before any refetch.
+    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+
+    void useLiveStore.getState().deleteMatch(1);
+
+    await vi.waitFor(() => {
+      expect(useDraftStore.getState().standingsMatches).toEqual([
+        { seat1: 2, seat2: 3, seat1Wins: 0, seat2Wins: 2 },
+      ]);
+    });
+    expect(useDraftStore.getState().pendingMatch).toEqual({ kind: "delete", seat1: 1, seat2: 3 });
+  });
+
+  it("returns the server error message and clears the overlay on failure", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 400,
+        json: async () => ({ error: "Cannot delete matches in 'drafting' phase" }),
+      })
+    );
+
+    const err = await useLiveStore.getState().deleteMatch(1);
+
+    expect(err).toBe("Cannot delete matches in 'drafting' phase");
+    expect(useDraftStore.getState().pendingMatch).toBeNull();
+  });
+
+  it("returns an error when not authenticated", async () => {
+    useLiveStore.setState({ seatToken: null });
+
+    const err = await useLiveStore.getState().deleteMatch(1);
+
+    expect(err).toBe("Not authenticated");
+  });
+});
+
+// ---------------------------------------------------------------------------
 // shareDeck — store action (Task 29: component fetch consolidation)
 // ---------------------------------------------------------------------------
 describe("liveStore — shareDeck", () => {

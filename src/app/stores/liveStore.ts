@@ -32,6 +32,7 @@ import {
   makeHandlePick,
   makeSetPickError,
   makeReportMatch,
+  makeDeleteMatch,
   type MatchReportParams,
 } from "./live/picking";
 import {
@@ -119,6 +120,7 @@ export interface LiveStoreState {
   handlePick: (cardName: string) => Promise<void>;
   setPickError: (error: string | null) => void;
   reportMatch: (params: MatchReportParams) => Promise<string | null>;
+  deleteMatch: (opponentSeat: number) => Promise<string | null>;
 
   // Deck builder actions
   dispatchDeck: (action: DeckAction) => void;
@@ -218,6 +220,7 @@ export const useLiveStore = create<LiveStoreState>()(
       handlePick: makeHandlePick(boundSet, get),
       setPickError: makeSetPickError(boundSet),
       reportMatch: makeReportMatch(get),
+      deleteMatch: makeDeleteMatch(get),
 
       // Deck builder actions
       dispatchDeck: makeDispatchDeck(boundSet, get, getLiveStoreRef),
