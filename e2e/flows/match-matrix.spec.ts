@@ -214,4 +214,110 @@ test.describe("Match matrix and standings", () => {
     // Alice has omwPct=0.6 → "60.0%"
     await expect(page.getByText("60.0%").first()).toBeVisible();
   });
+
+  test("clear button deletes a reported match", async ({ page }) => {
+    let deleteBody: unknown = null;
+    await page.unroute("**/api/drafts/*/match*");
+    await page.route("**/api/drafts/*/match*", async (route) => {
+      if (route.request().method() === "DELETE") {
+        deleteBody = JSON.parse(route.request().postData() ?? "{}");
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ success: true, seat1: 2, seat2: 3, deleted: true }),
+        });
+      } else {
+        await route.fulfill({ status: 404 });
+      }
+    });
+
+    await page.goto("/");
+    await expect(page.locator("table")).toBeVisible();
+    await openDraftBoard(page);
+
+    // Alice (seat 3) beat Carol (seat 2) 2-1 — her own row's cell has a result
+    const cell = page.locator('[data-testid="match-cell-3-2"]');
+    await expect(cell).toContainText("2-1");
+    await cell.click();
+
+    const clearButton = page.locator('[data-testid="match-delete"]');
+    await expect(clearButton).toBeVisible();
+    await clearButton.click();
+
+    await expect(async () => {
+      expect(deleteBody).toEqual({ opponent_seat: 2 });
+    }).toPass({ timeout: 3000 });
+
+    // The pending-deletion overlay keeps the cell empty even though the mocked
+    // standings response still contains the match.
+    await expect(cell).not.toContainText("2-1");
+  });
+
+  test("clear button is absent for a cell with no result", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator("table")).toBeVisible();
+    await openDraftBoard(page);
+
+    // Alice (seat 3) vs Dave (seat 4) — unplayed
+    await page.locator('[data-testid="match-cell-3-4"]').click();
+    await expect(page.locator('[data-testid="match-input"]')).toBeVisible();
+    await expect(page.locator('[data-testid="match-delete"]')).toHaveCount(0);
+  });
+
+  test("clearing the input and pressing Enter deletes the match", async ({ page }) => {
+    let deleteBody: unknown = null;
+    await page.unroute("**/api/drafts/*/match*");
+    await page.route("**/api/drafts/*/match*", async (route) => {
+      if (route.request().method() === "DELETE") {
+        deleteBody = JSON.parse(route.request().postData() ?? "{}");
+        await route.fulfill({
+          status: 200,
+          contentType: "application/json",
+          body: JSON.stringify({ success: true, seat1: 2, seat2: 3, deleted: true }),
+        });
+      } else {
+        await route.fulfill({ status: 404 });
+      }
+    });
+
+    await page.goto("/");
+    await expect(page.locator("table")).toBeVisible();
+    await openDraftBoard(page);
+
+    await page.locator('[data-testid="match-cell-3-2"]').click();
+    const input = page.locator('[data-testid="match-input"]');
+    await input.fill("");
+    await input.press("Enter");
+
+    await expect(async () => {
+      expect(deleteBody).toEqual({ opponent_seat: 2 });
+    }).toPass({ timeout: 3000 });
+  });
+
+  test("blurring an emptied cell cancels without deleting", async ({ page }) => {
+    let sawDelete = false;
+    await page.unroute("**/api/drafts/*/match*");
+    await page.route("**/api/drafts/*/match*", async (route) => {
+      if (route.request().method() === "DELETE") sawDelete = true;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ success: true }),
+      });
+    });
+
+    await page.goto("/");
+    await expect(page.locator("table")).toBeVisible();
+    await openDraftBoard(page);
+
+    const cell = page.locator('[data-testid="match-cell-3-2"]');
+    await cell.click();
+    const input = page.locator('[data-testid="match-input"]');
+    await input.fill("");
+    await input.blur();
+
+    await expect(input).not.toBeVisible();
+    await expect(cell).toContainText("2-1");
+    expect(sawDelete).toBe(false);
+  });
 });

@@ -102,6 +102,7 @@ function StandingsTable({
 
   // reportMatch is the single store action that POSTs the result and refreshes standings
   const reportMatch = useLiveStore((s) => s.reportMatch);
+  const deleteMatch = useLiveStore((s) => s.deleteMatch);
 
   // Pending state shown immediately after reporting a match while the refetch
   // is in flight — avoids stale OMW%/OGW% from an optimistic local recompute.
@@ -217,6 +218,7 @@ function StandingsTable({
             mySeat={mySeat}
             phase={board.phase}
             onReportMatch={handleReportMatch}
+            onDeleteMatch={deleteMatch}
             onMatchReported={handleMatchReported}
             onMatchReverted={handleMatchReverted}
           />

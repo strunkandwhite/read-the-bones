@@ -19,6 +19,11 @@ export interface MatchMatrixProps {
    * Returns an error message string on failure, or null on success.
    */
   onReportMatch: (params: MatchReportParams) => Promise<string | null>;
+  /**
+   * Store action that DELETEs the match result and refreshes standings.
+   * Returns an error message string on failure, or null on success.
+   */
+  onDeleteMatch: (opponentSeat: number) => Promise<string | null>;
   onMatchReported: (data: {
     mySeat: number;
     opponent: number;
@@ -69,6 +74,7 @@ export function MatchMatrix({
   mySeat,
   phase,
   onReportMatch,
+  onDeleteMatch,
   onMatchReported,
   onMatchReverted,
 }: MatchMatrixProps) {
@@ -147,15 +153,39 @@ export function MatchMatrix({
     [matches, onReportMatch, onMatchReported, onMatchReverted]
   );
 
+  const deleteResult = useCallback(
+    async (state: EditingState) => {
+      setEditing((prev) => (prev ? { ...prev, saving: true, error: null } : null));
+
+      // The store action applies its own optimistic removal and reverts on
+      // failure, so there is nothing to undo here beyond reopening the editor.
+      const errorMsg = await onDeleteMatch(state.col);
+
+      if (errorMsg === null) {
+        setEditing(null);
+      } else {
+        setEditing((prev) => (prev ? { ...prev, saving: false, error: errorMsg } : null));
+      }
+    },
+    [onDeleteMatch]
+  );
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Escape") {
         cancelEditing();
-      } else if (e.key === "Enter" && editing && !editing.saving) {
+        return;
+      }
+      if (e.key !== "Enter" || !editing || editing.saving) return;
+
+      const hasStoredResult = findMatch(matches, editing.row, editing.col) !== null;
+      if (editing.value.trim() === "" && hasStoredResult) {
+        deleteResult(editing);
+      } else {
         saveResult(editing);
       }
     },
-    [editing, cancelEditing, saveResult]
+    [editing, matches, cancelEditing, saveResult, deleteResult]
   );
 
   const handleBlur = useCallback(() => {
@@ -223,22 +253,41 @@ export function MatchMatrix({
                         className="px-0.5 py-0.5"
                       >
                         <div className="flex flex-col items-center">
-                          <input
-                            ref={inputRef}
-                            data-testid="match-input"
-                            type="text"
-                            value={editing.value}
-                            onChange={(e) =>
-                              setEditing((prev) =>
-                                prev ? { ...prev, value: e.target.value, error: null } : null
-                              )
-                            }
-                            onKeyDown={handleKeyDown}
-                            onBlur={handleBlur}
-                            disabled={editing.saving}
-                            className="w-10 rounded border border-zinc-500 bg-zinc-800 px-0.5 py-0.5 text-center text-[11px] text-zinc-200 focus:border-blue-500 focus:outline-none"
-                            placeholder="W-L"
-                          />
+                          <div className="flex items-center gap-0.5">
+                            <input
+                              ref={inputRef}
+                              data-testid="match-input"
+                              type="text"
+                              value={editing.value}
+                              onChange={(e) =>
+                                setEditing((prev) =>
+                                  prev ? { ...prev, value: e.target.value, error: null } : null
+                                )
+                              }
+                              onKeyDown={handleKeyDown}
+                              onBlur={handleBlur}
+                              disabled={editing.saving}
+                              className="w-10 rounded border border-zinc-500 bg-zinc-800 px-0.5 py-0.5 text-center text-[11px] text-zinc-200 focus:border-blue-500 focus:outline-none"
+                              placeholder="W-L"
+                            />
+                            {findMatch(matches, editing.row, editing.col) && (
+                              <button
+                                type="button"
+                                data-testid="match-delete"
+                                title="Delete this result"
+                                aria-label="Delete this result"
+                                disabled={editing.saving}
+                                // Keep focus in the input: a blur here would fire
+                                // handleBlur with the pre-filled value and re-save
+                                // the result this click is meant to remove.
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => deleteResult(editing)}
+                                className="rounded px-1 text-[11px] leading-none text-zinc-500 hover:bg-red-500/20 hover:text-red-400 disabled:opacity-50"
+                              >
+                                &times;
+                              </button>
+                            )}
+                          </div>
                           {editing.error && (
                             <span className="mt-0.5 text-[9px] whitespace-nowrap text-red-500">
                               {editing.error}
