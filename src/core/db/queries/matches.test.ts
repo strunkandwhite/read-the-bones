@@ -3,6 +3,7 @@ import type { Client } from "@libsql/client";
 import {
   getMatchCount,
   reportMatchResult,
+  deleteMatchResult,
   aggregateMatchRecords,
   computeTiebreakers,
 } from "./matches";
@@ -56,6 +57,35 @@ describe("reportMatchResult", () => {
         args: ["draft-1", 1, 3, 2, 1, 3],
       })
     );
+  });
+});
+
+describe("deleteMatchResult", () => {
+  let client: ReturnType<typeof createMockClient>;
+  beforeEach(() => {
+    client = createMockClient();
+  });
+
+  it("deletes the row for the normalized seat pairing", async () => {
+    client.execute.mockResolvedValueOnce({ rowsAffected: 1 });
+
+    const removed = await deleteMatchResult(client, "draft-1", 1, 3);
+
+    expect(removed).toBe(true);
+    expect(client.execute).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sql: expect.stringContaining("DELETE FROM match_events"),
+        args: ["draft-1", 1, 3],
+      })
+    );
+  });
+
+  it("returns false when the pairing had no stored result", async () => {
+    client.execute.mockResolvedValueOnce({ rowsAffected: 0 });
+
+    const removed = await deleteMatchResult(client, "draft-1", 2, 5);
+
+    expect(removed).toBe(false);
   });
 });
 

@@ -164,3 +164,24 @@ export async function reportMatchResult(
     args: [draftId, seat1, seat2, seat1Wins, seat2Wins, reportedBySeat],
   });
 }
+
+/**
+ * Delete a reported match result between two seats.
+ * seat1 must be less than seat2 (caller normalizes).
+ *
+ * Returns true when a row was removed, false when the pairing had no result —
+ * concurrent deletes from two devices make "already gone" an expected outcome
+ * rather than an error.
+ */
+export async function deleteMatchResult(
+  client: Client,
+  draftId: string,
+  seat1: number,
+  seat2: number
+): Promise<boolean> {
+  const result = await client.execute({
+    sql: "DELETE FROM match_events WHERE draft_id = ? AND seat1 = ? AND seat2 = ?",
+    args: [draftId, seat1, seat2],
+  });
+  return result.rowsAffected > 0;
+}
