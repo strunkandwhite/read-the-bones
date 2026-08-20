@@ -276,7 +276,7 @@ function containsMatchRecord(matches: MatchRecord[], record: MatchRecord): boole
  * True when a fetched matches array already reflects the pending mutation —
  * the reported record is present, or the deleted pairing is absent.
  */
-export function isPendingMatchApplied(
+function isPendingMatchApplied(
   matches: MatchRecord[],
   pending: PendingMatchMutation
 ): boolean {

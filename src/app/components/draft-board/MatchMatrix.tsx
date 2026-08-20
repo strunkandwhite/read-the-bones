@@ -170,6 +170,11 @@ export function MatchMatrix({
     [onDeleteMatch]
   );
 
+  // The result (if any) stored for the cell currently being edited. Computed
+  // once per render and shared by handleKeyDown and the ✕ button below —
+  // both need to know whether this pairing has a stored result to act on.
+  const editingResult = editing ? findMatch(matches, editing.row, editing.col) : null;
+
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -178,19 +183,19 @@ export function MatchMatrix({
       }
       if (e.key !== "Enter" || !editing || editing.saving) return;
 
-      const hasStoredResult = findMatch(matches, editing.row, editing.col) !== null;
+      const hasStoredResult = editingResult !== null;
       if (editing.value.trim() === "" && hasStoredResult) {
         deleteResult(editing);
       } else {
         saveResult(editing);
       }
     },
-    [editing, matches, cancelEditing, saveResult, deleteResult]
+    [editing, editingResult, cancelEditing, saveResult, deleteResult]
   );
 
   const handleBlur = useCallback(() => {
     if (editing && !editing.saving) {
-      if (editing.value === "") {
+      if (editing.value.trim() === "") {
         cancelEditing();
       } else {
         saveResult(editing);
@@ -270,7 +275,7 @@ export function MatchMatrix({
                               className="w-10 rounded border border-zinc-500 bg-zinc-800 px-0.5 py-0.5 text-center text-[11px] text-zinc-200 focus:border-blue-500 focus:outline-none"
                               placeholder="W-L"
                             />
-                            {findMatch(matches, editing.row, editing.col) && (
+                            {editingResult && (
                               <button
                                 type="button"
                                 data-testid="match-delete"

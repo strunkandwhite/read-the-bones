@@ -179,6 +179,13 @@ function toMatchRecord(
  * plumbing follows the same pattern as handlePick and the queueFloat mutations —
  * seatToken from get(), activeDraft from draftStore.
  *
+ * On success, this function deliberately does NOT clear pendingMatch itself.
+ * A standings response can predate the mutation that just succeeded (a stale
+ * CDN-cached body, or a concurrent poll fetch that started before this request
+ * landed and resolves after it), so clearing the overlay here could momentarily
+ * show pre-mutation data. Instead fetchStandings owns clearing pendingMatch,
+ * and only once a response actually reflects this mutation.
+ *
  * Returns an error message string on failure, or null on success.
  */
 async function sendMatchMutation(

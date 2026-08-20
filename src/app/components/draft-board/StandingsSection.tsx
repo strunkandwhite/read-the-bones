@@ -140,6 +140,17 @@ function StandingsTable({
     [reportMatch]
   );
 
+  const handleDeleteMatch = useCallback(
+    async (opponentSeat: number) => {
+      setReportPending(true);
+      const err = await deleteMatch(opponentSeat);
+      setReportPending(false);
+      if (!err) onMatchReported();
+      return err;
+    },
+    [deleteMatch, onMatchReported]
+  );
+
   if (standingsLoading && standings.length === 0) {
     return <div className="py-3 text-xs text-zinc-500">Loading standings...</div>;
   }
@@ -218,7 +229,7 @@ function StandingsTable({
             mySeat={mySeat}
             phase={board.phase}
             onReportMatch={handleReportMatch}
-            onDeleteMatch={deleteMatch}
+            onDeleteMatch={handleDeleteMatch}
             onMatchReported={handleMatchReported}
             onMatchReverted={handleMatchReverted}
           />

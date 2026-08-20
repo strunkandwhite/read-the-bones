@@ -23,13 +23,16 @@ async function validateAndNormalizeSeats(
   client: Client,
   draftId: string,
   mySeat: number,
-  opponentSeat: number,
+  opponentSeat: unknown,
   action: "report" | "delete"
 ): Promise<NextResponse | NormalizedSeats> {
   if (opponentSeat == null) {
     return NextResponse.json({ error: "opponent_seat required" }, { status: 400 });
   }
-  if (!Number.isInteger(opponentSeat)) {
+  // Number.isInteger returns false (not a type guard) for any non-number, so
+  // the typeof check changes nothing at runtime — it only lets TypeScript
+  // narrow opponentSeat to number for the comparisons below.
+  if (typeof opponentSeat !== "number" || !Number.isInteger(opponentSeat)) {
     return NextResponse.json({ error: "opponent_seat must be an integer" }, { status: 400 });
   }
   if (opponentSeat < 1) {
