@@ -1,6 +1,13 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import { useDraftStore, _resetPollingState, POLL_INTERVAL_MS, type BoardData } from "./draftStore";
+import {
+  useDraftStore,
+  _resetPollingState,
+  POLL_INTERVAL_MS,
+  mergePendingMatch,
+  type BoardData,
+  type PendingMatchMutation,
+} from "./draftStore";
 
 function resetStore() {
   useDraftStore.setState({
@@ -1156,5 +1163,52 @@ describe("draftStore — draft switch clears board", () => {
     // draft-b's seat.
     expect(useDraftStore.getState().board).toBeNull();
     expect(useDraftStore.getState().liveDraftStatus).toBeNull();
+  });
+});
+
+describe("mergePendingMatch", () => {
+  const existing = [
+    { seat1: 1, seat2: 3, seat1Wins: 2, seat2Wins: 1 },
+    { seat1: 2, seat2: 3, seat1Wins: 0, seat2Wins: 2 },
+  ];
+
+  it("returns matches unchanged when there is no pending mutation", () => {
+    expect(mergePendingMatch(existing, null)).toEqual(existing);
+  });
+
+  it("appends a report for a pairing with no existing result", () => {
+    const pending: PendingMatchMutation = {
+      kind: "report",
+      record: { seat1: 3, seat2: 4, seat1Wins: 2, seat2Wins: 0 },
+    };
+
+    expect(mergePendingMatch(existing, pending)).toEqual([...existing, pending.record]);
+  });
+
+  it("replaces the existing result when a report corrects a pairing", () => {
+    const pending: PendingMatchMutation = {
+      kind: "report",
+      record: { seat1: 1, seat2: 3, seat1Wins: 0, seat2Wins: 2 },
+    };
+
+    expect(mergePendingMatch(existing, pending)).toEqual([pending.record, existing[1]]);
+  });
+
+  it("removes the pairing for a pending deletion", () => {
+    const pending: PendingMatchMutation = { kind: "delete", seat1: 1, seat2: 3 };
+
+    expect(mergePendingMatch(existing, pending)).toEqual([existing[1]]);
+  });
+
+  it("removes the pairing for a pending deletion regardless of seat order", () => {
+    const pending: PendingMatchMutation = { kind: "delete", seat1: 3, seat2: 1 };
+
+    expect(mergePendingMatch(existing, pending)).toEqual([existing[1]]);
+  });
+
+  it("leaves matches unchanged when a pending deletion's pairing is already gone", () => {
+    const pending: PendingMatchMutation = { kind: "delete", seat1: 5, seat2: 6 };
+
+    expect(mergePendingMatch(existing, pending)).toEqual(existing);
   });
 });

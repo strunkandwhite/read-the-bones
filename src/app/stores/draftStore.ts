@@ -22,6 +22,16 @@ export interface MatchRecord {
   seat2Wins: number;
 }
 
+/**
+ * An optimistic match change awaiting server confirmation. `fetchStandings`
+ * replaces `standingsMatches` wholesale, and a response can predate the change
+ * (stale CDN body, out-of-order concurrent fetch) — so the change is re-applied
+ * to every response until one already reflects it.
+ */
+export type PendingMatchMutation =
+  | { kind: "report"; record: MatchRecord }
+  | { kind: "delete"; seat1: number; seat2: number };
+
 export interface LiveDraftStatus {
   // Fields unique to liveDraftStatus (not present in BoardData)
   latestPickN: number;
@@ -115,13 +125,13 @@ interface DraftState {
   standings: StandingsRow[];
   standingsMatches: MatchRecord[];
   standingsLoading: boolean;
-  // Optimistic overlay for a match result this client just reported. Standings
-  // responses can predate the report (CDN-cached body, out-of-order concurrent
-  // fetch), so the reported result is kept merged into standingsMatches until a
-  // response actually contains it. Set by liveStore's reportMatch; cleared by
-  // fetchStandings on confirmation, by reportMatch on POST failure, and on
-  // draft switch.
-  pendingMatch: MatchRecord | null;
+  // Optimistic overlay for a match report or deletion awaiting confirmation.
+  // Standings responses can predate the change (CDN-cached body, out-of-order
+  // concurrent fetch); the change is kept applied to standingsMatches until a
+  // response actually reflects it. Set by liveStore's reportMatch/deleteMatch;
+  // cleared by fetchStandings on confirmation, by those actions on failure, and
+  // on draft switch.
+  pendingMatch: PendingMatchMutation | null;
 
   // Standings actions
   fetchStandings: () => Promise<void>;
@@ -240,38 +250,59 @@ export function _resetPollingState() {
 // Helpers
 // ---------------------------------------------------------------------------
 
-function isSamePairing(a: MatchRecord, b: MatchRecord): boolean {
+interface SeatPairing {
+  seat1: number;
+  seat2: number;
+}
+
+function isSamePairing(a: SeatPairing, b: SeatPairing): boolean {
   return (
     (a.seat1 === b.seat1 && a.seat2 === b.seat2) || (a.seat1 === b.seat2 && a.seat2 === b.seat1)
   );
 }
 
-/** True when `matches` contains a record equal to `pending` (either seat order). */
-function containsMatchRecord(matches: MatchRecord[], pending: MatchRecord): boolean {
+/** True when `matches` contains a record equal to `record` (either seat order). */
+function containsMatchRecord(matches: MatchRecord[], record: MatchRecord): boolean {
   return matches.some(
     (m) =>
-      isSamePairing(m, pending) &&
-      (m.seat1 === pending.seat1
-        ? m.seat1Wins === pending.seat1Wins && m.seat2Wins === pending.seat2Wins
-        : m.seat1Wins === pending.seat2Wins && m.seat2Wins === pending.seat1Wins)
+      isSamePairing(m, record) &&
+      (m.seat1 === record.seat1
+        ? m.seat1Wins === record.seat1Wins && m.seat2Wins === record.seat2Wins
+        : m.seat1Wins === record.seat2Wins && m.seat2Wins === record.seat1Wins)
   );
 }
 
 /**
- * Merge the optimistic pending match into a fetched matches array: the pending
+ * True when a fetched matches array already reflects the pending mutation —
+ * the reported record is present, or the deleted pairing is absent.
+ */
+export function isPendingMatchApplied(
+  matches: MatchRecord[],
+  pending: PendingMatchMutation
+): boolean {
+  return pending.kind === "report"
+    ? containsMatchRecord(matches, pending.record)
+    : !matches.some((m) => isSamePairing(m, pending));
+}
+
+/**
+ * Apply the optimistic pending mutation to a fetched matches array: a reported
  * record replaces an existing record for the same seat pairing (correction) or
- * is appended (new report). Returns `matches` unchanged when there is no
- * pending record.
+ * is appended (new report); a deletion drops the pairing. Returns `matches`
+ * unchanged when there is no pending mutation.
  */
 export function mergePendingMatch(
   matches: MatchRecord[],
-  pending: MatchRecord | null
+  pending: PendingMatchMutation | null
 ): MatchRecord[] {
   if (!pending) return matches;
-  const index = matches.findIndex((m) => isSamePairing(m, pending));
-  if (index === -1) return [...matches, pending];
+  if (pending.kind === "delete") {
+    return matches.filter((m) => !isSamePairing(m, pending));
+  }
+  const index = matches.findIndex((m) => isSamePairing(m, pending.record));
+  if (index === -1) return [...matches, pending.record];
   const merged = matches.slice();
-  merged[index] = pending;
+  merged[index] = pending.record;
   return merged;
 }
 
@@ -546,13 +577,13 @@ export const useDraftStore = create<DraftState>()(
           if (Array.isArray(data.matches)) {
             const fetched = data.matches as MatchRecord[];
             const pending = get().pendingMatch;
-            if (pending && containsMatchRecord(fetched, pending)) {
-              // Server data now includes the optimistically shown result —
-              // drop the overlay and show server truth as-is.
+            if (pending && isPendingMatchApplied(fetched, pending)) {
+              // Server data now reflects the optimistic change — drop the
+              // overlay and show server truth as-is.
               set({ standingsMatches: fetched, pendingMatch: null });
             } else {
-              // Keep the pending report visible even when this response
-              // predates it (stale CDN-cached body or out-of-order fetch).
+              // Keep the change visible even when this response predates it
+              // (stale CDN-cached body or out-of-order fetch).
               set({ standingsMatches: mergePendingMatch(fetched, pending) });
             }
           }

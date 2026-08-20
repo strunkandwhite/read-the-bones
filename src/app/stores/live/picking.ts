@@ -2,7 +2,12 @@
  * Picking action module: handlePick, setPickError, triggerAutoPick, recomputePicking.
  * All module-scoped mutable flags are encapsulated here.
  */
-import { useDraftStore, mergePendingMatch, type MatchRecord } from "../draftStore";
+import {
+  useDraftStore,
+  mergePendingMatch,
+  type MatchRecord,
+  type PendingMatchMutation,
+} from "../draftStore";
 import type { SetState, GetState } from "../liveStore";
 
 // ---------------------------------------------------------------------------
@@ -186,7 +191,8 @@ export function makeReportMatch(get: GetState) {
     const activeDraft = useDraftStore.getState().activeDraft;
     if (!seatToken || !activeDraft) return "Not authenticated";
 
-    const pending = mySeat !== null ? toMatchRecord(mySeat, params) : null;
+    const pending: PendingMatchMutation | null =
+      mySeat !== null ? { kind: "report", record: toMatchRecord(mySeat, params) } : null;
     if (pending) {
       useDraftStore.setState((s) => ({
         pendingMatch: pending,
