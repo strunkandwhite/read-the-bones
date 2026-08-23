@@ -206,12 +206,31 @@ Kill running dev processes as soon as they're no longer needed. Don't leave `pnp
 
 ## Data Format
 
-Draft data lives in Google Sheets with three tabs:
+Draft data lives in Google Sheets built from the Lucky Paper rotisserie template. `sync` reads three tabs (`TAB_NAMES` in `src/core/sheets.ts`):
+
 - **Draft** tab: Row 3 = drafter names, rows 4+ = picks. Pick number in column A, card names in drafter columns. Card colors in rightmost columns.
 - **Cube** tab: List of all cards available in the cube for that draft.
 - **Matches** tab: Round robin match results.
 
+The template carries two more tabs that sync ignores but that hold the draft's configuration — read them by hand when setting a draft up:
+
+- **Overview** tab: **cell B5 is the draft date** (formatted long, e.g. "August 21, 2026"). Rows 12+ in column B list the players.
+- **Setup** tab: cube URL (D7), picks per player (D10), double picks after (F10), player roster (B7+).
+
 Draft metadata (name, date, sheetId, bannedCards) is stored in the `drafts` table in Turso, created via `pnpm draft:create`.
+
+### Initiating a sheet draft from a link
+
+Given only a spreadsheet URL, everything `pnpm draft:create` needs is derivable — don't guess the date, and don't default it to today. Pods are often created days before they are imported, and several pods usually share one date.
+
+1. **Sheet ID** — the path segment between `/d/` and `/edit` in the URL.
+2. **Date** — Overview tab, cell B5, converted to `YYYY-MM-DD`.
+3. **Name** — the pod's card name (drafts are named after MTG cards, one per pod); the sheet title usually wraps it in emoji and a "Pod - Samp Cube Roto" suffix.
+4. `pnpm draft:create --name "<name>" --date <YYYY-MM-DD> --sheet-id <id>`
+5. `pnpm sync <draft-id>` — **required.** The draft is created in `setup`, and the cron refuses to touch a `setup` draft (see Active draft sync below). This first CLI sync sets `num_seats` and moves it to `drafting`.
+6. `vercel --prod` to make it visible on the deployed site.
+
+When scripting a read against these sheets, note that with API-key (read-only) auth `loadCells()` accepts **only A1-notation ranges** — the `{ startRowIndex, ... }` object form throws.
 
 ## Card Name Normalization
 
