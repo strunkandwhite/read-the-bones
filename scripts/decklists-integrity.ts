@@ -330,7 +330,7 @@ function renderReport(
   lines.push("## Seats still drafting (not yet actionable)");
   lines.push("");
   lines.push(
-    "These drafts have not finished, so no deck is expected yet. Not part of the " +
+    "These drafts are still drafting, so no deck is expected yet. Not part of the " +
       "remediation queue — listed separately so they are not mistaken for work to do."
   );
   lines.push("");
@@ -346,12 +346,10 @@ function renderReport(
   lines.push("");
 
   lines.push(
-    "**Reasons:** `draft-never-collected` — the draft is complete but no seat in it has a decklist. "
+    "**Reasons:** `draft-never-collected` — drafting has finished but no seat in this draft has a decklist. "
   );
-  lines.push(
-    "`missing` — other seats in this (complete) draft have decks; this one needs remediation. "
-  );
-  lines.push("`in-progress` — the draft has not finished; no deck is expected yet.");
+  lines.push("`missing` — other seats in this draft have decks; this one needs remediation. ");
+  lines.push("`in-progress` — the draft is still drafting; no deck is expected yet.");
   lines.push("");
   lines.push(
     `**Opted-out seats (${optOutCount}) are not evaluated above.** Privacy redaction happens at ` +
