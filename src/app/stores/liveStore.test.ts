@@ -3746,7 +3746,10 @@ describe("deleteMatch", () => {
 
   it("removes the pairing from standingsMatches optimistically", async () => {
     // Never resolves, so the assertion observes state before any refetch.
-    vi.stubGlobal("fetch", vi.fn(() => new Promise(() => {})));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => new Promise(() => {}))
+    );
 
     void useLiveStore.getState().deleteMatch(1);
 

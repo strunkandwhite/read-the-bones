@@ -29,8 +29,7 @@ export interface MatchRecord {
  * to every response until one already reflects it.
  */
 export type PendingMatchMutation =
-  | { kind: "report"; record: MatchRecord }
-  | { kind: "delete"; seat1: number; seat2: number };
+  { kind: "report"; record: MatchRecord } | { kind: "delete"; seat1: number; seat2: number };
 
 export interface LiveDraftStatus {
   // Fields unique to liveDraftStatus (not present in BoardData)
@@ -276,10 +275,7 @@ function containsMatchRecord(matches: MatchRecord[], record: MatchRecord): boole
  * True when a fetched matches array already reflects the pending mutation —
  * the reported record is present, or the deleted pairing is absent.
  */
-function isPendingMatchApplied(
-  matches: MatchRecord[],
-  pending: PendingMatchMutation
-): boolean {
+function isPendingMatchApplied(matches: MatchRecord[], pending: PendingMatchMutation): boolean {
   return pending.kind === "report"
     ? containsMatchRecord(matches, pending.record)
     : !matches.some((m) => isSamePairing(m, pending));
